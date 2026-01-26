@@ -1,114 +1,46 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taxi Promax v5.1 - Professional</title>
+<div class="container py-3">
+    <div class="header-container mb-4">
+        <div class="brand-name">🚖 Taxi Promax</div>
+        <div class="action-cluster text-end">
+            <div class="btn-group-top">
+                <button class="btn-main btn-start" id="btn-start"><i class="fas fa-play"></i> Bắt đầu</button>
+                <button class="btn-main btn-stop" id="btn-stop" disabled><i class="fas fa-square"></i> Kết thúc</button>
+            </div>
+            <button class="btn-pos" id="btn-location"><i class="fas fa-map-marker-alt"></i> Vị trí hiện tại</button>
+        </div>
+    </div>
+
+    <div class="stat-grid">
+        <div class="stat-box box-blue">
+            <div class="box-label">Quãng đường</div>
+            <div class="box-value"><span id="distance-value">0.00</span> km</div>
+        </div>
+        <div class="stat-box box-green">
+            <div class="box-label">Thời gian</div>
+            <div class="box-value" id="time-value">00:00:00</div>
+        </div>
+        <div class="stat-box box-yellow">
+            <div class="box-label">Tạm tính</div>
+            <div class="box-value"><span id="price-value">0</span> đ</div>
+        </div>
+        <div class="stat-box box-cyan">
+            <div class="box-label">Trạng thái</div>
+            <div class="box-value" id="status-value" style="font-size: 18px;">Đang chờ</div>
+        </div>
+    </div>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <div id="map" style="height: 280px; border-radius: 15px; border: 1px solid #ddd; background: #fff; margin-bottom: 20px;"></div>
 
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-
-<div class="container py-4">
-    <div class="dashboard-header d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-            <h1 class="h3 mb-0 fw-bold"><i class="fas fa-taxi text-primary"></i> TAXI PROMAX v5.1</h1>
-            <p class="text-muted small mb-0">Hệ thống quản lý taxi chuyên nghiệp</p>
-        </div>
-        <div class="btn-group mt-2 mt-md-0">
-            <button class="btn btn-success" id="btn-start"><i class="fas fa-play"></i> Bắt đầu</button>
-            <button class="btn btn-danger" id="btn-stop" disabled><i class="fas fa-stop"></i> Kết thúc</button>
-            <button class="btn btn-primary" id="btn-location"><i class="fas fa-crosshairs"></i> Vị trí</button>
-        </div>
+    <div class="text-center mb-3 small text-muted">
+        Thiết bị: <span id="device-id-display" class="fw-bold">ĐANG QUÉT...</span> | 
+        Phiên bản: <span class="text-primary">v5.1 Pro</span>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="card stat-card bg-primary text-white h-100">
-                <div class="card-body">
-                    <div class="card-title">Quãng đường</div>
-                    <h2 id="distance-value">0.00</h2>
-                    <span class="small">KM</span>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card stat-card bg-success text-white h-100">
-                <div class="card-body">
-                    <div class="card-title">Thời gian</div>
-                    <h2 id="time-value">00:00</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card stat-card bg-warning text-white h-100">
-                <div class="card-body">
-                    <div class="card-title">Tạm tính</div>
-                    <h2 id="price-value">0</h2>
-                    <span class="small">VNĐ</span>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card stat-card bg-info text-white h-100">
-                <div class="card-body">
-                    <div class="card-title">Trạng thái</div>
-                    <h2 id="status-value" style="font-size: 1.2rem;">SẴN SÀNG</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-4">
-        <div class="col-md-8">
-            <div class="map-container">
-                <div id="map"></div>
-                <div class="p-3 bg-white border-top">
-                    <p class="mb-1 small"><strong><i class="fas fa-map-marker-alt"></i> Vị trí:</strong> <span id="current-location">Chưa xác định</span></p>
-                    <p class="mb-0 small"><strong><i class="fas fa-bullseye"></i> Tọa độ:</strong> <span id="coordinates">0.0000, 0.0000</span></p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="control-panel h-100">
-                <h5 class="fw-bold mb-3"><i class="fas fa-cog"></i> Cài đặt cước</h5>
-                <div class="input-group">
-                    <span class="input-group-text">Giá/Km</span>
-                    <input type="number" class="form-control" id="price-per-km" value="12000">
-                </div>
-                <div class="input-group">
-                    <span class="input-group-text">Giá/Phút</span>
-                    <input type="number" class="form-control" id="price-per-minute" value="500">
-                </div>
-                <button class="btn btn-primary w-100 mb-4" id="btn-save">Lưu cấu hình</button>
-                
-                <div class="bg-light p-3 rounded border">
-                    <h6 class="fw-bold small"><i class="fas fa-info-circle"></i> THÔNG TIN MÁY</h6>
-                    <p class="small mb-1">ID: <code id="device-id">Đang quét...</code></p>
-                    <p class="small mb-0 text-success fw-bold" id="license-status">Đã kích hoạt</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <hr style="opacity: 0.1;">
+    <footer class="text-center py-3">
+        <p class="mb-1" style="letter-spacing: 1px; color: #666;">HỆ THỐNG TAXI THÔNG MINH</p>
+        <p class="fw-bold mb-0" style="font-size: 1.1rem; color: #333;">
+            Bản quyền thuộc về <span style="color: #d93025;">NGUYỄN XUÂN ĐẠT</span>
+        </p>
+    </footer>
 </div>
-
-<footer class="footer text-center">
-    <div class="container">
-        <p class="mb-1">Taxi Promax v5.1 © 2026</p>
-        <p class="small opacity-75">Bản quyền thuộc về NguyenXuanDat</p>
-    </div>
-</footer>
-
-<script src="js/gps.js"></script>
-<script src="modules/map.js"></script>
-<script src="js/app.js"></script>
-
-</body>
-</html>
