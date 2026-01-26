@@ -1,0 +1,192 @@
+                    <div id="payment-process">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Vui lòng hoàn tất thanh toán trong <strong id="countdown">05:00</strong>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h6>Thông tin thanh toán</h6>
+                                        <p><strong>Số tiền:</strong> <span id="payment-amount-display">0 đ</span></p>
+                                        <p><strong>Gói:</strong> <span id="payment-package">BASIC</span></p>
+                                        <p><strong>Thời hạn:</strong> <span id="payment-duration">30 ngày</span></p>
+                                        <p><strong>Mã đơn hàng:</strong> <span id="payment-order-id">TAXI-123456</span></p>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6>Hướng dẫn thanh toán</h6>
+                                        <ol class="small">
+                                            <li>Quét QR code bằng ứng dụng ngân hàng hoặc ví điện tử</li>
+                                            <li>Nhập đúng số tiền hiển thị</li>
+                                            <li>Thêm nội dung: <code id="payment-content">TAXI-123456</code></li>
+                                            <li>Thanh toán và chờ xác nhận tự động</li>
+                                            <li>License sẽ được kích hoạt ngay sau khi thanh toán thành công</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <h6>QR Code thanh toán</h6>
+                                        <div id="payment-qrcode" class="my-3" style="width: 250px; height: 250px; margin: 0 auto; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+                                            <p class="text-muted">QR Code sẽ hiển thị ở đây</p>
+                                        </div>
+                                        <p class="small text-muted">Quét để thanh toán qua MoMo, ZaloPay, hoặc ngân hàng</p>
+                                        
+                                        <div class="mt-4">
+                                            <p><strong>Thông tin chuyển khoản</strong></p>
+                                            <p class="small mb-1">Số tài khoản: <strong>123456789</strong></p>
+                                            <p class="small mb-1">Ngân hàng: <strong>Vietcombank</strong></p>
+                                            <p class="small mb-1">Chủ tài khoản: <strong>TAXI PROMAX</strong></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-success" id="btn-confirm-payment">
+                                    <i class="fas fa-check"></i> Tôi đã thanh toán
+                                </button>
+                                <button class="btn btn-outline-secondary" id="btn-cancel-payment">
+                                    <i class="fas fa-times"></i> Hủy thanh toán
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="payment-success" style="display: none;">
+                        <div class="alert alert-success text-center">
+                            <i class="fas fa-check-circle fa-3x mb-3"></i>
+                            <h4>Thanh toán thành công!</h4>
+                            <p>License của bạn đã được kích hoạt thành công.</p>
+                            <p>Bạn sẽ được chuyển về trang chủ trong <span id="redirect-countdown">10</span> giây...</p>
+                        </div>
+                        <div class="text-center">
+                            <a href="index.html" class="btn btn-primary">
+                                <i class="fas fa-home"></i> Về trang chủ ngay
+                            </a>
+                        </div>
+                    </div>
+
+                    <div id="payment-failed" style="display: none;">
+                        <div class="alert alert-danger text-center">
+                            <i class="fas fa-times-circle fa-3x mb-3"></i>
+                            <h4>Thanh toán thất bại</h4>
+                            <p>Đã có lỗi xảy ra trong quá trình thanh toán.</p>
+                            <p>Vui lòng thử lại hoặc liên hệ hỗ trợ.</p>
+                        </div>
+                        <div class="text-center">
+                            <button class="btn btn-warning" id="btn-retry-payment">
+                                <i class="fas fa-redo"></i> Thử lại
+                            </button>
+                            <a href="index.html" class="btn btn-outline-secondary">
+                                <i class="fas fa-home"></i> Về trang chủ
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer text-center text-muted small">
+                    <p>Nếu có vấn đề, vui lòng liên hệ: support@taxipromax.com - Hotline: 1900 1234</p>
+                    <p>Taxi Promax v5.1 &copy; 2023</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="modules/crypto.js"></script>
+<script>
+    // Simple payment page script
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const amount = urlParams.get('amount') || 50000;
+        const pkg = urlParams.get('package') || 'basic';
+        const duration = urlParams.get('duration') || 30;
+        
+        // Display payment info
+        document.getElementById('payment-amount-display').textContent = 
+            new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
+        document.getElementById('payment-package').textContent = pkg.toUpperCase();
+        document.getElementById('payment-duration').textContent = duration + ' ngày';
+        
+        // Generate order ID
+        const orderId = 'TAXI-' + Date.now().toString().slice(-8);
+        document.getElementById('payment-order-id').textContent = orderId;
+        document.getElementById('payment-content').textContent = orderId;
+        
+        // Generate QR Code
+        const qrData = `2|99|0393949494|TAXI PROMAX|${orderId}|${amount}|0|0|0|thanh toan goi ${pkg}`;
+        QRCode.toCanvas(document.getElementById('payment-qrcode'), qrData, {
+            width: 200,
+            margin: 2
+        }, function(error) {
+            if (error) console.error(error);
+        });
+        
+        // Countdown timer
+        let timeLeft = 300; // 5 minutes
+        const countdownElement = document.getElementById('countdown');
+        const countdownInterval = setInterval(() => {
+            timeLeft--;
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            countdownElement.textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (timeLeft <= 0) {
+                clearInterval(countdownInterval);
+                document.getElementById('payment-process').style.display = 'none';
+                document.getElementById('payment-failed').style.display = 'block';
+            }
+        }, 1000);
+        
+        // Payment confirmation
+        document.getElementById('btn-confirm-payment').addEventListener('click', function() {
+            clearInterval(countdownInterval);
+            document.getElementById('payment-process').style.display = 'none';
+            document.getElementById('payment-success').style.display = 'block';
+            
+            // Simulate license activation in localStorage
+            const licenseData = {
+                key: 'ACTIVATED-' + orderId,
+                package: pkg,
+                activated: new Date().toISOString(),
+                expires: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString(),
+                deviceId: localStorage.getItem('deviceId') || 'web-' + Date.now()
+            };
+            
+            localStorage.setItem('taxi_license', JSON.stringify(licenseData));
+            
+            // Redirect countdown
+            let redirectTime = 10;
+            const redirectElement = document.getElementById('redirect-countdown');
+            const redirectInterval = setInterval(() => {
+                redirectTime--;
+                redirectElement.textContent = redirectTime;
+                
+                if (redirectTime <= 0) {
+                    clearInterval(redirectInterval);
+                    window.location.href = 'index.html';
+                }
+            }, 1000);
+        });
+        
+        document.getElementById('btn-cancel-payment').addEventListener('click', function() {
+            window.location.href = 'index.html';
+        });
+        
+        document.getElementById('btn-retry-payment').addEventListener('click', function() {
+            window.location.reload();
+        });
+    });
+</script>
