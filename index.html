@@ -1,27 +1,112 @@
-<div class="container py-3">
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Promax v5.1 - NGUYỄN XUÂN ĐẠT</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* CSS Tích hợp sẵn để chống lỗi vỡ giao diện */
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 15px; }
+        .container { max-width: 500px; margin: auto; }
+        
+        /* Header và Cụm nút bấm bên phải */
+        .header-container { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
+        .brand-name { font-size: 22px; font-weight: bold; color: #333; margin: 0; }
+        
+        .action-cluster { width: 170px; }
+        .btn-group-top { display: flex; gap: 5px; margin-bottom: 8px; }
+        .btn-main { flex: 1; border: none; border-radius: 8px; color: white; padding: 12px 2px; font-weight: bold; font-size: 13px; cursor: pointer; }
+        .btn-start { background-color: #28a745; } /* Màu xanh lá bắt đầu */
+        .btn-stop { background-color: #ef9a9a; } /* Đỏ nhạt khi chưa chạy */
+        .btn-stop.active { background-color: #dc3545; } /* Đỏ đậm khi hoạt động */
+        .btn-pos { background: none; border: none; color: #007bff; width: 100%; font-weight: bold; font-size: 12px; cursor: pointer; }
+
+        /* 4 Ô Dashboard truyền thống của anh */
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .stat-box { padding: 20px 10px; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .box-blue { background-color: #3b71ed; }
+        .box-green { background-color: #3e8e63; }
+        .box-yellow { background-color: #f9bb2d; }
+        .box-cyan { background-color: #5bc0de; }
+        .box-label { font-size: 14px; opacity: 0.9; margin-bottom: 5px; }
+        .box-value { font-size: 18px; font-weight: 800; }
+
+        /* Bản đồ */
+        #map { height: 280px; background: #eee; border-radius: 15px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; color: #888; margin-bottom: 20px; }
+
+        /* Footer Bản quyền NGUYỄN XUÂN ĐẠT */
+        footer { border-top: 1px solid #ddd; margin-top: 30px; padding: 20px 0; text-align: center; }
+        .copyright-name { font-weight: bold; font-size: 16px; color: #333; margin-top: 5px; }
+        .version-text { font-size: 12px; color: #999; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
     <div class="header-container">
         <div class="brand-name">🚖 Taxi Promax</div>
+        
         <div class="action-cluster">
             <div class="btn-group-top">
-                <button class="btn-main btn-start" id="btn-start">Bắt đầu</button>
-                <button class="btn-main btn-stop" id="btn-stop" disabled>Kết thúc</button>
+                <button class="btn-main btn-start" id="btn-start">
+                    <i class="fas fa-play"></i> Bắt đầu
+                </button>
+                <button class="btn-main btn-stop" id="btn-stop" disabled>
+                    <i class="fas fa-stop"></i> Kết thúc
+                </button>
             </div>
-            <button class="btn-pos" id="btn-location">📍 Vị trí hiện tại</button>
+            <button class="btn-pos" id="btn-location">
+                <i class="fas fa-location-arrow"></i> Vị trí hiện tại
+            </button>
         </div>
     </div>
 
-    <div class="stat-grid mb-3">
-        <div class="stat-box box-blue"><div>Quãng đường</div><div class="fw-bold" id="distance-value">0.00 km</div></div>
-        <div class="stat-box box-green"><div>Thời gian</div><div class="fw-bold" id="time-value">00:00:00</div></div>
-        <div class="stat-box box-yellow"><div>Tạm tính</div><div class="fw-bold"><span id="price-value">0</span> đ</div></div>
-        <div class="stat-box box-cyan"><div>Trạng thái</div><div class="fw-bold" id="status-value">Đang chờ</div></div>
+    <div class="stat-grid">
+        <div class="stat-box box-blue">
+            <div class="box-label">Quãng đường</div>
+            <div class="box-value"><span id="distance-value">0.00</span> km</div>
+        </div>
+        <div class="stat-box box-green">
+            <div class="box-label">Thời gian</div>
+            <div class="box-value" id="time-value">00:00:00</div>
+        </div>
+        <div class="stat-box box-yellow">
+            <div class="box-label">Tạm tính</div>
+            <div class="box-value"><span id="price-value">0</span> đ</div>
+        </div>
+        <div class="stat-box box-cyan">
+            <div class="box-label">Trạng thái</div>
+            <div class="box-value" id="status-value">Đang chờ</div>
+        </div>
     </div>
 
-    <div id="map" style="height: 250px; border-radius: 15px; border: 1px solid #ddd; margin-bottom: 20px;"></div>
+    <div id="map">
+        <div><i class="fas fa-satellite-dish fa-2x mb-2"></i><br>Đang chờ tín hiệu GPS...</div>
+    </div>
 
-    <footer class="text-center">
-        <hr>
-        <p class="small text-muted mb-0">HỆ THỐNG TAXI THÔNG MINH v5.1</p>
-        <p class="fw-bold">Bản quyền thuộc về NGUYỄN XUÂN ĐẠT</p>
+    <footer>
+        <div class="version-text">HỆ THỐNG TAXI THÔNG MINH v5.1</div>
+        <div class="copyright-name">Bản quyền thuộc về NGUYỄN XUÂN ĐẠT</div>
     </footer>
 </div>
+
+<script>
+    // Một chút hiệu ứng nhỏ cho phím bấm để anh thấy nó hoạt động
+    const btnStart = document.getElementById('btn-start');
+    const btnStop = document.getElementById('btn-stop');
+    const statusVal = document.getElementById('status-value');
+
+    btnStart.onclick = function() {
+        btnStart.disabled = true;
+        btnStart.style.opacity = '0.5';
+        btnStop.disabled = false;
+        btnStop.classList.add('active');
+        statusVal.innerText = 'Đang di chuyển';
+        statusVal.style.color = '#fff';
+    };
+</script>
+
+</body>
+</html>
