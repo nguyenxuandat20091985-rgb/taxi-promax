@@ -3,110 +3,549 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taxi Promax v5.1 - NGUYỄN XUÂN ĐẠT</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+    <title>Taxi ProMax v5.1 - Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* CSS Tích hợp sẵn để chống lỗi vỡ giao diện */
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 15px; }
-        .container { max-width: 500px; margin: auto; }
-        
-        /* Header và Cụm nút bấm bên phải */
-        .header-container { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
-        .brand-name { font-size: 22px; font-weight: bold; color: #333; margin: 0; }
-        
-        .action-cluster { width: 170px; }
-        .btn-group-top { display: flex; gap: 5px; margin-bottom: 8px; }
-        .btn-main { flex: 1; border: none; border-radius: 8px; color: white; padding: 12px 2px; font-weight: bold; font-size: 13px; cursor: pointer; }
-        .btn-start { background-color: #28a745; } /* Màu xanh lá bắt đầu */
-        .btn-stop { background-color: #ef9a9a; } /* Đỏ nhạt khi chưa chạy */
-        .btn-stop.active { background-color: #dc3545; } /* Đỏ đậm khi hoạt động */
-        .btn-pos { background: none; border: none; color: #007bff; width: 100%; font-weight: bold; font-size: 12px; cursor: pointer; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
 
-        /* 4 Ô Dashboard truyền thống của anh */
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-        .stat-box { padding: 20px 10px; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .box-blue { background-color: #3b71ed; }
-        .box-green { background-color: #3e8e63; }
-        .box-yellow { background-color: #f9bb2d; }
-        .box-cyan { background-color: #5bc0de; }
-        .box-label { font-size: 14px; opacity: 0.9; margin-bottom: 5px; }
-        .box-value { font-size: 18px; font-weight: 800; }
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --info-color: #1abc9c;
+            --danger-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --sidebar-width: 250px;
+            --header-height: 70px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
 
-        /* Bản đồ */
-        #map { height: 280px; background: #eee; border-radius: 15px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; color: #888; margin-bottom: 20px; }
+        body {
+            display: flex;
+            min-height: 100vh;
+            background-color: #f5f7fa;
+            color: #333;
+        }
 
-        /* Footer Bản quyền NGUYỄN XUÂN ĐẠT */
-        footer { border-top: 1px solid #ddd; margin-top: 30px; padding: 20px 0; text-align: center; }
-        .copyright-name { font-weight: bold; font-size: 16px; color: #333; margin-top: 5px; }
-        .version-text { font-size: 12px; color: #999; letter-spacing: 1px; }
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            position: fixed;
+            height: 100vh;
+            padding: 20px 0;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+            z-index: 100;
+        }
+
+        .logo {
+            text-align: center;
+            padding: 0 20px 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--info-color);
+        }
+
+        .logo p {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .menu {
+            margin-top: 30px;
+        }
+
+        .menu-item {
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .menu-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-item.active {
+            background-color: var(--secondary-color);
+            border-left: 4px solid var(--info-color);
+        }
+
+        .menu-item i {
+            margin-right: 15px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .menu-item span {
+            font-weight: 500;
+        }
+
+        /* Main content */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 20px;
+            width: calc(100% - var(--sidebar-width));
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .header-title h1 {
+            font-size: 1.8rem;
+            color: var(--primary-color);
+        }
+
+        .header-title p {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            box-shadow: var(--shadow);
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid var(--info-color);
+        }
+
+        .user-details h4 {
+            font-weight: 600;
+        }
+
+        .user-details p {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+
+        /* Status badges */
+        .status-badges {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .badge {
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+
+        .badge i {
+            margin-right: 10px;
+        }
+
+        .badge-status {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .badge-package {
+            background-color: var(--info-color);
+            color: white;
+        }
+
+        /* Dashboard stats */
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+        }
+
+        .stat-card.blue::before {
+            background-color: var(--secondary-color);
+        }
+
+        .stat-card.green::before {
+            background-color: var(--success-color);
+        }
+
+        .stat-card.yellow::before {
+            background-color: var(--warning-color);
+        }
+
+        .stat-card.cyan::before {
+            background-color: var(--info-color);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .stat-card.blue .stat-icon {
+            background-color: var(--secondary-color);
+        }
+
+        .stat-card.green .stat-icon {
+            background-color: var(--success-color);
+        }
+
+        .stat-card.yellow .stat-icon {
+            background-color: var(--warning-color);
+        }
+
+        .stat-card.cyan .stat-icon {
+            background-color: var(--info-color);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-card.blue .stat-value {
+            color: var(--secondary-color);
+        }
+
+        .stat-card.green .stat-value {
+            color: var(--success-color);
+        }
+
+        .stat-card.yellow .stat-value {
+            color: #d35400;
+        }
+
+        .stat-card.cyan .stat-value {
+            color: var(--info-color);
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .stat-change {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .stat-change.positive {
+            color: var(--success-color);
+        }
+
+        .stat-change.negative {
+            color: var(--danger-color);
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .footer strong {
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .dashboard-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+                overflow: hidden;
+            }
+
+            .sidebar:hover {
+                width: var(--sidebar-width);
+            }
+
+            .logo h2, .logo p, .menu-item span {
+                display: none;
+            }
+
+            .sidebar:hover .logo h2,
+            .sidebar:hover .logo p,
+            .sidebar:hover .menu-item span {
+                display: block;
+            }
+
+            .menu-item {
+                justify-content: center;
+                padding: 20px;
+            }
+
+            .sidebar:hover .menu-item {
+                justify-content: flex-start;
+                padding: 15px 25px;
+            }
+
+            .menu-item i {
+                margin-right: 0;
+            }
+
+            .sidebar:hover .menu-item i {
+                margin-right: 15px;
+            }
+
+            .main-content {
+                margin-left: 70px;
+                width: calc(100% - 70px);
+            }
+
+            .sidebar:hover + .main-content {
+                margin-left: var(--sidebar-width);
+                width: calc(100% - var(--sidebar-width));
+            }
+
+            .dashboard-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .status-badges {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <div class="header-container">
-        <div class="brand-name">🚖 Taxi Promax</div>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <h2>TAXI PROMAX</h2>
+            <p>Hệ thống quản lý taxi</p>
+        </div>
         
-        <div class="action-cluster">
-            <div class="btn-group-top">
-                <button class="btn-main btn-start" id="btn-start">
-                    <i class="fas fa-play"></i> Bắt đầu
-                </button>
-                <button class="btn-main btn-stop" id="btn-stop" disabled>
-                    <i class="fas fa-stop"></i> Kết thúc
-                </button>
+        <div class="menu">
+            <div class="menu-item active">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
             </div>
-            <button class="btn-pos" id="btn-location">
-                <i class="fas fa-location-arrow"></i> Vị trí hiện tại
-            </button>
+            <div class="menu-item">
+                <i class="fas fa-car"></i>
+                <span>Đặt xe</span>
+            </div>
+            <div class="menu-item">
+                <i class="fas fa-history"></i>
+                <span>Lịch sử</span>
+            </div>
+            <div class="menu-item">
+                <i class="fas fa-box"></i>
+                <span>Gói dịch vụ</span>
+            </div>
+            <div class="menu-item">
+                <i class="fas fa-credit-card"></i>
+                <span>Thanh toán</span>
+            </div>
+            <div class="menu-item">
+                <i class="fas fa-user-cog"></i>
+                <span>Admin</span>
+            </div>
         </div>
     </div>
 
-    <div class="stat-grid">
-        <div class="stat-box box-blue">
-            <div class="box-label">Quãng đường</div>
-            <div class="box-value"><span id="distance-value">0.00</span> km</div>
+    <!-- Main content -->
+    <div class="main-content">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title">
+                <h1>Dashboard Tổng Quan</h1>
+                <p>Chào mừng trở lại, Nguyễn Xuân Đạt</p>
+            </div>
+            
+            <div class="user-info">
+                <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="User Avatar">
+                <div class="user-details">
+                    <h4>Nguyễn Xuân Đạt</h4>
+                    <p>Tài xế chính</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-box box-green">
-            <div class="box-label">Thời gian</div>
-            <div class="box-value" id="time-value">00:00:00</div>
+
+        <!-- Status badges -->
+        <div class="status-badges">
+            <div class="badge badge-status">
+                <i class="fas fa-check-circle"></i>
+                Trạng thái: Đã kích hoạt
+            </div>
+            <div class="badge badge-package">
+                <i class="fas fa-gift"></i>
+                Gói: FREE 7 ngày
+            </div>
         </div>
-        <div class="stat-box box-yellow">
-            <div class="box-label">Tạm tính</div>
-            <div class="box-value"><span id="price-value">0</span> đ</div>
+
+        <!-- Dashboard stats -->
+        <div class="dashboard-stats">
+            <!-- Km card -->
+            <div class="stat-card blue">
+                <div class="stat-icon">
+                    <i class="fas fa-road"></i>
+                </div>
+                <div class="stat-value">1,247 Km</div>
+                <div class="stat-label">Tổng quãng đường đã đi</div>
+                <div class="stat-change positive">
+                    <i class="fas fa-arrow-up"></i> 12% so với tháng trước
+                </div>
+            </div>
+
+            <!-- Hours card -->
+            <div class="stat-card green">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-value">186 Giờ</div>
+                <div class="stat-label">Tổng thời gian hoạt động</div>
+                <div class="stat-change positive">
+                    <i class="fas fa-arrow-up"></i> 8% so với tháng trước
+                </div>
+            </div>
+
+            <!-- Money card -->
+            <div class="stat-card yellow">
+                <div class="stat-icon">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div class="stat-value">24.5 Triệu</div>
+                <div class="stat-label">Tổng doanh thu tháng này</div>
+                <div class="stat-change positive">
+                    <i class="fas fa-arrow-up"></i> 15% so với tháng trước
+                </div>
+            </div>
+
+            <!-- Status card -->
+            <div class="stat-card cyan">
+                <div class="stat-icon">
+                    <i class="fas fa-car-side"></i>
+                </div>
+                <div class="stat-value">Đang hoạt động</div>
+                <div class="stat-label">Trạng thái hiện tại</div>
+                <div class="stat-change positive">
+                    <i class="fas fa-circle"></i> Sẵn sàng nhận chuyến
+                </div>
+            </div>
         </div>
-        <div class="stat-box box-cyan">
-            <div class="box-label">Trạng thái</div>
-            <div class="box-value" id="status-value">Đang chờ</div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>Taxi Promax v5.1</strong> © 2026 - Bản quyền thuộc về <strong>NGUYEN XUAN ĐAT</strong>.</p>
+            <p>Phiên bản dành cho tài xế - Hệ thống quản lý và điều hành taxi chuyên nghiệp</p>
         </div>
     </div>
 
-    <div id="map">
-        <div><i class="fas fa-satellite-dish fa-2x mb-2"></i><br>Đang chờ tín hiệu GPS...</div>
-    </div>
-
-    <footer>
-        <div class="version-text">HỆ THỐNG TAXI THÔNG MINH v5.1</div>
-        <div class="copyright-name">Bản quyền thuộc về NGUYỄN XUÂN ĐẠT</div>
-    </footer>
-</div>
-
-<script>
-    // Một chút hiệu ứng nhỏ cho phím bấm để anh thấy nó hoạt động
-    const btnStart = document.getElementById('btn-start');
-    const btnStop = document.getElementById('btn-stop');
-    const statusVal = document.getElementById('status-value');
-
-    btnStart.onclick = function() {
-        btnStart.disabled = true;
-        btnStart.style.opacity = '0.5';
-        btnStop.disabled = false;
-        btnStop.classList.add('active');
-        statusVal.innerText = 'Đang di chuyển';
-        statusVal.style.color = '#fff';
-    };
-</script>
-
+    <script>
+        // Thêm hiệu ứng khi click vào menu
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', function() {
+                // Xóa class active khỏi tất cả các item
+                document.querySelectorAll('.menu-item').forEach(i => {
+                    i.classList.remove('active');
+                });
+                
+                // Thêm class active vào item được click
+                this.classList.add('active');
+                
+                // Hiển thị thông báo
+                const menuText = this.querySelector('span').textContent;
+                alert(`Đã chuyển đến trang: ${menuText}`);
+            });
+        });
+        
+        // Cập nhật thời gian thực
+        function updateDateTime() {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            };
+            const dateTimeStr = now.toLocaleDateString('vi-VN', options);
+            
+            // Cập nhật tiêu đề nếu có phần tử hiển thị thời gian
+            const dateTimeElement = document.getElementById('current-time');
+            if (dateTimeElement) {
+                dateTimeElement.textContent = dateTimeStr;
+            }
+        }
+        
+        // Cập nhật thời gian mỗi giây
+        setInterval(updateDateTime, 1000);
+        updateDateTime(); // Chạy lần đầu
+    </script>
 </body>
 </html>
