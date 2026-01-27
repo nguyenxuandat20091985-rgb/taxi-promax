@@ -1,66 +1,48 @@
-/* Taxi Promax v5.1 - Official Configuration by Nguyen Xuan Dat */
-const TAXI_CONFIG = {
-    VERSION: '5.1',
-    APP_NAME: 'Taxi Promax',
-    
-    // Cấu hình thanh toán - Tiền sẽ về đây khi khách nạp
-    PAYMENT: {
-        BANK_NAME: 'BIDV',
-        BANK_ACCOUNT: '4430269669', // STK của anh Đạt
-        ACCOUNT_HOLDER: 'NGUYEN XUAN DAT',
-        QR_CODE_SIZE: 250,
-        ZALOPAY_ACCOUNT: '0987654321', // Anh có thể sửa số ZaloPay tại đây
-        METHODS: {
-            BANK: 'Chuyển khoản BIDV',
-            ZALOPAY: 'ZaloPay QR'
-        }
+// File: js/config.js - Hệ thống Taxi ProMax
+// Bản quyền thuộc về: NGUYEN XUAN DAT
+
+const Config = {
+    // 1. THÔNG TIN CHỦ SỞ HỮU (Nhận tiền về đây)
+    OWNER: {
+        NAME: "NGUYEN XUAN DAT",
+        BANK: "BIDV",
+        STK: "4430269669"
     },
-    
-    // Cấu hình giá cước mặc định (Có thể thay đổi theo từng vùng)
-    TARIFF: {
-        BASE_FEE: 10000,           // Giá mở cửa
-        PRICE_PER_KM: 12000,       // Giá mỗi km
-        PRICE_PER_MINUTE: 500,     // Giá thời gian chờ/phút
-        PEAK_HOUR_MULTIPLIER: 1.2, // Hệ số giờ cao điểm
-        INTER_PROVINCE_RATE: 1.5   // Hệ số đi tỉnh
+
+    // 2. 🔑 KẾT NỐI PAYOS (Đã điền mã của anh Đạt từ ảnh chụp)
+    // Nguồn: Screenshot_20260128_001712_Chrome.jpg
+    PAYOS_CONFIG: {
+        CLIENT_ID: "8310065a-605d-4555-8933-5965487779f3",
+        API_KEY: "0f438069-79f8-466d-9618-e39755197824",
+        CHECKSUM_KEY: "01f66be9445100780f2d95b584d56711902462e71c99f928a3f8582772596489"
     },
-    
-    // Hệ thống gói dịch vụ 4 tầng để anh thu tiền hàng tháng/năm/trọn đời
-    PACKAGES: {
-        FREE: {
-            name: 'FREE',
-            description: 'Dùng thử 7 ngày',
-            limits: { maxTripsPerDay: 10, trialDays: 7, hasOffline: false },
-            price: 0
-        },
-        BASIC: {
-            name: 'BASIC',
-            description: '19.000đ/tháng - 149.000đ/năm',
-            limits: { maxTripsPerDay: 999, hasOffline: true, hasPriceEstimate: false },
-            pricing: { monthly: 19000, yearly: 149000, lifetime: 0 }
-        },
-        PRO: {
-            name: 'PRO',
-            description: '29.000đ/tháng - 229.000đ/năm',
-            limits: { hasMap: true, hasInvoice: true, hasPriceEstimate: true },
-            pricing: { monthly: 29000, yearly: 229000, lifetime: 0 }
-        },
-        VIP: {
-            name: 'VIP',
-            description: 'Đầy đủ tính năng - Trọn đời 999k',
-            limits: { hasAI: true, hasVoice: true, hasCloud: true, noAds: true },
-            pricing: { monthly: 49000, yearly: 399000, lifetime: 999000 }
-        }
-    },
-    
-    // Hệ thống bảo mật
-    SYSTEM: {
-        ENCRYPTION_KEY: 'taxi-promax-v5.1-secure-key-2026',
-        LICENSE_PREFIX: 'TAXIV5-',
-        GPS_UPDATE_INTERVAL: 3000, // Cập nhật GPS mỗi 3 giây
-        MAX_HISTORY_DAYS: 365
+
+    // 3. CÁC GÓI CƯỚC TÀI XẾ CÓ THỂ MUA
+    PACKAGES: [
+        { id: "BASIC", name: "Gói Ngày (BASIC)", price: 19000, days: 1 },
+        { id: "PRO", name: "Gói Tháng (PRO)", price: 490000, days: 30 }
+    ],
+
+    // 4. HÀM XỬ LÝ TẠO LINK THANH TOÁN (Dành cho trang payment.html)
+    getPaymentUrl: function(packageId, deviceId) {
+        const pkg = this.PACKAGES.find(p => p.id === packageId);
+        if (!pkg) return null;
+
+        // Tạo nội dung chuyển khoản tự động để anh dễ quản lý
+        // Cấu trúc: NAP [ID Thiết Bị] [Gói]
+        const description = `NAP ${deviceId} ${pkg.id}`;
+        
+        // Trả về dữ liệu để tạo QR VietQR Pro
+        return {
+            accountNumber: this.OWNER.STK,
+            accountName: this.OWNER.NAME,
+            amount: pkg.price,
+            description: description,
+            bankCode: "BIDV"
+        };
     }
 };
 
-// Đảm bảo code không bị lỗi khi gọi biến
-window.CONFIG = TAXI_CONFIG; 
+// Đóng băng đối tượng để bảo mật cấu hình
+Object.freeze(Config);
+console.log("Taxi ProMax Config Loaded - Welcome Admin Nguyen Xuan Dat");
