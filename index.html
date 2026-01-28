@@ -6,69 +6,59 @@
     <title>Taxi ProMax - NGUYEN XUAN DAT</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --main-green: #2ecc71; --main-blue: #3498db; --glass: rgba(255, 255, 255, 0.95); }
+        :root { --main-green: #2ecc71; --main-blue: #3498db; --glass: rgba(255, 255, 255, 0.96); }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
 
-        /* 🟢 Đèn Trực Tuyến - Làm nhỏ và mỏng lại */
+        /* 🟢 Trực tuyến - Mỏng & Nhỏ */
         .status-header {
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: var(--main-green); color: white;
-            padding: 5px 15px; border-radius: 20px; font-size: 10px; font-weight: 800;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 4px 15px; border-radius: 20px; font-size: 10px; font-weight: 800;
         }
 
-        /* 🏗️ Cột Icon Trái - Mỏng và Gọn */
+        /* 🏗️ Cột Icon Trái - Mỏng theo ý anh */
         .left-panel {
-            position: absolute; top: 45px; left: 10px; z-index: 100;
+            position: absolute; top: 40px; left: 10px; z-index: 100;
             display: flex; flex-direction: column; gap: 6px;
         }
         .thin-bar {
-            width: 90px; height: 26px; border-radius: 6px;
+            width: 85px; height: 24px; border-radius: 5px;
             display: flex; align-items: center; justify-content: center;
             font-size: 9px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .b-gold { background: #f1c40f; color: black; }
-        .b-black { background: rgba(44, 62, 80, 0.9); color: white; }
+        .b-black { background: #2c3e50; color: white; }
         .b-price { background: white; color: var(--main-green); border: 1.5px solid var(--main-green); cursor: pointer; }
 
-        /* 📟 HUD - Có khe hở bên dưới */
+        /* 📟 Ô hiển thị Km & Tiền - Có khe hở bên dưới */
         .smart-hud {
-            position: absolute; bottom: 155px; width: 92%; left: 4%; z-index: 100;
-            background: var(--glass); border-radius: 15px; display: flex; padding: 10px 0;
+            position: absolute; bottom: 150px; width: 92%; left: 4%; z-index: 100;
+            background: var(--glass); border-radius: 12px; display: flex; padding: 12px 0;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         .hud-col { flex: 1; text-align: center; border-right: 1px solid #eee; }
         .hud-col:last-child { border: none; }
-        .val { font-size: 24px; font-weight: 900; }
-        .lbl { font-size: 9px; color: #95a5a6; font-weight: bold; }
+        .val { font-size: 26px; font-weight: 900; line-height: 1; }
+        .lbl { font-size: 9px; color: #95a5a6; font-weight: bold; margin-top: 4px; }
+        .time-label { font-size: 8px; color: var(--main-blue); font-weight: bold; }
 
-        /* 📱 Bottom Panel - Icon giãn cách, phím nhạy */
+        /* 📱 Bottom Menu - Icon giãn cách, phím nhạy */
         .footer {
             position: absolute; bottom: 0; width: 100%; z-index: 200;
             background: white; border-top-left-radius: 20px; border-top-right-radius: 20px;
-            padding: 12px 0 10px 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
+            padding: 10px 0 8px 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
         }
-        .btns { width: 90%; margin: 0 auto 12px auto; display: flex; gap: 8px; }
-        .btn { padding: 12px; border-radius: 12px; font-weight: 900; font-size: 14px; border: none; }
-        .go { flex: 2; background: var(--main-green); color: white; }
-        .stop { flex: 1; background: white; color: #e74c3c; border: 2px solid #e74c3c; }
+        .main-btns { width: 90%; margin: 0 auto 10px auto; display: flex; gap: 8px; }
+        .btn-go { flex: 2; background: var(--main-green); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 900; }
+        .btn-stop { flex: 1; background: white; color: #e74c3c; border: 2.2px solid #e74c3c; border-radius: 12px; font-weight: bold; }
 
-        .nav { display: flex; justify-content: space-around; align-items: center; }
-        .nav-item { text-align: center; color: #bdc3c7; font-size: 10px; font-weight: bold; flex: 1; cursor: pointer; padding: 5px; }
-        .nav-item span { display: block; font-size: 20px; margin-bottom: 2px; }
+        .nav { display: flex; justify-content: space-around; }
+        .nav-item { text-align: center; color: #bdc3c7; font-size: 10px; font-weight: bold; flex: 1; padding: 8px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .nav-item span { display: block; font-size: 22px; margin-bottom: 2px; }
         .active { color: var(--main-green); }
 
-        /* ✍️ Chữ ký chính chủ */
-        .sig { text-align: center; font-size: 8px; color: #ccc; margin-top: 8px; font-weight: bold; letter-spacing: 1px; }
-
-        /* 🎚️ Bảng kéo giá ẩn */
-        #price-slider-box {
-            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 2000; background: white; padding: 20px; border-radius: 20px; width: 80%;
-            box-shadow: 0 0 30px rgba(0,0,0,0.3); text-align: center;
-        }
-        input[type=range] { width: 100%; margin: 15px 0; accent-color: var(--main-green); }
+        .sig { text-align: center; font-size: 8px; color: #bbb; margin-top: 5px; font-weight: bold; letter-spacing: 1px; }
     </style>
 </head>
 <body>
@@ -79,31 +69,31 @@
 <div class="left-panel">
     <div class="thin-bar b-gold">GÓI: FREE</div>
     <div class="thin-bar b-black">ID: TX-7269</div>
-    <div class="thin-bar b-price" onclick="togglePrice()">⚙️ GIÁ: <span id="p-val">15.000</span></div>
-</div>
-
-<div id="price-slider-box">
-    <h4 style="margin:0; font-size:14px;">CÀI ĐẶT GIÁ CƯỚC</h4>
-    <input type="range" min="10000" max="30000" step="1000" value="15000" id="range" oninput="updateRange(this.value)">
-    <div style="font-weight:900; color:var(--main-green); margin-bottom:15px;"><span id="range-txt">15.000</span> VNĐ/KM</div>
-    <button onclick="togglePrice()" style="background:var(--main-green); color:white; border:none; padding:10px 20px; border-radius:10px; width:100%; font-weight:bold;">XÁC NHẬN</button>
+    <div class="thin-bar b-price" onclick="adjustPrice()">⚙️ GIÁ: <span id="p-display">15.000</span></div>
 </div>
 
 <div class="smart-hud">
-    <div class="hud-col"><div class="val" style="color:var(--main-green)" id="f">0</div><div class="lbl">VNĐ</div></div>
-    <div class="hud-col"><div class="val" style="color:var(--main-blue)" id="d">0.00</div><div class="lbl">KILÔMÉT</div></div>
+    <div class="hud-col">
+        <div class="val" style="color:var(--main-green)" id="fare-val">0</div>
+        <div class="lbl">VNĐ ĐANG NHÀY</div>
+    </div>
+    <div class="hud-col">
+        <div class="val" style="color:var(--main-blue)" id="km-val">0.00</div>
+        <div class="lbl">KILÔMÉT ĐÃ ĐI</div>
+        <div class="time-label" id="time-val">00:00</div>
+    </div>
 </div>
 
 <div class="footer">
-    <div class="btns">
-        <button class="btn go" onclick="start()">▶ BẮT ĐẦU CHUYẾN</button>
-        <button class="btn stop" onclick="location.reload()">KẾT THÚC</button>
+    <div class="main-btns">
+        <button class="btn-go" onclick="runTrip()">▶ BẮT ĐẦU CHUYẾN</button>
+        <button class="btn-stop" onclick="location.reload()">KẾT THÚC</button>
     </div>
     <div class="nav">
         <div class="nav-item active" onclick="location.reload()"><span>🏠</span>Trang chủ</div>
-        <div class="nav-item" onclick="alert('Mở ví nạp tiền PayOS...')"><span>💰</span>Nạp tiền</div>
-        <div class="nav-item" onclick="alert('Đang tải lịch sử...')"><span>📊</span>Lịch sử</div>
-        <div class="nav-item" onclick="alert('Vào cài đặt quản lý...')"><span>⚙️</span>Quản lý</div>
+        <div class="nav-item" onclick="openPayment()"><span>💰</span>Nạp tiền</div>
+        <div class="nav-item" onclick="openHistory()"><span>📊</span>Lịch sử</div>
+        <div class="nav-item" onclick="openAdmin()"><span>⚙️</span>Quản lý</div>
     </div>
     <div class="sig">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
 </div>
@@ -112,18 +102,42 @@
 <script>
     var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.07], 15);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    
-    function togglePrice() { 
-        let box = document.getElementById('price-slider-box');
-        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+
+    let seconds = 0;
+    let timer;
+
+    function runTrip() {
+        alert("GPS ĐÃ KÍCH HOẠT - ĐANG TÍNH KM...");
+        timer = setInterval(() => {
+            seconds++;
+            let m = Math.floor(seconds / 60);
+            let s = seconds % 60;
+            document.getElementById('time-val').innerText = (m < 10 ? "0"+m : m) + ":" + (s < 10 ? "0"+s : s);
+            // Logic nhảy số KM giả lập để anh test ô hiển thị
+            let currentKm = parseFloat(document.getElementById('km-val').innerText);
+            document.getElementById('km-val').innerText = (currentKm + 0.01).toFixed(2);
+        }, 1000);
     }
-    function updateRange(v) {
-        let fmt = parseInt(v).toLocaleString();
-        document.getElementById('range-txt').innerText = fmt;
-        document.getElementById('p-val').innerText = fmt;
+
+    // --- Sửa lỗi phím chức năng không ấn được ---
+    function openPayment() {
+        // Chuyển đến trang nạp tiền thực tế của anh hoặc PayOS
+        window.location.href = "payment.html"; 
     }
-    function start() {
-        alert("GPS ĐÃ KÍCH HOẠT - CHÚC ANH ĐẠT LÁI XE AN TOÀN!");
+
+    function openHistory() {
+        // Mở bảng lịch sử
+        alert("Đang truy xuất dữ liệu từ máy chủ...");
+    }
+
+    function openAdmin() {
+        // Vào trang quản lý
+        window.location.href = "admin.html";
+    }
+
+    function adjustPrice() {
+        let p = prompt("Nhập giá mới (VNĐ/KM):", "15000");
+        if(p) document.getElementById('p-display').innerText = parseInt(p).toLocaleString();
     }
 </script>
 </body>
