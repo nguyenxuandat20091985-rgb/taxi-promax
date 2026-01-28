@@ -10,39 +10,48 @@
 
         .meter-section { position: relative; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         
-        /* Điều chỉnh vòng tròn chuẩn thương mại */
+        /* Vòng tròn hiển thị */
         .fare-circle {
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             height: 310px; width: 310px; border: 12px solid var(--primary); border-radius: 50%;
             background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin-bottom: 25px;
-            text-align: center;
+            padding: 10px; box-sizing: border-box; text-align: center;
         }
 
-        /* Thu nhỏ cỡ chữ tiền để không bị tràn khi lên hàng triệu */
-        #display-fare { font-size: 48px !important; color: var(--primary); margin: 0; font-weight: 900; width: 90%; word-wrap: break-word; }
-        #display-km { font-size: 38px !important; color: var(--secondary); font-weight: 700; margin: 2px 0; }
-        #trip-status { font-size: 17px !important; color: var(--accent); font-weight: bold; }
+        /* KHẮC PHỤC LỖI TRÀN: Dùng chữ co giãn linh hoạt */
+        #display-fare { 
+            font-size: 42px; /* Giảm size mặc định xuống một chút */
+            color: var(--primary); 
+            margin: 0; 
+            font-weight: 900; 
+            width: 100%;
+            white-space: nowrap; /* Không cho xuống dòng */
+            display: block;
+        }
+        
+        #display-km { font-size: 35px; color: var(--secondary); font-weight: 700; margin: 5px 0; }
+        #trip-status { font-size: 16px; color: var(--accent); font-weight: bold; }
 
-        /* Nút Cài đặt giá góc màn hình */
-        .price-setting-container { position: absolute; top: 15px; left: 15px; z-index: 10; }
-        .btn-price-setting { background: #eee; padding: 10px; border-radius: 12px; border: 1px solid #ccc; cursor: pointer; }
+        /* Nút Cài đặt giá */
+        .price-setting-container { position: absolute; top: 15px; left: 15px; z-index: 100; }
+        .btn-price-setting { background: #e0e0e0; padding: 10px 15px; border-radius: 12px; border: 1px solid #bbb; cursor: pointer; }
 
-        /* Hiệu ứng màu nút bấm theo yêu cầu của anh */
+        /* Nút bấm điều khiển */
         .btn-group { display: flex; flex-direction: column; gap: 15px; width: 85%; }
         .btn-common { padding: 18px; border-radius: 18px; font-size: 20px; font-weight: bold; border: none; transition: 0.3s; }
         
         .btn-start { background: var(--primary); color: white; }
-        .btn-start.active { background: #1b5e20; } /* Xanh đậm khi chạy */
+        .btn-start.active { background: #1b5e20; } /* Màu xanh đậm khi đang chạy */
 
         .btn-stop { background: white; color: #e74c3c; border: 3px solid #e74c3c; }
-        .btn-stop.active { background: #c62828 !important; color: white !important; } /* Đỏ đậm khi kết thúc */
+        .btn-stop.active { background: #c62828 !important; color: white !important; } /* Màu đỏ đậm khi hoàn thành */
 
-        /* Bảng chọn giá */
+        /* Bảng cài đặt giá */
         .slider-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
         .slider-card { background: white; padding: 25px; border-radius: 20px; width: 80%; text-align: center; }
         .btn-confirm { background: var(--primary); color: white; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: bold; margin-top: 15px; }
         
-        .hidden { display: none !important; }
+        .hidden { visibility: hidden; } /* Ẩn nút giá khi đang chạy nhưng không làm lệch bố cục */
     </style>
 </head>
 <body>
@@ -50,13 +59,13 @@
 <div class="meter-section">
     <div class="price-setting-container" id="price-btn-box">
         <div class="btn-price-setting" onclick="showSlider()">
-            <span style="font-size: 10px; display: block;">⚙️ GIÁ</span>
-            <span id="price-label" style="font-size: 11px; font-weight: 900;">15K/KM</span>
+            <span style="font-size: 10px; display: block; font-weight: bold;">⚙️ GIÁ</span>
+            <span id="price-label" style="font-size: 12px; font-weight: 900;">15K/KM</span>
         </div>
     </div>
 
     <div class="fare-circle">
-        <h1 id="display-fare">0 VNĐ</h1>
+        <div id="display-fare">0 <small style="font-size: 20px;">VNĐ</small></div>
         <span id="display-km">0.00 Km</span>
         <div id="trip-status">CHỜ KHÁCH</div>
     </div>
@@ -69,11 +78,11 @@
 
 <div id="slider-overlay" class="slider-overlay">
     <div class="slider-card">
-        <h3>Cài đặt giá (VNĐ/Km)</h3>
-        <div id="slider-val" style="font-size: 28px; font-weight: bold; color: var(--accent);">15.000 VNĐ</div>
-        <input type="range" min="10" max="50" step="1" value="15" style="width:100%; margin:20px 0;" id="price-range" oninput="updateSliderText(this.value)">
+        <h3 style="margin-top:0">Cài đặt giá (VNĐ/Km)</h3>
+        <div id="slider-val" style="font-size: 32px; font-weight: bold; color: var(--accent);">15.000 VNĐ</div>
+        <input type="range" min="5" max="100" step="1" value="15" style="width:100%; margin:25px 0;" id="price-range" oninput="updateSliderText(this.value)">
         <button class="btn-confirm" onclick="confirmPrice()">XÁC NHẬN GIÁ</button>
-        <p style="color:red; margin-top:15px; cursor:pointer;" onclick="hideSlider()">Hủy bỏ</p>
+        <p style="color:red; margin-top:20px; cursor:pointer; font-weight:bold;" onclick="hideSlider()">Hủy bỏ</p>
     </div>
 </div>
 
@@ -83,10 +92,10 @@
     let lastPos = null;
     let watchId = null;
 
+    // --- CÀI ĐẶT GIÁ ---
     function showSlider() { document.getElementById('slider-overlay').style.display = 'flex'; }
     function hideSlider() { document.getElementById('slider-overlay').style.display = 'none'; }
     function updateSliderText(v) { document.getElementById('slider-val').innerText = (v*1000).toLocaleString('vi-VN') + " VNĐ"; }
-    
     function confirmPrice() {
         let v = document.getElementById('price-range').value;
         pricePerKm = v * 1000;
@@ -94,8 +103,11 @@
         hideSlider();
     }
 
+    // --- ĐIỀU KHIỂN CHUYẾN ---
     function handleStart() {
         if (!navigator.geolocation) return alert("Cần bật GPS!");
+        
+        // Cập nhật giao diện: Đổi màu nút, ẩn nút cài đặt
         document.getElementById('btnStart').classList.add('active');
         document.getElementById('btnStop').classList.remove('active');
         document.getElementById('price-btn-box').classList.add('hidden');
@@ -106,15 +118,26 @@
             if (accuracy < 60) {
                 if (lastPos) {
                     const d = calcDist(lastPos.lat, lastPos.lon, latitude, longitude);
-                    if (d > 0.003) { 
+                    if (d > 0.002) { // Nhảy tiền cực nhạy (2 mét)
                         totalKm += d;
-                        document.getElementById('display-km').innerText = totalKm.toFixed(2) + " Km";
-                        document.getElementById('display-fare').innerText = Math.round(totalKm * pricePerKm).toLocaleString('vi-VN') + " VNĐ";
+                        updateDisplay();
                     }
                 }
                 lastPos = { lat: latitude, lon: longitude };
             }
         }, null, { enableHighAccuracy: true });
+    }
+
+    function updateDisplay() {
+        document.getElementById('display-km').innerText = totalKm.toFixed(2) + " Km";
+        let fare = Math.round(totalKm * pricePerKm);
+        
+        // Tự động thu nhỏ chữ nếu tiền quá lớn để tránh tràn vòng tròn
+        let fareElement = document.getElementById('display-fare');
+        if (fare >= 100000) fareElement.style.fontSize = "36px";
+        if (fare >= 1000000) fareElement.style.fontSize = "30px";
+        
+        fareElement.innerHTML = fare.toLocaleString('vi-VN') + ' <small style="font-size: 18px;">VNĐ</small>';
     }
 
     function handleStop() {
