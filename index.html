@@ -3,68 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax V6 - NGUYEN XUAN DAT</title>
+    <title>Taxi ProMax V7 - NGUYEN XUAN DAT</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --green: #2ecc71; --blue: #3498db; --red: #e74c3c; --dark: #2c3e50; }
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #f0f2f5; }
+        :root { --green: #2ecc71; --blue: #3498db; --red: #e74c3c; --dark: #2c3e50; --glass: rgba(255, 255, 255, 0.98); }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
         
-        /* 1. Bản đồ rộng mở */
         #map { position: absolute; inset: 0; z-index: 1; }
 
-        /* 2. Header Status */
+        /* Header tinh tế */
         .top-status {
             position: absolute; top: 12px; width: 92%; left: 4%; z-index: 10;
             display: flex; justify-content: space-between; pointer-events: none;
         }
-        .status-pill { background: rgba(0,0,0,0.75); color: white; padding: 6px 14px; border-radius: 20px; font-size: 11px; backdrop-filter: blur(5px); font-weight: bold; }
+        .pill { background: rgba(0,0,0,0.8); color: white; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; backdrop-filter: blur(5px); }
 
-        /* 3. Nút Cài đặt (Icon Hồng) */
-        .config-btn {
+        /* Nút giá hồng */
+        .config-circle {
             position: absolute; top: 65px; left: 15px; z-index: 10;
-            width: 55px; height: 55px; background: #ffc0cb; border: 2px solid white;
+            width: 60px; height: 60px; background: #ffc0cb; border: 2px solid white;
             border-radius: 50%; display: flex; flex-direction: column; align-items: center;
-            justify-content: center; font-size: 8px; font-weight: 900; color: #d63031; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            justify-content: center; font-size: 9px; font-weight: 900; color: #d63031; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
-        /* 4. Smart HUD (Tiền & Km) */
-        .hud-display {
+        /* Smart HUD */
+        .hud-box {
             position: absolute; bottom: 180px; width: 92%; left: 4%; z-index: 10;
-            background: rgba(255,255,255,0.96); border-radius: 25px; display: flex; padding: 16px 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);
+            background: var(--glass); border-radius: 25px; display: flex; padding: 18px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        .hud-col { flex: 1; text-align: center; border-right: 1px solid #f0f0f0; }
-        .hud-col:last-child { border: none; }
-        .fare-val { font-size: 32px; color: var(--green); font-weight: 900; line-height: 1; }
-        .km-val { font-size: 28px; color: var(--blue); font-weight: 900; line-height: 1; }
-        .hud-label { font-size: 10px; color: #95a5a6; font-weight: bold; margin-top: 8px; text-transform: uppercase; }
+        .hud-item { flex: 1; text-align: center; border-right: 1px solid #eee; }
+        .hud-item:last-child { border: none; }
+        .val-m { font-size: 34px; color: var(--green); font-weight: 900; line-height: 1; }
+        .val-k { font-size: 30px; color: var(--blue); font-weight: 900; line-height: 1; }
+        .label { font-size: 10px; color: #95a5a6; font-weight: 800; text-transform: uppercase; margin-top: 8px; }
 
-        /* 5. Cụm điều khiển chính */
-        .bottom-panel {
+        /* Bottom Control */
+        .bottom-shelf {
             position: absolute; bottom: 0; width: 100%; z-index: 20;
             background: white; border-radius: 30px 30px 0 0; padding: 20px 0 10px 0;
-            box-shadow: 0 -8px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.1);
         }
-        .action-btns { display: flex; gap: 12px; width: 90%; margin: 0 auto 15px auto; }
-        .btn-go { flex: 2; background: var(--green); color: white; border: none; padding: 15px; border-radius: 15px; font-weight: 900; font-size: 16px; transition: 0.2s; }
-        .btn-go:active { transform: scale(0.95); background: #27ae60; }
-        .btn-end { flex: 1; background: #fff; color: var(--red); border: 2px solid var(--red); border-radius: 15px; font-weight: bold; }
+        .action-btns { display: flex; gap: 10px; width: 92%; margin: 0 auto 15px auto; }
+        .btn-go { flex: 2; background: var(--green); color: white; border: none; padding: 16px; border-radius: 18px; font-weight: 900; font-size: 17px; box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3); }
+        .btn-stop { flex: 1; background: #fff; color: var(--red); border: 2px solid var(--red); border-radius: 18px; font-weight: bold; }
 
-        /* Menu Icon Tiện ích */
-        .nav-menu { display: flex; justify-content: space-around; border-top: 1px solid #f8f8f8; padding-top: 10px; }
-        .nav-link { text-align: center; color: #bdc3c7; text-decoration: none; font-size: 10px; font-weight: bold; width: 25%; }
-        .nav-link span { display: block; font-size: 22px; margin-bottom: 3px; }
-        .nav-link.active { color: var(--green); }
+        /* Navigation Icons Fix */
+        .nav-grid { display: flex; justify-content: space-around; border-top: 1px solid #f5f5f5; padding-top: 12px; }
+        .nav-unit { text-align: center; color: #bdc3c7; text-decoration: none; font-size: 10px; font-weight: bold; width: 25%; cursor: pointer; display: block; }
+        .nav-unit span { display: block; font-size: 24px; margin-bottom: 4px; transition: 0.2s; }
+        .nav-unit:active span { transform: scale(1.2); }
+        .nav-unit.active { color: var(--green); }
 
-        /* 6. MODAL THÔNG BÁO (THAY THẾ ALERT) */
-        #customModal {
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-            z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px);
+        /* Custom Popup (Thay cho Alert lỗi) */
+        #msgBox {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px);
         }
-        .modal-content { background: white; padding: 30px; border-radius: 30px; width: 80%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .modal-content h3 { margin: 0; color: var(--dark); }
-        .modal-content .final-fare { font-size: 35px; color: var(--green); font-weight: 900; margin: 15px 0; }
-        .modal-btn { background: var(--green); color: white; border: none; padding: 15px; width: 100%; border-radius: 15px; font-weight: 900; cursor: pointer; }
+        .msg-content { background: white; padding: 35px; border-radius: 30px; width: 80%; text-align: center; }
+        .f-fare { font-size: 38px; color: var(--green); font-weight: 900; margin: 15px 0; }
+        .c-btn { background: var(--green); color: white; border: none; padding: 16px; width: 100%; border-radius: 15px; font-weight: 900; }
     </style>
 </head>
 <body>
@@ -72,99 +70,99 @@
 <div id="map"></div>
 
 <div class="top-status">
-    <div class="status-pill">🆔 TX-20091985-DAT</div>
-    <div class="status-pill" style="background:#f1c40f; color:#000">⚡ GÓI: FREE</div>
+    <div class="pill">🆔 TX-20091985-DAT</div>
+    <div class="pill" style="background:#f1c40f; color:#000">⚡ GÓI: FREE</div>
 </div>
 
-<div class="config-btn" onclick="openPrice()">
+<div class="config-circle" onclick="showMsg('Tính năng cài đặt giá đang được cập nhật!')">
     <span>⚙️ GIÁ</span>
-    <span id="rate-tag">15K/KM</span>
+    <span>15K/KM</span>
 </div>
 
-<div class="hud-display">
-    <div class="hud-col">
-        <div class="fare-val" id="f-val">0</div>
-        <div class="hud-label" id="status-txt">VNĐ ĐANG NHẢY</div>
+<div class="hud-box">
+    <div class="hud-item">
+        <div class="val-m" id="m-val">0</div>
+        <div class="label" id="stt-txt">VNĐ ĐANG NHẢY</div>
     </div>
-    <div class="hud-col">
-        <div class="km-val" id="k-val">0.00</div>
-        <div class="hud-label">KILÔMÉT ĐÃ ĐI</div>
+    <div class="hud-item">
+        <div class="val-k" id="k-val">0.00</div>
+        <div class="label">KILÔMÉT ĐÃ ĐI</div>
     </div>
 </div>
 
-<div class="bottom-panel">
+<div class="bottom-shelf">
     <div class="action-btns">
-        <button class="btn-go" id="mainBtn" onclick="startTrip()">⚡ BẮT ĐẦU CHUYẾN</button>
-        <button class="btn-end" onclick="finishTrip()">KẾT THÚC</button>
+        <button class="btn-go" id="startBtn" onclick="startTrip()">⚡ BẮT ĐẦU CHUYẾN</button>
+        <button class="btn-stop" onclick="endTrip()">KẾT THÚC</button>
     </div>
-    <div class="nav-menu">
-        <a href="#" class="nav-link active"><span>🏠</span>Trang chủ</a>
-        <a href="#" class="nav-link"><span>💰</span>Nạp tiền</a>
-        <a href="#" class="nav-link"><span>📊</span>Lịch sử</a>
-        <a href="#" class="nav-link"><span>⚙️</span>Quản lý</a>
+    <div class="nav-grid">
+        <a href="index.html" class="nav-unit active"><span>🏠</span>Trang chủ</a>
+        <a onclick="showMsg('Chức năng Nạp tiền sắp ra mắt!')" class="nav-unit"><span>💰</span>Nạp tiền</a>
+        <a onclick="showMsg('Lịch sử di chuyển đang trống!')" class="nav-unit"><span>📊</span>Lịch sử</a>
+        <a onclick="showMsg('Mở trang Quản lý tài xế...')" class="nav-unit"><span>⚙️</span>Quản lý</a>
     </div>
-    <div style="text-align: center; font-size: 9px; color: #bdc3c7; margin-top: 8px; letter-spacing: 1px;">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
+    <div style="text-align: center; font-size: 9px; color: #ddd; margin-top: 10px;">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
 </div>
 
-<div id="customModal">
-    <div class="modal-content">
-        <h3>HÓA ĐƠN CHUYẾN ĐI</h3>
-        <div class="final-fare" id="modal-fare">0 VNĐ</div>
-        <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;" id="modal-km">Quãng đường: 0.00 Km</p>
-        <button class="modal-btn" onclick="closeModal()">XÁC NHẬN</button>
+<div id="msgBox">
+    <div class="msg-content">
+        <h3 id="m-title">THÔNG BÁO</h3>
+        <div class="f-fare" id="m-fare"></div>
+        <p id="m-body" style="color:#7f8c8d; margin-bottom: 20px;"></p>
+        <button class="c-btn" onclick="document.getElementById('msgBox').style.display='none'">XÁC NHẬN</button>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Khởi tạo Map mượt mà
     var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.07], 16);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    
-    // Icon xe taxi
     var car = L.circleMarker([0,0], { radius: 9, color: '#fff', weight: 3, fillColor: '#2ecc71', fillOpacity: 1 }).addTo(map);
 
-    let rate = 15000, totalKm = 0, watchId = null, lastP = null;
+    let price = 15000, km = 0, watchId = null, lastLoc = null;
+
+    // Hàm hiển thị thông báo thay cho alert
+    function showMsg(text, fare = "", title = "THÔNG BÁO") {
+        document.getElementById('m-title').innerText = title;
+        document.getElementById('m-fare').innerText = fare;
+        document.getElementById('m-body').innerText = text;
+        document.getElementById('msgBox').style.display = 'flex';
+    }
 
     function startTrip() {
         if (watchId) return;
-        document.getElementById('mainBtn').style.background = "#1b5e20";
-        document.getElementById('mainBtn').innerText = "⚡ ĐANG DI CHUYỂN";
+        document.getElementById('startBtn').style.background = "#1b5e20";
+        document.getElementById('startBtn').innerText = "⚡ ĐANG CHUYỂN BÁNH";
         
         watchId = navigator.geolocation.watchPosition(pos => {
             const { latitude, longitude, accuracy } = pos.coords;
             const cur = [latitude, longitude];
             
-            // Fix giật
-            map.flyTo(cur, 17, { animate: true, duration: 1.5 });
+            // Tối ưu mượt bản đồ
+            map.flyTo(cur, 17, { animate: true, duration: 1.2 });
             car.setLatLng(cur);
 
-            if (lastP && accuracy < 35) {
-                const d = map.distance(lastP, cur) / 1000;
-                if (d > 0.0025) { 
-                    totalKm += d;
-                    document.getElementById('k-val').innerText = totalKm.toFixed(2);
-                    document.getElementById('f-val').innerText = Math.round(totalKm * rate).toLocaleString('vi-VN');
+            if (lastLoc && accuracy < 30) {
+                const d = map.distance(lastLoc, cur) / 1000;
+                if (d > 0.003) { 
+                    km += d;
+                    document.getElementById('k-val').innerText = km.toFixed(2);
+                    document.getElementById('m-val').innerText = Math.round(km * price).toLocaleString('vi-VN');
                 }
             }
-            lastP = cur;
+            lastLoc = cur;
         }, null, { enableHighAccuracy: true });
     }
 
-    function finishTrip() {
+    function endTrip() {
         if (watchId) navigator.geolocation.clearWatch(watchId);
-        watchId = null; lastP = null;
-        document.getElementById('mainBtn').style.background = "#2ecc71";
-        document.getElementById('mainBtn').innerText = "▶ BẮT ĐẦU CHUYẾN";
+        watchId = null; lastLoc = null;
+        document.getElementById('startBtn').style.background = "#2ecc71";
+        document.getElementById('startBtn').innerText = "▶ BẮT ĐẦU CHUYẾN";
         
-        // Hiển thị Modal hóa đơn (Không dùng alert lỗi nữa)
-        document.getElementById('modal-fare').innerText = document.getElementById('f-val').innerText + " VNĐ";
-        document.getElementById('modal-km').innerText = "Quãng đường: " + totalKm.toFixed(2) + " Km";
-        document.getElementById('customModal').style.display = 'flex';
+        // Hiện hóa đơn
+        showMsg("Quãng đường: " + km.toFixed(2) + " Km", document.getElementById('m-val').innerText + " VNĐ", "HÓA ĐƠN");
     }
-
-    function closeModal() { document.getElementById('customModal').style.display = 'none'; }
-    function openPrice() { /* Có thể làm modal chọn giá tương tự hóa đơn */ }
 </script>
 </body>
 </html>
