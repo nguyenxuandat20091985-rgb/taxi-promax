@@ -6,47 +6,41 @@
     <title>Taxi ProMax - NGUYEN XUAN DAT</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* Bố cục hàng lối chuyên nghiệp, dễ nhìn */
+        /* Sắp xếp hàng lối đẹp & dễ nhìn theo yêu cầu */
         .fare-circle {
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 20px;
+            height: 300px;
+            width: 300px;
+            border: 10px solid #2ecc71;
+            border-radius: 50%;
+            margin: 20px auto;
         }
 
         #display-fare {
-            font-size: 56px !important; /* Tiền to nhất, dễ nhìn */
-            font-weight: 900;
+            font-size: 60px !important; /* Tiền to nhất */
             color: #27ae60;
             margin: 0;
-            line-height: 1.2;
+            font-weight: 900;
         }
 
         #display-km {
-            font-size: 38px !important; /* Km to rõ dưới tiền */
-            font-weight: 700;
+            font-size: 45px !important; /* Km to rõ ngay dưới tiền */
             color: #2980b9;
-            margin: 5px 0;
+            font-weight: 700;
+            margin: 10px 0;
         }
 
         #trip-status {
-            font-size: 16px !important; /* Trạng thái hàng cuối cùng */
+            font-size: 18px !important; /* Trạng thái hàng cuối */
             color: #e84393;
             font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
-        /* Ẩn nút cài đặt khi đang chạy để tránh bấm nhầm */
-        .hidden-active { display: none !important; }
-
-        .btn-price-setting {
-            width: 80px; height: 80px; border-radius: 20px;
-            background: linear-gradient(135deg, #FF9a9e 0%, #fecfef 100%);
-            border: 2px solid #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.15);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
+        .price-setting-container { position: absolute; top: 20px; left: 15px; z-index: 100; }
+        .hidden-active { display: none !important; } /* Ẩn cài đặt khi chạy */
     </style>
 </head>
 <body>
@@ -59,72 +53,84 @@
 
     <div class="meter-section" style="position: relative;">
         <div class="price-setting-container" id="price-btn-box">
-            <div class="btn-price-setting" onclick="showPriceSlider()">
-                <span style="font-size: 10px; font-weight: bold;">⚙️ CÀI ĐẶT</span>
+            <div class="btn-price-setting" onclick="showPriceSlider()" style="background: linear-gradient(135deg, #FF9a9e 0%, #fecfef 100%); padding: 15px; border-radius: 15px; border: 2px solid #fff;">
+                <span style="font-size: 10px; font-weight: bold; display: block;">⚙️ CÀI ĐẶT</span>
                 <span style="font-size: 11px; font-weight: 900;">GIÁ CẢ</span>
             </div>
         </div>
 
         <div class="fare-circle">
-            <h1 id="display-fare">0 VNĐ</h1> <span id="display-km">0.00 Km</span> <div id="trip-status">CHỜ KHÁCH</div> </div>
-
-        <div class="btn-group">
-            <button class="btn-start" onclick="handleStart()">▶ BẮT ĐẦU CHUYẾN</button>
-            <button class="btn-stop" onclick="handleStop()">■ KẾT THÚC</button>
+            <h1 id="display-fare">0 VNĐ</h1>
+            <span id="display-km">0.00 Km</span>
+            <div id="trip-status">CHỜ THỎA THUẬN</div>
         </div>
-    </div>
 
-    <div id="slider-overlay" style="display:none;" class="slider-overlay">
-        <div class="slider-card">
-            <h3>Chọn giá (VNĐ/Km)</h3>
-            <div class="current-val" id="slider-val">15.000 VNĐ</div>
-            <input type="range" min="10" max="50" step="1" value="15" class="price-slider" id="price-range" oninput="updateSliderText(this.value)">
-            <button class="btn-confirm" onclick="confirmPrice()">XÁC NHẬN GIÁ</button>
-            <p style="margin-top:15px; color:red;" onclick="hidePriceSlider()">Hủy bỏ</p>
+        <div class="btn-group" style="display: flex; flex-direction: column; gap: 15px; padding: 0 20px;">
+            <button class="btn-start" onclick="handleStart()" style="background: #27ae60; color: white; padding: 20px; border-radius: 15px; font-size: 18px; font-weight: bold; border: none;">▶ BẮT ĐẦU CHUYẾN</button>
+            <button class="btn-stop" onclick="handleStop()" style="background: white; color: #e74c3c; padding: 20px; border-radius: 15px; font-size: 18px; font-weight: bold; border: 2px solid #e74c3c;">■ KẾT THÚC</button>
         </div>
     </div>
 </div>
 
-<script src="js/app.js"></script>
 <script>
     let pricePerKm = 15000;
+    let totalKm = 0;
+    let lastPos = null;
     let watchId = null;
 
-    function updateSliderText(val) {
-        document.getElementById('slider-val').innerText = (val * 1000).toLocaleString('vi-VN') + " VNĐ";
-    }
-
-    function confirmPrice() {
-        pricePerKm = document.getElementById('price-range').value * 1000;
-        document.getElementById('trip-status').innerText = "GIÁ: " + (pricePerKm/1000) + "K/KM";
-        document.getElementById('slider-overlay').style.display = 'none';
+    // Hàm tính khoảng cách giữa 2 điểm GPS (Công thức Haversine chuyên dụng)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Bán kính Trái đất (km)
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
     }
 
     function handleStart() {
-        // 1. Bố cục lại giao diện
+        if (!navigator.geolocation) {
+            alert("Điện thoại của bạn không hỗ trợ định vị GPS!");
+            return;
+        }
+
+        // Bố cục: Ẩn cài đặt, hiện trạng thái
         document.getElementById('price-btn-box').classList.add('hidden-active');
         document.getElementById('trip-status').innerText = "ĐANG CHUYỂN BÁNH";
         
-        // 2. Kích hoạt GPS nhạy cao để nhảy tiền ngay lập tức
-        if ("geolocation" in navigator) {
-            watchId = navigator.geolocation.watchPosition((pos) => {
-                // Giả lập lấy Km từ TaxiApp của anh
-                let km = TaxiApp.updatePosition(pos.coords.latitude, pos.coords.longitude); 
-                document.getElementById('display-km').innerText = km.toFixed(2) + " Km";
-                
-                // Tiền nhảy theo Km thực tế
-                let currentFare = km * pricePerKm;
-                document.getElementById('display-fare').innerText = Math.round(currentFare).toLocaleString('vi-VN') + " VNĐ";
-            }, (err) => console.error(err), { enableHighAccuracy: true });
-        }
-        TaxiApp.start();
+        // Kích hoạt GPS độ chính xác cao nhất
+        watchId = navigator.geolocation.watchPosition((position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+            
+            // Chỉ tính nếu độ chính xác dưới 30 mét để tránh số nhảy ảo
+            if (accuracy < 30) {
+                if (lastPos) {
+                    const dist = calculateDistance(lastPos.lat, lastPos.lon, latitude, longitude);
+                    if (dist > 0.005) { // Chỉ cộng dồn nếu di chuyển trên 5 mét
+                        totalKm += dist;
+                        updateDisplay();
+                    }
+                }
+                lastPos = { lat: latitude, lon: longitude };
+            }
+        }, (error) => {
+            alert("Hãy cấp quyền Truy cập vị trí (GPS) cho trình duyệt!");
+        }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+    }
+
+    function updateDisplay() {
+        document.getElementById('display-km').innerText = totalKm.toFixed(2) + " Km";
+        let fare = totalKm * pricePerKm;
+        document.getElementById('display-fare').innerText = Math.round(fare).toLocaleString('vi-VN') + " VNĐ";
     }
 
     function handleStop() {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
         document.getElementById('price-btn-box').classList.remove('hidden-active');
-        document.getElementById('trip-status').innerText = "CHUYẾN HOÀN THÀNH";
-        if(watchId) navigator.geolocation.clearWatch(watchId);
-        TaxiApp.stop();
+        document.getElementById('trip-status').innerText = "HOÀN THÀNH";
+        lastPos = null;
     }
 </script>
 </body>
