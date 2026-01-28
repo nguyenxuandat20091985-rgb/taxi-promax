@@ -7,73 +7,71 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --main-green: #2ecc71; --main-blue: #3498db; --glass: rgba(255, 255, 255, 0.98); }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #f4f7f9; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #000; }
+        
+        /* 🗺️ Bản đồ rộng tối đa */
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
 
-        /* 🟢 Trực tuyến - Làm nét hơn */
+        /* 🟢 Trực tuyến - Làm mỏng & nhỏ lại */
         .header-status {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: var(--main-green); color: white;
-            padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 800;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.3);
+            padding: 3px 10px; border-radius: 15px; font-size: 9px; font-weight: 800;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2); text-transform: uppercase;
         }
 
-        /* 🏗️ Cột Icon Trái - Sắc nét */
+        /* 🏗️ Cột Icon Trái - Làm mỏng & Nét */
         .left-panel {
-            position: absolute; top: 45px; left: 12px; z-index: 100;
-            display: flex; flex-direction: column; gap: 6px;
+            position: absolute; top: 35px; left: 8px; z-index: 100;
+            display: flex; flex-direction: column; gap: 4px;
         }
         .bar-thin {
-            width: 85px; height: 24px; border-radius: 5px;
+            width: 75px; height: 20px; border-radius: 3px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 9px; font-weight: 900; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 8px; font-weight: 900; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .gold { background: #f1c40f; color: black; border-bottom: 2px solid #d4ac0d; }
-        .dark { background: #2c3e50; color: white; border-bottom: 2px solid #1a252f; }
-        .price-btn { background: white; color: var(--main-green); border: 1.5px solid var(--main-green); cursor: pointer; }
+        .gold { background: #f1c40f; color: black; }
+        .dark { background: #2c3e50; color: white; }
+        .price-btn { background: white; color: var(--main-green); border: 1px solid var(--main-green); cursor: pointer; }
 
-        /* 📟 HUD Container - Nổi khối 3D */
+        /* 📟 HUD Dashboard - Làm sát mép, khe hở chuẩn */
         .hud-container {
-            position: absolute; bottom: 175px; width: 92%; left: 4%; z-index: 100;
-            background: var(--glass); border-radius: 15px; display: flex; padding: 15px 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.12); border: 1px solid #fff;
+            position: absolute; bottom: 155px; width: 100%; left: 0; z-index: 100;
+            background: var(--glass); display: flex; padding: 12px 0;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.1); border-top: 1px solid rgba(255,255,255,0.5);
         }
-        .hud-box { flex: 1; text-align: center; border-right: 1px solid #f0f0f0; }
+        .hud-box { flex: 1; text-align: center; border-right: 1px solid #eee; }
         .hud-box:last-child { border: none; }
-        .num { font-size: 32px; font-weight: 900; line-height: 1; }
-        .txt { font-size: 9px; color: #7f8c8d; font-weight: bold; text-transform: uppercase; margin-top: 5px; }
-        .timer { font-size: 13px; color: #e67e22; font-weight: 800; margin-top: 5px; background: #fff5e6; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+        .num { font-size: 28px; font-weight: 900; line-height: 1; }
+        .txt { font-size: 8px; color: #95a5a6; font-weight: 800; text-transform: uppercase; margin-top: 4px; }
+        .timer-tag { font-size: 10px; color: #e67e22; font-weight: 800; background: #fff4e6; padding: 1px 6px; border-radius: 3px; margin-top: 4px; display: inline-block; }
 
-        /* 📱 Footer - Phím bấm cực nhạy */
+        /* 📱 Footer - Nét căng */
         .footer-area {
             position: absolute; bottom: 0; width: 100%; z-index: 200;
-            background: white; border-top-left-radius: 25px; border-top-right-radius: 25px;
-            padding-top: 20px; box-shadow: 0 -8px 25px rgba(0,0,0,0.08);
+            background: white; border-top-left-radius: 20px; border-top-right-radius: 20px;
+            padding-top: 15px; box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
         }
-        .main-actions { width: 90%; margin: 0 auto 18px auto; display: flex; gap: 12px; }
-        .btn-action { padding: 15px; border-radius: 14px; font-weight: 900; font-size: 15px; border: none; transition: 0.2s; cursor: pointer; }
-        .btn-action:active { transform: scale(0.96); opacity: 0.9; }
-        .go { flex: 2; background: var(--main-green); color: white; box-shadow: 0 6px 15px rgba(46, 204, 113, 0.3); }
-        .stop { flex: 1; background: white; color: #e74c3c; border: 2.5px solid #e74c3c; }
+        .main-actions { width: 92%; margin: 0 auto 12px auto; display: flex; gap: 8px; }
+        .btn-action { padding: 14px; border-radius: 12px; font-weight: 900; font-size: 14px; border: none; transition: 0.1s; cursor: pointer; }
+        .btn-action:active { transform: scale(0.97); opacity: 0.8; }
+        .go { flex: 2; background: var(--main-green); color: white; }
+        .stop { flex: 1; background: #fff; color: #e74c3c; border: 2px solid #e74c3c; }
 
-        .nav-bar { display: flex; justify-content: space-around; padding-bottom: 10px; }
-        .nav-btn { text-align: center; color: #bdc3c7; font-size: 10px; font-weight: 800; flex: 1; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-        .nav-btn span { display: block; font-size: 24px; margin-bottom: 5px; }
+        .nav-bar { display: flex; justify-content: space-around; padding-bottom: 8px; border-top: 1px solid #f8f9fa; padding-top: 8px; }
+        .nav-btn { text-align: center; color: #bdc3c7; font-size: 9px; font-weight: 800; flex: 1; cursor: pointer; }
+        .nav-btn span { display: block; font-size: 20px; margin-bottom: 2px; }
         .active-tab { color: var(--main-green); }
 
-        /* ✍️ Chữ ký - Đưa xuống đáy tuyệt đối */
         .brand-footer {
-            background: #fdfdfd; text-align: center; padding: 8px 0;
-            font-size: 9px; color: #cbd5e0; font-weight: bold; letter-spacing: 1.5px;
-            border-top: 1px solid #f7fafc;
+            background: #f9f9f9; text-align: center; padding: 6px 0;
+            font-size: 8px; color: #cbd5e0; font-weight: bold; letter-spacing: 1px;
         }
 
-        /* 🚗 Định vị xe - CSS cho Marker */
+        /* 🚗 Định vị xe */
         .car-marker {
-            background: var(--main-green);
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            background: var(--main-blue); border: 2px solid white;
+            border-radius: 50%; box-shadow: 0 0 8px var(--main-blue);
         }
     </style>
 </head>
@@ -83,9 +81,9 @@
 <div id="map"></div>
 
 <div class="left-panel">
-    <div class="bar-thin gold">GÓI: FREE</div>
-    <div class="bar-thin dark">ID: TX-7269</div>
-    <div class="bar-thin price-btn" onclick="setPrice()">⚙️ GIÁ: <span id="p-label">15.000</span></div>
+    <div class="pill gold bar-thin">GÓI: FREE</div>
+    <div class="pill dark bar-thin">ID: TX-7269</div>
+    <div class="pill price-btn bar-thin" onclick="setPrice()">⚙️ GIÁ: <span id="p-label">15.000</span></div>
 </div>
 
 <div class="hud-container">
@@ -95,8 +93,8 @@
     </div>
     <div class="hud-box">
         <div class="num" style="color:var(--main-blue)" id="val-km">0.00</div>
-        <div class="txt">KILÔMÉT ĐÃ ĐI</div>
-        <div class="timer" id="val-time">⏱ 00:00</div>
+        <div class="txt">KM ĐÃ DI CHUYỂN</div>
+        <div class="timer-tag" id="val-time">⏱ 00:00</div>
     </div>
 </div>
 
@@ -107,72 +105,71 @@
     </div>
     <div class="nav-bar">
         <div class="nav-btn active-tab" onclick="location.reload()"><span>🏠</span>Trang chủ</div>
-        <div class="nav-btn" onclick="openFeature('Nạp tiền')"><span>💰</span>Nạp tiền</div>
-        <div class="nav-btn" onclick="openFeature('Lịch sử')"><span>📊</span>Lịch sử</div>
-        <div class="nav-btn" onclick="openFeature('Quản lý')"><span>⚙️</span>Quản lý</div>
+        <div class="nav-btn" onclick="openNav('Nạp tiền')"><span>💰</span>Nạp tiền</div>
+        <div class="nav-btn" onclick="openNav('Lịch sử')"><span>📊</span>Lịch sử</div>
+        <div class="nav-btn" onclick="openNav('Quản lý')"><span>⚙️</span>Quản lý</div>
     </div>
     <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Khởi tạo bản đồ chuyên nghiệp
+    // 1. Khởi tạo bản đồ nét cao
     var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.07], 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // Thêm Marker xe taxi
-    var carIcon = L.divIcon({ className: 'car-marker', iconSize: [16, 16] });
-    var carMarker = L.marker([20.95, 107.07], { icon: carIcon }).addTo(map);
+    // 2. Định vị xe
+    var carMarker = L.marker([20.95, 107.07], {
+        icon: L.divIcon({ className: 'car-marker', iconSize: [12, 12] })
+    }).addTo(map);
 
     let sec = 0;
-    let job;
     let distance = 0;
     let pricePerKm = 15000;
+    let job;
 
     function startTrip() {
         if(job) return;
-        alert("HỆ THỐNG ĐÃ KÍCH HOẠT GPS - BẮT ĐẦU TÍNH CƯỚC!");
+        alert("GPS ĐÃ KÍCH HOẠT - CHÚC ANH ĐẠT LÁI XE AN TOÀN!");
         job = setInterval(() => {
             sec++;
-            // Tính thời gian
+            // Cập nhật thời gian
             let m = Math.floor(sec/60);
             let s = sec%60;
             document.getElementById('val-time').innerText = "⏱ " + (m<10?"0"+m:m) + ":" + (s<10?"0"+s:s);
             
-            // Nhảy KM giả lập (tăng 10m mỗi giây để anh thấy độ nét)
-            distance += 0.01;
+            // Cập nhật KM (Giả lập di chuyển cực nét)
+            distance += 0.005; 
             document.getElementById('val-km').innerText = distance.toFixed(2);
+            
+            // Cập nhật Tiền
+            let money = Math.floor(distance * pricePerKm);
+            document.getElementById('val-money').innerText = money.toLocaleString();
 
-            // Tính tiền theo KM và giá
-            let currentMoney = Math.floor(distance * pricePerKm);
-            document.getElementById('val-money').innerText = currentMoney.toLocaleString();
-
-            // Cập nhật vị trí xe trên bản đồ
-            let newLat = 20.95 + (distance * 0.001); // Giả lập xe chạy lên phía bắc
+            // Xe chạy theo trên bản đồ
+            let newLat = 20.95 + (distance * 0.001);
             carMarker.setLatLng([newLat, 107.07]);
             map.panTo([newLat, 107.07]);
-
         }, 1000);
     }
 
     function resetTrip() {
-        if(confirm("Bạn có chắc chắn muốn kết thúc chuyến đi?")) {
+        if(confirm("Xác nhận kết thúc và thanh toán?")) {
             location.reload();
         }
     }
 
     function setPrice() {
-        let p = prompt("Nhập giá cước mới (VNĐ/KM):", pricePerKm);
+        let p = prompt("Nhập giá mới (VNĐ/KM):", pricePerKm);
         if(p && !isNaN(p)) {
             pricePerKm = parseInt(p);
             document.getElementById('p-label').innerText = pricePerKm.toLocaleString();
         }
     }
 
-    // Kiểm tra toàn bộ phím chức năng
-    function openFeature(name) {
-        alert("Đang mở chức năng: " + name + "...");
-        // Ở đây anh có thể thêm window.location.href = 'link_cua_anh.html';
+    // 3. Kiểm tra phím chức năng
+    function openNav(name) {
+        alert("Hệ thống: Đang mở chức năng " + name + "...");
     }
 </script>
 </body>
