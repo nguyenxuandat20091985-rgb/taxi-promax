@@ -3,68 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax Infinity - NGUYEN XUAN DAT</title>
+    <title>Taxi ProMax - NGUYEN XUAN DAT</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --main-green: #2ecc71; --main-blue: #3498db; --glass: rgba(255, 255, 255, 0.95); }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f7f6; overflow: hidden; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
 
-        /* 🎡 Hiệu ứng xoay bánh xe */
+        /* 🎡 Animation bánh xe */
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .spinning { display: inline-block; animation: spin 2s linear infinite; }
 
-        /* 📡 Radar tỏa sóng cho xe */
+        /* 📡 Radar xe */
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(46, 204, 113, 0); }
+            70% { box-shadow: 0 0 0 12px rgba(46, 204, 113, 0); }
             100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
         }
         .car-pulse { animation: pulse 1.5s infinite; border-radius: 50%; }
 
-        /* 🟢 Trạng thái Online */
+        /* 🟢 Status Online */
         .network-status {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; padding: 5px 15px; border-radius: 20px;
-            font-size: 10px; font-weight: bold; background: rgba(46, 204, 113, 0.9); color: white;
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; padding: 4px 12px; border-radius: 20px;
+            font-size: 9px; font-weight: bold; background: rgba(46, 204, 113, 0.9); color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
-        /* 📏 Căn lề hàng dọc bên trái (ID, Giá, Gói) */
-        .left-info-stack {
-            position: absolute; top: 50px; left: 12px; z-index: 100;
-            display: flex; flex-direction: column; gap: 8px;
+        /* 🏗️ Cột thông tin hàng dọc (Gói -> ID -> Giá) */
+        .left-stack {
+            position: absolute; top: 40px; left: 10px; z-index: 100;
+            display: flex; flex-direction: column; gap: 6px;
         }
-        .info-pill { 
-            background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; 
-            border-radius: 10px; font-size: 11px; font-weight: bold; width: fit-content;
-        }
-        .btn-price-setting {
-            width: 60px; height: 60px; border-radius: 15px; background: white; 
-            border: 2.2px solid var(--main-green); display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        .pill-package { background: #f1c40f; color: #000; padding: 5px 12px; border-radius: 8px; font-size: 10px; font-weight: 900; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .pill-id { background: rgba(44, 62, 80, 0.9); color: white; padding: 5px 12px; border-radius: 8px; font-size: 10px; font-weight: bold; }
+        .btn-price-small {
+            background: white; border: 2px solid var(--main-green); border-radius: 12px;
+            width: 52px; height: 52px; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
+        /* 📟 HUD mỏng hơn */
         .smart-hud {
-            position: absolute; bottom: 165px; width: 92%; left: 4%; z-index: 100;
-            background: var(--glass); border-radius: 20px; display: flex; padding: 15px 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            position: absolute; bottom: 135px; width: 94%; left: 3%; z-index: 100;
+            background: var(--glass); border-radius: 15px; display: flex; padding: 10px 0;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
         .hud-col { flex: 1; text-align: center; }
-        .money { font-size: 28px; color: var(--main-green); font-weight: 900; }
-        .km { font-size: 28px; color: var(--main-blue); font-weight: 900; }
+        .money { font-size: 24px; color: var(--main-green); font-weight: 900; }
+        .km { font-size: 24px; color: var(--main-blue); font-weight: 900; }
+        .label { font-size: 9px; color: #95a5a6; text-transform: uppercase; }
 
+        /* 📱 Bottom Panel Mỏng - Tăng diện tích bản đồ */
         .bottom-panel {
             position: absolute; bottom: 0; width: 100%; z-index: 200;
-            background: white; border-top-left-radius: 30px; border-top-right-radius: 30px;
-            padding: 20px 0 15px 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08);
+            background: white; border-top-left-radius: 25px; border-top-right-radius: 25px;
+            padding: 12px 0 8px 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
         }
-        .main-btns { width: 90%; margin: 0 auto 18px auto; display: flex; gap: 12px; }
-        .btn-go { flex: 2; background: var(--main-green); color: white; border: none; padding: 16px; border-radius: 18px; font-weight: 900; font-size: 16px; }
-        .btn-stop { flex: 1; background: #fff; color: #e74c3c; border: 2.5px solid #e74c3c; border-radius: 18px; font-weight: 900; }
+        .main-btns { width: 92%; margin: 0 auto 10px auto; display: flex; gap: 8px; }
+        .btn-go { flex: 2.5; background: var(--main-green); color: white; border: none; padding: 12px; border-radius: 14px; font-weight: 900; font-size: 14px; }
+        .btn-stop { flex: 1; background: #fff; color: #e74c3c; border: 2px solid #e74c3c; border-radius: 14px; font-weight: bold; font-size: 12px; }
 
-        .bottom-menu { display: flex; justify-content: space-around; }
-        .menu-item { text-align: center; color: #bdc3c7; font-size: 11px; font-weight: bold; flex: 1; cursor: pointer; }
-        .menu-item span { display: block; font-size: 24px; margin-bottom: 4px; }
+        .bottom-menu { display: flex; justify-content: space-around; align-items: center; }
+        .menu-item { text-align: center; color: #bdc3c7; font-size: 10px; font-weight: bold; flex: 1; }
+        .menu-item span { display: block; font-size: 20px; margin-bottom: 2px; }
         .menu-item.active { color: var(--main-green); }
     </style>
 </head>
@@ -73,18 +75,24 @@
 <div class="network-status">● ĐANG TRỰC TUYẾN</div>
 <div id="map"></div>
 
-<div class="left-info-stack">
-    <div class="info-pill" id="device-id-display">ID: TX-7269</div>
-    <div class="btn-price-setting">
-        <span style="font-size: 8px; color: #7f8c8d;">⚙️ GIÁ</span>
-        <span style="font-size: 12px; color: var(--main-green); font-weight: 900;">15K</span>
+<div class="left-stack">
+    <div class="pill-package">GÓI: FREE</div>
+    <div class="pill-id">ID: TX-7269</div>
+    <div class="btn-price-small">
+        <span style="font-size: 7px; color: #7f8c8d;">⚙️ GIÁ</span>
+        <span style="font-size: 11px; color: var(--main-green); font-weight: 900;">15K</span>
     </div>
-    <div class="info-pill" style="background: #f1c40f; color: #000;">GÓI: FREE</div>
 </div>
 
 <div class="smart-hud">
-    <div class="hud-col"><div class="money" id="display-fare">0</div><div style="font-size: 10px; color: #95a5a6;">VNĐ ĐANG NHÀY</div></div>
-    <div class="hud-col"><div class="km" id="display-km">0.00</div><div style="font-size: 10px; color: #95a5a6;">KILÔMÉT ĐÃ ĐI</div></div>
+    <div class="hud-col">
+        <div class="money" id="display-fare">0</div>
+        <div class="label">VNĐ</div>
+    </div>
+    <div class="hud-col">
+        <div class="km" id="display-km">0.00</div>
+        <div class="label">KILÔMÉT</div>
+    </div>
 </div>
 
 <div class="bottom-panel">
@@ -94,18 +102,10 @@
     </div>
 
     <div class="bottom-menu">
-        <div class="menu-item active" onclick="location.reload()">
-            <span id="home-icon">🏠</span>Trang chủ
-        </div>
-        <div class="menu-item" onclick="window.location.href='payment.html'">
-            <span>💰</span>Nạp tiền
-        </div>
-        <div class="menu-item" onclick="alert('Đang tải dữ liệu chuyến đi...')">
-            <span>📊</span>Lịch sử
-        </div>
-        <div class="menu-item" onclick="window.location.href='admin.html'">
-            <span>⚙️</span>Quản lý
-        </div>
+        <div class="menu-item active" onclick="location.reload()"><span id="home-icon">🏠</span>Trang chủ</div>
+        <div class="menu-item" onclick="alert('Đang mở ví nạp tiền...')"><span>💰</span>Nạp tiền</div>
+        <div class="menu-item"><span>📊</span>Lịch sử</div>
+        <div class="menu-item" onclick="alert('Đang vào quản lý...')"><span>⚙️</span>Quản lý</div>
     </div>
 </div>
 
@@ -117,22 +117,21 @@
     var carMarker = L.marker([20.95, 107.07], {
         icon: L.divIcon({
             className: 'car-pulse',
-            html: '<div style="background:#2ecc71; width:15px; height:15px; border-radius:50%; border:3px solid white;"></div>',
-            iconSize: [21, 21]
+            html: '<div style="background:#2ecc71; width:12px; height:12px; border-radius:50%; border:2px solid white;"></div>',
+            iconSize: [16, 16]
         })
     }).addTo(map);
 
     function startTrip() {
         document.getElementById('home-icon').innerText = "🎡";
         document.getElementById('home-icon').classList.add('spinning');
-        document.getElementById('btnStart').innerText = "⚡ ĐANG TÍNH TIỀN...";
-        // Logic tính tiền GPS của anh Đạt ở đây...
+        document.getElementById('btnStart').innerText = "⚡ ĐANG CHẠY...";
     }
 
     function stopTrip() {
         document.getElementById('home-icon').innerText = "🏠";
         document.getElementById('home-icon').classList.remove('spinning');
-        alert("Chuyến đi kết thúc thành công!");
+        alert("Kết thúc chuyến!");
         location.reload();
     }
 </script>
