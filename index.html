@@ -3,168 +3,853 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax Infinity - NGUYEN XUAN DAT</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Taxi ProMax - Ứng dụng đặt xe</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --main-green: #2ecc71; --main-blue: #3498db; --glass: rgba(255, 255, 255, 0.95); }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f7f6; overflow: hidden; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; } 
-
-        /* 🟢 Đèn báo mạng - Canh giữa chuẩn */
-        .network-status {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; padding: 5px 15px; border-radius: 20px;
-            font-size: 10px; font-weight: bold; backdrop-filter: blur(8px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
         }
-        .online { background: rgba(46, 204, 113, 0.9); color: white; }
-        .offline { background: rgba(231, 76, 60, 0.9); color: white; }
-
-        /* 🏷️ Info Pill - ID & Gói cước (Đã chỉnh khoảng cách) */
-        .top-bar {
-            position: absolute; top: 45px; width: 94%; left: 3%; z-index: 100;
-            display: flex; justify-content: space-between;
+        
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #0d47a1;
+            --secondary: #34a853;
+            --accent: #ff6b00;
+            --danger: #ea4335;
+            --warning: #fbbc04;
+            --light: #f8f9fa;
+            --dark: #202124;
+            --gray: #5f6368;
+            --gray-light: #dadce0;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --radius: 16px;
+            --transition: all 0.3s ease;
         }
-        .info-pill { 
-            background: rgba(0,0,0,0.6); color: white; padding: 4px 10px; 
-            border-radius: 12px; font-size: 10px; font-weight: bold;
-        } 
-
-        /* ⚙️ Nút Cài Đặt 15K - Gọn gàng hơn */
-        .price-setting-container { position: absolute; top: 85px; left: 12px; z-index: 100; }
-        .btn-price-setting {
-            width: 58px; height: 58px; border-radius: 15px;
-            background: white; border: 2px solid var(--main-green);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        
+        body {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+            color: var(--dark);
+            min-height: 100vh;
+            overflow-x: hidden;
+            padding-bottom: 90px;
         }
-        .btn-text-top { font-size: 8px; color: #7f8c8d; font-weight: bold; }
-        .btn-text-bottom { font-size: 11px; color: var(--main-green); font-weight: 900; } 
-
-        /* 📟 SMART HUD - Bảng tính tiền */
-        .smart-hud {
-            position: absolute; bottom: 165px; width: 92%; left: 4%; z-index: 100;
-            background: var(--glass); border-radius: 20px; display: flex; padding: 15px 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.8);
+        
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 15px;
         }
-        .hud-col { flex: 1; text-align: center; }
-        .hud-col:first-child { border-right: 1px solid #f0f0f0; }
-        .money { font-size: 28px; color: var(--main-green); font-weight: 900; }
-        .km { font-size: 28px; color: var(--main-blue); font-weight: 900; }
-        .label { font-size: 10px; color: #95a5a6; font-weight: bold; margin-top: 2px; } 
-
-        /* 🎮 Bảng điều khiển dưới cùng */
-        .bottom-panel {
-            position: absolute; bottom: 0; width: 100%; z-index: 200;
-            background: white; border-top-left-radius: 30px; border-top-right-radius: 30px;
-            padding: 20px 0 10px 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08);
+        
+        /* HEADER */
+        .app-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius);
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        .main-btns { width: 90%; margin: 0 auto 18px auto; display: flex; gap: 12px; }
-        .btn-go { flex: 2; background: var(--main-green); color: white; border: none; padding: 16px; border-radius: 18px; font-weight: 900; font-size: 16px; box-shadow: 0 6px 20px rgba(46, 204, 113, 0.3); }
-        .btn-stop { flex: 1; background: #fff; color: #e74c3c; border: 2.5px solid #e74c3c; border-radius: 18px; font-weight: 900; } 
-
-        /* 📱 Thanh Menu Icon - Đã giãn cách đều */
-        .bottom-menu { display: flex; justify-content: space-around; padding: 5px 10px; }
-        .menu-item { text-align: center; color: #bdc3c7; font-size: 10px; font-weight: 800; flex: 1; transition: 0.3s; }
-        .menu-item span { display: block; font-size: 24px; margin-bottom: 4px; filter: grayscale(100%); opacity: 0.6; }
-        .menu-item.active { color: var(--main-green); }
-        .menu-item.active span { filter: grayscale(0%); opacity: 1; }
-
-        /* Pop-up Slider */
-        .slider-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
-        .slider-card { background: white; padding: 30px; border-radius: 30px; width: 80%; text-align: center; }
-        .btn-confirm { background: var(--main-green); color: white; border: none; padding: 15px; border-radius: 15px; font-weight: bold; width: 100%; margin-top: 15px; }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+            border: 3px solid white;
+        }
+        
+        .user-details h3 {
+            color: white;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .user-details p {
+            color: var(--gray-light);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .wallet-balance {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 8px 15px;
+            color: white;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        /* MAIN BOOKING CARD */
+        .booking-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .booking-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+        }
+        
+        .card-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .card-title h2 {
+            color: var(--dark);
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .location-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .location-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            background: var(--light);
+            border-radius: 12px;
+            border: 1px solid var(--gray-light);
+            transition: var(--transition);
+        }
+        
+        .location-item:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        
+        .location-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .pickup-icon {
+            background: var(--secondary);
+        }
+        
+        .destination-icon {
+            background: var(--primary);
+        }
+        
+        .location-input {
+            border: none;
+            background: transparent;
+            width: 100%;
+            font-size: 16px;
+            color: var(--dark);
+            outline: none;
+        }
+        
+        .location-input::placeholder {
+            color: var(--gray);
+        }
+        
+        .swap-locations {
+            display: flex;
+            justify-content: center;
+            margin: 5px 0;
+        }
+        
+        .swap-btn {
+            background: var(--light);
+            border: 1px solid var(--gray-light);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .swap-btn:hover {
+            background: var(--primary);
+            color: white;
+            transform: rotate(180deg);
+        }
+        
+        .vehicle-selection {
+            margin-top: 20px;
+        }
+        
+        .vehicle-title {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: var(--dark);
+            font-weight: 600;
+        }
+        
+        .vehicle-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        
+        .vehicle-option {
+            background: var(--light);
+            border: 2px solid var(--gray-light);
+            border-radius: 12px;
+            padding: 15px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .vehicle-option:hover, .vehicle-option.active {
+            border-color: var(--primary);
+            background: rgba(26, 115, 232, 0.05);
+            transform: translateY(-3px);
+        }
+        
+        .vehicle-icon {
+            font-size: 24px;
+            color: var(--primary);
+        }
+        
+        .vehicle-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--dark);
+        }
+        
+        .vehicle-price {
+            font-size: 12px;
+            color: var(--secondary);
+            font-weight: 600;
+        }
+        
+        .book-btn {
+            background: linear-gradient(to right, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 18px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 25px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(26, 115, 232, 0.3);
+        }
+        
+        .book-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(26, 115, 232, 0.4);
+        }
+        
+        /* SERVICES GRID */
+        .services-section {
+            margin: 25px 0;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        
+        .section-header h3 {
+            color: white;
+            font-size: 18px;
+        }
+        
+        .see-all {
+            color: var(--gray-light);
+            font-size: 14px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        .service-item {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: var(--transition);
+        }
+        
+        .service-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-5px);
+        }
+        
+        .service-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 22px;
+        }
+        
+        .service-name {
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 500;
+            line-height: 1.3;
+        }
+        
+        /* PROMOTIONS */
+        .promotions {
+            margin: 25px 0;
+        }
+        
+        .promo-slider {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding: 5px 0 15px;
+            scrollbar-width: thin;
+        }
+        
+        .promo-slider::-webkit-scrollbar {
+            height: 5px;
+        }
+        
+        .promo-slider::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+        
+        .promo-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            min-width: 250px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        
+        .promo-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .promo-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+        
+        .promo-info h4 {
+            color: white;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        
+        .promo-info p {
+            color: var(--gray-light);
+            font-size: 13px;
+        }
+        
+        /* BOTTOM NAVIGATION */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--gray-light);
+            padding: 10px 0;
+            z-index: 1000;
+        }
+        
+        .nav-items {
+            display: flex;
+            justify-content: space-around;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: var(--gray);
+            transition: var(--transition);
+            padding: 5px 10px;
+            border-radius: 10px;
+        }
+        
+        .nav-item:hover, .nav-item.active {
+            color: var(--primary);
+            background: rgba(26, 115, 232, 0.05);
+        }
+        
+        .nav-icon {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+        
+        .nav-label {
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        /* ANIMATIONS */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        /* RESPONSIVE */
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .services-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 12px;
+            }
+            
+            .vehicle-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .service-icon {
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+            }
+        }
+        
+        @media (max-width: 360px) {
+            .services-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .user-details h3 {
+                font-size: 16px;
+            }
+            
+            .booking-card {
+                padding: 15px;
+            }
+        }
     </style>
 </head>
-<body> 
-
-<div id="connection-status" class="network-status online">● ĐANG TRỰC TUYẾN</div>
-<div id="map"></div> 
-
-<div class="top-bar">
-    <div class="info-pill" id="device-id-display">ID: Đang tải...</div>
-    <div class="info-pill" style="background: #f1c40f; color: #000;">GÓI: FREE</div>
-</div> 
-
-<div class="price-setting-container">
-    <div class="btn-price-setting" onclick="showPriceSlider()">
-        <span class="btn-text-top">⚙️ GIÁ</span>
-        <span class="btn-text-bottom" id="price-badge">15K</span>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="user-info">
+                <div class="avatar">TX</div>
+                <div class="user-details">
+                    <h3>Nguyễn Văn A</h3>
+                    <p><i class="fas fa-star" style="color: var(--warning);"></i> 4.9 (124 chuyến)</p>
+                </div>
+            </div>
+            <div class="wallet-balance">
+                <i class="fas fa-wallet"></i>
+                <span>245.000đ</span>
+            </div>
+        </header>
+        
+        <!-- BOOKING CARD -->
+        <main class="booking-card">
+            <div class="card-title">
+                <h2><i class="fas fa-car" style="color: var(--primary);"></i> Đặt xe ngay</h2>
+                <div style="color: var(--gray); font-size: 14px;">
+                    <i class="fas fa-clock"></i> 24/7
+                </div>
+            </div>
+            
+            <div class="location-inputs">
+                <div class="location-item">
+                    <div class="location-icon pickup-icon">
+                        <i class="fas fa-circle"></i>
+                    </div>
+                    <input type="text" class="location-input" placeholder="Vị trí hiện tại của bạn" value="123 Đường ABC, Quận 1">
+                </div>
+                
+                <div class="swap-locations">
+                    <button class="swap-btn">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                </div>
+                
+                <div class="location-item">
+                    <div class="location-icon destination-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <input type="text" class="location-input" placeholder="Nhập điểm đến">
+                </div>
+            </div>
+            
+            <div class="vehicle-selection">
+                <div class="vehicle-title">Chọn loại xe</div>
+                <div class="vehicle-grid">
+                    <div class="vehicle-option active">
+                        <div class="vehicle-icon"><i class="fas fa-car"></i></div>
+                        <div class="vehicle-name">Taxi 4 chỗ</div>
+                        <div class="vehicle-price">12.000đ/km</div>
+                    </div>
+                    <div class="vehicle-option">
+                        <div class="vehicle-icon"><i class="fas fa-car-side"></i></div>
+                        <div class="vehicle-name">Taxi 7 chỗ</div>
+                        <div class="vehicle-price">15.000đ/km</div>
+                    </div>
+                    <div class="vehicle-option">
+                        <div class="vehicle-icon"><i class="fas fa-shuttle-van"></i></div>
+                        <div class="vehicle-name">Xe điện</div>
+                        <div class="vehicle-price">10.000đ/km</div>
+                    </div>
+                    <div class="vehicle-option">
+                        <div class="vehicle-icon"><i class="fas fa-crown"></i></div>
+                        <div class="vehicle-name">Xe cao cấp</div>
+                        <div class="vehicle-price">25.000đ/km</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="book-btn pulse">
+                <i class="fas fa-search"></i>
+                TÌM XE NGAY
+            </button>
+        </main>
+        
+        <!-- SERVICES GRID -->
+        <section class="services-section">
+            <div class="section-header">
+                <h3>Dịch vụ của chúng tôi</h3>
+                <a href="#" class="see-all">Xem tất cả <i class="fas fa-chevron-right"></i></a>
+            </div>
+            <div class="services-grid">
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #34a853, #0d8040);">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div class="service-name">Giao hàng</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #ea4335, #c5221f);">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <div class="service-name">Đặt nhanh</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #fbbc04, #e37400);">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="service-name">Đặt trước</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #1a73e8, #0d47a1);">
+                        <i class="fas fa-road"></i>
+                    </div>
+                    <div class="service-name">Đường dài</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #673ab7, #4527a0);">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div class="service-name">Thu hộ COD</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #00bcd4, #00838f);">
+                        <i class="fas fa-history"></i>
+                    </div>
+                    <div class="service-name">Lịch sử chuyến</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #ff6b00, #c43e00);">
+                        <i class="fas fa-percentage"></i>
+                    </div>
+                    <div class="service-name">Khuyến mãi</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon" style="background: linear-gradient(135deg, #9c27b0, #6a1b9a);">
+                        <i class="fas fa-headset"></i>
+                    </div>
+                    <div class="service-name">Hỗ trợ</div>
+                </a>
+            </div>
+        </section>
+        
+        <!-- PROMOTIONS -->
+        <section class="promotions">
+            <div class="section-header">
+                <h3>Khuyến mãi hôm nay</h3>
+                <a href="#" class="see-all">Xem tất cả <i class="fas fa-chevron-right"></i></a>
+            </div>
+            <div class="promo-slider">
+                <a href="#" class="promo-card">
+                    <div class="promo-icon">
+                        <i class="fas fa-gift"></i>
+                    </div>
+                    <div class="promo-info">
+                        <h4>Giảm 50% chuyến đầu</h4>
+                        <p>Áp dụng cho khách hàng mới</p>
+                    </div>
+                </a>
+                
+                <a href="#" class="promo-card">
+                    <div class="promo-icon">
+                        <i class="fas fa-ticket-alt"></i>
+                    </div>
+                    <div class="promo-info">
+                        <h4>Giảm 30K mỗi chuyến</h4>
+                        <p>Đặt xe từ 22h - 5h sáng</p>
+                    </div>
+                </a>
+                
+                <a href="#" class="promo-card">
+                    <div class="promo-icon">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="promo-info">
+                        <h4>Tích điểm đổi quà</h4>
+                        <p>1.000đ = 1 điểm tích lũy</p>
+                    </div>
+                </a>
+            </div>
+        </section>
     </div>
-</div> 
-
-<div class="smart-hud">
-    <div class="hud-col">
-        <div class="money" id="display-fare">0</div>
-        <div class="label">VNĐ ĐANG NHẢY</div>
-    </div>
-    <div class="hud-col">
-        <div class="km" id="display-km">0.00</div>
-        <div class="label">KILÔMÉT ĐÃ ĐI</div>
-    </div>
-</div> 
-
-<div class="bottom-panel">
-    <div class="main-btns">
-        <button class="btn-go" id="btnStart" onclick="startTrip()">▶ BẮT ĐẦU CHUYẾN</button>
-        <button class="btn-stop" onclick="stopTrip()">KẾT THÚC</button>
-    </div> 
-
-    <div class="bottom-menu">
-        <div class="menu-item active" onclick="location.reload()"><span>🏠</span>Trang chủ</div>
-        <div class="menu-item" onclick="window.location.href='payment.html'"><span>💰</span>Nạp tiền</div>
-        <div class="menu-item" onclick="alert('Tính năng đang cập nhật!')"><span>📊</span>Lịch sử</div>
-        <div class="menu-item" onclick="window.location.href='admin.html'"><span>⚙️</span>Quản lý</div>
-    </div>
-    <div style="text-align: center; font-size: 8px; color: #ecf0f1; margin-top: 10px; letter-spacing: 1px;">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
-</div> 
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.07], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    var carMarker = L.circleMarker([0,0], { radius: 10, color: '#fff', weight: 3, fillColor: '#2ecc71', fillOpacity: 1 }).addTo(map); 
-
-    let currentPrice = 15000;
-    let totalDistance = 0;
-    let watchId = null;
-    let lastPos = null; 
-
-    function showPriceSlider() { document.getElementById('slider-overlay').style.display = 'flex'; }
-    function hidePriceSlider() { document.getElementById('slider-overlay').style.display = 'none'; }
     
-    function startTrip() {
-        if(watchId) return;
-        document.getElementById('btnStart').innerText = "⚡ ĐANG TÍNH TIỀN...";
-        watchId = navigator.geolocation.watchPosition(pos => {
-            const currentPos = [pos.coords.latitude, pos.coords.longitude];
-            carMarker.setLatLng(currentPos);
-            map.panTo(currentPos); 
-            if (lastPos) {
-                const dist = map.distance(lastPos, currentPos) / 1000;
-                if (dist > 0.005) { 
-                    totalDistance += dist;
-                    document.getElementById('display-km').innerText = totalDistance.toFixed(2);
-                    document.getElementById('display-fare').innerText = Math.round(totalDistance * currentPrice).toLocaleString();
-                }
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+        <div class="nav-items">
+            <a href="#" class="nav-item active">
+                <div class="nav-icon"><i class="fas fa-home"></i></div>
+                <div class="nav-label">Trang chủ</div>
+            </a>
+            
+            <a href="#" class="nav-item">
+                <div class="nav-icon"><i class="fas fa-history"></i></div>
+                <div class="nav-label">Chuyến đi</div>
+            </a>
+            
+            <a href="#" class="nav-item">
+                <div class="nav-icon"><i class="fas fa-bell"></i></div>
+                <div class="nav-label">Thông báo</div>
+                <span style="position: absolute; top: 0; right: 5px; background: var(--danger); color: white; width: 8px; height: 8px; border-radius: 50%;"></span>
+            </a>
+            
+            <a href="#" class="nav-item">
+                <div class="nav-icon"><i class="fas fa-user"></i></div>
+                <div class="nav-label">Tài khoản</div>
+            </a>
+        </div>
+    </nav>
+    
+    <script>
+        // Toggle vehicle selection
+        document.querySelectorAll('.vehicle-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.vehicle-option').forEach(opt => {
+                    opt.classList.remove('active');
+                });
+                this.classList.add('active');
+            });
+        });
+        
+        // Swap pickup and destination
+        document.querySelector('.swap-btn').addEventListener('click', function() {
+            const pickupInput = document.querySelector('.location-item:first-child .location-input');
+            const destInput = document.querySelector('.location-item:last-child .location-input');
+            const temp = pickupInput.value;
+            pickupInput.value = destInput.value;
+            destInput.value = temp;
+            
+            // Animation
+            this.style.transform = 'rotate(180deg)';
+            setTimeout(() => {
+                this.style.transform = 'rotate(0deg)';
+            }, 300);
+        });
+        
+        // Book button animation
+        document.querySelector('.book-btn').addEventListener('click', function() {
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ĐANG TÌM XE...';
+            this.classList.remove('pulse');
+            
+            // Simulate finding driver
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-check"></i> ĐÃ TÌM THẤY XE!';
+                this.style.background = 'linear-gradient(to right, #34a853, #0d8040)';
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    this.innerHTML = '<i class="fas fa-search"></i> TÌM XE NGAY';
+                    this.style.background = 'linear-gradient(to right, var(--primary), var(--primary-dark))';
+                    this.classList.add('pulse');
+                }, 3000);
+            }, 2000);
+        });
+        
+        // Auto-detect location
+        function detectLocation() {
+            const locationInput = document.querySelector('.location-item:first-child .location-input');
+            locationInput.value = "Đang xác định vị trí...";
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        locationInput.value = "Vị trí đã xác định";
+                    },
+                    function(error) {
+                        locationInput.value = "123 Đường ABC, Quận 1";
+                    }
+                );
+            } else {
+                locationInput.value = "123 Đường ABC, Quận 1";
             }
-            lastPos = currentPos;
-        }, null, { enableHighAccuracy: true });
-    }
-
-    function stopTrip() {
-        if(watchId) navigator.geolocation.clearWatch(watchId);
-        alert("Tổng tiền: " + document.getElementById('display-fare').innerText + " VNĐ");
-        location.reload();
-    }
-
-    window.addEventListener('online', () => { document.getElementById('connection-status').className = "network-status online"; });
-    window.addEventListener('offline', () => { document.getElementById('connection-status').className = "network-status offline"; });
-
-    window.onload = () => {
-        document.getElementById('device-id-display').innerText = "ID: TX-" + Math.floor(1000 + Math.random()*9000);
-        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
-    };
-</script>
+        }
+        
+        // Auto-detect on page load
+        window.addEventListener('load', detectLocation);
+        
+        // Make promo slider draggable
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+        const slider = document.querySelector('.promo-slider');
+        
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true;
+            slider.classList.add('active');
+            startX = e.pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+        
+        slider.addEventListener('mouseleave', () => {
+            isDown = false;
+            slider.classList.remove('active');
+        });
+        
+        slider.addEventListener('mouseup', () => {
+            isDown = false;
+            slider.classList.remove('active');
+        });
+        
+        slider.addEventListener('mousemove', (e) => {
+            if(!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - slider.offsetLeft;
+            const walk = (x - startX) * 2;
+            slider.scrollLeft = scrollLeft - walk;
+        });
+        
+        // Touch support for mobile
+        slider.addEventListener('touchstart', (e) => {
+            isDown = true;
+            startX = e.touches[0].pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+        
+        slider.addEventListener('touchend', () => {
+            isDown = false;
+        });
+        
+        slider.addEventListener('touchmove', (e) => {
+            if(!isDown) return;
+            const x = e.touches[0].pageX - slider.offsetLeft;
+            const walk = (x - startX) * 2;
+            slider.scrollLeft = scrollLeft - walk;
+        });
+    </script>
 </body>
 </html>
