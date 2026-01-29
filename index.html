@@ -3,175 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax Infinity - NGUYEN XUAN DAT</title>
+    <title>Taxi Tool Pro - 2026</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { 
-            --main-green: #2ecc71; 
-            --main-blue: #3498db; 
-            --main-red: #e74c3c;
-            --main-yellow: #f1c40f;
+        :root {
+            --primary-color: #2ecc71;
+            --danger-color: #e74c3c;
             --dark-bg: #1a1a1a;
-            --glass: rgba(255, 255, 255, 0.95); 
         }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f7f6; overflow: hidden; }
-        
-        /* Bản đồ nền */
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; filter: contrast(1.1) brightness(1.05); } 
 
-        /* Thanh trạng thái Top */
-        .top-bar { position: absolute; top: 15px; width: 92%; left: 4%; z-index: 10; display: flex; justify-content: space-between; }
-        .info-pill { background: rgba(0,0,0,0.75); color: white; padding: 8px 15px; border-radius: 20px; font-size: 11px; font-weight: bold; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; gap: 8px; }
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100%; overflow: hidden; }
 
-        /* Nút Cài đặt giá Hồng (Giữ nguyên theo yêu cầu) */
-        .btn-config { position: absolute; top: 75px; left: 15px; z-index: 10; width: 60px; height: 60px; background: linear-gradient(135deg, #ffc0cb, #ff99aa); border: 3px solid white; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 8px; font-weight: 900; color: #d63031; box-shadow: 0 5px 20px rgba(0,0,0,0.3); cursor: pointer; }
+        /* Bản đồ chiếm 85% diện tích */
+        #map { height: 85vh; width: 100%; z-index: 1; }
 
-        /* HUD Hiển thị tiền & Km */
-        .smart-hud { position: absolute; bottom: 190px; width: 92%; left: 4%; z-index: 10; background: var(--glass); border-radius: 25px; display: flex; padding: 15px 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: 1px solid white; }
-        .hud-col { flex: 1; text-align: center; }
-        .hud-col:first-child { border-right: 1px solid #eee; }
-        .money { font-size: 35px; color: var(--main-green); font-weight: 900; }
-        .km { font-size: 35px; color: var(--main-blue); font-weight: 900; }
-        .label { font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; margin-top: 5px; }
+        /* Thanh Cài Đặt Giá Thông Minh */
+        .price-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
 
-        /* Panel điều khiển dưới */
-        .bottom-panel { position: absolute; bottom: 0; width: 100%; z-index: 20; background: white; border-top-left-radius: 30px; border-top-right-radius: 30px; padding: 20px 0 10px 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.1); }
-        .main-btns { width: 90%; margin: 0 auto 15px auto; display: flex; gap: 12px; }
-        .btn-go { flex: 2; background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; border: none; padding: 18px; border-radius: 20px; font-weight: bold; font-size: 16px; box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4); }
-        .btn-stop { flex: 1; background: white; color: var(--main-red); border: 2px solid var(--main-red); border-radius: 20px; font-weight: bold; }
+        #priceBtn {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid var(--primary-color);
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-align: center;
+        }
 
-        /* Tab Navigation */
-        .nav-icons { display: flex; justify-content: space-around; padding-top: 10px; border-top: 1px solid #f0f0f0; }
-        .nav-item { text-align: center; color: #bdc3c7; text-decoration: none; font-size: 10px; font-weight: 600; cursor: pointer; }
-        .nav-item.active { color: var(--main-green); }
-        .nav-item i { display: block; font-size: 22px; margin-bottom: 3px; }
+        #sliderContainer {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: none; /* Mặc định ẩn */
+        }
 
-        /* Giao diện Nạp Tiền (Modal) */
-        #payment-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f9fa; z-index: 100; overflow-y: auto; padding-bottom: 50px; }
-        .pkg-card { background: white; margin: 15px; padding: 20px; border-radius: 20px; border: 2px solid transparent; transition: 0.3s; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        .pkg-card.selected { border-color: var(--main-green); background: #f0fff4; }
-        .pkg-price { font-size: 20px; font-weight: bold; color: var(--main-green); }
-        .qr-container { text-align: center; margin-top: 20px; background: white; padding: 20px; border-radius: 15px; display: none; }
-        .qr-container img { width: 200px; height: 200px; border: 5px solid #f8f9fa; }
+        #sliderContainer.active { display: block; animation: slideDown 0.3s ease; }
+
+        input[type="range"] { width: 150px; cursor: pointer; accent-color: var(--primary-color); }
+
+        /* Panel điều khiển dưới (15%) */
+        .bottom-panel {
+            height: 15vh;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 1001;
+            padding: 10px;
+        }
+
+        .stats { display: flex; justify-content: space-around; margin-bottom: 10px; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 1.2rem; font-weight: 800; color: #333; }
+        .stat-label { font-size: 0.7rem; color: #888; text-transform: uppercase; }
+
+        .actions { display: flex; gap: 10px; padding: 0 10px; }
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-start { background: var(--primary-color); }
+        .btn-end { background: var(--danger-color); }
+
+        /* Bottom Menu */
+        .nav-bar {
+            display: flex;
+            justify-content: space-around;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            margin-top: 5px;
+        }
+        .nav-item { font-size: 0.65rem; color: #666; text-decoration: none; text-align: center; }
+        .nav-item i { display: block; font-size: 1.2rem; margin-bottom: 2px; }
+
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
-<div id="main-screen">
+    <div class="price-overlay">
+        <button id="priceBtn">⚙️ CÀI GIÁ: <span id="currentPrice">15</span>K/KM</button>
+        <div id="sliderContainer">
+            <input type="range" id="priceSlider" min="10" max="50" step="1" value="15">
+            <div style="text-align: center; margin-top: 5px; font-weight: bold; color: var(--primary-color);">
+                <span id="sliderVal">15</span>K
+            </div>
+        </div>
+    </div>
+
     <div id="map"></div>
-    
-    <div class="top-bar">
-        <div class="info-pill">🆔 <span id="display-id">TX-7269</span></div>
-        <div class="info-pill" style="background: var(--main-yellow); color: #000;">⚡ GÓI: <span id="display-pkg">FREE</span></div>
-    </div>
-
-    <div class="btn-config" onclick="alert('Cài đặt giá: 15K/KM')">
-        <span>⚙️ CÀI ĐẶT</span>
-        <span style="font-size: 10px;">15K/KM</span>
-    </div>
-
-    <div class="smart-hud">
-        <div class="hud-col">
-            <div class="money" id="fare-txt">0</div>
-            <div class="label">VNĐ CƯỚC PHÍ</div>
-        </div>
-        <div class="hud-col">
-            <div class="km" id="km-txt">0.00</div>
-            <div class="label">KM ĐÃ ĐI</div>
-        </div>
-    </div>
 
     <div class="bottom-panel">
-        <div class="main-btns">
-            <button class="btn-go" onclick="startTrip()">▶ BẮT ĐẦU CHUYẾN</button>
-            <button class="btn-stop" onclick="stopTrip()">KẾT THÚC</button>
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="moneyCount">0</div>
+                <div class="stat-label">VND Cước Phí</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="kmCount">0.00</div>
+                <div class="stat-label">Kilômét đã đi</div>
+            </div>
         </div>
-        <div class="nav-icons">
-            <div class="nav-item active"><i>🏠</i>Trang chủ</div>
-            <div class="nav-item" onclick="showScreen('payment')"><i>💰</i>Nạp tiền</div>
-            <div class="nav-item"><i>📊</i>Lịch sử</div>
-            <div class="nav-item"><i>⚙️</i>Quản lý</div>
+
+        <div class="actions">
+            <button class="btn btn-start" onclick="startTrip()">▶ BẮT ĐẦU CHUYẾN</button>
+            <button class="btn btn-end" onclick="endTrip()">■ KẾT THÚC</button>
+        </div>
+
+        <div class="nav-bar">
+            <a href="#" class="nav-item">🏠<br>Trang chủ</a>
+            <a href="#" class="nav-item" onclick="openPayOS()">💰<br>Nạp tiền</a>
+            <a href="#" class="nav-item">📊<br>Lịch sử</a>
+            <a href="#" class="nav-item">⚙️<br>Quản lý</a>
         </div>
     </div>
-</div>
 
-<div id="payment-screen">
-    <div style="padding: 20px; background: #1a1a1a; color: white; display: flex; align-items: center;">
-        <span onclick="showScreen('main')" style="font-size: 20px; margin-right: 15px;">← QUAY LẠI</span>
-        <b style="flex:1; text-align: center;">CHỌN GÓI CƯỚC</b>
-    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. Khởi tạo bản đồ (Lấy tọa độ mặc định Hạ Long như trong ảnh của anh)
+        const map = L.map('map').setView([20.9509, 107.0733], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    <div class="pkg-card" onclick="selectPkg('BASIC', 19000, 'TX-7269 BASIC 1 THANG')">
-        <div style="display: flex; justify-content: space-between;">
-            <b>BASIC 🟢</b>
-            <span class="pkg-price">19.000đ/tháng</span>
-        </div>
-        <small style="color: #777;">• Km + Thời gian | • Offline Mode</small>
-    </div>
+        // 2. Biến điều khiển
+        let isRunning = false;
+        let pricePerKm = 15;
+        let distance = 0;
+        let timer = null;
 
-    <div class="pkg-card" onclick="selectPkg('PRO', 29000, 'TX-7269 PRO 1 THANG')">
-        <div style="display: flex; justify-content: space-between;">
-            <b>PRO 🔵</b>
-            <span class="pkg-price">29.000đ/tháng</span>
-        </div>
-        <small style="color: #777;">• Bản đồ Real-time | • Xuất hóa đơn PDF</small>
-    </div>
+        // 3. Xử lý thanh gạt giá ẩn/hiện
+        const pBtn = document.getElementById('priceBtn');
+        const sContainer = document.getElementById('sliderContainer');
+        const slider = document.getElementById('priceSlider');
 
-    <div class="pkg-card" onclick="selectPkg('VIP', 49000, 'TX-7269 VIP 1 THANG')">
-        <div style="display: flex; justify-content: space-between;">
-            <b>VIP 🔥</b>
-            <span class="pkg-price">49.000đ/tháng</span>
-        </div>
-        <small style="color: #777;">• Trợ lý giọng nói | • Backup Cloud</small>
-    </div>
+        pBtn.onclick = () => sContainer.classList.toggle('active');
 
-    <div class="pkg-card" onclick="selectPkg('FOREVER', 999000, 'TX-7269 VIP TRON DOI')">
-        <div style="display: flex; justify-content: space-between;">
-            <b>VIP TRỌN ĐỜI ⭐</b>
-            <span class="pkg-price">999.000đ</span>
-        </div>
-        <small style="color: #777;">• Full tính năng | • Không quảng cáo</small>
-    </div>
+        slider.oninput = (e) => {
+            document.getElementById('sliderVal').innerText = e.target.value;
+            document.getElementById('currentPrice').innerText = e.target.value;
+            pricePerKm = parseInt(e.target.value);
+        };
 
-    <div id="qr-area" class="qr-container">
-        <h3 id="selected-pkg-name">Gói BASIC</h3>
-        <img id="qr-image" src="" alt="VietQR">
-        <div style="margin-top: 10px; font-weight: bold; color: #d63031;" id="qr-info"></div>
-        <p style="font-size: 11px; color: #888;">Nội dung chuyển khoản phải chính xác 100%</p>
-    </div>
-</div>
+        slider.onchange = () => {
+            setTimeout(() => { sContainer.classList.remove('active'); }, 600);
+        };
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    // Khởi tạo Map
-    var map = L.map('map', { zoomControl: false }).setView([20.95, 107.07], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    var carIcon = L.circleMarker([20.95, 107.07], { radius: 10, color: '#fff', weight: 3, fillColor: '#2ecc71', fillOpacity: 1 }).addTo(map);
+        // 4. Logic chạy Tool tự động
+        function startTrip() {
+            if(isRunning) return;
+            isRunning = true;
+            console.log("Đã bắt đầu chuyến với giá: " + pricePerKm + "k");
+            
+            // Giả lập nhảy số KM và Tiền (Thực tế sẽ lấy từ GPS)
+            timer = setInterval(() => {
+                distance += 0.01;
+                document.getElementById('kmCount').innerText = distance.toFixed(2);
+                document.getElementById('moneyCount').innerText = Math.floor(distance * pricePerKm * 1000).toLocaleString();
+            }, 1000);
+        }
 
-    function showScreen(screen) {
-        document.getElementById('main-screen').style.display = (screen === 'main') ? 'block' : 'none';
-        document.getElementById('payment-screen').style.display = (screen === 'payment') ? 'block' : 'none';
-    }
+        function endTrip() {
+            clearInterval(timer);
+            isRunning = false;
+            alert("Kết thúc chuyến. Tổng tiền: " + document.getElementById('moneyCount').innerText + " VND");
+        }
 
-    function selectPkg(name, price, content) {
-        document.getElementById('qr-area').style.display = 'block';
-        document.getElementById('selected-pkg-name').innerText = "Thanh toán gói " + name;
-        
-        // API VietQR chuẩn
-        const bankId = "BIDV";
-        const accountNo = "20091985"; // Số tài khoản của anh (đã sửa theo ID của anh)
-        const accountName = "NGUYEN XUAN DAT";
-        
-        const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
-        
-        document.getElementById('qr-image').src = qrUrl;
-        document.getElementById('qr-info').innerHTML = `Số tiền: ${price.toLocaleString()}đ<br>Nội dung: ${content}`;
-        
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }
-
-    function startTrip() { alert("Đang bắt đầu hành trình..."); }
-    function stopTrip() { alert("Chuyến đi đã kết thúc!"); }
-</script>
+        // 5. Kết nối PayOS (Tự động mở cổng thanh toán)
+        function openPayOS() {
+            // Thay link này bằng link thanh toán thực tế từ API PayOS của anh
+            window.location.href = "https://payos.vn/"; 
+        }
+    </script>
 </body>
 </html>
