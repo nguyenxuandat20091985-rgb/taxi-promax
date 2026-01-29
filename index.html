@@ -12,6 +12,7 @@
             --glass: rgba(255, 255, 255, 0.85); 
             --main-red: #e74c3c;
             --main-yellow: #f1c40f;
+            --main-purple: #9b59b6;
         }
         body, html { 
             margin: 0; 
@@ -329,6 +330,51 @@
             from { top: 30px; opacity: 0; }
             to { top: 50px; opacity: 1; }
         }
+        
+        /* 5.4 THÊM: Popup gói cước */
+        .package-popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .package-content {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            padding: 30px;
+            border-radius: 30px;
+            width: 90%;
+            max-width: 400px;
+            color: white;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+        }
+        
+        .package-option {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 15px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .package-option:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: var(--main-green);
+        }
+        
+        .package-option.selected {
+            background: rgba(46, 204, 113, 0.2);
+            border-color: var(--main-green);
+        }
     </style>
 </head>
 <body> 
@@ -345,9 +391,9 @@
         <span>🆔</span>
         <span id="deviceId">TX-DAT-2026</span>
     </div>
-    <div class="info-pill" style="background: #f1c40f; color: #000;">
+    <div class="info-pill" id="packageInfo" style="background: #f1c40f; color: #000;">
         <span>⚡</span>
-        <span>GÓI: FREE</span>
+        <span>GÓI: FREE 7 NGÀY</span>
     </div>
 </div> 
 
@@ -385,10 +431,10 @@
     </div> 
 
     <div class="nav-icons">
-        <a href="#" class="nav-item active"><span>🏠</span>Trang chủ</a>
-        <a href="payment.html" class="nav-item"><span>💰</span>Nạp tiền</a>
-        <a href="history.html" class="nav-item"><span>📊</span>Lịch sử</a>
-        <a href="admin.html" class="nav-item"><span>⚙️</span>Quản lý</a>
+        <a href="#" class="nav-item active" onclick="showHome()"><span>🏠</span>Trang chủ</a>
+        <a href="#" class="nav-item" onclick="showPackageSelection()"><span>💰</span>Nạp tiền</a>
+        <a href="#" class="nav-item" onclick="showTripHistory()"><span>📊</span>Lịch sử</a>
+        <a href="#" class="nav-item" onclick="showAdminPanel()"><span>⚙️</span>Quản lý</a>
     </div>
     
     <div class="footer-note">
@@ -441,12 +487,470 @@
     </div>
 </div>
 
+<!-- Package Selection Popup -->
+<div id="packagePopup" class="package-popup">
+    <div class="package-content">
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 20px; text-align: center;">
+            🎯 CHỌN GÓI CƯỚC
+        </div>
+        
+        <div class="package-option" onclick="selectPackage('FREE_TRIAL')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight: bold; font-size: 16px;">GÓI DÙNG THỬ</div>
+                    <div style="font-size: 12px; color: #bdc3c7;">7 ngày miễn phí</div>
+                </div>
+                <div style="font-size: 18px; font-weight: bold; color: #f1c40f;">MIỄN PHÍ</div>
+            </div>
+            <div style="font-size: 11px; color: #95a5a6; margin-top: 8px;">
+                ⚡ 3 chuyến/ngày • 📍 GPS cơ bản • 📊 Lịch sử 30 ngày
+            </div>
+        </div>
+        
+        <div class="package-option" onclick="selectPackage('MONTHLY')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight: bold; font-size: 16px;">GÓI THÁNG</div>
+                    <div style="font-size: 12px; color: #bdc3c7;">Sử dụng 30 ngày</div>
+                </div>
+                <div style="font-size: 18px; font-weight: bold; color: #2ecc71;">200.000₫</div>
+            </div>
+            <div style="font-size: 11px; color: #95a5a6; margin-top: 8px;">
+                ⚡ Không giới hạn • 📍 GPS chính xác • 📊 Lịch sử 1 năm
+            </div>
+        </div>
+        
+        <div class="package-option" onclick="selectPackage('YEARLY')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight: bold; font-size: 16px;">GÓI NĂM</div>
+                    <div style="font-size: 12px; color: #bdc3c7;">Sử dụng 365 ngày</div>
+                </div>
+                <div style="font-size: 18px; font-weight: bold; color: #3498db;">2.000.000₫</div>
+            </div>
+            <div style="font-size: 11px; color: #95a5a6; margin-top: 8px;">
+                ⚡ Không giới hạn • 📍 GPS cao cấp • 📊 Lịch sử vĩnh viễn
+            </div>
+        </div>
+        
+        <div class="package-option" onclick="selectPackage('LIFETIME')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight: bold; font-size: 16px;">GÓI CẢ ĐỜI</div>
+                    <div style="font-size: 12px; color: #bdc3c7;">Sử dụng vĩnh viễn</div>
+                </div>
+                <div style="font-size: 18px; font-weight: bold; color: #9b59b6;">10.000.000₫</div>
+            </div>
+            <div style="font-size: 11px; color: #95a5a6; margin-top: 8px;">
+                ⚡ Không giới hạn • 📍 GPS siêu chính xác • 📊 Toàn bộ tính năng
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <button onclick="processPayment()" style="
+                background: linear-gradient(135deg, var(--main-green), #27ae60);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 15px;
+                font-weight: bold;
+                width: 100%;
+                cursor: pointer;
+                font-size: 16px;
+            ">
+                THANH TOÁN NGAY
+            </button>
+            
+            <div style="color: #95a5a6; font-size: 11px; margin-top: 15px; cursor: pointer;" 
+                 onclick="hidePackagePopup()">
+                Quay lại
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Mini Notification -->
 <div id="miniNotification" class="mini-notification"></div>
 
 <!-- Scripts -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+    // ============================================
+    // 1. HỆ THỐNG BẢO MẬT & QUẢN LÝ GÓI CƯỚC
+    // ============================================
+    
+    class SecuritySystem {
+        constructor() {
+            this.SECRET_KEY = 'TAXI_PROMAX_2025_SECURE_SYSTEM_' + Math.random().toString(36).substr(2, 15);
+            this.init();
+        }
+        
+        init() {
+            // Tạo Device ID duy nhất
+            this.generateDeviceId();
+            // Mã hóa localStorage
+            this.encryptLocalStorage();
+            // Chống sửa đổi
+            this.protectLocalStorage();
+        }
+        
+        generateDeviceId() {
+            let deviceId = localStorage.getItem('_device_id_enc');
+            if (!deviceId) {
+                deviceId = 'TX-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+                const encrypted = this.encrypt(deviceId);
+                localStorage.setItem('_device_id_enc', encrypted);
+            } else {
+                deviceId = this.decrypt(deviceId);
+            }
+            this.deviceId = deviceId;
+            return deviceId;
+        }
+        
+        encrypt(text) {
+            try {
+                return btoa(encodeURIComponent(text + this.SECRET_KEY));
+            } catch (e) {
+                return text;
+            }
+        }
+        
+        decrypt(encrypted) {
+            try {
+                const decoded = decodeURIComponent(atob(encrypted));
+                return decoded.replace(this.SECRET_KEY, '');
+            } catch (e) {
+                return encrypted;
+            }
+        }
+        
+        encryptLocalStorage() {
+            const keys = ['subscription_data', 'trip_history', 'device_stats'];
+            keys.forEach(key => {
+                const data = localStorage.getItem(key);
+                if (data && !data.startsWith('enc:')) {
+                    localStorage.setItem(key, 'enc:' + this.encrypt(data));
+                }
+            });
+        }
+        
+        protectLocalStorage() {
+            const originalSetItem = localStorage.setItem;
+            const protectedKeys = ['_device_id_enc', 'subscription_data', 'payment_status'];
+            
+            localStorage.setItem = function(key, value) {
+                if (protectedKeys.includes(key) && !value.toString().startsWith('enc:')) {
+                    console.warn('[BẢO MẬT] Không thể sửa thông tin hệ thống!');
+                    return false;
+                }
+                return originalSetItem.call(this, key, value);
+            };
+        }
+        
+        validateSession() {
+            const storedId = localStorage.getItem('_device_id_enc');
+            if (!storedId || storedId !== this.encrypt(this.deviceId)) {
+                localStorage.clear();
+                this.generateDeviceId();
+                return false;
+            }
+            return true;
+        }
+        
+        createChecksum(data) {
+            const str = JSON.stringify(data) + this.SECRET_KEY;
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(16);
+        }
+    }
+    
+    class SubscriptionManager {
+        constructor(securitySystem) {
+            this.security = securitySystem;
+            this.STORAGE_KEY = 'subscription_data';
+            this.init();
+        }
+        
+        init() {
+            let data = this.loadData();
+            
+            if (!data || !data.deviceId || data.deviceId !== this.security.deviceId) {
+                // Tạo gói FREE 7 ngày mới
+                data = {
+                    deviceId: this.security.deviceId,
+                    packageType: 'FREE_TRIAL',
+                    startDate: new Date().toISOString(),
+                    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                    isActive: true,
+                    isPaid: false,
+                    paymentId: null,
+                    tripsToday: 0,
+                    maxTripsPerDay: 3, // Giới hạn 3 chuyến/ngày cho dùng thử
+                    totalTrips: 0,
+                    lastTripDate: new Date().toDateString(),
+                    dailyEarnings: 0,
+                    maxDailyEarnings: 1000000, // Giới hạn 1 triệu/ngày cho dùng thử
+                    checksum: null
+                };
+                
+                data.checksum = this.security.createChecksum(data);
+                this.saveData(data);
+            }
+            
+            this.data = data;
+        }
+        
+        loadData() {
+            try {
+                const encrypted = localStorage.getItem(this.STORAGE_KEY);
+                if (!encrypted) return null;
+                
+                const decrypted = this.security.decrypt(encrypted.replace('enc:', ''));
+                const data = JSON.parse(decrypted);
+                
+                // Kiểm tra checksum
+                const storedChecksum = data.checksum;
+                delete data.checksum;
+                const calculatedChecksum = this.security.createChecksum(data);
+                
+                if (storedChecksum !== calculatedChecksum) {
+                    console.warn('[BẢO MẬT] Dữ liệu gói cước bị sửa đổi!');
+                    return null;
+                }
+                
+                data.checksum = storedChecksum;
+                return data;
+            } catch (e) {
+                console.error('Lỗi load dữ liệu gói cước:', e);
+                return null;
+            }
+        }
+        
+        saveData(data) {
+            try {
+                const checksum = this.security.createChecksum(data);
+                data.checksum = checksum;
+                
+                const encrypted = 'enc:' + this.security.encrypt(JSON.stringify(data));
+                localStorage.setItem(this.STORAGE_KEY, encrypted);
+                this.data = data;
+                return true;
+            } catch (e) {
+                console.error('Lỗi save dữ liệu gói cước:', e);
+                return false;
+            }
+        }
+        
+        checkSubscription() {
+            // Reset số chuyến hôm nay nếu là ngày mới
+            const today = new Date().toDateString();
+            if (this.data.lastTripDate !== today) {
+                this.data.tripsToday = 0;
+                this.data.dailyEarnings = 0;
+                this.data.lastTripDate = today;
+                this.saveData(this.data);
+            }
+            
+            // Kiểm tra thời hạn
+            const now = new Date();
+            const endDate = new Date(this.data.endDate);
+            
+            if (now > endDate) {
+                this.data.isActive = false;
+                this.saveData(this.data);
+                return false;
+            }
+            
+            // Kiểm tra số chuyến hôm nay (cho FREE_TRIAL)
+            if (this.data.packageType === 'FREE_TRIAL' && this.data.tripsToday >= this.data.maxTripsPerDay) {
+                return false;
+            }
+            
+            // Kiểm tra thu nhập hôm nay (cho FREE_TRIAL)
+            if (this.data.packageType === 'FREE_TRIAL' && this.data.dailyEarnings >= this.data.maxDailyEarnings) {
+                return false;
+            }
+            
+            return this.data.isActive;
+        }
+        
+        canStartTrip() {
+            if (!this.checkSubscription()) {
+                return {
+                    allowed: false,
+                    reason: 'Gói cước đã hết hạn hoặc không hợp lệ!'
+                };
+            }
+            
+            if (this.data.packageType === 'FREE_TRIAL' && this.data.tripsToday >= this.data.maxTripsPerDay) {
+                return {
+                    allowed: false,
+                    reason: 'Đã hết số chuyến dùng thử hôm nay!'
+                };
+            }
+            
+            return {
+                allowed: true,
+                reason: 'Có thể bắt đầu chuyến đi'
+            };
+        }
+        
+        incrementTrip(earnings = 0) {
+            this.data.tripsToday++;
+            this.data.totalTrips++;
+            this.data.dailyEarnings += earnings;
+            this.saveData(this.data);
+        }
+        
+        activatePackage(packageType, durationDays, paymentId) {
+            const packageData = {
+                'FREE_TRIAL': { color: '#f1c40f', icon: '⚡' },
+                'MONTHLY': { color: '#2ecc71', icon: '⭐' },
+                'YEARLY': { color: '#3498db', icon: '👑' },
+                'LIFETIME': { color: '#9b59b6', icon: '👑' }
+            };
+            
+            this.data.packageType = packageType;
+            this.data.startDate = new Date().toISOString();
+            this.data.endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+            this.data.isActive = true;
+            this.data.isPaid = true;
+            this.data.paymentId = paymentId;
+            this.data.maxTripsPerDay = 999999; // Không giới hạn
+            this.data.maxDailyEarnings = 999999999; // Không giới hạn
+            
+            this.saveData(this.data);
+            
+            return packageData[packageType];
+        }
+        
+        getPackageInfo() {
+            const now = new Date();
+            const endDate = new Date(this.data.endDate);
+            const diffTime = Math.abs(endDate - now);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            const packageNames = {
+                'FREE_TRIAL': 'FREE 7 NGÀY',
+                'MONTHLY': 'THÁNG',
+                'YEARLY': 'NĂM',
+                'LIFETIME': 'CẢ ĐỜI'
+            };
+            
+            const packageColors = {
+                'FREE_TRIAL': '#f1c40f',
+                'MONTHLY': '#2ecc71',
+                'YEARLY': '#3498db',
+                'LIFETIME': '#9b59b6'
+            };
+            
+            const packageIcons = {
+                'FREE_TRIAL': '⚡',
+                'MONTHLY': '⭐',
+                'YEARLY': '👑',
+                'LIFETIME': '👑'
+            };
+            
+            return {
+                name: packageNames[this.data.packageType] || 'UNKNOWN',
+                daysLeft: diffDays,
+                color: packageColors[this.data.packageType] || '#f1c40f',
+                icon: packageIcons[this.data.packageType] || '⚡',
+                isActive: this.data.isActive,
+                tripsToday: this.data.tripsToday,
+                maxTrips: this.data.maxTripsPerDay,
+                dailyEarnings: this.data.dailyEarnings,
+                maxDailyEarnings: this.data.maxDailyEarnings
+            };
+        }
+    }
+    
+    class TripCalculator {
+        constructor() {
+            this.MIN_DISTANCE_TO_CHARGE = 0.005; // 5 mét = 0.005km
+            this.accumulatedDistance = 0;
+            this.lastValidPosition = null;
+            this.MAX_SAFE_DISTANCE = 5000; // 5000km tối đa
+            this.MAX_SAFE_EARNINGS = 100000000; // 100 triệu VNĐ tối đa
+        }
+        
+        calculateDistance(lat1, lon1, lat2, lon2) {
+            // Sử dụng công thức Haversine cho độ chính xác cao
+            const R = 6371; // Bán kính Trái Đất (km)
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            
+            // Chống tràn số
+            if (distance > this.MAX_SAFE_DISTANCE || !isFinite(distance)) {
+                return 0;
+            }
+            
+            return distance;
+        }
+        
+        // Chỉ tính tiền khi đủ 5m
+        addDistance(currentPos, accuracy) {
+            if (!this.lastValidPosition) {
+                this.lastValidPosition = currentPos;
+                return 0;
+            }
+            
+            // Kiểm tra độ chính xác GPS
+            if (accuracy > 50) {
+                console.warn('Độ chính xác GPS thấp:', accuracy, 'mét');
+                return 0;
+            }
+            
+            const distance = this.calculateDistance(
+                this.lastValidPosition[0], this.lastValidPosition[1],
+                currentPos[0], currentPos[1]
+            );
+            
+            // Tích lũy khoảng cách
+            this.accumulatedDistance += distance;
+            
+            // Chỉ tính khi đủ 5m
+            if (this.accumulatedDistance >= this.MIN_DISTANCE_TO_CHARGE) {
+                this.lastValidPosition = currentPos;
+                const chargeableDistance = this.accumulatedDistance;
+                this.accumulatedDistance = 0;
+                return chargeableDistance;
+            }
+            
+            return 0;
+        }
+        
+        calculateFare(distance, pricePerKm) {
+            const fare = distance * pricePerKm;
+            
+            // Chống tràn số
+            if (fare > this.MAX_SAFE_EARNINGS || !isFinite(fare)) {
+                return this.MAX_SAFE_EARNINGS;
+            }
+            
+            return Math.round(fare);
+        }
+        
+        resetAccumulated() {
+            this.accumulatedDistance = 0;
+            this.lastValidPosition = null;
+        }
+    }
+    
+    // ============================================
+    // 2. KHỞI TẠO HỆ THỐNG
+    // ============================================
+    
     // Khởi tạo bản đồ
     var map = L.map('map', { 
         zoomControl: false, 
@@ -457,7 +961,7 @@
         maxZoom: 19
     }).addTo(map);
     
-    // Icon xe hiện đại
+    // Icon xe
     var carIcon = L.circleMarker([0,0], { 
         radius: 10, 
         color: '#fff', 
@@ -465,77 +969,302 @@
         fill: true, 
         fillColor: '#2ecc71', 
         fillOpacity: 1 
-    }).addTo(map); 
-
+    }).addTo(map);
+    
     // Biến hệ thống
+    let securitySystem, subscriptionManager, tripCalculator;
     let kmPrice = 15000;
     let totalKm = 0;
+    let totalFare = 0;
     let watchId = null;
     let lastLoc = null;
     let startTime = null;
     let isTripActive = false;
-    let onlineTimer = null;
-    let totalEarnings = 0;
-
-    // Thêm: Danh sách địa chỉ
-    const locations = [
-        "Đường Hồng Cái, Hàng Than",
-        "Đường Lê Thánh Tông, Bến Thành",
-        "Công viên Vinhomes Dragon Bay",
-        "Phố Bến Thành, Quận 1",
-        "Đại lộ Nguyễn Huệ"
-    ];
-
-    // Thêm: Hàm hiển thị thông báo
+    let selectedPackage = null;
+    
+    // ============================================
+    // 3. HÀM TIỆN ÍCH
+    // ============================================
+    
     function showNotification(message, type = 'success') {
         const notification = document.getElementById('miniNotification');
         notification.textContent = message;
-        notification.style.background = type === 'success' ? 'rgba(46, 204, 113, 0.95)' : 
-                                       type === 'error' ? 'rgba(231, 76, 60, 0.95)' : 
-                                       'rgba(241, 196, 15, 0.95)';
+        
+        const colors = {
+            'success': 'rgba(46, 204, 113, 0.95)',
+            'error': 'rgba(231, 76, 60, 0.95)',
+            'warning': 'rgba(241, 196, 15, 0.95)',
+            'info': 'rgba(52, 152, 219, 0.95)'
+        };
+        
+        notification.style.background = colors[type] || colors.success;
         notification.style.display = 'block';
         
         setTimeout(() => {
             notification.style.display = 'none';
         }, 3000);
     }
-
-    // Thêm: Hàm cập nhật thông tin nhanh
-    function updateQuickInfo() {
-        const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-        document.getElementById('locationText').textContent = randomLocation;
+    
+    function updatePackageDisplay() {
+        const packageInfo = subscriptionManager.getPackageInfo();
+        const packageElement = document.getElementById('packageInfo');
         
-        // Cập nhật thời gian online
-        if (!onlineTimer) {
-            let seconds = 0;
-            onlineTimer = setInterval(() => {
-                seconds++;
-                const hours = Math.floor(seconds / 3600);
-                const minutes = Math.floor((seconds % 3600) / 60);
-                const secs = seconds % 60;
-                
-                // Hiển thị ở quick info
-                const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-                const quickInfo = document.getElementById('quickInfo');
-                quickInfo.innerHTML = `<span>⏱️</span><span>Online: ${timeStr}</span>`;
-            }, 1000);
-        }
-    }
-
-    // Thêm: Hàm kiểm tra kết nối mạng
-    function checkNetworkStatus() {
-        const networkStatus = document.getElementById('networkStatus');
+        packageElement.innerHTML = `
+            <span>${packageInfo.icon}</span>
+            <span>GÓI: ${packageInfo.name} (${packageInfo.daysLeft}d)</span>
+        `;
         
-        if (navigator.onLine) {
-            networkStatus.className = "network-status online";
-            networkStatus.textContent = "● ĐANG TRỰC TUYẾN";
+        packageElement.style.background = packageInfo.color;
+        packageElement.style.color = packageInfo.isActive ? '#000' : '#fff';
+        
+        // Cập nhật trạng thái nút bắt đầu chuyến
+        const startBtn = document.getElementById('startBtn');
+        if (packageInfo.isActive) {
+            startBtn.disabled = false;
+            startBtn.style.opacity = '1';
+            startBtn.innerHTML = '<span>▶</span> BẮT ĐẦU CHUYẾN';
+            
+            if (packageInfo.tripsToday >= packageInfo.maxTrips) {
+                startBtn.disabled = true;
+                startBtn.style.opacity = '0.5';
+                startBtn.innerHTML = '<span>⛔</span> HẾT CHUYẾN HÔM NAY';
+            }
         } else {
-            networkStatus.className = "network-status offline";
-            networkStatus.textContent = "● NGOẠI TUYẾN";
+            startBtn.disabled = true;
+            startBtn.style.opacity = '0.5';
+            startBtn.innerHTML = '<span>🔒</span> GÓI HẾT HẠN';
+        }
+        
+        // Cập nhật quick info
+        const quickInfo = document.getElementById('quickInfo');
+        quickInfo.innerHTML = `
+            <span>📊</span>
+            <span>${packageInfo.tripsToday}/${packageInfo.maxTrips} chuyến • ${packageInfo.dailyEarnings.toLocaleString('vi-VN')}₫/${packageInfo.maxDailyEarnings.toLocaleString('vi-VN')}₫</span>
+        `;
+    }
+    
+    function updateUI() {
+        document.getElementById('km-txt').textContent = totalKm.toFixed(2);
+        document.getElementById('fare-txt').textContent = totalFare.toLocaleString('vi-VN');
+    }
+    
+    // ============================================
+    // 4. HÀM XỬ LÝ CHUYẾN ĐI
+    // ============================================
+    
+    function startTrip() {
+        // Kiểm tra bảo mật
+        if (!securitySystem.validateSession()) {
+            showNotification('Lỗi bảo mật thiết bị!', 'error');
+            return;
+        }
+        
+        // Kiểm tra gói cước
+        const canStart = subscriptionManager.canStartTrip();
+        if (!canStart.allowed) {
+            showNotification(canStart.reason, 'error');
+            return;
+        }
+        
+        if (isTripActive) {
+            showNotification('Chuyến đi đang được tính tiền!', 'warning');
+            return;
+        }
+        
+        // Reset các biến
+        totalKm = 0;
+        totalFare = 0;
+        startTime = new Date();
+        isTripActive = true;
+        tripCalculator.resetAccumulated();
+        
+        // Cập nhật UI
+        const startBtn = document.getElementById('startBtn');
+        startBtn.style.background = 'linear-gradient(135deg, #1b5e20, #2e7d32)';
+        startBtn.innerHTML = '<span>⚡</span> ĐANG DI CHUYỂN';
+        
+        document.getElementById('km-txt').textContent = '0.00';
+        document.getElementById('fare-txt').textContent = '0';
+        
+        // Bắt đầu theo dõi GPS
+        watchId = navigator.geolocation.watchPosition(
+            position => {
+                const { latitude, longitude, accuracy } = position.coords;
+                const current = [latitude, longitude];
+                
+                // Di chuyển map và marker
+                map.flyTo(current, 17, { animate: true, duration: 1 });
+                carIcon.setLatLng(current);
+                
+                // Tính khoảng cách với cơ chế 5m
+                const distance = tripCalculator.addDistance(current, accuracy);
+                if (distance > 0) {
+                    totalKm += distance;
+                    const fare = tripCalculator.calculateFare(distance, kmPrice);
+                    totalFare += fare;
+                    
+                    updateUI();
+                }
+                
+                lastLoc = current;
+            },
+            error => {
+                console.error('GPS Error:', error);
+                showNotification('Lỗi định vị GPS! Vui lòng kiểm tra cài đặt vị trí.', 'error');
+            },
+            { 
+                enableHighAccuracy: true,
+                maximumAge: 5000,
+                timeout: 10000 
+            }
+        );
+        
+        showNotification('Đã bắt đầu tính tiền chuyến đi! Chỉ tính khi di chuyển trên 5m.', 'success');
+    }
+    
+    function stopTrip() {
+        if (!isTripActive) {
+            showNotification('Chưa có chuyến đi nào đang hoạt động!', 'warning');
+            return;
+        }
+        
+        if (watchId) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+        
+        // Lưu thông tin chuyến đi
+        subscriptionManager.incrementTrip(totalFare);
+        
+        // Tính thời gian
+        let durationText = '';
+        if (startTime) {
+            const duration = Math.round((new Date() - startTime) / 1000);
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            durationText = `\n⏱️ Thời gian: ${minutes} phút ${seconds} giây`;
+        }
+        
+        // Hiển thị thông báo kết thúc
+        const message = `✅ KẾT THÚC CHUYẾN\n\n📏 Quãng đường: ${totalKm.toFixed(2)} km\n💰 Tổng tiền: ${totalFare.toLocaleString('vi-VN')} ₫${durationText}`;
+        
+        if (confirm(message)) {
+            // Reset UI
+            const startBtn = document.getElementById('startBtn');
+            startBtn.style.background = 'linear-gradient(135deg, var(--main-green), #27ae60)';
+            startBtn.innerHTML = '<span>▶</span> BẮT ĐẦU CHUYẾN';
+            
+            // Reset biến
+            totalKm = 0;
+            totalFare = 0;
+            lastLoc = null;
+            startTime = null;
+            isTripActive = false;
+            
+            // Cập nhật hiển thị
+            document.getElementById('km-txt').textContent = '0.00';
+            document.getElementById('fare-txt').textContent = '0';
+            
+            // Cập nhật package info
+            updatePackageDisplay();
+            
+            showNotification(`Chuyến đi đã kết thúc! +${totalFare.toLocaleString('vi-VN')} ₫`, 'success');
         }
     }
-
-    // Thêm: Popup giá
+    
+    // ============================================
+    // 5. HÀM QUẢN LÝ GÓI CƯỚC
+    // ============================================
+    
+    function showPackageSelection() {
+        document.getElementById('packagePopup').style.display = 'flex';
+        selectedPackage = null;
+    }
+    
+    function hidePackagePopup() {
+        document.getElementById('packagePopup').style.display = 'none';
+    }
+    
+    function selectPackage(packageType) {
+        selectedPackage = packageType;
+        
+        // Xóa tất cả selected class
+        document.querySelectorAll('.package-option').forEach(option => {
+            option.classList.remove('selected');
+        });
+        
+        // Thêm selected class cho option được chọn
+        event.currentTarget.classList.add('selected');
+    }
+    
+    function processPayment() {
+        if (!selectedPackage) {
+            showNotification('Vui lòng chọn gói cước!', 'warning');
+            return;
+        }
+        
+        const packagePrices = {
+            'FREE_TRIAL': 0,
+            'MONTHLY': 200000,
+            'YEARLY': 2000000,
+            'LIFETIME': 10000000
+        };
+        
+        const packageDurations = {
+            'FREE_TRIAL': 7,
+            'MONTHLY': 30,
+            'YEARLY': 365,
+            'LIFETIME': 36500 // 100 năm ~ cả đời
+        };
+        
+        const price = packagePrices[selectedPackage];
+        const duration = packageDurations[selectedPackage];
+        
+        if (selectedPackage === 'FREE_TRIAL') {
+            // Reset gói dùng thử
+            subscriptionManager.activatePackage(selectedPackage, duration, 'FREE_TRIAL_RESET');
+            updatePackageDisplay();
+            hidePackagePopup();
+            showNotification('Đã kích hoạt lại gói dùng thử 7 ngày!', 'success');
+            return;
+        }
+        
+        // Mô phỏng thanh toán PayOS
+        showNotification('Đang kết nối đến PayOS...', 'info');
+        
+        setTimeout(() => {
+            // Tạo transaction ID giả lập
+            const transactionId = 'PAYOS_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+            
+            // Giả lập webhook kích hoạt thành công
+            simulateWebhookActivation(selectedPackage, duration, transactionId);
+            
+            hidePackagePopup();
+        }, 1500);
+    }
+    
+    function simulateWebhookActivation(packageType, durationDays, transactionId) {
+        // Giả lập delay của webhook
+        setTimeout(() => {
+            const packageInfo = subscriptionManager.activatePackage(packageType, durationDays, transactionId);
+            
+            // Cập nhật hiển thị
+            updatePackageDisplay();
+            
+            showNotification(
+                `🎉 KÍCH HOẠT THÀNH CÔNG!\nGói ${packageType} đã được kích hoạt tự động!`,
+                'success'
+            );
+            
+            // Log transaction
+            console.log(`[WEBHOOK] Đã kích hoạt gói ${packageType} cho device: ${securitySystem.deviceId}`);
+        }, 2000);
+    }
+    
+    // ============================================
+    // 6. HÀM CÀI ĐẶT GIÁ (GIỮ NGUYÊN)
+    // ============================================
+    
     function showPricePopup() {
         document.getElementById('pricePopup').style.display = 'flex';
         document.getElementById('priceSlider').value = kmPrice / 1000;
@@ -557,140 +1286,34 @@
         kmPrice = newPrice;
         document.getElementById('currentPrice').textContent = (newPrice / 1000) + 'K/KM';
         
-        // Cập nhật hiển thị nếu đang có chuyến
         if (isTripActive && totalKm > 0) {
+            // Recalculate fare with new price
+            totalFare = tripCalculator.calculateFare(totalKm, kmPrice);
             updateUI();
         }
         
         hidePricePopup();
         showNotification(`Đã cập nhật giá: ${newPrice.toLocaleString('vi-VN')} đ/km`, 'success');
     }
-
-    // Hàm chính: Bắt đầu chuyến
-    function startTrip() {
-        if (isTripActive) {
-            showNotification('Chuyến đi đang được tính tiền!', 'error');
-            return;
-        }
-        
-        const startBtn = document.getElementById('startBtn');
-        startBtn.style.background = 'linear-gradient(135deg, #1b5e20, #2e7d32)';
-        startBtn.innerHTML = '<span>⚡</span> ĐANG DI CHUYỂN';
-        
-        startTime = new Date();
-        totalKm = 0;
-        isTripActive = true;
-        
-        // Reset hiển thị
-        document.getElementById('km-txt').textContent = '0.00';
-        document.getElementById('fare-txt').textContent = '0';
-        
-        // Bắt đầu theo dõi GPS
-        watchId = navigator.geolocation.watchPosition(
-            position => {
-                const { latitude, longitude, accuracy } = position.coords;
-                const current = [latitude, longitude];
-                
-                // Di chuyển map và marker
-                map.flyTo(current, 17, { animate: true, duration: 1 });
-                carIcon.setLatLng(current); 
-
-                // Tính khoảng cách
-                if (lastLoc && accuracy < 40) {
-                    const distance = map.distance(lastLoc, current) / 1000; // km
-                    if (distance > 0.002) { 
-                        totalKm += distance; 
-                        updateUI(); 
-                    }
-                }
-                lastLoc = current;
-                
-                // Cập nhật thông tin nhanh
-                updateQuickInfo();
-            },
-            error => {
-                console.error('GPS Error:', error);
-                showNotification('Lỗi định vị GPS!', 'error');
-            },
-            { 
-                enableHighAccuracy: true,
-                maximumAge: 10000,
-                timeout: 15000 
-            }
-        );
-        
-        showNotification('Đã bắt đầu tính tiền chuyến đi!', 'success');
-    }
-
-    // Hàm chính: Kết thúc chuyến
-    function stopTrip() {
-        if (!isTripActive) {
-            showNotification('Chưa có chuyến đi nào đang hoạt động!', 'error');
-            return;
-        }
-        
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-        }
-        
-        const startBtn = document.getElementById('startBtn');
-        startBtn.style.background = 'linear-gradient(135deg, var(--main-green), #27ae60)';
-        startBtn.innerHTML = '<span>▶</span> BẮT ĐẦU CHUYẾN';
-        
-        // Tính thời gian
-        let durationText = '';
-        if (startTime) {
-            const duration = Math.round((new Date() - startTime) / 1000);
-            const minutes = Math.floor(duration / 60);
-            const seconds = duration % 60;
-            durationText = `\n⏱️ Thời gian: ${minutes} phút ${seconds} giây`;
-        }
-        
-        // Tính tổng tiền
-        const totalFare = Math.round(totalKm * kmPrice);
-        totalEarnings += totalFare;
-        
-        // Hiển thị thông báo
-        const message = `✅ KẾT THÚC CHUYẾN\n\n📏 Quãng đường: ${totalKm.toFixed(2)} km\n💰 Tổng tiền: ${totalFare.toLocaleString('vi-VN')} ₫${durationText}`;
-        
-        if (confirm(message)) {
-            // Reset
-            totalKm = 0;
-            lastLoc = null;
-            startTime = null;
-            isTripActive = false;
-            
-            // Cập nhật hiển thị
-            document.getElementById('km-txt').textContent = '0.00';
-            document.getElementById('fare-txt').textContent = '0';
-            
-            showNotification(`Chuyến đi đã kết thúc! +${totalFare.toLocaleString('vi-VN')} ₫`, 'success');
-        }
-    }
-
-    // Hàm phụ: Cập nhật UI
-    function updateUI() {
-        document.getElementById('km-txt').textContent = totalKm.toFixed(2);
-        const money = Math.round(totalKm * kmPrice);
-        document.getElementById('fare-txt').textContent = money.toLocaleString('vi-VN');
-    }
-
-    // Thêm: Xử lý sự kiện mạng
-    window.addEventListener('online', checkNetworkStatus);
-    window.addEventListener('offline', checkNetworkStatus);
-
-    // Thêm: Khởi tạo khi tải trang
+    
+    // ============================================
+    // 7. HÀM KHỞI TẠO & SỰ KIỆN
+    // ============================================
+    
     window.addEventListener('load', function() {
+        // Khởi tạo hệ thống bảo mật
+        securitySystem = new SecuritySystem();
+        subscriptionManager = new SubscriptionManager(securitySystem);
+        tripCalculator = new TripCalculator();
+        
+        // Cập nhật Device ID
+        document.getElementById('deviceId').textContent = securitySystem.deviceId;
+        
+        // Cập nhật hiển thị gói cước
+        updatePackageDisplay();
+        
         // Kiểm tra mạng
         checkNetworkStatus();
-        
-        // Cập nhật ID ngẫu nhiên
-        const randomId = 'TX-' + Math.floor(1000 + Math.random() * 9000);
-        document.getElementById('deviceId').textContent = randomId;
-        
-        // Cập nhật thông tin nhanh
-        updateQuickInfo();
         
         // Lấy vị trí hiện tại
         if (navigator.geolocation) {
@@ -706,26 +1329,59 @@
             );
         }
         
-        // Đăng ký Service Worker cho PWA
+        // Đăng ký Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js')
                 .then(() => console.log('Service Worker đã đăng ký'))
                 .catch(err => console.log('Service Worker lỗi:', err));
         }
+        
+        showNotification('Hệ thống Taxi ProMax đã sẵn sàng!', 'success');
     });
-
-    // Thêm: PWA Install Prompt
+    
+    function checkNetworkStatus() {
+        const networkStatus = document.getElementById('networkStatus');
+        
+        if (navigator.onLine) {
+            networkStatus.className = "network-status online";
+            networkStatus.textContent = "● ĐANG TRỰC TUYẾN";
+        } else {
+            networkStatus.className = "network-status offline";
+            networkStatus.textContent = "● NGOẠI TUYẾN";
+        }
+    }
+    
+    window.addEventListener('online', checkNetworkStatus);
+    window.addEventListener('offline', checkNetworkStatus);
+    
+    // PWA Install Prompt
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        // Hiển thị prompt sau 10 giây
+        
         setTimeout(() => {
             if (confirm("Cài đặt ứng dụng Taxi ProMax về màn hình chính để sử dụng tiện lợi hơn?")) {
                 deferredPrompt.prompt();
             }
         }, 10000);
     });
+    
+    // ============================================
+    // 8. HÀM NAVIGATION (GIỮ NGUYÊN)
+    // ============================================
+    
+    function showHome() {
+        location.reload();
+    }
+    
+    function showTripHistory() {
+        showNotification('Tính năng đang phát triển...', 'info');
+    }
+    
+    function showAdminPanel() {
+        showNotification('Tính năng dành cho quản trị viên', 'info');
+    }
 </script>
 </body>
 </html>
