@@ -2,31 +2,44 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Auto VIP Payment</title>
+<title>Thanh toán VIP</title>
 </head>
 <body style="font-family:Arial;text-align:center">
 
 <h2>💳 Thanh toán kích hoạt VIP</h2>
 
-<img id="qr" width="250"><br>
-<b id="code"></b><br>
-<div id="status">⏳ Đang chờ thanh toán...</div>
+<img id="qr" width="260"><br><br>
+<div id="code"></div>
+<div id="status">⏳ Đang tạo mã thanh toán...</div>
 
 <script>
 const API = "https://taxi-promax.vercel.app";
 
-async function initUser() {
+// ✅ tạo user local nếu API lỗi
+function localUser() {
   let code = localStorage.getItem("USER_CODE");
-
   if (!code) {
+    code = "TX-" + Math.random().toString(36).substring(2,8).toUpperCase();
+    localStorage.setItem("USER_CODE", code);
+  }
+  return code;
+}
+
+async function init() {
+  let code;
+
+  try {
     const res = await fetch(API + "/api/create");
     const user = await res.json();
     code = user.code;
     localStorage.setItem("USER_CODE", code);
+  } catch (e) {
+    console.log("API lỗi → dùng local code");
+    code = localUser();
   }
 
   createQR(code);
-  checkVIP(code);
+  autoCheck(code);
 }
 
 function createQR(code) {
@@ -34,7 +47,7 @@ function createQR(code) {
   const plan = "VIP";
 
   const BANK = "BIDV";
-  const ACC = "1234567890";
+  const ACC = "1234567890"; // ⚠️ thay số TK của anh
   const NAME = "NGUYEN XUAN DAT";
 
   const content = code + " " + plan;
@@ -42,21 +55,26 @@ function createQR(code) {
   const qr = `https://img.vietqr.io/image/${BANK}-${ACC}-qr_only.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(NAME)}`;
 
   document.getElementById("qr").src = qr;
-  document.getElementById("code").innerText = "Nội dung: " + content;
+  document.getElementById("code").innerHTML = "📌 Nội dung chuyển khoản:<br><b>" + content + "</b>";
+  document.getElementById("status").innerHTML = "⏳ Đang chờ thanh toán...";
 }
 
-async function checkVIP(code) {
+function autoCheck(code) {
   setInterval(async () => {
-    const res = await fetch(API + "/api/check?code=" + code);
-    const data = await res.json();
+    try {
+      const res = await fetch(API + "/api/check?code=" + code);
+      const data = await res.json();
 
-    if (data.vip) {
-      document.getElementById("status").innerHTML = "✅ VIP ĐÃ KÍCH HOẠT!";
+      if (data.vip) {
+        document.getElementById("status").innerHTML = "✅ VIP ĐÃ KÍCH HOẠT!";
+      }
+    } catch (e) {
+      console.log("Không kết nối được API");
     }
   }, 3000);
 }
 
-initUser();
+init();
 </script>
 
 </body>
