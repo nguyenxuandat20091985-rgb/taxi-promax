@@ -3,145 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tool Taxi Pro - Xanh SM Style</title>
+    <title>Đồng Hồ Tính Tiền - Xanh SM Style</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --xanh-sm: #00bfa5; /* Màu thương hiệu Xanh SM */
-            --bg-light: #f8f9fa;
-        }
+        :root { --xanh-sm: #00bfa5; --bg-gray: #f4f7f6; --danger: #ff5252; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Lexend', sans-serif; }
+        body { height: 100vh; background: var(--bg-gray); overflow: hidden; display: flex; flex-direction: column; }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Lexend', sans-serif; height: 100vh; background: #fff; overflow: hidden; }
-
-        /* BẢN ĐỒ CHIẾM 80% */
+        /* BẢN ĐỒ 80% */
         #map { height: 80vh; width: 100%; z-index: 1; }
 
-        /* Nút Cài giá nổi góc trên */
-        .top-float { position: absolute; top: 15px; left: 15px; z-index: 1000; }
-        #priceBtn {
-            background: white; border: none; padding: 10px 18px;
-            border-radius: 25px; font-weight: 600; color: #333;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer;
+        /* Nút Cài giá ẩn/hiện */
+        .price-config { position: absolute; top: 15px; left: 15px; z-index: 1000; }
+        #priceBtn { background: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        #sliderBox { background: white; padding: 15px; border-radius: 20px; margin-top: 10px; display: none; box-shadow: 0 8px 25px rgba(0,0,0,0.2); width: 220px; }
+        #sliderBox.active { display: block; }
+
+        /* CARD ĐIỀU KHIỂN 20% DƯỚI */
+        .control-card {
+            height: 20vh; background: white; border-top-left-radius: 30px; border-top-right-radius: 30px;
+            position: relative; z-index: 1001; padding: 15px; box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
         }
 
-        /* Thanh trượt thông minh - Bo góc cực mạnh như Xanh SM */
-        #sliderBox {
-            background: white; padding: 15px; border-radius: 20px; margin-top: 10px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: none; width: 220px;
-        }
-        #sliderBox.active { display: block; animation: slideIn 0.3s ease; }
-        input[type="range"] { width: 100%; accent-color: var(--xanh-sm); }
+        /* Nút Bắt đầu / Kết thúc */
+        .btn-group { display: flex; gap: 10px; position: absolute; top: -25px; left: 5%; width: 90%; }
+        .btn { flex: 1; padding: 15px; border: none; border-radius: 15px; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .btn-start { background: var(--xanh-sm); }
+        .btn-start.running { background: #b2dfdb; color: #004d40; cursor: not-allowed; }
+        .btn-end { background: var(--danger); }
 
-        /* KHỐI CHỨC NĂNG 20% DƯỚI (CARD VIEW) */
-        .bottom-container {
-            height: 20vh; width: 100%; position: absolute; bottom: 0;
-            background: white; border-top-left-radius: 24px; border-top-right-radius: 24px;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.1); z-index: 1001;
-            padding: 15px; display: flex; flex-direction: column;
-        }
+        /* Chỉ số đồng hồ */
+        .meter-display { display: flex; justify-content: space-around; margin-top: 35px; background: #f9f9f9; padding: 12px; border-radius: 20px; }
+        .meter-item { text-align: center; }
+        .meter-item b { font-size: 1.4rem; color: #333; display: block; }
+        .meter-item span { font-size: 0.7rem; color: #999; text-transform: uppercase; }
 
-        /* Chỉ số VND và KM */
-        .status-bar {
-            background: var(--bg-light); border-radius: 15px; padding: 10px;
-            display: flex; justify-content: space-around; margin-bottom: 12px;
-        }
-        .stat-item { text-align: center; flex: 1; }
-        .stat-item b { font-size: 1.2rem; color: var(--xanh-sm); display: block; }
-        .stat-item span { font-size: 0.7rem; color: #777; font-weight: 500; }
-
-        /* Các nút Tab bên dưới cùng */
-        .tab-menu {
-            display: flex; justify-content: space-between; align-items: center;
-            padding-top: 8px; border-top: 1px solid #f0f0f0;
-        }
-        .tab-item { text-align: center; color: #888; text-decoration: none; font-size: 0.65rem; flex: 1; transition: 0.3s; }
-        .tab-item i { font-size: 1.4rem; display: block; margin-bottom: 4px; }
-        .tab-item.active { color: var(--xanh-sm); font-weight: bold; }
-
-        /* Nút Bắt đầu/Kết thúc nổi giữa */
-        .main-action {
-            position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 10px; width: 90%;
-        }
-        .btn-sm {
-            flex: 1; padding: 12px; border-radius: 12px; border: none;
-            font-weight: bold; color: white; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-        .btn-go { background: var(--xanh-sm); }
-        .btn-stop { background: #ff5252; }
-
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Bottom Tab */
+        .bottom-nav { display: flex; justify-content: space-around; padding-top: 10px; margin-top: 10px; border-top: 1px solid #eee; }
+        .nav-item { text-align: center; color: #aaa; font-size: 0.6rem; text-decoration: none; }
+        .nav-item.active { color: var(--xanh-sm); }
     </style>
 </head>
 <body>
 
-    <div class="top-float">
-        <button id="priceBtn" onclick="togglePrice()">⚙️ Cài giá: <span id="pVal">15</span>K/KM</button>
+    <div class="price-config">
+        <button id="priceBtn" onclick="togglePrice()">⚙️ CÀI GIÁ: <span id="curP">15</span>K/KM</button>
         <div id="sliderBox">
-            <input type="range" id="priceSlider" min="10" max="50" value="15">
-            <div style="margin-top:8px; color:var(--xanh-sm); font-weight:bold;">Mức giá: <span id="tipVal">15</span>K</div>
+            <input type="range" id="priceSlider" min="10" max="50" value="15" oninput="updateRate(this.value)">
+            <div style="text-align:center; color:var(--xanh-sm); font-weight:bold; margin-top:5px;"><span id="tipP">15</span>K</div>
         </div>
     </div>
 
     <div id="map"></div>
 
-    <div class="bottom-container">
-        <div class="main-action">
-            <button class="btn-sm btn-go" onclick="startTrip()">BẮT ĐẦU CHUYẾN</button>
-            <button class="btn-sm btn-stop" onclick="endTrip()">KẾT THÚC</button>
+    <div class="control-card">
+        <div class="btn-group">
+            <button id="startBtn" class="btn btn-start" onclick="startTrip()">BẮT ĐẦU CHUYẾN</button>
+            <button id="endBtn" class="btn btn-end" onclick="endTrip()">KẾT THÚC</button>
         </div>
 
-        <div class="status-bar" style="margin-top: 25px;">
-            <div class="stat-item"><b id="money">0</b><span>Cước phí (VND)</span></div>
-            <div class="stat-item"><b id="km">0.00</b><span>Quãng đường (KM)</span></div>
+        <div class="meter-display">
+            <div class="meter-item"><b id="moneyDisplay">0</b><span>Cước phí (VNĐ)</span></div>
+            <div class="meter-item"><b id="kmDisplay">0.00</b><span>Quãng đường (KM)</span></div>
         </div>
 
-        <div class="tab-menu">
-            <a href="#" class="tab-item active">🏠<br>Tạo cuốc</a>
-            <a href="https://payos.vn" class="tab-item">💰<br>Nạp tiền</a>
-            <a href="#" class="tab-item">📋<br>Chuyến của tôi</a>
-            <a href="#" class="tab-item">⚙️<br>Cài đặt</a>
-        </div>
+        <nav class="bottom-nav">
+            <a href="#" class="nav-item active">🚕<br>Tạo cuốc</a>
+            <a href="#" class="nav-item">💰<br>Thu nhập</a>
+            <a href="#" class="nav-item">📋<br>Lịch sử</a>
+            <a href="#" class="nav-item">⚙️<br>Cài đặt</a>
+        </nav>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Khởi tạo Map
         const map = L.map('map', { zoomControl: false }).setView([20.95, 107.07], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // Logic Slider Cài giá
-        let currentPrice = 15;
-        function togglePrice() { document.getElementById('sliderBox').classList.toggle('active'); }
-
-        const slider = document.getElementById('priceSlider');
-        slider.oninput = (e) => {
-            currentPrice = e.target.value;
-            document.getElementById('pVal').innerText = currentPrice;
-            document.getElementById('tipVal').innerText = currentPrice;
-        };
-        slider.onchange = () => { setTimeout(() => { togglePrice(); }, 600); };
-
-        // Logic Tool tự động
-        let tripActive = false;
+        let rate = 15;
+        let isRunning = false;
         let distance = 0;
-        let timer = null;
+        let lastPos = null;
+
+        function togglePrice() { document.getElementById('sliderBox').classList.toggle('active'); }
+        function updateRate(v) { 
+            rate = v; 
+            document.getElementById('curP').innerText = v; 
+            document.getElementById('tipP').innerText = v; 
+        }
+
+        // Tự động ẩn thanh gạt sau khi chọn
+        document.getElementById('priceSlider').onchange = () => { setTimeout(togglePrice, 500); };
 
         function startTrip() {
-            if(tripActive) return;
-            tripActive = true;
-            timer = setInterval(() => {
-                distance += 0.01;
-                document.getElementById('km').innerText = distance.toFixed(2);
-                document.getElementById('money').innerText = Math.floor(distance * currentPrice * 1000).toLocaleString();
-            }, 1000);
+            if(isRunning) return;
+            isRunning = true;
+            
+            // Lỗi 1: Đổi màu nút khi chạy
+            const sBtn = document.getElementById('startBtn');
+            sBtn.classList.add('running');
+            sBtn.innerText = "• ĐANG CHẠY...";
+
+            // Lỗi 4: Xử lý GPS thực tế để tránh đồng hồ tự nhảy
+            navigator.geolocation.watchPosition((pos) => {
+                if(!isRunning) return;
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                
+                if (lastPos) {
+                    let d = map.distance([lastPos.lat, lastPos.lng], [lat, lng]) / 1000;
+                    if (d > 0.005) { // Chỉ tính nếu xe di chuyển trên 5 mét
+                        distance += d;
+                        document.getElementById('kmDisplay').innerText = distance.toFixed(2);
+                        document.getElementById('moneyDisplay').innerText = Math.floor(distance * rate * 1000).toLocaleString();
+                    }
+                }
+                lastPos = {lat, lng};
+                map.panTo([lat, lng]);
+            }, (err) => console.log(err), { enableHighAccuracy: true });
         }
 
         function endTrip() {
-            clearInterval(timer);
-            tripActive = false;
-            alert("Kết thúc! Số tiền cước phí sẽ tự động được xử lý qua PayOS.");
+            isRunning = false;
+            // Thu tiền khách, không trả qua App (Lỗi 2, 3)
+            alert("Kết thúc chuyến!\nTổng tiền khách trả: " + document.getElementById('moneyDisplay').innerText + " VNĐ");
+            location.reload(); // Reset lại app cho cuốc mới
         }
     </script>
 </body>
