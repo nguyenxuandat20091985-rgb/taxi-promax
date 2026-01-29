@@ -10,7 +10,6 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #000; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
 
-        /* 🟢 Đèn Trực Tuyến - Siêu mỏng */
         .status-header {
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: var(--main-green); color: white;
@@ -18,7 +17,6 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); letter-spacing: 0.5px;
         }
 
-        /* 🏗️ Cột Icon Trái - Gọn gàng tạo khe hở chuẩn */
         .left-panel {
             position: absolute; top: 40px; left: 10px; z-index: 100;
             display: flex; flex-direction: column; gap: 5px;
@@ -32,7 +30,6 @@
         .b-black { background: rgba(0, 0, 0, 0.7); color: white; backdrop-filter: blur(5px); }
         .b-price { background: white; color: var(--main-green); border: 1.5px solid var(--main-green); cursor: pointer; }
 
-        /* 📟 SMART HUD - Bảng tính tiền chuyên nghiệp */
         .smart-hud {
             position: absolute; bottom: 155px; width: 92%; left: 4%; z-index: 100;
             background: var(--glass); border-radius: 15px; display: flex; padding: 12px 0;
@@ -43,7 +40,6 @@
         .val { font-size: 26px; font-weight: 900; line-height: 1; }
         .lbl { font-size: 8px; color: #95a5a6; font-weight: bold; text-transform: uppercase; margin-top: 4px; }
 
-        /* 📱 Bottom Panel */
         .footer {
             position: absolute; bottom: 0; width: 100%; z-index: 200;
             background: white; border-top-left-radius: 25px; border-top-right-radius: 25px;
@@ -61,11 +57,8 @@
         .active { color: var(--main-green); }
 
         .sig { text-align: center; font-size: 8px; color: #cbd5e0; margin-top: 10px; font-weight: bold; letter-spacing: 1px; }
-
-        /* 🚗 Car Marker */
         .car-icon { background: var(--main-blue); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px var(--main-blue); }
 
-        /* 🎚️ Bảng giá hiện đại */
         #price-slider-box {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 2000; background: white; padding: 25px; border-radius: 25px; width: 80%;
@@ -75,7 +68,7 @@
 </head>
 <body>
 
-<div class="status-header">● ĐANG TRỰC TUYẾN</div>
+<div class="status-header" id="online-led">● ĐANG TRỰC TUYẾN</div>
 <div id="map"></div>
 
 <div class="left-panel">
@@ -103,42 +96,38 @@
     </div>
     <div class="nav">
         <div class="nav-item active" onclick="location.reload()"><span>🏠</span>Trang chủ</div>
-        <div class="nav-item" onclick="alert('Kết nối ví PayOS...')"><span>💰</span>Nạp tiền</div>
-        <div class="nav-item" onclick="alert('Đang truy xuất lịch sử...')"><span>📊</span>Lịch sử</div>
-        <div class="nav-item" onclick="alert('Vào hệ thống quản trị...')"><span>⚙️</span>Quản lý</div>
+        <div class="nav-item" onclick="alert('Đang kết nối PayOS...')"><span>💰</span>Nạp tiền</div>
+        <div class="nav-item" onclick="alert('Truy xuất lịch sử...')"><span>📊</span>Lịch sử</div>
+        <div class="nav-item" onclick="alert('Vào cài đặt quản trị...')"><span>⚙️</span>Quản lý</div>
     </div>
     <div class="sig">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Khởi tạo bản đồ chuyên nghiệp
     var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.07], 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
     var car = L.marker([0,0], { icon: L.divIcon({className: 'car-icon', iconSize:[12,12]}) }).addTo(map);
 
-    let price = 15000;
-    let dist = 0;
-    let watchId = null;
-    let lastPoint = null;
+    let price = 15000, dist = 0, watchId = null, lastPoint = null;
 
     function togglePrice() { 
+        if(watchId) return alert("Không thể đổi giá khi đang trong chuyến!");
         let box = document.getElementById('price-slider-box');
         box.style.display = (box.style.display === 'block') ? 'none' : 'block';
     }
 
     function updateRange(v) {
         price = parseInt(v);
-        let fmt = price.toLocaleString();
-        document.getElementById('range-txt').innerText = fmt;
-        document.getElementById('p-val').innerText = fmt;
+        document.getElementById('range-txt').innerText = price.toLocaleString();
+        document.getElementById('p-val').innerText = price.toLocaleString();
     }
 
     function handleTrip() {
         if(watchId) return;
-        alert("GPS ĐÃ KÍCH HOẠT - CHÚC ANH ĐẠT LÁI XE AN TOÀN!");
+        alert("CHÚC ANH ĐẠT LÁI XE AN TOÀN!");
         document.getElementById('btn-start').innerText = "⚡ ĐANG TÍNH CƯỚC...";
-        document.getElementById('btn-start').style.background = "#27ae60";
+        document.getElementById('btn-start').style.background = "#e67e22";
 
         watchId = navigator.geolocation.watchPosition(p => {
             const cur = [p.coords.latitude, p.coords.longitude];
@@ -147,22 +136,39 @@
 
             if(lastPoint) {
                 let d = map.distance(lastPoint, cur) / 1000;
-                if(d > 0.002) { // Lọc nhiễu GPS (di chuyển > 2m mới tính)
+                if(d > 0.003) { // Chống nhiễu GPS (di chuyển > 3m mới tính)
                     dist += d;
                     document.getElementById('d-val').innerText = dist.toFixed(2);
                     document.getElementById('f-val').innerText = Math.round(dist * price).toLocaleString();
+                    // Lưu backup
+                    localStorage.setItem('trip_backup', JSON.stringify({dist, price}));
                 }
             }
             lastPoint = cur;
-        }, e => alert("Vui lòng bật định vị!"), { enableHighAccuracy: true });
+        }, e => alert("Lỗi GPS! Hãy bật định vị."), { enableHighAccuracy: true });
     }
 
     function resetTrip() {
-        if(confirm("Xác nhận kết thúc và thanh toán?")) location.reload();
+        if(confirm("Xác nhận kết thúc và thanh toán?")) {
+            localStorage.removeItem('trip_backup');
+            location.reload();
+        }
     }
 
     window.onload = () => {
+        // Tự cấp ID ngẫu nhiên cho chuyên nghiệp
         document.getElementById('id-disp').innerText = "ID: TX-" + Math.floor(1000 + Math.random()*9000);
+        
+        // Khôi phục dữ liệu nếu rớt mạng/sập nguồn
+        const backup = localStorage.getItem('trip_backup');
+        if(backup) {
+            const data = JSON.parse(backup);
+            dist = data.dist; price = data.price;
+            document.getElementById('d-val').innerText = dist.toFixed(2);
+            document.getElementById('f-val').innerText = Math.round(dist * price).toLocaleString();
+            document.getElementById('p-val').innerText = price.toLocaleString();
+            alert("Đã khôi phục dữ liệu chuyến đi gần nhất!");
+        }
     };
 </script>
 </body>
