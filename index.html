@@ -3,64 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TAXI PROMAX - ĐẲNG CẤP TÀI XẾ</title>
+    <title>TAXI PROMAX - NGUYỄN XUÂN ĐẠT</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --primary: #00bfa5; --dark: #1a1d21; --gold: #ffc107; --danger: #ff5252; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Arial', sans-serif; overflow: hidden; background: #f4f7f6; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; background: #f4f7f6; }
+        
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
-        /* GIAO DIỆN HEADER */
+        /* Giao diện Header */
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; }
         .badge { background: white; padding: 8px 15px; border-radius: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-size: 12px; font-weight: bold; border: 1px solid #eee; }
-        .vip-active { background: var(--gold); color: black; border: none; animation: pulse 2s infinite; }
 
-        /* THÔNG SỐ CUỐC XE */
+        /* Chỉ số cuốc xe */
         .stats-bar { position: fixed; top: 60px; left: 10px; right: 10px; background: rgba(255,255,255,0.96); backdrop-filter: blur(10px); border-radius: 15px; display: flex; padding: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); z-index: 1000; }
         .stat-item { flex: 1; text-align: center; }
-        .stat-item:first-child { border-right: 1px solid #eee; }
-        .stat-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
         .stat-value { font-size: 24px; font-weight: 900; color: #00796b; }
 
-        /* BẢNG CHỌN 4 GÓI (THEO ẢNH CHUẨN) */
-        #pricingModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f9fa; z-index: 9999; display: none; flex-direction: column; overflow-y: auto; }
-        .p-header { background: var(--dark); color: white; padding: 25px; text-align: center; position: sticky; top: 0; }
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #eee; border-radius: 18px; padding: 15px; text-align: left; transition: 0.3s; position: relative; }
-        .p-card.selected { border-color: var(--primary); background: #e0f2f1; }
-        .p-card b { display: block; font-size: 16px; margin-bottom: 5px; }
-        .p-card span { font-size: 13px; color: var(--danger); font-weight: bold; }
-        .p-card i { font-style: normal; font-size: 10px; color: #999; display: block; margin-top: 5px; }
+        /* Bảng thông báo lời chúc tinh tế */
+        #customAlert { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 11000; text-align: center; display: none; width: 80%; max-width: 300px; }
+        #customAlert b { color: var(--primary); font-size: 18px; }
+        #customAlert button { margin-top: 15px; padding: 10px 30px; border-radius: 15px; border: none; background: var(--primary); color: white; font-weight: bold; }
 
-        /* THANH TOÁN QR */
-        .pay-box { background: white; margin: 0 15px 30px; padding: 20px; border-radius: 20px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
-        .qr-code { width: 220px; height: 220px; border: 5px solid #f0f0f0; border-radius: 15px; margin: 15px 0; }
-
-        /* CONTROL DƯỚI */
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 20px; border-radius: 30px 30px 0 0; z-index: 1000; box-shadow: 0 -10px 30px rgba(0,0,0,0.1); }
-        .price-info { text-align: center; margin-bottom: 15px; font-size: 14px; }
-        .btn-action { width: 100%; padding: 18px; border-radius: 18px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,191,165,0.3); }
-        .btn-action.stop { background: var(--danger); }
+        /* Dưới chân App - Bản quyền anh Đạt */
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px 20px 5px; z-index: 1000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.1); }
+        .copyright { text-align: center; font-size: 10px; color: #aaa; margin-top: 10px; font-style: italic; }
         
-        .nav { display: flex; justify-content: space-around; margin-top: 20px; border-top: 1px solid #f5f5f5; padding-top: 15px; }
-        .nav-btn { background: none; border: none; color: #bbb; font-size: 11px; flex: 1; }
-        .nav-btn.active { color: var(--primary); }
+        /* Nút bấm và thanh trượt */
+        .price-info { text-align: center; margin-bottom: 10px; font-size: 13px; }
+        .btn-action { width: 100%; padding: 16px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: bold; transition: 0.3s; }
+        .btn-action.stop { background: var(--danger); }
 
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        /* Icon xe hơi rực rỡ */
+        .car-icon { filter: drop-shadow(0 0 5px rgba(255,0,0,0.5)); }
+
+        /* Status Offline */
+        #offlineMode { position: fixed; top: 120px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 5px 15px; border-radius: 10px; font-size: 10px; z-index: 2000; display: none; }
     </style>
 </head>
-<body oncontextmenu="return false;"> <div class="header">
-        <div class="badge" id="idShow">🆔 ĐANG TẢI...</div>
-        <div class="badge" id="planShow">⭐ GÓI: MIỄN PHÍ</div>
+<body oncontextmenu="return false;">
+
+    <div id="offlineMode">📡 Đang chạy chế độ Offline (Mất sóng)</div>
+
+    <div id="customAlert">
+        <div style="font-size: 40px;">🌸</div>
+        <b id="alertMsg">Thượng lộ bình an!</b>
+        <br><button onclick="closeAlert()">ĐỒNG Ý</button>
+    </div>
+
+    <div class="header">
+        <div class="badge" id="idShow">🆔 TX-PRO</div>
+        <div class="badge" style="background:var(--gold)">⭐ GÓI: MIỄN PHÍ</div>
     </div>
 
     <div class="stats-bar">
-        <div class="stat-item">
-            <div class="stat-label">CƯỚC PHÍ (VNĐ)</div>
+        <div class="stat-item" style="border-right: 1px solid #eee;">
+            <div style="font-size: 10px; color: #888;">CƯỚC PHÍ (VNĐ)</div>
             <div id="cost" class="stat-value">0</div>
         </div>
         <div class="stat-item">
-            <div class="stat-label">QUÃNG ĐƯỜNG (KM)</div>
+            <div style="font-size: 10px; color: #888;">QUÃNG ĐƯỜNG (KM)</div>
             <div id="km" class="stat-value">0.00</div>
         </div>
     </div>
@@ -68,75 +70,37 @@
     <div id="map"></div>
 
     <div class="footer-panel">
-        <div class="price-info">Giá áp dụng: <b id="rateLabel" style="color:var(--danger)">15,000</b><b>đ/KM</b></div>
-        <input type="range" min="10000" max="50000" step="1000" value="15000" style="width:100%; margin-bottom:20px; accent-color:var(--primary)" oninput="updateRate(this.value)">
+        <div class="price-info">Đơn giá: <b id="rateLabel" style="color:var(--danger)">15,000</b> đ/KM</div>
+        <input type="range" min="10000" max="50000" step="1000" value="15000" style="width:100%; margin-bottom:15px;" oninput="updateRate(this.value)">
         
         <button id="mainBtn" class="btn-action" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-
-        <div class="nav">
-            <button class="nav-btn active" onclick="location.reload()">🏠<br>Trang chủ</button>
-            <button class="nav-btn" onclick="openPricing()">💰<br>Ví tiền</button>
-            <button class="nav-btn" onclick="alert('Vui lòng nạp VIP để xem lịch sử!')">📊<br>Lịch sử</button>
-            <button class="nav-item" onclick="alert('Phiên bản v2.0 - Chủ sở hữu: Nguyễn Xuân Đạt')">👤<br>Tôi</button>
-        </div>
-    </div>
-
-    <div id="pricingModal">
-        <div class="p-header">
-            <div onclick="document.getElementById('pricingModal').style.display='none'" style="position:absolute; left:20px; color:var(--primary)">← QUAY LẠI</div>
-            <b style="color:var(--gold)">CHỌN GÓI CƯỚC VIP</b>
-        </div>
-        <div class="p-grid">
-            <div class="p-card" onclick="select(19000, 'BASIC')">
-                <b>BASIC 🟢</b>
-                <span>19.000đ/tháng</span>
-                <i>• Ghi KM thực thực tế<br>• Không quảng cáo</i>
-            </div>
-            <div class="p-card" onclick="select(29000, 'PRO')">
-                <b>PRO 🔵</b>
-                <span>29.000đ/tháng</span>
-                <i>• Bản đồ Vệ tinh<br>• Xuất file PDF</i>
-            </div>
-            <div class="p-card selected" onclick="select(49000, 'VIP')">
-                <b>VIP 🔥</b>
-                <span>49.000đ/tháng</span>
-                <i>• Trợ lý giọng nói<br>• Lưu trữ Cloud</i>
-            </div>
-            <div class="p-card" onclick="select(999000, 'FOREVER')">
-                <b>TRỌN ĐỜI ⭐</b>
-                <span>999.000đ</span>
-                <i>• Dùng vĩnh viễn<br>• Full tính năng</i>
-            </div>
-        </div>
-        <div class="pay-box">
-            <b id="payTitle">Gói VIP - 1 Tháng</b><br>
-            <img id="qr" class="qr-code" src="">
-            <div style="text-align:left; padding:10px; background:#f9f9f9; border-radius:10px;">
-                Số tiền: <b style="color:var(--danger)" id="amt">49,000đ</b><br>
-                Nội dung: <b style="color:var(--danger)" id="ctn">...</b><br>
-                Chủ TK: <b>NGUYEN XUAN DAT</b>
-            </div>
-            <button onclick="checkPay()" style="width:100%; padding:15px; margin-top:15px; border-radius:10px; background:var(--primary); color:white; border:none; font-weight:bold;">XÁC NHẬN ĐÃ CHUYỂN KHOẢN</button>
-        </div>
+        
+        <div class="copyright">Phát triển bởi Nguyễn Xuân Đạt • Version 3.0 Platinum</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. KHỞI TẠO ID VÀ BẢO MẬT
-        const TX_ID = localStorage.getItem('tx_id') || 'TX-' + Math.random().toString(36).substr(2, 7).toUpperCase();
+        // 1. Quản lý ID và Offline
+        const TX_ID = localStorage.getItem('tx_id') || 'TX-' + Math.random().toString(36).substr(2, 6).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
 
-        // CHỐNG F12 VÀ DEBUGGER
-        setInterval(() => { 
-            const t0 = performance.now(); debugger; 
-            if(performance.now() - t0 > 100) { location.reload(); localStorage.clear(); }
-        }, 1000);
+        window.addEventListener('offline', () => document.getElementById('offlineMode').style.display = 'block');
+        window.addEventListener('online', () => document.getElementById('offlineMode').style.display = 'none');
 
-        // 2. LOGIC BẢN ĐỒ VÀ TÍNH CƯỚC 5M
-        var map = L.map('map', {zoomControl: false}).setView([20.95, 107.05], 15);
+        // 2. Cấu hình Bản đồ & Điểm xe rõ ràng
+        var map = L.map('map', {zoomControl: false}).setView([20.95, 107.05], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+        var carIcon = L.divIcon({
+            className: 'car-icon',
+            html: `<div style="background:red; width:15px; height:15px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>`,
+            iconSize: [20, 20]
+        });
+
+        var marker = L.marker([20.95, 107.05], {icon: carIcon}).addTo(map);
+
+        // 3. Logic Tính tiền Chuẩn 100% (Chống nhảy ảo)
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000;
 
         function updateRate(v) { 
@@ -144,34 +108,47 @@
             document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
         }
 
+        function myAlert(msg) {
+            document.getElementById('alertMsg').innerHTML = msg;
+            document.getElementById('customAlert').style.display = 'block';
+        }
+        function closeAlert() { document.getElementById('customAlert').style.display = 'none'; }
+
         function handleTrip() {
             isRunning = !isRunning;
             const btn = document.getElementById('mainBtn');
             if(isRunning) {
                 btn.innerText = "DỪNG CHUYẾN ĐI (KẾT THÚC)";
                 btn.classList.add('stop');
+                myAlert("Chúc Anh/Chị lên đường<br><b>THƯỢNG LỘ BÌNH AN!</b>");
+                totalKm = 0; lastPos = null; // Reset khi bắt đầu
                 map.locate({watch: true, enableHighAccuracy: true});
-                alert("Đã bắt đầu hành trình. Chúc anh Đạt nhiều cuốc khách!");
             } else {
                 btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
                 btn.classList.remove('stop');
                 map.stopLocate();
-                alert(`KẾT THÚC!\nQuãng đường: ${totalKm.toFixed(2)} KM\nTổng thu: ${document.getElementById('cost').innerText}đ`);
-                totalKm = 0; lastPos = null; updateUI();
+                myAlert("Hành trình kết thúc.<br>Cảm ơn quý khách!");
             }
         }
 
         map.on('locationfound', (e) => {
-            if(isRunning && lastPos) {
-                let d = e.latlng.distanceTo(lastPos) / 1000;
-                if(d > 0.005) { // CHỈ TÍNH TRÊN 5 MÉT
-                    totalKm += d;
-                    lastPos = e.latlng;
-                    updateUI();
+            const currentPos = e.latlng;
+            marker.setLatLng(currentPos);
+            map.panTo(currentPos);
+
+            if(isRunning) {
+                if(lastPos) {
+                    let d = currentPos.distanceTo(lastPos) / 1000;
+                    // CHỈ TÍNH NẾU DI CHUYỂN TRÊN 10 MÉT ĐỂ CHỐNG NHIỄU GPS
+                    if(d > 0.01) { 
+                        totalKm += d;
+                        lastPos = currentPos;
+                        updateUI();
+                    }
+                } else {
+                    lastPos = currentPos; // Gán vị trí xuất phát thực tế
                 }
-            } else { lastPos = e.latlng; }
-            L.circle(e.latlng, {radius: 6, color: '#00bfa5'}).addTo(map);
-            map.panTo(e.latlng);
+            }
         });
 
         function updateUI() {
@@ -179,22 +156,8 @@
             document.getElementById('cost').innerText = Math.floor(totalKm * currentRate).toLocaleString();
         }
 
-        // 3. QUẢN LÝ GÓI CƯỚC VÀ QR
-        function openPricing() { document.getElementById('pricingModal').style.display = 'flex'; select(49000, 'VIP'); }
-
-        function select(price, name) {
-            document.querySelectorAll('.p-card').forEach(c => c.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
-            document.getElementById('payTitle').innerText = "Gói " + name;
-            document.getElementById('amt').innerText = price.toLocaleString() + "đ";
-            document.getElementById('ctn').innerText = TX_ID + " " + name;
-            document.getElementById('qr').src = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${TX_ID}%20${name}&accountName=NGUYEN%20XUAN%20DAT`;
-        }
-
-        function checkPay() {
-            alert("Hệ thống đang xác thực tiền về tài khoản BIDV của Anh Đạt. Vui lòng chờ 30s-1 phút!");
-            // Webhook sẽ tự kích hoạt VIP PRO sau khi nổ tiền.
-        }
+        // Chống xem code cơ bản
+        setInterval(() => { if(window.outerHeight - window.innerHeight > 200) location.reload(); }, 1000);
     </script>
 </body>
 </html>
