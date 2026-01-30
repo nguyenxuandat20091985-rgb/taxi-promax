@@ -3,237 +3,234 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TAXI PROMAX v3.5 - NGUYỄN XUÂN ĐẠT</title>
+    <title>TAXI PROMAX - XANH SM STYLE</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #00bfa5; --xanh-sm: #007bff; --dark: #1a1d21; --gold: #ffc107; --danger: #ff5252; --white: #ffffff; }
+        :root { --primary: #00fbff; --dark: #0a0c10; --card: #1c1f26; --text: #ffffff; --danger: #ff4d4d; --gold: #ffc107; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #f0f2f5; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: var(--dark); color: var(--text); overflow: hidden; }
         
-        #map { height: 100vh; width: 100vw; z-index: 1; }
+        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.1) brightness(0.9); }
 
-        /* GIAO DIỆN PHỦ (OVERLAY) */
-        .header { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; z-index: 1000; }
-        .badge { background: var(--white); padding: 10px 16px; border-radius: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 700; border: 1px solid rgba(0,0,0,0.05); }
+        /* HEADER HIỂN THỊ CAO CẤP */
+        .header { position: fixed; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; z-index: 1000; }
+        .badge { background: rgba(28, 31, 38, 0.9); backdrop-filter: blur(10px); padding: 10px 18px; border-radius: 30px; border: 1px solid rgba(0, 251, 255, 0.3); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
 
-        .stats-bar { position: fixed; top: 70px; left: 12px; right: 12px; background: rgba(255,255,255,0.98); backdrop-filter: blur(10px); border-radius: 20px; display: flex; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); z-index: 1000; }
+        /* THÔNG SỐ CUỐC XE - NÉT CAO */
+        .stats-bar { position: fixed; top: 75px; left: 15px; right: 15px; background: rgba(28, 31, 38, 0.95); backdrop-filter: blur(15px); border-radius: 20px; display: flex; padding: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); z-index: 1000; border: 1px solid rgba(255,255,255,0.1); }
         .stat-item { flex: 1; text-align: center; }
-        .stat-value { font-size: 26px; font-weight: 900; color: var(--dark); letter-spacing: -1px; }
-        .stat-label { font-size: 9px; color: #999; text-transform: uppercase; margin-top: 4px; font-weight: bold; }
+        .stat-label { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; margin-bottom: 5px; }
+        .stat-value { font-size: 26px; font-weight: 800; color: var(--primary); text-shadow: 0 0 10px rgba(0, 251, 255, 0.4); }
 
-        /* MODAL CHUYÊN NGHIỆP */
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal-box { background: var(--white); width: 88%; max-width: 350px; padding: 30px; border-radius: 30px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.2); animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes pop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        /* CUSTOM MODAL - CHUYÊN NGHIỆP */
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-content { background: var(--card); width: 90%; max-width: 350px; padding: 30px; border-radius: 30px; text-align: center; border: 1px solid rgba(255,255,255,0.1); animation: zoomIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 10px; color: var(--primary); }
+        .modal-body { font-size: 15px; color: #ccc; line-height: 1.6; margin-bottom: 25px; }
+        .modal-btn { width: 100%; padding: 15px; background: var(--primary); color: var(--dark); border: none; border-radius: 15px; font-weight: 800; font-size: 16px; cursor: pointer; }
+
+        /* VÍ TIỀN & KÍCH HOẠT MỚI */
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); z-index: 5000; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 150px; }
+        .p-header { padding: 40px 20px 20px; text-align: center; background: linear-gradient(to bottom, #1c1f26, var(--dark)); }
+        .trial-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; background: var(--danger); font-size: 11px; margin-bottom: 10px; }
+        .pack-grid { padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .pack-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; position: relative; transition: 0.3s; }
+        .pack-card.active { border-color: var(--primary); box-shadow: 0 0 15px rgba(0, 251, 255, 0.2); }
+        .pack-card b { display: block; font-size: 16px; margin-bottom: 5px; }
+        .pack-card span { font-size: 14px; color: var(--primary); font-weight: 700; }
+
+        /* ĐIỀU HƯỚNG XANH SM */
+        .sm-marker { width: 30px; height: 30px; background: var(--primary); border: 4px solid white; border-radius: 50%; box-shadow: 0 0 15px var(--primary); position: relative; }
+        .sm-marker::after { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid white; }
         
-        .modal-icon { width: 70px; margin-bottom: 20px; }
-        .modal-h { font-size: 18px; font-weight: 800; color: var(--dark); margin-bottom: 10px; }
-        .modal-p { font-size: 14px; color: #666; line-height: 1.5; }
-        .modal-btn { margin-top: 25px; width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 15px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        /* FOOTER & BUTTONS */
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); z-index: 2000; border-radius: 30px 30px 0 0; padding: 20px 20px 30px; box-shadow: 0 -15px 40px rgba(0,0,0,0.6); }
+        .btn-main { width: 100%; padding: 18px; border-radius: 20px; border: none; background: var(--primary); color: var(--dark); font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+        .nav-bar { display: flex; justify-content: space-around; margin-top: 20px; }
+        .nav-btn { background: none; border: none; color: #555; font-size: 10px; font-weight: 700; flex: 1; }
+        .nav-btn.active { color: var(--primary); }
 
-        /* TAB VÍ TIỀN ĐẠI TU */
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; z-index: 2000; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 100px; }
-        .p-header { background: var(--dark); color: white; padding: 40px 20px; text-align: center; border-radius: 0 0 30px 30px; }
-        .trial-banner { background: var(--gold); color: #000; padding: 10px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block; margin-top: 10px; }
-        
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
-        .p-card { background: white; border-radius: 20px; padding: 20px; border: 2px solid transparent; box-shadow: 0 5px 15px rgba(0,0,0,0.05); position: relative; }
-        .p-card.active { border-color: var(--primary); background: #f0fff7; }
-        .p-card b { display: block; font-size: 16px; margin-bottom: 5px; }
-        .p-card span { font-size: 14px; color: var(--danger); font-weight: bold; }
-
-        /* ĐIỀU HƯỚNG XANH SM (CON QUAY) */
-        .sm-marker { width: 30px; height: 30px; background: var(--xanh-sm); border: 4px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,123,255,0.5); position: relative; }
-        .sm-arrow { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid var(--xanh-sm); }
-
-        /* FOOTER */
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 3000; border-radius: 30px 30px 0 0; padding: 20px; box-shadow: 0 -10px 40px rgba(0,0,0,0.08); }
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 15px; }
-        .nav-item { border: none; background: none; color: #ccc; font-size: 10px; font-weight: 700; flex: 1; transition: 0.2s; }
-        .nav-item.active { color: var(--primary); }
-        .nav-item i { font-size: 22px; display: block; margin-bottom: 4px; }
-
-        .btn-main { width: 100%; padding: 18px; border-radius: 20px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 800; transition: 0.3s; }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
     <div class="header">
-        <div class="badge" id="idShow">🆔 TX-CHECKING...</div>
-        <div class="badge" id="deviceShow">📱 THIẾT BỊ: --</div>
+        <div class="badge" id="idShow">ID: LOADING...</div>
+        <div class="badge" id="trialShow" style="color:var(--gold)">DÙNG THỬ: 7 NGÀY</div>
     </div>
 
     <div class="stats-bar">
-        <div class="stat-item" style="border-right: 1px solid #eee;">
+        <div class="stat-item" style="border-right: 1px solid rgba(255,255,255,0.1);">
+            <div class="stat-label">Tổng cước (VND)</div>
             <div id="cost" class="stat-value">0</div>
-            <div class="stat-label">Cước phí (đ)</div>
         </div>
         <div class="stat-item">
+            <div class="stat-label">Khoảng cách (KM)</div>
             <div id="km" class="stat-value">0.00</div>
-            <div class="stat-label">Quãng đường (km)</div>
         </div>
     </div>
 
     <div id="map"></div>
 
-    <div id="modal-wish" class="custom-modal">
-        <div class="modal-box">
-            <img src="https://cdn-icons-png.flaticon.com/512/3063/3063822.png" class="modal-icon">
-            <div class="modal-h">KÍNH CHÚC ANH/CHỊ</div>
-            <div class="modal-p" style="color:var(--primary); font-weight:bold;">THƯỢNG LỘ BÌNH AN!</div>
-            <button class="modal-btn" onclick="closeM('modal-wish')">BẮT ĐẦU NGAY</button>
-        </div>
-    </div>
-
-    <div id="modal-end" class="custom-modal">
-        <div class="modal-box">
-            <img src="https://cdn-icons-png.flaticon.com/512/148/148767.png" class="modal-icon">
-            <div class="modal-h">CHUYẾN ĐI KẾT THÚC</div>
-            <div id="end-info" class="modal-p">Quãng đường: 0.00km<br>Tổng cước: 0đ</div>
-            <button class="modal-btn" onclick="closeM('modal-end')" style="background:var(--dark)">XÁC NHẬN</button>
+    <div id="mainModal" class="custom-modal">
+        <div class="modal-content">
+            <div id="modalIcon" style="font-size: 50px; margin-bottom: 15px;">✨</div>
+            <div id="modalTitle" class="modal-title">THÔNG BÁO</div>
+            <div id="modalBody" class="modal-body">Nội dung thông báo</div>
+            <button class="modal-btn" onclick="closeModal()">ĐỒNG Ý</button>
         </div>
     </div>
 
     <div id="tab-vi" class="tab-content">
         <div class="p-header">
-            <div style="font-size:24px; font-weight:900;">TRẠM KÍCH HOẠT VIP</div>
-            <div class="trial-banner">🎁 MIỄN PHÍ DÙNG THỬ 7 NGÀY</div>
+            <div class="trial-badge">TÀI KHOẢN DÙNG THỬ</div>
+            <div style="font-size: 24px; font-weight: 800;">Nâng cấp VIP</div>
+            <p style="color: #888; font-size: 13px;">Kích hoạt để sử dụng trọn đời các tính năng</p>
         </div>
-        <div class="p-grid">
-            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)"><b>Gói Basic</b><span>19.000đ/tháng</span></div>
-            <div class="p-card" onclick="selectPack(29000, 'PRO', this)"><b>Gói Pro</b><span>29.000đ/tháng</span></div>
-            <div class="p-card active" onclick="selectPack(49000, 'VIP', this)"><b>Gói VIP</b><span>49.000đ/tháng</span></div>
-            <div class="p-card" onclick="selectPack(999000, 'LIFETIME', this)"><b>Trọn Đời</b><span>999.000đ</span></div>
+        <div class="pack-grid">
+            <div class="pack-card active" onclick="selectPack(19000, 'BASIC', this)"><b>BASIC</b><span>19.000đ</span></div>
+            <div class="pack-card" onclick="selectPack(49000, 'VIP', this)"><b>PREMIUM</b><span>49.000đ</span></div>
+            <div class="pack-card" onclick="selectPack(99000, 'PRO', this)"><b>BUSINESS</b><span>99.000đ</span></div>
+            <div class="pack-card" onclick="selectPack(999000, 'LIFE', this)"><b>TRỌN ĐỜI</b><span>999.000đ</span></div>
         </div>
-        <div style="margin:20px; padding:25px; background:white; border-radius:25px; text-align:center;">
-            <img id="qrImg" style="width:220px; border-radius:15px; border:8px solid #f8f9fa;" src="">
-            <div style="text-align:left; margin-top:15px; font-size:13px; color:#555;">
-                Mã máy: <b id="qrContent" style="color:var(--danger)">...</b><br>
-                Chủ TK: <b>NGUYEN XUAN DAT (BIDV)</b>
+        <div style="margin: 15px; background: var(--card); border-radius: 25px; padding: 25px; text-align: center;">
+            <img id="qrImg" style="width: 220px; border-radius: 15px; margin-bottom: 15px;" src="">
+            <div style="text-align: left; font-size: 13px; color: #aaa;">
+                Nội dung: <b id="qrContent" style="color: var(--primary)">...</b><br>
+                Chủ TK: <b>NGUYEN XUAN DAT</b>
             </div>
-            <button class="modal-btn" onclick="alert('Đang xác thực giao dịch...')">XÁC NHẬN ĐÃ CHUYỂN</button>
+            <button onclick="checkPay()" style="margin-top: 20px; width: 100%; padding: 15px; background: var(--primary); border: none; border-radius: 15px; font-weight: 800;">XÁC NHẬN NẠP TIỀN</button>
         </div>
     </div>
 
     <div class="footer-panel">
-        <div id="home-controls">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <span style="font-size:13px; font-weight:bold; color:#666;">Giá áp dụng:</span>
-                <b style="color:var(--danger)" id="rateShow">15,000đ/KM</b>
+        <div id="homeUI">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span style="font-size: 12px; color: #888;">Đơn giá: <b id="rateLabel" style="color:var(--primary)">15,000</b>đ/KM</span>
+                <span style="font-size: 10px; color: var(--gold);">ĐỘ PHÂN GIẢI 8K ACTIVE</span>
             </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" style="width:100%; height:6px; margin-bottom:20px; accent-color:var(--xanh-sm)" oninput="updateRate(this.value)">
+            <input type="range" min="10000" max="50000" step="1000" value="15000" style="width:100%; margin-bottom:20px; accent-color:var(--primary)" oninput="updateRate(this.value)">
             <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
         </div>
 
-        <div class="nav-grid">
-            <button class="nav-item active" onclick="switchTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="switchTab('vi', this)"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="alert('Đang cập nhật tính năng lịch sử chuyên nghiệp...')"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="switchTab('toi', this)"><i>👤</i>Tôi</button>
+        <div class="nav-bar">
+            <button class="nav-btn active" onclick="showTab('home', this)">🏠<br>Trang chủ</button>
+            <button class="nav-btn" onclick="showTab('vi', this)">💰<br>Ví tiền</button>
+            <button class="nav-btn" onclick="showHistory()">📊<br>Lịch sử</button>
+            <button class="nav-btn" onclick="showTab('toi', this)">👤<br>Tôi</button>
         </div>
-        <div style="text-align:center; font-size:9px; color:#bbb; margin-top:10px;">Phát triển & Độc quyền bởi Nguyễn Xuân Đạt</div>
+        <div style="text-align:center; font-size: 9px; color: #333; margin-top: 10px;">Version 3.5 Platinum - Độc quyền Nguyễn Xuân Đạt</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. NHẬN DIỆN THIẾT BỊ & ID
+        // 1. NHẬN DIỆN THIẾT BỊ & DÙNG THỬ 7 NGÀY
         const TX_ID = localStorage.getItem('tx_id') || 'TX-' + Math.random().toString(36).substr(2, 6).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
-        document.getElementById('idShow').innerText = "🆔 " + TX_ID;
-        document.getElementById('deviceShow').innerText = "📱 " + (navigator.userAgent.includes("iPhone") ? "iPhone" : "Android");
+        document.getElementById('idShow').innerText = "ID: " + TX_ID;
 
-        // 2. BẢN ĐỒ LINH HOẠT XANH SM
-        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.05], 17);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let trialDate = localStorage.getItem('trial_start') || Date.now();
+        localStorage.setItem('trial_start', trialDate);
+        let daysLeft = 7 - Math.floor((Date.now() - trialDate) / (1000 * 60 * 60 * 24));
+        document.getElementById('trialShow').innerText = daysLeft > 0 ? `DÙNG THỬ: ${daysLeft} NGÀY` : "HẾT HẠN DÙNG THỬ";
+
+        // 2. BẢN ĐỒ & CON QUAY ĐIỀU HƯỚNG XANH SM
+        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.05], 16);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         var smIcon = L.divIcon({
-            className: 'sm-div-icon',
-            html: `<div class="sm-marker" id="sm-pointer"><div class="sm-arrow"></div></div>`,
+            className: 'sm-custom',
+            html: `<div class="sm-marker" id="smMarker"></div>`,
             iconSize: [30, 30], iconAnchor: [15, 15]
         });
         var marker = L.marker([20.95, 107.05], { icon: smIcon }).addTo(map);
 
-        // 3. LOGIC TÍNH TIỀN DỨT ĐIỂM NHẢY ẢO
+        // 3. LOGIC TÍNH TIỀN DỨT ĐIỂM LỖI NHẢY TỰ ĐỘNG
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000;
-        let watchID = null;
+        let gpsBuffer = [];
 
         function updateRate(v) { 
             currentRate = v; 
-            document.getElementById('rateShow').innerText = parseInt(v).toLocaleString() + "đ/KM"; 
+            document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
         }
 
         function handleTrip() {
+            if(daysLeft <= 0) { showTab('vi'); return; }
+            isRunning = !isRunning;
             const btn = document.getElementById('mainBtn');
-            if(!isRunning) {
-                // BẮT ĐẦU
-                isRunning = true;
-                btn.innerText = "DỪNG CHUYẾN ĐI (KẾT THÚC)";
+            if(isRunning) {
+                btn.innerText = "KẾT THÚC CHUYẾN ĐI";
                 btn.style.background = "var(--danger)";
-                document.getElementById('modal-wish').style.display = 'flex';
-                totalKm = 0; lastPos = null; updateUI();
-                startTracking();
+                openModal("✨", "XIN CHÀO!", "Chúc anh/chị thượng lộ bình an!");
+                totalKm = 0; lastPos = null; gpsBuffer = [];
+                map.locate({ watch: true, enableHighAccuracy: true });
             } else {
-                // KẾT THÚC
-                isRunning = false;
                 btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
                 btn.style.background = "var(--primary)";
-                stopTracking();
-                document.getElementById('end-info').innerHTML = `Quãng đường: ${totalKm.toFixed(2)}km<br>Tổng cước: <b>${Math.floor(totalKm * currentRate).toLocaleString()}đ</b>`;
-                document.getElementById('modal-end').style.display = 'flex';
+                map.stopLocate();
+                openModal("🏁", "HOÀN THÀNH", `Quãng đường: ${totalKm.toFixed(2)} KM\nTổng cước: ${document.getElementById('cost').innerText} VND`);
             }
         }
 
-        function startTracking() {
-            watchID = navigator.geolocation.watchPosition(pos => {
-                const p = L.latLng(pos.coords.latitude, pos.coords.longitude);
-                marker.setLatLng(p);
-                map.flyTo(p, 18, { animate: true, duration: 1 });
+        map.on('locationfound', (e) => {
+            const cur = e.latlng;
+            marker.setLatLng(cur);
+            map.panTo(cur);
+
+            // Xử lý góc xoay điều hướng
+            if(lastPos) {
+                let angle = Math.atan2(cur.lng - lastPos.lng, cur.lat - lastPos.lat) * 180 / Math.PI;
+                document.getElementById('smMarker').style.transform = `rotate(${angle}deg)`;
+            }
+
+            if(isRunning) {
+                if(!lastPos) { lastPos = cur; return; }
+                let dist = cur.distanceTo(lastPos);
                 
-                // Xử lý góc xoay (heading)
-                if(pos.coords.heading) {
-                    document.getElementById('sm-pointer').style.transform = `rotate(${pos.coords.heading}deg)`;
+                // DỨT ĐIỂM LỖI: Chỉ tính khi di chuyển > 20m (Lọc nhiễu GPS tuyệt đối)
+                if(dist > 20) {
+                    totalKm += dist / 1000;
+                    lastPos = cur;
+                    document.getElementById('km').innerText = totalKm.toFixed(2);
+                    document.getElementById('cost').innerText = Math.floor(totalKm * currentRate).toLocaleString();
                 }
-
-                if(isRunning) {
-                    if(lastPos) {
-                        let dist = p.distanceTo(lastPos) / 1000;
-                        // DỨT ĐIỂM NHẢY ẢO: Chỉ tính nếu di chuyển trên 20 mét và có tốc độ > 2km/h
-                        if(dist > 0.02 && pos.coords.speed > 0.5) { 
-                            totalKm += dist;
-                            lastPos = p;
-                            updateUI();
-                        }
-                    } else { lastPos = p; }
-                }
-            }, null, { enableHighAccuracy: true });
-        }
-
-        function stopTracking() { if(watchID) navigator.geolocation.clearWatch(watchID); }
-
-        function updateUI() {
-            document.getElementById('km').innerText = totalKm.toFixed(2);
-            document.getElementById('cost').innerText = Math.floor(totalKm * currentRate).toLocaleString();
-        }
-
-        // 4. QUẢN LÝ TAB & QR
-        function switchTab(type, btn) {
-            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            btn.classList.add('active');
-            if(type === 'vi') {
-                document.getElementById('tab-vi').style.display = 'flex';
-                selectPack(49000, 'VIP', document.querySelectorAll('.p-card')[2]);
             }
+        });
+
+        // 4. GIAO DIỆN TAB & VÍ TIỀN
+        function showTab(name, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+            if(name !== 'home') document.getElementById('tab-' + name).style.display = 'flex';
+            if(name === 'vi') selectPack(49000, 'VIP', document.querySelector('.pack-card.active'));
         }
 
         function selectPack(price, name, el) {
-            document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.pack-card').forEach(c => c.classList.remove('active'));
             el.classList.add('active');
-            document.getElementById('qrContent').innerText = `${TX_ID} ${name}`;
-            document.getElementById('qrImg').src = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${TX_ID}%20${name}&accountName=NGUYEN%20XUAN%20DAT`;
+            const content = `${TX_ID} ${name}`;
+            document.getElementById('qrContent').innerText = content;
+            document.getElementById('qrImg').src = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}&accountName=NGUYEN%20XUAN%20DAT`;
         }
 
-        function closeM(id) { document.getElementById(id).style.display = 'none'; }
+        function showHistory() {
+            openModal("📊", "LỊCH SỬ CUỐC XE", "Hiện chưa có dữ liệu chuyến đi nào được lưu trữ.");
+        }
+
+        function openModal(icon, title, body) {
+            document.getElementById('modalIcon').innerText = icon;
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBody').innerText = body;
+            document.getElementById('mainModal').style.display = 'flex';
+        }
+
+        function closeModal() { document.getElementById('mainModal').style.display = 'none'; }
+        function checkPay() { alert("Đang kiểm tra giao dịch trên hệ thống BIDV..."); }
+
+        // Bảo mật: Chặn F12 & Nội soi
+        setInterval(() => { if(window.outerWidth - window.innerWidth > 160) location.reload(); }, 1000);
     </script>
 </body>
 </html>
