@@ -2,188 +2,128 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Xanh SM Style - Khách Vẫy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xanh SM Driver - Optimized</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { 
-            --xanh-sm: #00b4a5; /* Màu xanh đặc trưng của Xanh SM */
-            --dark-blue: #002d32;
-            --bg-gray: #f2f2f7;
-            --white: #ffffff;
-        }
-        
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-gray); }
-        
-        /* 1. Bản đồ chìm phía dưới */
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; filter: grayscale(0.2); } 
+        body { margin: 0; font-family: 'Arial', sans-serif; background: #f4f4f4; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
 
-        /* 2. Top Bar kiểu hiện đại */
-        .top-status {
-            position: absolute; top: 10px; width: 90%; left: 5%; z-index: 10;
-            display: flex; justify-content: space-between; align-items: center;
+        /* 1. THANH TRẠNG THÁI GÓI CƯỚC (ĐỈNH) */
+        .header-info {
+            position: fixed; top: 10px; left: 0; right: 0;
+            display: flex; justify-content: space-between; padding: 0 15px; z-index: 1000;
         }
-        .status-pill {
-            background: var(--white); padding: 8px 15px; border-radius: 50px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold; font-size: 13px;
-            display: flex; align-items: center; gap: 8px; color: var(--dark-blue);
+        .badge {
+            background: rgba(255, 255, 255, 0.9); padding: 8px 15px;
+            border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 13px; font-weight: bold; display: flex; align-items: center;
         }
-        .online-dot { width: 10px; height: 10px; background: #2ecc71; border-radius: 50%; border: 2px solid #fff; }
+        .badge-vip { background: #ffc107; color: #000; border: 1px solid #ffa000; }
 
-        /* 3. Bảng hiển thị tiền (HUD) - Đậm chất Xanh SM */
-        .revenue-card {
-            position: absolute; top: 70px; width: 90%; left: 5%; z-index: 10;
-            background: var(--white); border-radius: 16px; padding: 15px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-left: 6px solid var(--xanh-sm);
+        /* 2. KHUNG THÔNG TIN CHUYẾN XE (GỌN) */
+        .trip-monitor {
+            position: fixed; top: 70px; left: 15px; right: 15px;
+            background: white; border-radius: 12px; padding: 15px;
+            display: flex; justify-content: space-around;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000;
         }
-        .rev-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-        .rev-value { font-size: 32px; font-weight: 800; color: var(--dark-blue); margin-top: 5px; }
-        .rev-km { font-size: 16px; color: var(--xanh-sm); font-weight: 600; }
+        .stat-item { text-align: center; }
+        .stat-label { font-size: 11px; color: #666; margin-bottom: 4px; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #00897b; }
 
-        /* 4. Điều khiển phía dưới */
-        .bottom-sheet {
-            position: absolute; bottom: 0; width: 100%; z-index: 20;
-            background: var(--white); border-top-left-radius: 24px; border-top-right-radius: 24px;
-            padding-bottom: env(safe-area-inset-bottom);
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.08);
+        /* 3. BẢNG ĐIỀU KHIỂN DƯỚI */
+        .bottom-panel {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: white; border-top-left-radius: 20px; border-top-right-radius: 20px;
+            padding: 20px 15px 10px; z-index: 1000; box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
         }
-        .drag-handle { width: 40px; height: 4px; background: #ddd; border-radius: 2px; margin: 10px auto; }
-        
-        .trip-info { padding: 0 20px 15px; display: flex; justify-content: space-between; align-items: center; }
-        .price-tag { background: #f0fdfa; color: var(--xanh-sm); padding: 5px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; }
-
-        .action-area { padding: 0 20px 20px; }
-        .btn-main {
-            width: 100%; height: 60px; border-radius: 16px; border: none;
-            font-size: 18px; font-weight: 700; color: white; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            transition: all 0.2s;
+        .price-info { text-align: center; font-size: 13px; color: #555; margin-bottom: 15px; }
+        .main-actions { display: flex; gap: 10px; margin-bottom: 15px; }
+        .btn {
+            flex: 1; border: none; padding: 15px; border-radius: 10px;
+            font-weight: bold; font-size: 16px; cursor: pointer;
         }
-        .btn-start { background: var(--xanh-sm); box-shadow: 0 6px 20px rgba(0, 180, 165, 0.3); }
-        .btn-stop { background: #ff3b30; }
+        .btn-start { background: #00bfa5; color: white; }
+        .btn-end { background: #ff5252; color: white; display: none; }
 
-        /* 5. Menu Icons */
+        /* 4. THANH MENU CHỨC NĂNG (DƯỚI CÙNG) */
         .nav-bar {
-            display: flex; justify-content: space-around; padding: 10px 0;
-            border-top: 1px solid #f2f2f2;
+            display: flex; justify-content: space-around; border-top: 1px solid #eee; padding-top: 10px;
         }
-        .nav-item { text-align: center; color: #a1a1a1; font-size: 11px; text-decoration: none; }
-        .nav-item.active { color: var(--xanh-sm); }
-        .nav-item i { font-size: 24px; display: block; margin-bottom: 4px; }
-
+        .nav-item { text-align: center; color: #888; text-decoration: none; font-size: 11px; }
+        .nav-item.active { color: #00897b; }
+        .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-
-<div class="top-status">
-    <div class="status-pill">
-        <div class="online-dot"></div> Đang trực tuyến
-    </div>
-    <div class="status-pill" onclick="showPricePopup()">
-        ⚙️ <span id="currentPriceDisplay">15K/KM</span>
-    </div>
-</div>
-
-<div class="revenue-card">
-    <div class="rev-label">Cước phí khách vẫy</div>
-    <div class="rev-value" id="fare-txt">0đ</div>
-    <div class="rev-km"><span id="km-txt">0.0</span> Km đã đi</div>
-</div>
-
-<div class="bottom-sheet">
-    <div class="drag-handle"></div>
-    <div class="trip-info">
-        <div style="font-weight: bold; color: var(--dark-blue);">Thông tin cuốc xe</div>
-        <div class="price-tag" id="price-tag">Giá gốc: 15.000đ</div>
-    </div>
-    
-    <div class="action-area">
-        <button id="mainBtn" class="btn-main btn-start" onclick="toggleTrip()">
-            BẮT ĐẦU CHUYẾN ĐI
-        </button>
+    <div class="header-info">
+        <div class="badge">🆔 TX-DAT-2026</div>
+        <div class="badge badge-vip">⭐ GÓI: VIP PRO</div>
     </div>
 
-    <div class="nav-bar">
-        <a href="#" class="nav-item active"><i>🏠</i>Trang chủ</a>
-        <a href="#" class="nav-item"><i>💰</i>Ví</a>
-        <a href="#" class="nav-item"><i>📊</i>Lịch sử</a>
-        <a href="#" class="nav-item"><i>👤</i>Tôi</a>
+    <div class="trip-monitor">
+        <div class="stat-item">
+            <div class="stat-label">CƯỚC PHÍ (VNĐ)</div>
+            <div id="cost" class="stat-value">0</div>
+        </div>
+        <div class="stat-item" style="border-left: 1px solid #eee; padding-left: 20px;">
+            <div class="stat-label">QUÃNG ĐƯỜNG (KM)</div>
+            <div id="distance" class="stat-value">0.00</div>
+        </div>
     </div>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    // --- KHỞI TẠO MAP ---
-    var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.95, 107.07], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    var carIcon = L.circleMarker([0,0], { radius: 8, color: '#fff', weight: 3, fill: true, fillColor: '#00b4a5', fillOpacity: 1 }).addTo(map);
+    <div id="map"></div>
 
-    // --- LOGIC TÍNH TIỀN ---
-    let isRunning = false;
-    let totalKm = 0;
-    let kmPrice = 15000;
-    let lastPos = null;
-    let watchId = null;
+    <div class="bottom-panel">
+        <div class="price-info">Đang áp dụng: <strong>15.000đ/KM</strong></div>
+        
+        <div class="main-actions">
+            <button id="startBtn" class="btn btn-start" onclick="startTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+            <button id="endBtn" class="btn btn-end" onclick="stopTrip()">KẾT THÚC</button>
+        </div>
 
-    function toggleTrip() {
-        const btn = document.getElementById('mainBtn');
-        if (!isRunning) {
-            // Start
-            isRunning = true;
-            totalKm = 0;
-            btn.innerHTML = "DỪNG CHUYẾN ĐI";
-            btn.className = "btn-main btn-stop";
-            startTracking();
-        } else {
-            // Stop
-            isRunning = false;
-            btn.innerHTML = "BẮT ĐẦU CHUYẾN ĐI";
-            btn.className = "btn-main btn-start";
-            stopTracking();
-            alert(`Tổng tiền: ${Math.round(totalKm * kmPrice).toLocaleString()}đ`);
-            // Reset UI
-            document.getElementById('km-txt').innerText = "0.0";
-            document.getElementById('fare-txt').innerText = "0đ";
+        <div class="nav-bar">
+            <a href="#" class="nav-item active"><span class="nav-icon">🏠</span>Trang chủ</a>
+            <a href="javascript:void(0)" onclick="alert('Mở Ví')" class="nav-item"><span class="nav-icon">💰</span>Ví tiền</a>
+            <a href="javascript:void(0)" onclick="alert('Mở Lịch sử')" class="nav-item"><span class="nav-icon">📊</span>Lịch sử</a>
+            <a href="javascript:void(0)" onclick="alert('Mở Cài đặt')" class="nav-item"><span class="nav-icon">👤</span>Tôi</a>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Khởi tạo bản đồ
+        var map = L.map('map').setView([20.95, 107.05], 13); // Tọa độ Hạ Long/Quảng Yên
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        let timer = null;
+        let km = 0;
+        const pricePerKm = 15000;
+
+        function startTrip() {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('endBtn').style.display = 'block';
+            
+            // Giả lập tăng KM
+            timer = setInterval(() => {
+                km += 0.01;
+                document.getElementById('distance').innerText = km.toFixed(2);
+                document.getElementById('cost').innerText = Math.floor(km * pricePerKm).toLocaleString();
+            }, 1000);
         }
-    }
 
-    function startTracking() {
-        watchId = navigator.geolocation.watchPosition(pos => {
-            const current = [pos.coords.latitude, pos.coords.longitude];
-            map.flyTo(current, 17);
-            carIcon.setLatLng(current);
-
-            if (lastPos) {
-                let d = map.distance(lastPos, current) / 1000;
-                if (d > 0.005) { // Di chuyển trên 5m mới tính
-                    totalKm += d;
-                    updateUI();
-                }
-            }
-            lastPos = current;
-        }, null, { enableHighAccuracy: true });
-    }
-
-    function stopTracking() {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        lastPos = null;
-    }
-
-    function updateUI() {
-        document.getElementById('km-txt').innerText = totalKm.toFixed(1);
-        document.getElementById('fare-txt').innerText = Math.round(totalKm * kmPrice).toLocaleString() + "đ";
-    }
-
-    function showPricePopup() {
-        let p = prompt("Nhập giá cước mới (VNĐ/KM):", kmPrice);
-        if (p) {
-            kmPrice = parseInt(p);
-            document.getElementById('currentPriceDisplay').innerText = (kmPrice/1000) + "K/KM";
-            document.getElementById('price-tag').innerText = `Giá gốc: ${kmPrice.toLocaleString()}đ`;
+        function stopTrip() {
+            clearInterval(timer);
+            alert("Chuyến đi kết thúc! Tổng cước: " + Math.floor(km * pricePerKm).toLocaleString() + " VNĐ");
+            // Reset
+            km = 0;
+            document.getElementById('distance').innerText = "0.00";
+            document.getElementById('cost').innerText = "0";
+            document.getElementById('startBtn').style.display = 'block';
+            document.getElementById('endBtn').style.display = 'none';
         }
-    }
-</script>
+    </script>
 </body>
 </html>
