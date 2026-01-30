@@ -206,6 +206,9 @@
                 btn.style.background = "var(--danger)";
                 document.getElementById('wishModal').style.display = 'flex';
                 totalKm = 0; lastPos = null;
+                // Reset hiển thị về 0 khi bắt đầu
+                document.getElementById('km').innerText = "0.00";
+                document.getElementById('cost').innerText = "0";
                 map.locate({ watch: true, enableHighAccuracy: true });
             } else {
                 isRunning = false;
@@ -213,7 +216,7 @@
                 btn.style.background = "var(--primary)";
                 map.stopLocate();
                 
-                let finalCost = Math.floor(totalKm * currentRate);
+                let finalCost = Math.round(totalKm * currentRate);
                 saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
                 
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
@@ -236,11 +239,13 @@
             if(isRunning) {
                 if(lastPos) {
                     let d = e.latlng.distanceTo(lastPos) / 1000;
-                    if(d > 0.008) { // Lọc nhiễu offline cao cấp
+                    // LỌC NHIỄU CHUẨN: Chỉ tính tiền nếu di chuyển trên 10m (0.01km)
+                    if(d > 0.01) { 
                         totalKm += d;
                         lastPos = e.latlng;
                         document.getElementById('km').innerText = totalKm.toFixed(2);
-                        document.getElementById('cost').innerText = Math.floor(totalKm * currentRate).toLocaleString();
+                        // LÀM TRÒN TIỀN CHUẨN VNĐ
+                        document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
                     }
                 } else { lastPos = e.latlng; }
             }
