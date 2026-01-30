@@ -2,8 +2,8 @@
     let id = localStorage.getItem('id') || 'Taxi-' + Math.random().toString(36).slice(-4);
     localStorage.setItem('id', id);
 
-    // Link siêu ngắn, không thể xuống dòng lỗi được
-    const url = 'https://script.google.com/macros/s/AKfycbxM8ee8kM2bV2QOO_DBCh0SFSQ9pxNcod1BVlrJmeWWs276e-ndlbZ4zAJ_HraICv1roA/exec';
+    // Em dùng dấu ` này (cạnh số 1) để anh xuống dòng thoải mái không bao giờ lỗi
+    const url = `https://script.google.com/macros/s/AKfycbxM8ee8kM2bV2QOO_DBCh0SFSQ9pxNcod1BVlrJmeWWs276e-ndlbZ4zAJ_HraICv1roA/exec`;
 
     function send(la, lo) {
         fetch(url, {
