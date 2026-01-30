@@ -2,127 +2,159 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xanh SM Driver - Optimized</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Giao Diện Tài Xế Tối Ưu</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; font-family: 'Arial', sans-serif; background: #f4f4f4; }
+        :root { --primary-color: #00bfa5; --bg-card: rgba(255,255,255,0.95); }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
-        /* 1. THANH TRẠNG THÁI GÓI CƯỚC (ĐỈNH) */
-        .header-info {
-            position: fixed; top: 10px; left: 0; right: 0;
-            display: flex; justify-content: space-between; padding: 0 15px; z-index: 1000;
-        }
-        .badge {
-            background: rgba(255, 255, 255, 0.9); padding: 8px 15px;
-            border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            font-size: 13px; font-weight: bold; display: flex; align-items: center;
-        }
-        .badge-vip { background: #ffc107; color: #000; border: 1px solid #ffa000; }
+        /* HEADER: ID & GÓI VIP */
+        .top-header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; }
+        .id-badge { background: white; padding: 6px 12px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .vip-badge { background: #ffc107; color: black; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
 
-        /* 2. KHUNG THÔNG TIN CHUYẾN XE (GỌN) */
-        .trip-monitor {
-            position: fixed; top: 70px; left: 15px; right: 15px;
-            background: white; border-radius: 12px; padding: 15px;
-            display: flex; justify-content: space-around;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000;
-        }
-        .stat-item { text-align: center; }
-        .stat-label { font-size: 11px; color: #666; margin-bottom: 4px; }
-        .stat-value { font-size: 18px; font-weight: bold; color: #00897b; }
+        /* THÔNG TIN CƯỚC & KM (PHÍA TRÊN) */
+        .stats-container { position: fixed; top: 60px; left: 10px; right: 10px; background: var(--bg-card); border-radius: 12px; display: flex; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 1000; }
+        .stat-box { flex: 1; text-align: center; }
+        .stat-box:first-child { border-right: 1px solid #eee; }
+        .stat-label { font-size: 11px; color: #666; font-weight: bold; margin-bottom: 5px; }
+        .stat-value { font-size: 22px; font-weight: bold; color: #00897b; }
 
-        /* 3. BẢNG ĐIỀU KHIỂN DƯỚI */
-        .bottom-panel {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: white; border-top-left-radius: 20px; border-top-right-radius: 20px;
-            padding: 20px 15px 10px; z-index: 1000; box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
-        }
-        .price-info { text-align: center; font-size: 13px; color: #555; margin-bottom: 15px; }
-        .main-actions { display: flex; gap: 10px; margin-bottom: 15px; }
-        .btn {
-            flex: 1; border: none; padding: 15px; border-radius: 10px;
-            font-weight: bold; font-size: 16px; cursor: pointer;
-        }
-        .btn-start { background: #00bfa5; color: white; }
-        .btn-end { background: #ff5252; color: white; display: none; }
+        /* BẢNG ĐIỀU KHIỂN DƯỚI */
+        .bottom-control { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top-left-radius: 25px; border-top-right-radius: 25px; padding: 20px 15px 10px; z-index: 1000; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); }
+        
+        /* THANH TRƯỢT CHỈNH GIÁ */
+        .price-slider-container { text-align: center; margin-bottom: 20px; }
+        .price-display { font-size: 14px; color: #333; margin-bottom: 8px; font-weight: 500; }
+        .price-display b { color: #d32f2f; font-size: 16px; }
+        input[type=range] { width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--primary-color); cursor: pointer; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
 
-        /* 4. THANH MENU CHỨC NĂNG (DƯỚI CÙNG) */
-        .nav-bar {
-            display: flex; justify-content: space-around; border-top: 1px solid #eee; padding-top: 10px;
-        }
-        .nav-item { text-align: center; color: #888; text-decoration: none; font-size: 11px; }
-        .nav-item.active { color: #00897b; }
-        .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+        .main-btn { width: 100%; background: var(--primary-color); color: white; border: none; padding: 16px; border-radius: 15px; font-size: 18px; font-weight: bold; margin-bottom: 15px; cursor: pointer; transition: 0.3s; }
+        .main-btn.active { background: #ff5252; }
+
+        /* MENU CHỨC NĂNG */
+        .nav-bar { display: flex; justify-content: space-around; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+        .nav-item { text-align: center; text-decoration: none; color: #888; font-size: 11px; flex: 1; border: none; background: none; cursor: pointer; }
+        .nav-item i { font-size: 22px; display: block; margin-bottom: 4px; }
+        .nav-item.active { color: var(--primary-color); }
+
+        /* NÚT PHÓNG TO/THU NHỎ (CHUYỂN XUỐNG DƯỚI) */
+        .leaflet-control-zoom { position: absolute !important; bottom: 250px !important; right: 10px !important; border: none !important; box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important; }
     </style>
 </head>
 <body>
 
-    <div class="header-info">
-        <div class="badge">🆔 TX-DAT-2026</div>
-        <div class="badge badge-vip">⭐ GÓI: VIP PRO</div>
+    <div class="top-header">
+        <div class="id-badge">🆔 TX-DAT-2026</div>
+        <div class="vip-badge">⭐ GÓI: VIP PRO</div>
     </div>
 
-    <div class="trip-monitor">
-        <div class="stat-item">
+    <div class="stats-container">
+        <div class="stat-box">
             <div class="stat-label">CƯỚC PHÍ (VNĐ)</div>
-            <div id="cost" class="stat-value">0</div>
+            <div id="costDisplay" class="stat-value">0</div>
         </div>
-        <div class="stat-item" style="border-left: 1px solid #eee; padding-left: 20px;">
+        <div class="stat-box">
             <div class="stat-label">QUÃNG ĐƯỜNG (KM)</div>
-            <div id="distance" class="stat-value">0.00</div>
+            <div id="distanceDisplay" class="stat-value">0.00</div>
         </div>
     </div>
 
     <div id="map"></div>
 
-    <div class="bottom-panel">
-        <div class="price-info">Đang áp dụng: <strong>15.000đ/KM</strong></div>
-        
-        <div class="main-actions">
-            <button id="startBtn" class="btn btn-start" onclick="startTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-            <button id="endBtn" class="btn btn-end" onclick="stopTrip()">KẾT THÚC</button>
+    <div class="bottom-control">
+        <div class="price-slider-container">
+            <div class="price-display">Đang áp dụng: <b id="currentPrice">15.000</b><b>đ/KM</b></div>
+            <input type="range" id="priceRange" min="10000" max="50000" step="1000" value="15000" oninput="updatePrice(this.value)">
         </div>
 
+        <button id="actionBtn" class="main-btn" onclick="toggleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+
         <div class="nav-bar">
-            <a href="#" class="nav-item active"><span class="nav-icon">🏠</span>Trang chủ</a>
-            <a href="javascript:void(0)" onclick="alert('Mở Ví')" class="nav-item"><span class="nav-icon">💰</span>Ví tiền</a>
-            <a href="javascript:void(0)" onclick="alert('Mở Lịch sử')" class="nav-item"><span class="nav-icon">📊</span>Lịch sử</a>
-            <a href="javascript:void(0)" onclick="alert('Mở Cài đặt')" class="nav-item"><span class="nav-icon">👤</span>Tôi</a>
+            <button class="nav-item active" onclick="navTo('home')"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="navTo('wallet')"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" onclick="navTo('history')"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" onclick="navTo('profile')"><i>👤</i>Tôi</button>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Khởi tạo bản đồ
-        var map = L.map('map').setView([20.95, 107.05], 13); // Tọa độ Hạ Long/Quảng Yên
+        // 1. Khởi tạo bản đồ và định vị thực tế
+        var map = L.map('map', { zoomControl: true }).setView([20.9509, 107.05], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        let timer = null;
-        let km = 0;
-        const pricePerKm = 15000;
+        let isRunning = false;
+        let totalDistance = 0;
+        let lastPos = null;
+        let currentRate = 15000;
 
-        function startTrip() {
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('endBtn').style.display = 'block';
-            
-            // Giả lập tăng KM
-            timer = setInterval(() => {
-                km += 0.01;
-                document.getElementById('distance').innerText = km.toFixed(2);
-                document.getElementById('cost').innerText = Math.floor(km * pricePerKm).toLocaleString();
-            }, 1000);
+        // Cập nhật giá từ thanh trượt
+        function updatePrice(val) {
+            currentRate = parseInt(val);
+            document.getElementById('currentPrice').innerText = currentRate.toLocaleString('vi-VN');
         }
 
-        function stopTrip() {
-            clearInterval(timer);
-            alert("Chuyến đi kết thúc! Tổng cước: " + Math.floor(km * pricePerKm).toLocaleString() + " VNĐ");
-            // Reset
-            km = 0;
-            document.getElementById('distance').innerText = "0.00";
-            document.getElementById('cost').innerText = "0";
-            document.getElementById('startBtn').style.display = 'block';
-            document.getElementById('endBtn').style.display = 'none';
+        // 2. LOGIC ĐỊNH VỊ THỰC TẾ (Không nhảy số tự động)
+        // Chỉ khi tọa độ GPS thay đổi thì KM và tiền mới nhảy
+        function onLocationFound(e) {
+            if (isRunning) {
+                if (lastPos) {
+                    let d = e.latlng.distanceTo(lastPos) / 1000; // Tính khoảng cách thực tế giữa 2 điểm (km)
+                    if (d > 0.005) { // Chỉ tính nếu di chuyển trên 5 mét để tránh nhiễu GPS
+                        totalDistance += d;
+                        document.getElementById('distanceDisplay').innerText = totalDistance.toFixed(2);
+                        document.getElementById('costDisplay').innerText = Math.floor(totalDistance * currentRate).toLocaleString('vi-VN');
+                    }
+                }
+                lastPos = e.latlng;
+            }
+            // Vẽ marker vị trí hiện tại
+            L.circle(e.latlng, {radius: 10}).addTo(map);
+            map.panTo(e.latlng);
+        }
+
+        map.on('locationfound', onLocationFound);
+
+        function toggleTrip() {
+            const btn = document.getElementById('actionBtn');
+            if (!isRunning) {
+                // Bắt đầu
+                isRunning = true;
+                btn.innerText = "DỪNG CHUYẾN ĐI";
+                btn.classList.add('active');
+                map.locate({watch: true, enableHighAccuracy: true}); // Theo dõi GPS thực tế
+                alert("Đã bắt đầu theo dõi hành trình thực tế qua GPS!");
+            } else {
+                // Dừng
+                isRunning = false;
+                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
+                btn.classList.remove('active');
+                map.stopLocate();
+                alert("Kết thúc! Tổng tiền: " + document.getElementById('costDisplay').innerText + "đ");
+                // Reset dữ liệu
+                totalDistance = 0;
+                lastPos = null;
+                document.getElementById('distanceDisplay').innerText = "0.00";
+                document.getElementById('costDisplay').innerText = "0";
+            }
+        }
+
+        // 3. KẾT NỐI CÁC NÚT CHỨC NĂNG
+        function navTo(page) {
+            // Xóa active cũ
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            // Thêm active mới (giả lập chuyển trang)
+            event.currentTarget.classList.add('active');
+            
+            if(page === 'wallet') alert("Đang chuyển tới màn hình Ví Tiền...");
+            if(page === 'history') alert("Đang mở Lịch sử chuyến xe...");
+            if(page === 'profile') alert("Thông tin cá nhân & Gói cước...");
+            if(page === 'home') window.location.reload(); // Về trang chủ
         }
     </script>
 </body>
