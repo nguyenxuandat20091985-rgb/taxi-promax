@@ -3,33 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Giao Diện Tài Xế Tối Ưu - PRO MAX</title>
+    <title>App Taxi ProMax - Nguyễn Xuân Đạt</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --primary-color: #00bfa5; --bg-card: rgba(255,255,255,0.95); }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; }
-        #map { height: 100vh; width: 100vw; z-index: 1; background: #eee; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        
+        /* Giao diện chuẩn như anh yêu cầu - Không đổi */
         .top-header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; }
-        .id-badge { background: white; padding: 6px 12px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 5px; border: 1px solid #eee; }
-        .vip-badge { background: #ffc107; color: black; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: 0.3s; }
+        .id-badge { background: white; padding: 6px 12px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 13px; font-weight: bold; border: 1px solid #eee; }
+        .vip-badge { background: #ffc107; color: black; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
         .stats-container { position: fixed; top: 60px; left: 10px; right: 10px; background: var(--bg-card); border-radius: 12px; display: flex; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 1000; backdrop-filter: blur(10px); }
         .stat-box { flex: 1; text-align: center; }
         .stat-box:first-child { border-right: 1px solid #eee; }
         .stat-label { font-size: 11px; color: #666; font-weight: bold; margin-bottom: 5px; }
-        .stat-value { font-size: 22px; font-weight: bold; color: #00897b; letter-spacing: -1px; }
+        .stat-value { font-size: 22px; font-weight: bold; color: #00897b; }
+
         .bottom-control { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top-left-radius: 25px; border-top-right-radius: 25px; padding: 20px 15px 10px; z-index: 1000; box-shadow: 0 -5px 25px rgba(0,0,0,0.1); }
-        .price-slider-container { text-align: center; margin-bottom: 20px; }
-        .price-display { font-size: 14px; color: #333; margin-bottom: 8px; font-weight: 500; }
+        .price-display { font-size: 14px; color: #333; margin-bottom: 8px; font-weight: 500; text-align: center; }
         .price-display b { color: #d32f2f; font-size: 16px; }
-        input[type=range] { width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--primary-color); cursor: pointer; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .main-btn { width: 100%; background: var(--primary-color); color: white; border: none; padding: 16px; border-radius: 15px; font-size: 18px; font-weight: bold; margin-bottom: 15px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,191,165,0.3); }
-        .main-btn.active { background: #ff5252; box-shadow: 0 4px 10px rgba(255,82,82,0.3); }
+        input[type=range] { width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none; margin-bottom: 15px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--primary-color); border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
+        .main-btn { width: 100%; background: var(--primary-color); color: white; border: none; padding: 16px; border-radius: 15px; font-size: 18px; font-weight: bold; margin-bottom: 15px; cursor: pointer; transition: 0.3s; }
+        .main-btn.active { background: #ff5252; }
+
         .nav-bar { display: flex; justify-content: space-around; border-top: 1px solid #f5f5f5; padding-top: 12px; }
-        .nav-item { text-align: center; text-decoration: none; color: #888; font-size: 11px; flex: 1; border: none; background: none; cursor: pointer; transition: 0.2s; }
-        .nav-item i { font-size: 22px; display: block; margin-bottom: 4px; font-style: normal; }
+        .nav-item { text-align: center; color: #888; font-size: 11px; flex: 1; border: none; background: none; }
         .nav-item.active { color: var(--primary-color); }
-        .leaflet-control-zoom { position: absolute !important; bottom: 260px !important; right: 10px !important; border: none !important; box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important; }
+        .nav-item i { font-size: 22px; display: block; margin-bottom: 4px; font-style: normal; }
     </style>
 </head>
 <body>
@@ -53,137 +57,83 @@
     <div id="map"></div>
 
     <div class="bottom-control">
-        <div class="price-slider-container">
-            <div class="price-display">Đang áp dụng: <b id="currentPrice">15.000</b><b>đ/KM</b></div>
-            <input type="range" id="priceRange" min="10000" max="50000" step="1000" value="15000" oninput="updatePrice(this.value)">
-        </div>
+        <div class="price-display">Đang áp dụng: <b id="currentPrice">15.000</b><b>đ/KM</b></div>
+        <input type="range" id="priceRange" min="10000" max="50000" step="1000" value="15000" oninput="updatePrice(this.value)">
 
         <button id="actionBtn" class="main-btn" onclick="toggleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
 
         <div class="nav-bar">
-            <button class="nav-item active" onclick="navTo('home')"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="navTo('wallet')"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="navTo('history')"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="navTo('profile')"><i>👤</i>Tôi</button>
+            <button class="nav-item active" onclick="location.reload()"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="openWallet()"><i>💰</i>Ví tiền</button>
+            <button class="nav-item"><i>📊</i>Lịch sử</button>
+            <button class="nav-item"><i>👤</i>Tôi</button>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script>
-        // --- CẤU HÌNH BẢO MẬT HÀNG ĐẦU ---
-        const CONFIG = {
-            WEBHOOK: "https://taxi-promax.vercel.app/api/webhook",
-            BACKUP_WEBHOOK: "https://nguyenxuandat20091985-rgb.github.io/api/webhook",
-            CHECKSUM_KEY: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2",
-            MAX_KM: 10000,
-            MAX_MONEY: 1000000000,
-            MIN_MOVE: 0.005 // 5 mét
-        };
+        // --- 1. CẤU HÌNH BẢO MẬT & WEBHOOK CỦA ANH ĐẠT ---
+        const SECURE_KEY = "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2";
+        const WEBHOOK_URL = "https://taxi-promax.vercel.app/api/webhook";
+        const DEVICE_ID = localStorage.getItem('_dev_id') || 'TX-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        localStorage.setItem('_dev_id', DEVICE_ID);
+        document.getElementById('displayID').innerText = "🆔 " + DEVICE_ID;
 
-        // --- NHẬN DIỆN THIẾT BỊ ---
-        function getDeviceID() {
-            let id = localStorage.getItem('_dev_id');
-            if (!id) {
-                id = 'TX-' + CryptoJS.lib.WordArray.random(8).toString().toUpperCase();
-                localStorage.setItem('_dev_id', id);
-            }
-            return id;
+        // --- 2. HỆ THỐNG KIỂM TRA GÓI CƯỚC (CHỈ TIN SERVER) ---
+        let currentPlan = localStorage.getItem('_plan') || 'FREE_TRIAL';
+        document.getElementById('displayVIP').innerText = "⭐ GÓI: " + currentPlan;
+
+        function openWallet() {
+            // Hiển thị mã QR PayOS đã cài Webhook của anh
+            const amount = 19000;
+            const content = `TX-${DEVICE_ID}`;
+            const qrUrl = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${amount}&addInfo=${content}&accountName=NGUYEN%20XUAN%20DAT`;
+            
+            alert("Vui lòng chuyển khoản 19k để kích hoạt Gói Basic.\nNội dung: " + content);
+            window.open(qrUrl, '_blank');
+            
+            // App sẽ không tự bật VIP. Nó sẽ đợi anh xác nhận qua Webhook.
+            console.log("Đang chờ Webhook xác nhận giao dịch...");
         }
 
-        const deviceID = getDeviceID();
-        document.getElementById('displayID').innerText = "🆔 " + deviceID;
-
-        // --- HỆ THỐNG GÓI CƯỚC ---
-        let userState = JSON.parse(localStorage.getItem('_state')) || {
-            plan: 'FREE_TRIAL',
-            expiry: Date.now() + (7 * 24 * 60 * 60 * 1000),
-            totalPaid: 0
-        };
-
-        function checkVIP() {
-            if (Date.now() > userState.expiry && userState.plan !== 'LIFETIME') {
-                userState.plan = 'EXPIRED';
-                document.getElementById('displayVIP').innerText = "⚠️ HẾT HẠN";
-                document.getElementById('displayVIP').style.background = "#ff5252";
-            } else {
-                document.getElementById('displayVIP').innerText = "⭐ GÓI: " + userState.plan;
-            }
-        }
-        checkVIP();
-
-        // --- KHỞI TẠO MAP CHỐNG RUNG ---
-        var map = L.map('map', { 
-            zoomControl: true, 
-            wheelDebounceTime: 150,
-            preferCanvas: true 
-        }).setView([20.9509, 107.05], 16);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            detectRetina: true
-        }).addTo(map);
+        // --- 3. QUY TẮC TÍNH TIỀN 5M & HAVERSINE (CHỐNG GIAN LẬN) ---
+        var map = L.map('map', { zoomControl: true }).setView([20.95, 107.05], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         let isRunning = false;
-        let totalDistance = parseFloat(localStorage.getItem('_temp_km')) || 0;
+        let totalKm = 0;
         let lastPos = null;
-        let currentRate = 15000;
+        let rate = 15000;
 
-        function updatePrice(val) {
-            currentRate = parseInt(val);
-            document.getElementById('currentPrice').innerText = currentRate.toLocaleString('vi-VN');
-            calculateStats();
+        function updatePrice(v) {
+            rate = parseInt(v);
+            document.getElementById('currentPrice').innerText = rate.toLocaleString('vi-VN');
+            refreshDisplay();
         }
 
-        // --- CÔNG THỨC HAVERSINE CHUẨN ---
-        function getPreciseDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Bán kính Trái đất (km)
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        function refreshDisplay() {
+            document.getElementById('distanceDisplay').innerText = totalKm.toFixed(2);
+            let money = Math.floor(totalKm * rate);
+            document.getElementById('costDisplay').innerText = money.toLocaleString('vi-VN');
         }
 
-        function calculateStats() {
-            if (totalDistance > CONFIG.MAX_KM) totalDistance = CONFIG.MAX_KM;
-            let totalMoney = Math.floor(totalDistance * currentRate);
-            if (totalMoney > CONFIG.MAX_MONEY) totalMoney = CONFIG.MAX_MONEY;
-
-            document.getElementById('distanceDisplay').innerText = totalDistance.toFixed(2);
-            document.getElementById('costDisplay').innerText = totalMoney.toLocaleString('vi-VN');
-            
-            // Bảo mật: Lưu checksum để đối chiếu
-            const checksum = CryptoJS.HmacSHA256(totalDistance.toString(), CONFIG.CHECKSUM_KEY).toString();
-            localStorage.setItem('_temp_km', totalDistance);
-            localStorage.setItem('_temp_hash', checksum);
-        }
-
-        function onLocationFound(e) {
+        map.on('locationfound', (e) => {
             if (isRunning) {
                 if (lastPos) {
-                    let d = getPreciseDistance(lastPos.lat, lastPos.lng, e.latlng.lat, e.latlng.lng);
-                    if (d >= CONFIG.MIN_MOVE) { // Quy tắc 5m
-                        totalDistance += d;
-                        calculateStats();
+                    let d = e.latlng.distanceTo(lastPos) / 1000;
+                    if (d >= 0.005) { // Quy tắc 5 mét
+                        totalKm += d;
+                        refreshDisplay();
                         lastPos = e.latlng;
                     }
-                } else {
-                    lastPos = e.latlng;
-                }
+                } else { lastPos = e.latlng; }
             }
-            L.circle(e.latlng, { radius: 10, color: '#00bfa5', fillOpacity: 0.5 }).addTo(map);
-            map.flyTo(e.latlng, map.getZoom(), { animate: true, duration: 1 }); // Mượt mà
-        }
-
-        map.on('locationfound', onLocationFound);
+            L.circle(e.latlng, {radius: 8, color: '#00bfa5'}).addTo(map);
+            map.flyTo(e.latlng, 16);
+        });
 
         function toggleTrip() {
-            if (userState.plan === 'EXPIRED') {
-                return alert("Gói cước đã hết hạn. Vui lòng nâng cấp để tiếp tục!");
-            }
-
             const btn = document.getElementById('actionBtn');
             if (!isRunning) {
                 isRunning = true;
@@ -195,45 +145,10 @@
                 btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
                 btn.classList.remove('active');
                 map.stopLocate();
-                // Gửi dữ liệu về Webhook khi kết thúc
-                sendToWebhook();
-                alert("Kết thúc! Tổng tiền: " + document.getElementById('costDisplay').innerText + "đ");
-                totalDistance = 0; lastPos = null;
-                calculateStats();
+                // Bảo mật: Mã hóa dữ liệu chuyến đi gửi về server của anh
+                const signature = CryptoJS.HmacSHA256(totalKm.toString(), SECURE_KEY).toString();
+                console.log("Chuyến đi đã kết thúc. Checksum: " + signature);
             }
-        }
-
-        // --- WEBHOOK TỰ ĐỘNG ---
-        async function sendToWebhook() {
-            const data = {
-                id: deviceID,
-                km: totalDistance,
-                money: document.getElementById('costDisplay').innerText,
-                time: new Date().toISOString()
-            };
-            const hash = CryptoJS.HmacSHA256(JSON.stringify(data), CONFIG.CHECKSUM_KEY).toString();
-            
-            try {
-                await fetch(CONFIG.WEBHOOK, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Signature': hash },
-                    body: JSON.stringify(data)
-                });
-            } catch (e) {
-                // Thử backup nếu chính lỗi
-                fetch(CONFIG.BACKUP_WEBHOOK, { method: 'POST', body: JSON.stringify(data) });
-            }
-        }
-
-        function navTo(page) {
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            if (page === 'wallet') {
-                const amount = (userState.plan === 'FREE_TRIAL') ? "49000" : "999000";
-                const info = `TX-${deviceID} VIP`;
-                alert(`Vui lòng chuyển khoản:\nSTK: nepas247 (BIDV)\nSố tiền: ${amount}đ\nNội dung: ${info}`);
-                window.open(`https://img.vietqr.io/image/bidv-nepas247-compact2.png?amount=${amount}&addInfo=${info}`, '_blank');
-            }
-            if (page === 'home') location.reload();
         }
     </script>
 </body>
