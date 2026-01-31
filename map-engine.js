@@ -1,25 +1,31 @@
-// BẢN ĐỒ SIÊU SẮC NÉT & GIỮ MÀN HÌNH LUÔN SÁNG
+// =========================================================
+// HỆ THỐNG ĐIỀU HÀNH BẢN ĐỒ - PHÁT TRIỂN BỞI: NGUYEN XUAN DAT
+// =========================================================
+
 var map = L.map('map', { 
     zoomControl: false,
     maxZoom: 18,
-    preferCanvas: true 
+    preferCanvas: true,
+    bounceAtZoomLimits: false
 }).setView([21.02, 105.83], 16);
 
+// Tối ưu bản đồ sắc nét và load nhanh (Mục 1)
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
+    updateWhenIdle: true,
+    keepBuffer: 2,
     className: 'map-retina'
 }).addTo(map);
 
-// GIỮ MÀN HÌNH LUÔN SÁNG
+// GIỮ MÀN HÌNH LUÔN SÁNG (MỤC 4)
 let wakeLock = null;
-async function requestWakeLock() {
-    try {
-        if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
-    } catch (err) { console.log("WakeLock lỗi"); }
-}
+const requestWakeLock = async () => {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } 
+    catch (e) { console.log("Sáng màn hình: ON"); }
+};
 requestWakeLock();
 
-// ICON XE DI CHUYỂN
+// ICON XE VỚI MŨI TÊN TỰ XOAY (MỤC 2)
 var smIcon = L.divIcon({
     className: 'sm-div-icon',
     html: "<div class='sm-marker'><div class='sm-arrow' id='car-arrow'></div></div>",
@@ -29,39 +35,43 @@ var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map);
 
 let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000;
 
-// --- KHÔI PHỤC DỮ LIỆU THÔNG SUỐT ---
-window.onload = function() {
-    const savedTrip = localStorage.getItem('active_trip');
-    if (savedTrip) {
-        const data = JSON.parse(savedTrip);
+// --- HÀM LƯU LỊCH SỬ BẢO MẬT (CHỈ THÊM, CẤM XÓA) ---
+function saveHistory(km, price) {
+    let history = JSON.parse(localStorage.getItem('taxi_history') || '[]');
+    const newEntry = {
+        id: Date.now(),
+        date: new Date().toLocaleString('vi-VN'),
+        km: km,
+        price: price,
+        status: 'Hoàn thành'
+    };
+    history.unshift(newEntry);
+    localStorage.setItem('taxi_history', JSON.stringify(history.slice(0, 100))); // Giữ 100 chuyến gần nhất
+}
+
+// --- KHÔI PHỤC DỮ LIỆU KHI MỞ LẠI APP (ANTI-CRASH) ---
+window.addEventListener('load', () => {
+    const backup = localStorage.getItem('trip_backup');
+    if (backup) {
+        const d = JSON.parse(backup);
         isRunning = true;
-        totalKm = data.totalKm;
-        currentRate = data.currentRate;
-        // QUAN TRỌNG: Khôi phục tọa độ cuối để không bị nhảy KM thẳng hàng
-        if(data.lastLat && data.lastLng) {
-            lastPos = L.latLng(data.lastLat, data.lastLng);
-        }
+        totalKm = d.km;
+        currentRate = d.rate;
+        if(d.lat && d.lng) lastPos = L.latLng(d.lat, d.lng);
         
-        const btn = document.getElementById('mainBtn');
-        btn.innerText = "KẾT THÚC CHUYẾN ĐI";
-        btn.style.background = "var(--danger)";
+        // Cập nhật giao diện
+        document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
+        document.getElementById('mainBtn').style.background = "var(--danger)";
         document.getElementById('km').innerText = totalKm.toFixed(2);
         document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
         
         map.locate({ watch: true, enableHighAccuracy: true });
     }
-};
+});
 
 function updateRate(v) { 
-    currentRate = v; 
-    document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
-}
-
-// HÀM LƯU LỊCH SỬ (Nếu file khác chưa có thì phải thêm vào đây)
-function saveHistory(km, price) {
-    let history = JSON.parse(localStorage.getItem('taxi_history') || '[]');
-    history.unshift({ date: new Date().toLocaleString(), km: km, price: price });
-    localStorage.setItem('taxi_history', JSON.stringify(history.slice(0, 50))); // Lưu 50 chuyến gần nhất
+    currentRate = parseInt(v); 
+    document.getElementById('rateLabel').innerText = currentRate.toLocaleString(); 
 }
 
 function handleTrip() {
@@ -83,46 +93,49 @@ function handleTrip() {
         
         let finalCost = Math.round(totalKm * currentRate);
         saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
-        localStorage.removeItem('active_trip');
+        localStorage.removeItem('trip_backup'); // Xóa bản nháp khi kết thúc
         
         document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
         document.getElementById('endModal').style.display = 'flex';
     }
 }
 
-// THUẬT TOÁN XANH SM: ĐỊNH VỊ CHUẨN & LƯU TỌA ĐỘ CUỐI
+// THUẬT TOÁN XANH SM: CHỐNG NHẢY TIỀN & ĐỊNH VỊ THEO XE (MỤC 3)
 map.on('locationfound', (e) => {
-    const { heading, accuracy } = e;
-    if (accuracy > 25) return; 
-
-    const newPos = e.latlng;
-    marker.setLatLng(newPos);
+    const { heading, accuracy, latlng } = e;
     
-    if (heading !== null && heading !== undefined) {
+    // LỌC NHIỄU: Nếu GPS sai số > 20m thì bỏ qua (Chống nhảy KM khi dừng đèn đỏ)
+    if (accuracy > 20) return; 
+
+    marker.setLatLng(latlng);
+    
+    // Xoay mũi tên theo hướng xe di chuyển (Mục 2)
+    if (heading) {
         const arrow = document.getElementById('car-arrow');
         if (arrow) arrow.style.transform = `translateX(-50%) rotate(${heading}deg)`;
     }
 
-    map.panTo(newPos, { animate: true, duration: 0.5 });
+    // Luôn bám theo xe (Mục 2)
+    map.panTo(latlng, { animate: true, duration: 0.5 });
 
     if(isRunning) {
         if(lastPos) {
-            let d = newPos.distanceTo(lastPos) / 1000;
-            // Thuật toán lọc nhiễu 15m của Xanh SM
+            let d = latlng.distanceTo(lastPos) / 1000;
+            // Thuật toán chuẩn Xanh SM: Phải di chuyển > 15m và < 200m (loại bỏ nhảy tọa độ xa)
             if(d > 0.015 && d < 0.2) { 
                 totalKm += d;
-                lastPos = newPos;
+                lastPos = latlng;
                 document.getElementById('km').innerText = totalKm.toFixed(2);
                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
                 
-                // LƯU CẢ TỌA ĐỘ ĐỂ CHỐNG LỖI NHẢY KM KHI MỞ LẠI APP
-                localStorage.setItem('active_trip', JSON.stringify({
-                    totalKm: totalKm, 
-                    currentRate: currentRate,
-                    lastLat: newPos.lat,
-                    lastLng: newPos.lng
+                // Ghi vào "Hộp đen" liên tục
+                localStorage.setItem('trip_backup', JSON.stringify({
+                    km: totalKm, 
+                    rate: currentRate,
+                    lat: latlng.lat,
+                    lng: latlng.lng
                 }));
             }
-        } else { lastPos = newPos; }
+        } else { lastPos = latlng; }
     }
 });
