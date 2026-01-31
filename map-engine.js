@@ -29,7 +29,7 @@ var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map);
 
 let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000;
 
-// --- PHẦN MỚI: TỰ ĐỘNG KHÔI PHỤC DỮ LIỆU KHI SẬP APP ---
+// --- KHÔI PHỤC DỮ LIỆU THÔNG SUỐT ---
 window.onload = function() {
     const savedTrip = localStorage.getItem('active_trip');
     if (savedTrip) {
@@ -37,24 +37,31 @@ window.onload = function() {
         isRunning = true;
         totalKm = data.totalKm;
         currentRate = data.currentRate;
+        // QUAN TRỌNG: Khôi phục tọa độ cuối để không bị nhảy KM thẳng hàng
+        if(data.lastLat && data.lastLng) {
+            lastPos = L.latLng(data.lastLat, data.lastLng);
+        }
         
-        // Cập nhật lại giao diện ngay khi mở app
         const btn = document.getElementById('mainBtn');
         btn.innerText = "KẾT THÚC CHUYẾN ĐI";
         btn.style.background = "var(--danger)";
         document.getElementById('km').innerText = totalKm.toFixed(2);
         document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
-        document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
         
-        // Kích hoạt lại định vị
         map.locate({ watch: true, enableHighAccuracy: true });
-        console.log("Đã khôi phục chuyến đi đang dang dở!");
     }
 };
 
 function updateRate(v) { 
     currentRate = v; 
     document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
+}
+
+// HÀM LƯU LỊCH SỬ (Nếu file khác chưa có thì phải thêm vào đây)
+function saveHistory(km, price) {
+    let history = JSON.parse(localStorage.getItem('taxi_history') || '[]');
+    history.unshift({ date: new Date().toLocaleString(), km: km, price: price });
+    localStorage.setItem('taxi_history', JSON.stringify(history.slice(0, 50))); // Lưu 50 chuyến gần nhất
 }
 
 function handleTrip() {
@@ -67,10 +74,6 @@ function handleTrip() {
         totalKm = 0; lastPos = null;
         document.getElementById('km').innerText = "0.00";
         document.getElementById('cost').innerText = "0";
-        
-        // Lưu trạng thái bắt đầu để phòng khi sập app
-        localStorage.setItem('active_trip', JSON.stringify({totalKm: 0, currentRate: currentRate}));
-        
         map.locate({ watch: true, enableHighAccuracy: true });
     } else {
         isRunning = false;
@@ -80,8 +83,6 @@ function handleTrip() {
         
         let finalCost = Math.round(totalKm * currentRate);
         saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
-        
-        // Xóa bộ nhớ đệm vì chuyến đi đã kết thúc an toàn
         localStorage.removeItem('active_trip');
         
         document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
@@ -89,7 +90,7 @@ function handleTrip() {
     }
 }
 
-// THUẬT TOÁN XANH SM: ĐỊNH VỊ CHUẨN & LƯU LIÊN TỤC
+// THUẬT TOÁN XANH SM: ĐỊNH VỊ CHUẨN & LƯU TỌA ĐỘ CUỐI
 map.on('locationfound', (e) => {
     const { heading, accuracy } = e;
     if (accuracy > 25) return; 
@@ -107,14 +108,20 @@ map.on('locationfound', (e) => {
     if(isRunning) {
         if(lastPos) {
             let d = newPos.distanceTo(lastPos) / 1000;
+            // Thuật toán lọc nhiễu 15m của Xanh SM
             if(d > 0.015 && d < 0.2) { 
                 totalKm += d;
                 lastPos = newPos;
                 document.getElementById('km').innerText = totalKm.toFixed(2);
                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
                 
-                // CẬP NHẬT BỘ NHỚ ĐỆM LIÊN TỤC (Phòng khi sập app giữa đường)
-                localStorage.setItem('active_trip', JSON.stringify({totalKm: totalKm, currentRate: currentRate}));
+                // LƯU CẢ TỌA ĐỘ ĐỂ CHỐNG LỖI NHẢY KM KHI MỞ LẠI APP
+                localStorage.setItem('active_trip', JSON.stringify({
+                    totalKm: totalKm, 
+                    currentRate: currentRate,
+                    lastLat: newPos.lat,
+                    lastLng: newPos.lng
+                }));
             }
         } else { lastPos = newPos; }
     }
