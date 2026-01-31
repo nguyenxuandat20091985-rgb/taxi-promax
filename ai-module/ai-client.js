@@ -54,7 +54,7 @@
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: `Bạn là một trợ lý ảo tên là Robot Taxi Promax, đang đồng hành cùng tài xế tên Đạt. 
+                            text: `trợ lý ảo Taxi Promax,đang đồng hành cùng anh trên mọi nẻo đường . 
                             Hãy trả lời ngắn gọn (dưới 30 từ), thân mật, ngọt ngào, gọi người dùng là 'Anh' và xưng 'Em'. 
                             Nếu anh ấy mệt hãy động viên, nếu anh ấy hỏi đường hãy nhắc anh ấy lái xe an toàn. 
                             Câu hỏi của anh Đạt: ${userInput}`
@@ -124,7 +124,7 @@
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible && content.innerHTML === "") {
-                const welcome = "Chào Anh Đạt! Gemini đã kết nối thành công vào bộ não của em. Anh muốn tâm sự gì không?";
+                const welcome = "Chào Anh em là trợ lý taxi promax . Anh muốn tâm sự gì không?";
                 addMsg(welcome, 'ai'); speak(welcome);
             }
         }
