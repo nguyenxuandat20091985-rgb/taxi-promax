@@ -224,7 +224,7 @@
             if (!isVisible) {
                 // Nếu mở chat và chưa có tin nhắn, gửi lời chào
                 if (content.innerHTML === "") {
-                    const welcome = "Chào anh Đạt! Em Robot Promax đã sẵn sàng hỗ trợ anh. Anh muốn đi đâu hay tâm sự gì với em không?";
+                    const welcome = "Chào anh Em Robot Promax đã sẵn sàng hỗ trợ anh. Anh muốn đi đâu hay tâm sự gì với em không?";
                     addMsg(welcome, 'ai'); 
                     speak(welcome, () => {
                         // Sau khi chào xong, tự động lắng nghe
