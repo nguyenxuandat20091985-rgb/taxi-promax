@@ -1,5 +1,5 @@
 // =========================================================
-// ROBOT TAXI PROMAX - PHIÊN BẢN KẾT NỐI SIÊU TRÍ TUỆ GEMINI
+// AI TAXI PROMAX 
 // =========================================================
 
 (function() {
@@ -124,7 +124,7 @@
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible && content.innerHTML === "") {
-                const welcome = "Chào Anh em là trợ lý taxi promax . Anh muốn tâm sự gì không?";
+                const welcome = "Chào Anh em là trợ lý taxi promax anh muốn em tâm sự gì không?";
                 addMsg(welcome, 'ai'); speak(welcome);
             }
         }
