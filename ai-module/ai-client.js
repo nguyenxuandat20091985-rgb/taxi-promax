@@ -1,44 +1,46 @@
 // =========================================================
-// ROBOT TAXI PROMAX - BẢN SIÊU GỌN & KÉO THẢ LINH HOẠT
+// ROBOT TAXI PROMAX - BẢN TAB DÍNH LIỀN THEO ICON
 // =========================================================
 
 (function() {
     const style = document.createElement('style');
     style.innerHTML = `
-        #ai-root { 
-            position: fixed; bottom: 150px; right: 10px; z-index: 100000; 
-            width: 65px; height: 65px; cursor: move; touch-action: none;
-            transition: transform 0.2s;
+        /* Khung chứa cả Robot và Chat để di chuyển cùng nhau */
+        #ai-container-fixed {
+            position: fixed; bottom: 150px; right: 10px; z-index: 100000;
+            display: flex; flex-direction: column; align-items: flex-end;
+            touch-action: none; cursor: move;
         }
-        .ai-avatar { 
-            width: 100%; height: 100%; border-radius: 50%; 
+
+        #ai-root { 
+            width: 65px; height: 65px; border-radius: 50%; 
             border: 2px solid #00bfa5; box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
             overflow: hidden; background: white;
         }
-        .ai-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        #ai-root img { width: 100%; height: 100%; object-fit: cover; }
         
         #ai-chat-box { 
-            position: fixed; bottom: 230px; right: 10px;
-            width: 280px; background: rgba(255, 255, 255, 0.95); border-radius: 15px; 
-            z-index: 99999; display: none; flex-direction: column; 
+            width: 260px; background: rgba(255, 255, 255, 0.95); border-radius: 15px; 
+            margin-bottom: 10px; display: none; flex-direction: column; 
             box-shadow: 0 8px 30px rgba(0,0,0,0.2); border: 1px solid #00bfa5;
             overflow: hidden; backdrop-filter: blur(5px);
         }
-        .ai-header { background: #00bfa5; color: white; padding: 8px; text-align: center; font-size: 13px; font-weight: bold; }
-        #ai-content { max-height: 180px; overflow-y: auto; padding: 10px; font-size: 13px; background: rgba(244, 255, 255, 0.5); }
-        .msg-u { background: #00bfa5; color: white; padding: 6px 12px; border-radius: 10px 10px 0 10px; margin: 4px 0 4px auto; width: fit-content; max-width: 85%; }
-        .msg-a { background: #e0f2f1; color: #004d40; padding: 6px 12px; border-radius: 10px 10px 10px 0; margin: 4px 0; border-left: 3px solid #00bfa5; width: fit-content; max-width: 85%; }
+        .ai-header { background: #00bfa5; color: white; padding: 6px; text-align: center; font-size: 12px; font-weight: bold; }
+        #ai-content { max-height: 150px; overflow-y: auto; padding: 10px; font-size: 13px; }
+        .msg-u { background: #00bfa5; color: white; padding: 6px 10px; border-radius: 10px 10px 0 10px; margin: 4px 0 4px auto; width: fit-content; max-width: 85%; }
+        .msg-a { background: #e0f2f1; color: #004d40; padding: 6px 10px; border-radius: 10px 10px 10px 0; margin: 4px 0; border-left: 3px solid #00bfa5; width: fit-content; max-width: 85%; }
         
-        .ai-input-area { display: flex; padding: 10px; border-top: 1px solid #eee; background: white; align-items: center; gap: 8px; }
-        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 6px; border-radius: 8px; font-size: 12px; }
-        #ai-mic { font-size: 24px; color: #00bfa5; background: none; border: none; cursor: pointer; }
+        .ai-input-area { display: flex; padding: 8px; border-top: 1px solid #eee; background: white; align-items: center; gap: 5px; }
+        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 5px; border-radius: 8px; font-size: 12px; }
+        #ai-mic { font-size: 22px; color: #00bfa5; background: none; border: none; cursor: pointer; }
         .mic-active { color: red !important; animation: pulse 0.8s infinite; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     `;
     document.head.appendChild(style);
 
-    const container = document.createElement('div');
-    container.innerHTML = `
+    const mainContainer = document.createElement('div');
+    mainContainer.id = 'ai-container-fixed';
+    mainContainer.innerHTML = `
         <div id="ai-chat-box">
             <div class="ai-header">🤖 TRỢ LÝ TAXI PROMAX</div>
             <div id="ai-content"></div>
@@ -48,51 +50,60 @@
             </div>
         </div>
         <div id="ai-root">
-            <div class="ai-avatar">
-                <img src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" alt="Robot SM">
-            </div>
+            <img src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" alt="Robot SM">
         </div>
     `;
-    document.body.appendChild(container);
+    document.body.appendChild(mainContainer);
 
     const root = document.getElementById('ai-root'), 
           chat = document.getElementById('ai-chat-box'), 
           mic = document.getElementById('ai-mic'), 
-          input = document.getElementById('ai-txt'), 
           content = document.getElementById('ai-content');
 
-    // --- LOGIC KÉO THẢ (Di chuyển Robot mọi nơi) ---
+    // --- LOGIC KÉO THẢ CẢ CỤM (Robot + Tab) ---
     let isDragging = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
 
-    root.addEventListener("touchstart", dragStart, false);
+    mainContainer.addEventListener("touchstart", dragStart, false);
     document.addEventListener("touchend", dragEnd, false);
     document.addEventListener("touchmove", drag, false);
-    root.addEventListener("mousedown", dragStart, false);
+    mainContainer.addEventListener("mousedown", dragStart, false);
     document.addEventListener("mouseup", dragEnd, false);
     document.addEventListener("mousemove", drag, false);
 
     function dragStart(e) {
-        initialX = (e.type === "touchstart" ? e.touches[0].clientX : e.clientX) - xOffset;
-        initialY = (e.type === "touchstart" ? e.touches[0].clientY : e.clientY) - yOffset;
-        if (e.target === root || root.contains(e.target)) isDragging = true;
+        let event = e.type === "touchstart" ? e.touches[0] : e;
+        initialX = event.clientX - xOffset;
+        initialY = event.clientY - yOffset;
+        if (e.target.closest('#ai-container-fixed')) isDragging = true;
     }
 
     function drag(e) {
         if (isDragging) {
             e.preventDefault();
-            currentX = (e.type === "touchmove" ? e.touches[0].clientX : e.clientX) - initialX;
-            currentY = (e.type === "touchmove" ? e.touches[0].clientY : e.clientY) - initialY;
+            let event = e.type === "touchmove" ? e.touches[0] : e;
+            currentX = event.clientX - initialX;
+            currentY = event.clientY - initialY;
             xOffset = currentX; yOffset = currentY;
-            root.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+            mainContainer.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
         }
     }
 
     function dragEnd() {
-        initialX = currentX; initialY = currentY; isDragging = false;
+        initialX = currentX; initialY = currentY; 
+        setTimeout(() => { isDragging = false; }, 50);
     }
 
-    // --- LOGIC CHAT & GIỌNG NÓI ---
-    root.onclick = () => { if(!isDragging) chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex'; };
+    // CLICK MỞ CHAT (Chỉ mở khi không phải đang kéo)
+    root.onclick = () => { 
+        if (!isDragging) {
+            chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex';
+            if (chat.style.display === 'flex' && content.innerHTML === "") {
+                const hello = "Chào Anh! Em Robot đã sẵn sàng. Chúc Anh lái xe an toàn!";
+                addMsg(hello, 'ai');
+                speak(hello);
+            }
+        }
+    };
 
     function addMsg(t, s) {
         const d = document.createElement('div'); d.className = s === 'user' ? 'msg-u' : 'msg-a'; d.textContent = t;
@@ -105,7 +116,8 @@
         window.speechSynthesis.speak(s);
     }
 
-    mic.onclick = () => {
+    mic.onclick = (e) => {
+        e.stopPropagation();
         const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Rec) return;
         const rec = new Rec(); rec.lang = 'vi-VN';
