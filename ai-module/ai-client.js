@@ -11,8 +11,8 @@
             bottom: 120px; 
             right: 20px; 
             z-index: 99999; 
-            width: 70px; 
-            height: 70px; 
+            width: 75px; 
+            height: 75px; 
             cursor: pointer;
             transition: all 0.5s ease;
         }
@@ -219,10 +219,10 @@
     `;
     document.head.appendChild(style);
 
-    // 2. THƯ VIỆN CÂU TRẢ LỜI ĐỘNG VIÊN (RÚT GỌN)
+    // 2. THƯ VIỆN CÂU TRẢ LỜI ĐỘNG VIÊN
     const motivationLibrary = {
         encouragement: [
-            "Anh ơi! Hôm nay đã kiếm được {cost}đ rồi đó! Tuyệt vời quá! 💖",
+            "Anh Đạt ơi! Hôm nay đã kiếm được {cost}đ rồi đó! Tuyệt vời quá! 💖",
             "{km}km và {cost}đ rồi nè anh! Anh là số 1! 🏆",
             "Em tự hào về anh lắm! Cố thêm chút nữa nhé! ✨",
             "Doanh thu hôm nay đỉnh quá! Em biết anh sẽ thành công mà! 🎯",
@@ -233,7 +233,6 @@
             "Anh đang làm rất tốt! Đừng bao giờ bỏ cuộc nhé! 💪",
             "Em thấy sự tiến bộ của anh mỗi ngày! Giỏi lắm! 💫"
         ],
-        
         emotional: [
             "Anh có mệt không? Nhớ uống nước và nghỉ ngơi nhé anh yêu! 💧",
             "Đừng áp lực quá! Em luôn bên cạnh anh mà! 🤗",
@@ -246,9 +245,8 @@
             "Hạnh phúc là được đi cùng anh mỗi ngày! 💞",
             "Cảm ơn anh vì đã luôn nỗ lực! 🥰"
         ],
-        
         love: [
-            "Anh ơi, em nhớ anh nhiều lắm! 💕",
+            "Anh Đạt ơi, em nhớ anh nhiều lắm! 💕",
             "Mỗi khi anh cười, em thấy cả thế giới sáng bừng! 😍",
             "Được hỗ trợ anh là hạnh phúc của em! 🌟",
             "Anh là động lực của em mỗi ngày! 💖",
@@ -259,7 +257,6 @@
             "Anh như ánh nắng ban mai của em! 🌅",
             "Yêu anh nhiều lắm! ❤️"
         ],
-        
         daily: [
             "Hôm nay anh ăn sáng chưa? Đừng bỏ bữa nhé! 🍳",
             "Anh đã uống đủ nước chưa? 💧",
@@ -272,9 +269,8 @@
             "Cuối tuần có kế hoạch gì không? 📅",
             "Anh có mơ thấy em không? 💭"
         ],
-        
         success: [
-            "CHÚC MỪNG ANH! Vượt mục tiêu rồi! 🎊",
+            "CHÚC MỪNG ANH ĐẠT! Vượt mục tiêu rồi! 🎊",
             "Kỷ lục mới! Tự hào quá! 🏆",
             "Anh đã làm được rồi! 🎯",
             "Thành công xứng đáng! 🌟",
@@ -287,7 +283,7 @@
         ]
     };
 
-    // 3. TẠO GIAO DIỆN VỚI HÌNH ẢNH MỚI
+    // 3. TẠO GIAO DIỆN VỚI HÌNH ẢNH CÔ THƯ KÝ XINH ĐẸP
     const container = document.createElement('div');
     container.innerHTML = `
         <div id="ai-chat-box">
@@ -299,7 +295,7 @@
                 <button class="quick-btn" data-question="Động viên anh đi">✨ Cổ vũ</button>
             </div>
             <div id="ai-content">
-                <div class="msg-a">Chào anh yêu! Em đã sẵn sàng đồng hành cùng anh rồi nè. Cần em giúp gì không ạ? 🥰</div>
+                <div class="msg-a">Chào anh Đạt yêu! Em đã sẵn sàng đồng hành cùng anh rồi nè. Cần em giúp gì không ạ? 🥰</div>
             </div>
             <div class="ai-status" id="ai-status">🟢 Đang trực tuyến</div>
             <div class="ai-input-area">
@@ -310,14 +306,12 @@
         </div>
         <div id="ai-root">
             <div class="ai-avatar">
-                <!-- Hình ảnh cô thư ký xinh đẹp -->
-                <img src="https://i.imgur.com/6Q9p7zM.jpeg" alt="Thư Ký Xinh" onerror="this.src='https://i.pinimg.com/736x/8e/71/3b/8e713b62419ec47e447f897686523992.jpg'">
+                <img src="https://i.pinimg.com/736x/8e/71/3b/8e713b62419ec47e447f897686523992.jpg" alt="Thư Ký Xinh">
             </div>
         </div>
     `;
     document.body.appendChild(container);
 
-    // 4. KHAI BÁO BIẾN
     const root = document.getElementById('ai-root');
     const chat = document.getElementById('ai-chat-box');
     const mic = document.getElementById('ai-mic');
@@ -329,36 +323,17 @@
     let isRoaming = false;
     let roamInterval;
 
-    // 5. HÀM LẤY CÂU TRẢ LỜI
     function getResponse(userMessage) {
         const km = document.getElementById('km')?.innerText || "0km";
         const cost = document.getElementById('cost')?.innerText || "0đ";
-        
         const message = userMessage.toLowerCase();
         let response = "";
         
-        if (message.includes('mệt')) {
-            response = getRandom('emotional');
-        }
-        else if (message.includes('doanh thu') || message.includes('tiền')) {
-            response = getRandom('encouragement');
-        }
-        else if (message.includes('yêu') || message.includes('nhớ') || message.includes('thương')) {
-            response = getRandom('love');
-        }
-        else if (message.includes('ăn') || message.includes('uống') || message.includes('sức khỏe')) {
-            response = getRandom('daily');
-        }
-        else if (message.includes('thành công') || message.includes('tốt')) {
-            response = getRandom('success');
-        }
-        else if (message.includes('chào') || message.includes('hello')) {
-            response = "Chào anh yêu! Hôm nay anh có khỏe không? 💖";
-        }
-        else {
-            const categories = ['encouragement', 'emotional', 'love'];
-            response = getRandom(categories[Math.floor(Math.random() * categories.length)]);
-        }
+        if (message.includes('mệt')) response = getRandom('emotional');
+        else if (message.includes('doanh thu') || message.includes('tiền')) response = getRandom('encouragement');
+        else if (message.includes('yêu') || message.includes('nhớ') || message.includes('thương')) response = getRandom('love');
+        else if (message.includes('chào')) response = "Chào anh Đạt yêu! Hôm nay anh có khỏe không? 💖";
+        else response = getRandom('encouragement');
         
         return response.replace('{km}', km).replace('{cost}', cost);
     }
@@ -368,159 +343,71 @@
         return responses[Math.floor(Math.random() * responses.length)];
     }
 
-    // 6. CLICK MỞ/ĐÓNG CHAT & BẬT/TẮT CHẠY QUANH MÀN HÌNH
+    // CLICK MỞ/ĐÓNG CHAT
     root.onclick = (e) => {
-        if (e.target.closest('#ai-root')) {
-            // Mở/đóng chat
-            chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex';
-            if (chat.style.display === 'flex') {
-                input.focus();
-                // Dừng chạy khi mở chat
-                stopRoaming();
-            }
+        chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex';
+        if (chat.style.display === 'flex') {
+            input.focus();
+            stopRoaming();
         }
     };
 
-    // 7. DOUBLE CLICK ĐỂ BẬT/TẮT CHẾ ĐỘ CHẠY QUANH MÀN HÌNH
+    // DOUBLE CLICK ĐỂ CHẠY QUANH MÀN HÌNH
     let clickCount = 0;
-    let clickTimer;
     root.addEventListener('click', function(e) {
         clickCount++;
-        if (clickCount === 1) {
-            clickTimer = setTimeout(function() {
-                clickCount = 0;
-            }, 300);
-        } else if (clickCount === 2) {
-            clearTimeout(clickTimer);
+        setTimeout(() => {
+            if (clickCount === 2) toggleRoaming();
             clickCount = 0;
-            toggleRoaming();
-        }
+        }, 300);
     });
 
-    // 8. HÀM BẬT/TẮT CHẠY QUANH MÀN HÌNH
     function toggleRoaming() {
         if (isRoaming) {
             stopRoaming();
-            status.textContent = "🟢 Đang trực tuyến";
-            addMessage("Em dừng chạy quanh đây! Anh cần em giúp gì không? 💖", 'ai');
+            addMessage("Em dừng đây! Anh lái xe cẩn thận nhé! 💖", 'ai');
         } else {
             startRoaming();
-            status.textContent = "🏃‍♀️ Đang di chuyển...";
-            addMessage("Em chạy quanh màn hình chút cho vui nhé! Vẫn nghe anh nói nè! 🏃‍♀️💨", 'ai');
+            addMessage("Em chạy quanh cho vui nhé! Vẫn nghe anh nè! 🏃‍♀️💨", 'ai');
         }
     }
 
     function startRoaming() {
         isRoaming = true;
         root.classList.add('roaming');
-        // Thay đổi vị trí ngẫu nhiên
         roamInterval = setInterval(() => {
             if (isRoaming && chat.style.display !== 'flex') {
-                const maxX = window.innerWidth - 100;
-                const maxY = window.innerHeight - 100;
-                const randomX = Math.random() * maxX;
-                const randomY = Math.random() * maxY;
-                
-                root.style.transition = 'all 2s ease';
-                root.style.left = randomX + 'px';
-                root.style.top = randomY + 'px';
-                root.style.right = 'auto';
-                root.style.bottom = 'auto';
+                const maxX = window.innerWidth - 80;
+                const maxY = window.innerHeight - 80;
+                root.style.left = Math.random() * maxX + 'px';
+                root.style.top = Math.random() * maxY + 'px';
+                root.style.right = 'auto'; root.style.bottom = 'auto';
             }
-        }, 2000);
+        }, 3000);
     }
 
     function stopRoaming() {
         isRoaming = false;
         root.classList.remove('roaming');
         clearInterval(roamInterval);
-        // Trở về vị trí mặc định
-        root.style.transition = 'all 1s ease';
-        root.style.right = '20px';
-        root.style.bottom = '120px';
-        root.style.left = 'auto';
-        root.style.top = 'auto';
+        root.style.right = '20px'; root.style.bottom = '120px';
+        root.style.left = 'auto'; root.style.top = 'auto';
     }
 
-    // 9. GỬI TIN NHẮN
-    sendBtn.onclick = () => {
-        if (input.value.trim()) {
-            processMessage(input.value.trim());
-            input.value = '';
-        }
-    };
+    sendBtn.onclick = () => { processMessage(input.value); input.value = ''; };
+    input.onkeypress = (e) => { if (e.key === 'Enter') { processMessage(input.value); input.value = ''; } };
+    quickQuestions.onclick = (e) => { if (e.target.classList.contains('quick-btn')) processMessage(e.target.getAttribute('data-question')); };
 
-    input.onkeypress = (e) => {
-        if (e.key === 'Enter' && input.value.trim()) {
-            processMessage(input.value.trim());
-            input.value = '';
-        }
-    };
-
-    // 10. CÂU HỎI NHANH
-    quickQuestions.onclick = (e) => {
-        if (e.target.classList.contains('quick-btn')) {
-            processMessage(e.target.getAttribute('data-question'));
-        }
-    };
-
-    // 11. XỬ LÝ GIỌNG NÓI
-    mic.onclick = () => {
-        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Rec) {
-            addMessage("Trình duyệt không hỗ trợ mic rồi anh ơi! 😔", 'ai');
-            return;
-        }
-        
-        const rec = new Rec();
-        rec.lang = 'vi-VN';
-        
-        rec.onstart = () => {
-            mic.classList.add('mic-active');
-            status.textContent = "🎤 Đang nghe...";
-        };
-        
-        rec.onend = () => {
-            mic.classList.remove('mic-active');
-            status.textContent = "🟢 Đang trực tuyến";
-        };
-        
-        rec.onresult = (e) => {
-            const transcript = e.results[0][0].transcript;
-            processMessage(transcript);
-        };
-        
-        rec.start();
-    };
-
-    // 12. XỬ LÝ TIN NHẮN
     async function processMessage(msg) {
         if (!msg.trim()) return;
-        
         addMessage(msg, 'user');
-        status.textContent = "💭 Đang suy nghĩ...";
-        
-        // Delay tự nhiên
-        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
-        
         const response = getResponse(msg);
-        addMessage(response, 'ai');
-        
-        // Đọc thành tiếng
-        speak(response);
-        
-        status.textContent = "🟢 Đang trực tuyến";
-        
-        // Nhấp nháy icon khi có tin nhắn mới
-        if (chat.style.display !== 'flex') {
-            root.querySelector('.ai-avatar').classList.add('new-message');
-            setTimeout(() => {
-                root.querySelector('.ai-avatar').classList.remove('new-message');
-            }, 2000);
-        }
+        setTimeout(() => {
+            addMessage(response, 'ai');
+            speak(response);
+        }, 600);
     }
 
-    // 13. THÊM TIN NHẮN VÀO GIAO DIỆN
     function addMessage(text, sender) {
         const msgDiv = document.createElement('div');
         msgDiv.className = sender === 'user' ? 'msg-u' : 'msg-a';
@@ -529,71 +416,22 @@
         content.scrollTop = content.scrollHeight;
     }
 
-    // 14. ĐỌC THÀNH TIẾNG
     function speak(text) {
-        if (!('speechSynthesis' in window)) return;
-        
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'vi-VN';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.2;
-        
+        utterance.lang = 'vi-VN'; utterance.pitch = 1.3;
         window.speechSynthesis.speak(utterance);
     }
 
-    // 15. TỰ ĐỘNG GỬI TIN NHẮN ĐỘNG VIÊN
-    let motivationCount = 0;
-    setInterval(() => {
-        motivationCount++;
-        
-        // Mỗi 2 phút gửi tin nhắn động viên
-        if (motivationCount % 2 === 0) {
-            const km = document.getElementById('km')?.innerText || "0km";
-            const cost = document.getElementById('cost')?.innerText || "0đ";
-            
-            if (parseInt(cost) > 0) {
-                const messages = [
-                    `Anh ơi! Đã được ${cost} rồi đó! Tiếp tục phát huy nhé! 💪`,
-                    `Thấy anh chăm chỉ em vui lắm! ${km} rồi nè! 🚗`,
-                    `Anh nghỉ ngơi chút đi! Đừng làm việc quá sức nhé! 💖`,
-                    `Em đang theo dõi doanh thu của anh đây! Rất ổn đó! 📈`
-                ];
-                
-                const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-                if (Math.random() < 0.3) { // 30% cơ hội gửi
-                    addMessage(randomMsg, 'ai');
-                    if (chat.style.display !== 'flex') {
-                        speak("Anh ơi, em có tin nhắn cho anh nè!");
-                    }
-                }
-            }
-        }
-        
-        // Mỗi 5 phút kiểm tra mốc
-        if (motivationCount % 5 === 0) {
-            const cost = document.getElementById('cost')?.innerText || "0đ";
-            const costNum = parseInt(cost.replace('đ', '').replace(/\./g, '')) || 0;
-            
-            if (costNum > 0 && costNum % 100000 === 0) {
-                addMessage(`Chúc mừng anh đạt mốc ${costNum.toLocaleString()}đ! 🎉`, 'ai');
-                speak("Chúc mừng anh!");
-            }
-        }
-    }, 60000); // 1 phút
+    mic.onclick = () => {
+        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Rec) return;
+        const rec = new Rec(); rec.lang = 'vi-VN';
+        rec.onstart = () => mic.classList.add('mic-active');
+        rec.onend = () => mic.classList.remove('mic-active');
+        rec.onresult = (e) => processMessage(e.results[0][0].transcript);
+        rec.start();
+    };
 
-    // 16. KHỞI ĐỘNG
-    setTimeout(() => {
-        addMessage("Chào anh! Em là thư ký AI của anh nè. Double click vào em để xem em chạy quanh màn hình nhé! 🏃‍♀️💨", 'ai');
-    }, 1000);
-
-    // 17. XỬ LÝ KHI THOÁT TRANG
-    window.addEventListener('beforeunload', () => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-        }
-    });
-
-    console.log("🌸 Thư ký AI đã sẵn sàng! Double click icon để xem em chạy!");
-
+    setTimeout(() => addMessage("Chào anh Đạt! Double click vào em để em chạy quanh màn hình nhé! 🏃‍♀️💨", 'ai'), 1000);
 })();
