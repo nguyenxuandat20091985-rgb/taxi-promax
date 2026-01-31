@@ -2,26 +2,64 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
+
     <title>TAXI PROMAX</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
-        #map { height: 100vh; width: 100vw; z-index: 1; } 
-        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
+        
+        /* NÂNG CẤP MỤC 5: CHỐNG CUỘN VÀ FIX FULL MÀN HÌNH */
+        body, html { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            overflow: hidden; background: var(--bg);
+            position: fixed; width: 100%;
+        }
+
+        /* NÂNG CẤP MỤC 1: BẢN ĐỒ SẮC NÉT */
+        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); } 
+
+        /* NÂNG CẤP MỤC 5: CO GIÃN THEO TAI THỎ VÀ CÁC DÒNG ĐIỆN THOẠI */
+        .header { 
+            position: fixed; 
+            top: env(safe-area-inset-top, 10px); 
+            left: 10px; right: 10px; 
+            display: flex; justify-content: space-between; 
+            z-index: 1000; pointer-events: none; 
+        }
         .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
-        .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
+
+        .stats-bar { 
+            position: fixed; 
+            top: calc(env(safe-area-inset-top, 10px) + 45px); 
+            left: 10px; right: 10px; 
+            background: var(--glass); border-radius: 15px; 
+            display: flex; padding: 12px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+            z-index: 1000; border: 1px solid white; 
+        }
         .stat-item { flex: 1; text-align: center; }
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px 5px; }
+
+        /* CO GIÃN FOOTER TRÁNH VẠCH HOME IPHONE */
+        .footer-panel { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: white; z-index: 2000; 
+            border-radius: 25px 25px 0 0; 
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.08); 
+            padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); 
+        }
+
+        /* --- CẤM SỬA CHỮA CÁC PHẦN DƯỚI ĐÂY --- */
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
         .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
         .nav-item.active { color: var(--primary); }
@@ -39,7 +77,7 @@
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
         .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
-        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
+        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); transition: transform 0.2s; } 
         .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; }
         input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
         .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
@@ -148,10 +186,20 @@
     </div> 
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <script src="map-engine.js"></script>
     <script src="ui-control.js"></script>
     <script src="tracking.js"></script>
     <script src="ai-module/ai-config.js"></script>
     <script src="ai-module/ai-client.js"></script>
+    
+    <script>
+        // TỰ ĐỘNG FULL MÀN HÌNH KHI CHẠM LẦN ĐẦU
+        document.addEventListener('click', function() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+        }, { once: true });
+    </script>
 </body>
 </html>
