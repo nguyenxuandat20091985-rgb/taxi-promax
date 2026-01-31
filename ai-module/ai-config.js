@@ -3,8 +3,8 @@ const AI_CONFIG = {
     botName: "TAXI AI PROMAX",
     apiEndpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
     
-    // Đã dán mã thật của anh Đạt vào đây
+    // Đã cập nhật mã mới tinh của anh Đạt
     apiKey: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g", 
 
-    welcomeMessage: "TAXI AI PROMAX xin chào!"
+    welcomeMessage: "TAXI AI PROMAX xin chào! Bạn muốn đi đâu ạ?"
 };
