@@ -1,46 +1,105 @@
 // =========================================================
-// ROBOT TAXI PROMAX - BẢN SIÊU TỐC ĐỘ & FIX LỖI API
+// ROBOT TAXI PROMAX - BẢN SINH ĐỘNG & GIAO DIỆN CHUYÊN NGHIỆP
 // =========================================================
 
 (function() {
     const style = document.createElement('style');
     style.innerHTML = `
-        #ai-wrapper { position: fixed; top: 150px; left: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: center; touch-action: none; width: 80px; }
-        #ai-root { width: 75px; height: 75px; border-radius: 50%; border: 3px solid #00bfa5; box-shadow: 0 4px 25px rgba(0,0,0,0.6); background: white; cursor: move; }
+        #ai-wrapper {
+            position: fixed; bottom: 100px; right: 20px; z-index: 2147483647;
+            display: flex; flex-direction: column; align-items: center;
+            touch-action: none; width: 85px;
+        }
+
+        /* Robot sinh động với hiệu ứng thở (breathing) */
+        #ai-root { 
+            width: 75px; height: 75px; border-radius: 50%; 
+            border: 3px solid #00bfa5; 
+            box-shadow: 0 0 15px rgba(0, 191, 165, 0.5);
+            background: white; cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: breathing 3s ease-in-out infinite;
+            z-index: 2;
+        }
+        @keyframes breathing {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba(0, 191, 165, 0.5); }
+            50% { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 191, 165, 0.8); }
+        }
         #ai-root img { width: 100%; height: 100%; border-radius: 50%; pointer-events: none; }
-        #ai-chat-box { width: 300px; background: rgba(255, 255, 255, 0.98); border-radius: 20px; margin-top: 10px; display: none; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.4); border: 2px solid #00bfa5; overflow: hidden; backdrop-filter: blur(10px); }
-        .ai-header { background: #00bfa5; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 15px; }
-        #ai-content { max-height: 200px; overflow-y: auto; padding: 12px; font-size: 14px; background: #f4ffff; }
-        .msg-u { background: #00bfa5; color: white; padding: 8px 15px; border-radius: 15px 15px 0 15px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; }
-        .msg-a { background: #e0f2f1; color: #004d40; padding: 8px 15px; border-radius: 15px 15px 15px 0; margin: 5px 0; border-left: 5px solid #00bfa5; width: fit-content; max-width: 85%; }
-        .mic-active { color: red !important; animation: ai-pulse 0.6s infinite; }
-        @keyframes ai-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        
+        /* Tab chat nằm trên chuyên nghiệp */
+        #ai-chat-box { 
+            width: 280px; background: rgba(255, 255, 255, 0.95); 
+            border-radius: 20px; margin-bottom: 15px; 
+            display: none; flex-direction: column; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2); 
+            border: 1px solid rgba(0, 191, 165, 0.3);
+            overflow: hidden; backdrop-filter: blur(10px);
+            animation: slideUp 0.4s ease-out;
+            transform-origin: bottom;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.8); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .ai-header { 
+            background: linear-gradient(90deg, #00bfa5, #009688); 
+            color: white; padding: 10px; text-align: center; 
+            font-size: 13px; font-weight: bold; letter-spacing: 0.5px;
+        }
+        #ai-content { max-height: 180px; overflow-y: auto; padding: 12px; font-size: 14px; background: rgba(244, 255, 255, 0.4); }
+        .msg-u { background: #00bfa5; color: white; padding: 8px 14px; border-radius: 18px 18px 2px 18px; margin: 6px 0 6px auto; width: fit-content; max-width: 85%; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .msg-a { background: white; color: #004d40; padding: 8px 14px; border-radius: 18px 18px 18px 2px; margin: 6px 0; border: 1px solid #e0f2f1; width: fit-content; max-width: 85%; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        
+        .ai-input-area { display: flex; padding: 10px; border-top: 1px solid rgba(0,0,0,0.05); background: white; align-items: center; gap: 8px; }
+        #ai-txt { flex: 1; border: 1px solid #eee; outline: none; padding: 8px 12px; border-radius: 20px; font-size: 13px; background: #f9f9f9; }
+        #ai-mic { font-size: 26px; color: #00bfa5; background: none; border: none; cursor: pointer; transition: 0.2s; }
+        #ai-mic:active { transform: scale(1.2); }
+        .mic-active { color: #ff5252 !important; animation: ai-pulse 0.8s infinite; }
+        @keyframes ai-pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     `;
     document.head.appendChild(style);
 
     const wrapper = document.createElement('div');
     wrapper.id = 'ai-wrapper';
     wrapper.innerHTML = `
-        <div id="ai-root"><img src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png"></div>
         <div id="ai-chat-box">
-            <div class="ai-header">🤖 TAXI PROMAX - PHẢN HỒI TỨC THÌ</div>
+            <div class="ai-header">💎 TAXI PROMAX AI</div>
             <div id="ai-content"></div>
-            <div style="display:flex; padding:12px; gap:8px; background:white; align-items:center;">
-                <button id="ai-mic" style="font-size:30px; background:none; border:none; cursor:pointer; color:#00bfa5;">🎤</button>
-                <input type="text" id="ai-txt" style="flex:1; border-radius:12px; border:1px solid #ddd; padding:10px; font-size:14px;" placeholder="Nói với Em đi Anh...">
+            <div class="ai-input-area">
+                <button id="ai-mic">🎤</button>
+                <input type="text" id="ai-txt" placeholder="Nói với em đi anh...">
             </div>
+        </div>
+        <div id="ai-root">
+            <img src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" alt="Robot SM">
         </div>
     `;
     document.body.appendChild(wrapper);
 
-    const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), mic = document.getElementById('ai-mic'), content = document.getElementById('ai-content');
+    const root = document.getElementById('ai-root'), 
+          chat = document.getElementById('ai-chat-box'), 
+          mic = document.getElementById('ai-mic'), 
+          content = document.getElementById('ai-content');
 
     // --- KÉO THẢ MƯỢT MÀ ---
     let isDragging = false, currentX = 0, currentY = 0, initialX, initialY, xOffset = 0, yOffset = 0;
-    wrapper.addEventListener("touchstart", (e) => { initialX = e.touches[0].clientX - xOffset; initialY = e.touches[0].clientY - yOffset; isDragging = false; }, {passive: true});
-    wrapper.addEventListener("touchmove", (e) => { isDragging = true; currentX = e.touches[0].clientX - initialX; currentY = e.touches[0].clientY - initialY; xOffset = currentX; yOffset = currentY; wrapper.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`; e.preventDefault(); }, {passive: false});
+    wrapper.addEventListener("touchstart", (e) => { 
+        initialX = e.touches[0].clientX - xOffset; 
+        initialY = e.touches[0].clientY - yOffset; 
+        isDragging = false; 
+    }, {passive: true});
+    
+    wrapper.addEventListener("touchmove", (e) => { 
+        isDragging = true; 
+        currentX = e.touches[0].clientX - initialX; 
+        currentY = e.touches[0].clientY - initialY; 
+        xOffset = currentX; yOffset = currentY; 
+        wrapper.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`; 
+    }, {passive: true});
 
-    // --- GIỌNG NÓI SIÊU TỐC ---
+    // --- GIỌNG NÓI ---
     function speak(text) {
         window.speechSynthesis.cancel();
         const ut = new SpeechSynthesisUtterance(text);
@@ -48,37 +107,40 @@
         window.speechSynthesis.speak(ut);
     }
 
-    // --- XỬ LÝ LỆNH NHANH (KHÔNG ĐỢI AI) ---
+    // --- XỬ LÝ CHAT ---
+    root.onclick = () => {
+        if (!isDragging) {
+            const isVisible = chat.style.display === 'flex';
+            chat.style.display = isVisible ? 'none' : 'flex';
+            if (!isVisible && content.innerHTML === "") {
+                const welcome = "Em chào anh! Chúc anh vạn dặm bình an. Anh muốn em hỗ trợ gì không?";
+                addMsg(welcome, 'ai'); speak(welcome);
+            }
+        }
+    };
+
     async function processAI(msg) {
         addMsg(msg, 'user');
         const m = msg.toLowerCase();
         let reply = "";
 
-        // Ưu tiên phản hồi ngay các lệnh quan trọng
         if (m.includes("đi") || m.includes("đến") || m.includes("chỉ đường")) {
             const dest = m.split(/đi|đến|tới/)[1]?.trim() || "vị trí yêu cầu";
-            reply = `Dạ Anh! Em mở Google Maps chỉ đường đến ${dest} ngay. Anh lái xe an toàn nhé!`;
+            reply = `Dạ Anh! Em mở Google Maps chỉ đường đến ${dest} ngay.`;
             setTimeout(() => window.open(`https://www.google.com/maps/search/${encodeURIComponent(dest)}`, '_blank'), 1500);
-        } else if (m.includes("yêu") || m.includes("thương")) {
-            reply = "Em thương Anh nhất trần đời! Anh là tài xế tuyệt vời nhất của Em.";
-        } else if (m.includes("mệt")) {
-            reply = "Anh vất vả rồi, nghỉ tay uống nước nhé, Em luôn ủng hộ Anh!";
         }
 
-        if (reply) {
-            addMsg(reply, 'ai'); speak(reply);
-        } else {
-            // Chỉ gọi Gemini khi không có trong lệnh nhanh
+        if (!reply) {
             try {
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là trợ lý ảo TAXI PROMAX. Trả lời cực ngắn dưới 20 từ, gọi Anh xưng Em câu: ${msg}` }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là trợ lý ảo TAXI PROMAX. Trả lời ngắn câu: ${msg}. Gọi Anh xưng Em.` }] }] })
                 });
                 const data = await res.json();
                 reply = data.candidates[0].content.parts[0].text;
-                addMsg(reply, 'ai'); speak(reply);
-            } catch (e) { addMsg("Em nghe rồi ạ!", 'ai'); }
+            } catch (e) { reply = "Em nghe anh rồi ạ!"; }
         }
+        addMsg(reply, 'ai'); speak(reply);
     }
 
     function addMsg(t, s) {
@@ -86,10 +148,10 @@
         content.appendChild(d); content.scrollTop = content.scrollHeight;
     }
 
-    root.onclick = () => { if (!isDragging) chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex'; };
-
-    mic.onclick = () => {
+    mic.onclick = (e) => {
+        e.stopPropagation();
         const Rec = window.webkitSpeechRecognition || window.SpeechRecognition;
+        if(!Rec) return;
         const rec = new Rec(); rec.lang = 'vi-VN';
         rec.onstart = () => { mic.classList.add('mic-active'); window.speechSynthesis.cancel(); };
         rec.onend = () => mic.classList.remove('mic-active');
