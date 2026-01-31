@@ -28,7 +28,7 @@
     wrapper.id = 'ai-wrapper';
     wrapper.innerHTML = `
         <div id="ai-chat-box">
-            <div class="ai-header">💎 TAXI PROMAX </div>
+            <div class="ai-header">💎 AI TAXI PROMAX </div>
             <div id="ai-content"></div>
             <div class="ai-input-area">
                 <button id="ai-mic">🎤</button>
@@ -124,7 +124,7 @@
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible && content.innerHTML === "") {
-                const welcome = "Chào Anh em là trợ lý taxi promax.Anh có muốn em tâm sự gì không?";
+                const welcome = "Em chào Anh/chị ,em là trợ lý taxi promax.Anh / Chị ,có muốn em tâm sự gì không?";
                 addMsg(welcome, 'ai'); speak(welcome);
             }
         }
