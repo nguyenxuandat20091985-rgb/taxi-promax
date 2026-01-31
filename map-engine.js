@@ -10,7 +10,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     className: 'map-retina'
 }).addTo(map);
 
-// GIỮ MÀN HÌNH LUÔN SÁNG (MỤC 4)
+// GIỮ MÀN HÌNH LUÔN SÁNG
 let wakeLock = null;
 async function requestWakeLock() {
     try {
@@ -19,7 +19,7 @@ async function requestWakeLock() {
 }
 requestWakeLock();
 
-// ICON XE DI CHUYỂN CÓ MŨI TÊN XOAY (MỤC 2)
+// ICON XE DI CHUYỂN
 var smIcon = L.divIcon({
     className: 'sm-div-icon',
     html: "<div class='sm-marker'><div class='sm-arrow' id='car-arrow'></div></div>",
@@ -29,13 +29,34 @@ var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map);
 
 let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000;
 
-// CẬP NHẬT GIÁ (GIỮ NGUYÊN GIAO DIỆN CỦA ANH)
+// --- PHẦN MỚI: TỰ ĐỘNG KHÔI PHỤC DỮ LIỆU KHI SẬP APP ---
+window.onload = function() {
+    const savedTrip = localStorage.getItem('active_trip');
+    if (savedTrip) {
+        const data = JSON.parse(savedTrip);
+        isRunning = true;
+        totalKm = data.totalKm;
+        currentRate = data.currentRate;
+        
+        // Cập nhật lại giao diện ngay khi mở app
+        const btn = document.getElementById('mainBtn');
+        btn.innerText = "KẾT THÚC CHUYẾN ĐI";
+        btn.style.background = "var(--danger)";
+        document.getElementById('km').innerText = totalKm.toFixed(2);
+        document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
+        document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
+        
+        // Kích hoạt lại định vị
+        map.locate({ watch: true, enableHighAccuracy: true });
+        console.log("Đã khôi phục chuyến đi đang dang dở!");
+    }
+};
+
 function updateRate(v) { 
     currentRate = v; 
     document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
 }
 
-// XỬ LÝ CHUYẾN ĐI (GIỮ NGUYÊN CẤU TRÚC ANH YÊU CẦU)
 function handleTrip() {
     const btn = document.getElementById('mainBtn');
     if(!isRunning) {
@@ -46,52 +67,55 @@ function handleTrip() {
         totalKm = 0; lastPos = null;
         document.getElementById('km').innerText = "0.00";
         document.getElementById('cost').innerText = "0";
+        
+        // Lưu trạng thái bắt đầu để phòng khi sập app
+        localStorage.setItem('active_trip', JSON.stringify({totalKm: 0, currentRate: currentRate}));
+        
         map.locate({ watch: true, enableHighAccuracy: true });
     } else {
         isRunning = false;
         btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
         btn.style.background = "var(--primary)";
         map.stopLocate();
+        
         let finalCost = Math.round(totalKm * currentRate);
         saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
+        
+        // Xóa bộ nhớ đệm vì chuyến đi đã kết thúc an toàn
+        localStorage.removeItem('active_trip');
+        
         document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
         document.getElementById('endModal').style.display = 'flex';
     }
 }
 
-// THUẬT TOÁN XANH SM: ĐỊNH VỊ CHUẨN & CHỐNG NHẢY KM (MỤC 2 & 3)
+// THUẬT TOÁN XANH SM: ĐỊNH VỊ CHUẨN & LƯU LIÊN TỤC
 map.on('locationfound', (e) => {
-    const { lat, lng, heading, accuracy } = e;
-    
-    // 1. LỌC NHIỄU GPS: Nếu sai số > 25m thì bỏ qua không tính tiền (Chống nhảy KM)
+    const { heading, accuracy } = e;
     if (accuracy > 25) return; 
 
     const newPos = e.latlng;
     marker.setLatLng(newPos);
     
-    // 2. XOAY MŨI TÊN THEO HƯỚNG XE CHẠY (MỤC 2)
     if (heading !== null && heading !== undefined) {
         const arrow = document.getElementById('car-arrow');
         if (arrow) arrow.style.transform = `translateX(-50%) rotate(${heading}deg)`;
     }
 
-    // 3. ĐỊNH VỊ THEO XE (LUÔN BÁM THEO XE KỂ CẢ KHI KHÔNG CÓ KHÁCH)
     map.panTo(newPos, { animate: true, duration: 0.5 });
 
     if(isRunning) {
         if(lastPos) {
             let d = newPos.distanceTo(lastPos) / 1000;
-            
-            // THUẬT TOÁN SM: Chỉ tính tiền khi di chuyển thực tế > 15 mét (Chống rung GPS)
-            // Và tốc độ phải dưới 150km/h (Loại bỏ nhảy tọa độ ảo xa hàng km)
             if(d > 0.015 && d < 0.2) { 
                 totalKm += d;
                 lastPos = newPos;
                 document.getElementById('km').innerText = totalKm.toFixed(2);
                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
+                
+                // CẬP NHẬT BỘ NHỚ ĐỆM LIÊN TỤC (Phòng khi sập app giữa đường)
+                localStorage.setItem('active_trip', JSON.stringify({totalKm: totalKm, currentRate: currentRate}));
             }
         } else { lastPos = newPos; }
     }
 });
-
-map.on('locationerror', (e) => { console.log("Lỗi định vị: " + e.message); });
