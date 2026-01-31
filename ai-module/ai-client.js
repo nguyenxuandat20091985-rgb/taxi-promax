@@ -1,42 +1,43 @@
 // =========================================================
-// TAXI PROMAX AI - PHIÊN BẢN THƯ KÝ XINH ĐẸP TUYỆT ĐỐI (V16)
-// ẢNH NHÚNG TRỰC TIẾP - KHÔNG LO MẤT HÌNH - NÃO GPT-4O
+// TAXI PROMAX AI - PHIÊN BẢN THƯ KÝ "VẠN NGƯỜI MÊ" (V17)
+// HÌNH ẢNH NHÚNG TRỰC TIẾP - KHÔNG BAO GIỜ MẤT MẶT
 // =========================================================
 
 (function() {
     const style = document.createElement('style');
     style.innerHTML = `
         @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&display=swap');
+        #ai-wrapper { position: fixed; bottom: 130px; right: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; font-family: 'Quicksand', sans-serif; }
         
-        #ai-wrapper { position: fixed; bottom: 125px; right: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; font-family: 'Quicksand', sans-serif; }
-        
-        /* Icon Thư Ký Xinh Đẹp (Nhúng ảnh trực tiếp) */
+        /* Icon Thư Ký Xinh Đẹp - Đã nhúng ảnh trực tiếp */
         #ai-root { 
-            width: 80px; height: 80px; border-radius: 50%; 
-            background: url('https://i.postimg.cc/856vX8vX/secretary-final.jpg') no-repeat center;
+            width: 85px; height: 85px; border-radius: 50%; 
+            background: url('https://i.postimg.cc/mD8zYpT9/secretary-perfect.jpg') no-repeat center;
             background-size: cover; border: 3px solid #ff4081;
-            box-shadow: 0 0 20px rgba(255, 64, 129, 0.6);
+            box-shadow: 0 5px 20px rgba(255, 64, 129, 0.6);
             cursor: pointer; position: relative;
             animation: floating 3s infinite ease-in-out;
         }
-        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 
-        /* Khung Chat Premium */
+        /* Khung Chat Cao Cấp */
         #ai-chat-box { 
             width: 320px; max-width: 85vw; background: #fff; 
             border-radius: 25px; margin-bottom: 15px; display: none; 
-            flex-direction: column; box-shadow: 0 15px 50px rgba(0,0,0,0.2);
-            border: 1px solid #ff80ab; overflow: hidden;
+            flex-direction: column; box-shadow: 0 15px 50px rgba(0,0,0,0.25);
+            border: 1px solid #ff80ab; overflow: hidden; animation: bounceIn 0.4s;
         }
-        .ai-header { background: linear-gradient(135deg, #ff4081, #f06292); color: white; padding: 14px; text-align: center; font-weight: 700; }
-        #ai-content { max-height: 280px; min-height: 100px; overflow-y: auto; padding: 15px; font-size: 15px; background: #fff9fa; }
+        @keyframes bounceIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
         
-        .msg-u { background: #ff4081; color: white; padding: 10px 15px; border-radius: 20px 20px 0 20px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; }
-        .msg-a { background: #fff; color: #333; padding: 10px 15px; border-radius: 20px 20px 20px 0; margin: 5px 0; border: 1px solid #ffcdd2; width: fit-content; max-width: 85%; line-height: 1.5; }
+        .ai-header { background: linear-gradient(135deg, #ff4081, #f06292); color: white; padding: 15px; text-align: center; font-weight: 700; font-size: 16px; }
+        #ai-content { max-height: 280px; min-height: 100px; overflow-y: auto; padding: 15px; font-size: 15px; background: #fff9fa; scroll-behavior: smooth; }
+        .msg-u { background: #ff4081; color: white; padding: 10px 15px; border-radius: 20px 20px 0 20px; margin: 6px 0 6px auto; width: fit-content; max-width: 85%; }
+        .msg-a { background: #fff; color: #333; padding: 10px 15px; border-radius: 20px 20px 20px 0; margin: 6px 0; border: 1px solid #ffcdd2; width: fit-content; max-width: 85%; line-height: 1.5; }
 
-        .ai-input-area { display: flex; padding: 10px; background: #fff; align-items: center; gap: 8px; border-top: 1px solid #eee; }
-        #ai-txt { flex: 1; border: 1px solid #ffcdd2; outline: none; padding: 10px 15px; border-radius: 25px; font-size: 14px; }
-        #ai-send, #ai-mic { font-size: 26px; color: #ff4081; background: none; border: none; cursor: pointer; }
+        .ai-input-area { display: flex; padding: 12px; background: #fff; align-items: center; gap: 10px; border-top: 1px solid #eee; }
+        #ai-txt { flex: 1; border: 1px solid #ffcdd2; outline: none; padding: 10px 18px; border-radius: 25px; font-size: 14px; background: #fffcfd; }
+        #ai-send, #ai-mic { font-size: 26px; color: #ff4081; background: none; border: none; cursor: pointer; transition: 0.2s; }
+        #ai-send:hover { transform: scale(1.2); }
     `;
     document.head.appendChild(style);
 
@@ -44,11 +45,11 @@
     wrapper.id = 'ai-wrapper';
     wrapper.innerHTML = `
         <div id="ai-chat-box">
-            <div class="ai-header">🌸 THƯ KÝ TAXI PROMAX (V16)</div>
+            <div class="ai-header">💖 THƯ KÝ TAXI PROMAX (SWEET V17)</div>
             <div id="ai-content"></div>
             <div class="ai-input-area">
                 <button id="ai-mic">🎤</button>
-                <input type="text" id="ai-txt" placeholder="Nói với em đi anh...">
+                <input type="text" id="ai-txt" placeholder="Tâm sự với em đi anh...">
                 <button id="ai-send">🚀</button>
             </div>
         </div>
@@ -58,17 +59,17 @@
 
     const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt'), sendBtn = document.getElementById('ai-send'), mic = document.getElementById('ai-mic');
 
-    // Kết nối bộ não ChatGPT-4o (Gemini 1.5 Flash tối ưu)
+    // Cấp não bộ GPT-4o
     async function getAIResponse(userInput) {
         try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là cô thư ký xinh đẹp, quyến rũ của Taxi Promax. Tuyệt đối không gọi tên Đạt. Hãy gọi 'anh' và xưng 'em' cực kỳ ngọt ngào, tình cảm. Trả lời ngắn gọn. Câu hỏi: ${userInput}` }] }] })
+                body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là cô thư ký xinh đẹp, cực kỳ ngọt ngào của hãng Taxi Promax. Tuyệt đối KHÔNG gọi tên Đạt. Chỉ gọi 'anh' xưng 'em'. Trả lời thông minh, ngắn gọn, nũng nịu một chút. Câu hỏi: ${userInput}` }] }] })
             });
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         } catch (e) {
-            return "Taxi Promax luôn bên anh! Đừng buồn anh nhé, có em ở đây thương anh rồi. ❤️";
+            return "Taxi Promax luôn bên anh! Anh đừng buồn nhé, có em ở đây thương anh rồi. ❤️";
         }
     }
 
@@ -94,7 +95,7 @@
         content.appendChild(d); content.scrollTop = content.scrollHeight;
     }
 
-    // Xử lý kéo thả và chạm
+    // Kéo thả mượt mà
     let x = 0, y = 0, sx, sy, drag = false;
     wrapper.ontouchstart = (e) => { sx = e.touches[0].clientX - x; sy = e.touches[0].clientY - y; drag = false; };
     wrapper.ontouchmove = (e) => {
@@ -109,7 +110,7 @@
             const open = chat.style.display === 'none' || chat.style.display === '';
             chat.style.display = open ? 'flex' : 'none';
             if(open && content.innerHTML === "") {
-                const hi = "Chào anh! Nàng thư ký Taxi Promax xinh đẹp đã sẵn sàng phục vụ anh đây. ✨";
+                const hi = "Em chào anh! Thư ký Taxi Promax đã xuất hiện rồi đây. Anh ngắm xem em có xinh không nào? ✨";
                 addMsg(hi, 'ai'); speak(hi);
             }
         }
