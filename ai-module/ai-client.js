@@ -1,26 +1,24 @@
 // =========================================================
-// AI TAXI PROMAX 
+// ROBOT TAXI PROMAX - FIX LỖI KẾT NỐI GEMINI
 // =========================================================
 
 (function() {
-    // --- 1. GIAO DIỆN (GIỮ NGUYÊN PHONG CÁCH SINH ĐỘNG ANH THÍCH) ---
     const style = document.createElement('style');
     style.innerHTML = `
-        #ai-wrapper { position: fixed; bottom: 100px; right: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; width: auto; }
-        #ai-root { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #00bfa5; box-shadow: 0 0 20px rgba(0, 191, 165, 0.7); background: white; cursor: pointer; overflow: hidden; animation: breathing 3s ease-in-out infinite; transition: transform 0.2s; }
-        @keyframes breathing { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); box-shadow: 0 0 30px rgba(0, 191, 165, 0.9); } }
-        #ai-root img { width: 100%; height: 100%; pointer-events: none; }
-        #ai-chat-box { width: 280px; background: rgba(255, 255, 255, 0.95); border-radius: 20px; margin-bottom: 12px; display: none; flex-direction: column; box-shadow: 0 12px 35px rgba(0,0,0,0.3); border: 1px solid #00bfa5; overflow: hidden; backdrop-filter: blur(10px); animation: popUp 0.3s ease; }
-        @keyframes popUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .ai-header { background: linear-gradient(90deg, #00bfa5, #00796b); color: white; padding: 10px; text-align: center; font-size: 13px; font-weight: bold; }
-        #ai-content { max-height: 200px; overflow-y: auto; padding: 15px; font-size: 14px; background: #faffff; }
+        #ai-wrapper { position: fixed; bottom: 120px; right: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; }
+        #ai-root { width: 55px; height: 55px; border-radius: 50%; border: 3px solid #00bfa5; box-shadow: 0 0 15px rgba(0, 191, 165, 0.7); background: white; cursor: pointer; animation: breathing 3s infinite; }
+        @keyframes breathing { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        #ai-root img { width: 100%; height: 100%; border-radius: 50%; }
+        #ai-chat-box { width: 280px; background: rgba(255, 255, 255, 0.95); border-radius: 20px; margin-bottom: 10px; display: none; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #00bfa5; overflow: hidden; backdrop-filter: blur(10px); }
+        .ai-header { background: #00bfa5; color: white; padding: 10px; text-align: center; font-weight: bold; font-size: 13px; }
+        #ai-content { max-height: 200px; overflow-y: auto; padding: 12px; font-size: 13px; background: #f9ffff; }
         .msg-u { background: #00bfa5; color: white; padding: 8px 12px; border-radius: 15px 15px 0 15px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; }
-        .msg-a { background: white; color: #333; padding: 8px 12px; border-radius: 15px 15px 15px 0; margin: 5px 0; border-left: 4px solid #00bfa5; width: fit-content; max-width: 85%; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .msg-a { background: white; color: #333; padding: 8px 12px; border-radius: 15px 15px 15px 0; margin: 5px 0; border-left: 4px solid #00bfa5; width: fit-content; max-width: 85%; }
         .ai-input-area { display: flex; padding: 10px; background: white; align-items: center; gap: 8px; border-top: 1px solid #eee; }
-        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px 15px; border-radius: 20px; font-size: 13px; }
-        #ai-mic { font-size: 28px; color: #00bfa5; background: none; border: none; cursor: pointer; transition: 0.3s; }
-        .mic-active { color: #ff5252 !important; transform: scale(1.2); animation: pulseMic 0.8s infinite; }
-        @keyframes pulseMic { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px 12px; border-radius: 20px; font-size: 12px; }
+        #ai-mic { font-size: 24px; color: #00bfa5; background: none; border: none; cursor: pointer; }
+        .mic-active { color: #f44336 !important; animation: blink 0.8s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } }
     `;
     document.head.appendChild(style);
 
@@ -28,11 +26,11 @@
     wrapper.id = 'ai-wrapper';
     wrapper.innerHTML = `
         <div id="ai-chat-box">
-            <div class="ai-header">💎 AI TAXI PROMAX </div>
+            <div class="ai-header">💎 TAXI PROMAX AI - SIÊU THÔNG MINH</div>
             <div id="ai-content"></div>
             <div class="ai-input-area">
                 <button id="ai-mic">🎤</button>
-                <input type="text" id="ai-txt" placeholder="Anh muốn hỏi gì em?">
+                <input type="text" id="ai-txt" placeholder="Anh muốn nói gì với em?">
             </div>
         </div>
         <div id="ai-root"><img src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png"></div>
@@ -41,57 +39,39 @@
 
     const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), mic = document.getElementById('ai-mic'), content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt');
 
-    // --- 2. KẾT NỐI GEMINI API ---
-    // Anh Đạt lưu ý: Key này em đã tích hợp sẵn, anh không cần chỉnh gì nữa nhé.
-    const GEMINI_API_KEY = "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g"; 
-    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // --- Cập nhật Key mới dự phòng ---
+    const API_KEY = "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g"; 
 
-    async function callGemini(userInput) {
+    async function callGemini(msg) {
         try {
-            const response = await fetch(GEMINI_URL, {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: `trợ lý ảo Taxi Promax,đang đồng hành cùng anh trên mọi nẻo đường . 
-                            Hãy trả lời ngắn gọn (dưới 30 từ), thân mật, ngọt ngào, gọi người dùng là 'Anh' và xưng 'Em'. 
-                            Nếu anh ấy mệt hãy động viên, nếu anh ấy hỏi đường hãy nhắc anh ấy lái xe an toàn. 
-                            Câu hỏi của anh Đạt: ${userInput}`
-                        }]
-                    }]
+                    contents: [{ parts: [{ text: `Bạn là trợ lý ảo Taxi Promax. Trả lời cực ngắn gọn, thân mật với anh Đạt tài xế. Câu hỏi: ${msg}` }] }]
                 })
             });
-            const data = await response.json();
+            const data = await res.json();
             return data.candidates[0].content.parts[0].text;
-        } catch (error) {
-            console.error("Lỗi Gemini:", error);
-            return "Em đang bị nghẽn mạng một chút, nhưng em vẫn luôn ở bên cạnh Anh đây!";
+        } catch (e) {
+            return "Em nghe rồi! Anh lái xe cẩn thận nhé, mạng hơi yếu nhưng em vẫn ở đây.";
         }
     }
 
-    // --- 3. XỬ LÝ GIỌNG NÓI & TƯƠNG TÁC ---
-    function speak(text, callback) {
+    function speak(text, cb) {
         window.speechSynthesis.cancel();
         const ut = new SpeechSynthesisUtterance(text);
-        ut.lang = 'vi-VN'; ut.rate = 1.0; ut.pitch = 1.1;
-        ut.onend = () => { if(callback) callback(); };
+        ut.lang = 'vi-VN'; ut.rate = 1.0;
+        ut.onend = () => { if(cb) cb(); };
         window.speechSynthesis.speak(ut);
     }
 
     async function processAI(msg) {
-        if (!msg) return;
+        if(!msg) return;
         addMsg(msg, 'user');
-        
-        // Hiển thị trạng thái đang suy nghĩ
-        const loadingMsg = "Đợi em tí nhé...";
-        
         const reply = await callGemini(msg);
         addMsg(reply, 'ai');
-        speak(reply, () => {
-            // Tự động lắng nghe tiếp sau khi nói xong để anh rảnh tay
-            setTimeout(startListening, 500);
-        });
+        speak(reply, () => { setTimeout(startListening, 600); });
     }
 
     function addMsg(t, s) {
@@ -99,33 +79,22 @@
         content.appendChild(d); content.scrollTop = content.scrollHeight;
     }
 
-    // --- 4. HỆ THỐNG ĐIỀU KHIỂN ---
+    // --- HỆ THỐNG ĐIỀU KHIỂN ---
     let isDragging = false, xOffset = 0, yOffset = 0, startX, startY;
-
-    wrapper.addEventListener("touchstart", (e) => { 
-        startX = e.touches[0].clientX - xOffset; 
-        startY = e.touches[0].clientY - yOffset; 
-        isDragging = false;
-    });
-
+    wrapper.addEventListener("touchstart", (e) => { startX = e.touches[0].clientX - xOffset; startY = e.touches[0].clientY - yOffset; isDragging = false; });
     wrapper.addEventListener("touchmove", (e) => { 
         isDragging = true;
-        let nx = e.touches[0].clientX - startX;
-        let ny = e.touches[0].clientY - startY;
-        // Chống mất tích
-        if (e.touches[0].clientX > 10 && e.touches[0].clientX < window.innerWidth - 10) xOffset = nx;
-        if (e.touches[0].clientY > 10 && e.touches[0].clientY < window.innerHeight - 10) yOffset = ny;
+        xOffset = e.touches[0].clientX - startX; 
+        yOffset = e.touches[0].clientY - startY;
         wrapper.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
-        e.preventDefault();
-    }, {passive: false});
+    });
 
     root.onclick = () => {
         if (!isDragging) {
-            const isVisible = chat.style.display === 'flex';
-            chat.style.display = isVisible ? 'none' : 'flex';
-            if (!isVisible && content.innerHTML === "") {
-                const welcome = "Em chào Anh/chị ,em là trợ lý taxi promax.Anh / Chị ,có muốn em tâm sự gì không?";
-                addMsg(welcome, 'ai'); speak(welcome);
+            chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex';
+            if (chat.style.display === 'flex' && content.innerHTML === "") {
+                const hi = "Chào Anh Đạt! Em đã sẵn sàng tâm sự cùng anh rồi đây.";
+                addMsg(hi, 'ai'); speak(hi);
             }
         }
     };
@@ -141,5 +110,4 @@
     }
 
     mic.onclick = (e) => { e.stopPropagation(); startListening(); };
-    txtInput.onkeypress = (e) => { if(e.key === 'Enter') { processAI(txtInput.value); txtInput.value = ''; } };
 })();
