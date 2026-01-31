@@ -2,90 +2,74 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>TAXI PROMAX - NGUYEN XUAN DAT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TAXI PROMAX</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #0b1515; --glass: rgba(11, 21, 21, 0.9); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: var(--bg); }
-        #map { height: 100vh; width: 100vw; z-index: 1; filter: saturate(1.2) brightness(0.8); }
-        .header { position: fixed; top: env(safe-area-inset-top, 10px); left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; color: #fff; font-size: 11px; font-weight: 800; border: 1px solid rgba(255,255,255,0.1); }
-        .stats-bar { position: fixed; top: 70px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; z-index: 1000; border: 1px solid var(--primary); backdrop-filter: blur(10px); }
-        .stat-item { flex: 1; text-align: center; color: white; }
-        .stat-value { font-size: 24px; font-weight: 900; color: var(--primary); }
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--glass); z-index: 2000; border-radius: 25px 25px 0 0; padding: 15px 15px calc(env(safe-area-inset-bottom) + 5px); border-top: 1px solid rgba(0,191,165,0.2); }
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
-        .nav-item { background: none; border: none; color: #666; font-size: 10px; font-weight: 700; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
+        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; }
+        .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
+        .stat-item { flex: 1; text-align: center; }
+        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
+        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; }
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px 5px; }
+        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; }
         .nav-item.active { color: var(--primary); }
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b1515; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 150px; }
-        .p-header { background: var(--primary); color: white; padding: 30px 20px; text-align: center; border-bottom-radius: 25px; }
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
+        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; }
         .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: #1a2626; border: 1px solid #333; border-radius: 18px; padding: 12px; color: #fff; }
-        .p-card.active { border-color: var(--primary); background: rgba(0,191,165,0.1); }
-        .sm-marker { width: 28px; height: 28px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px var(--primary); position: relative; }
-        .sm-arrow { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--primary); }
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); }
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; }
-        .modal-content { background: #fff; width: 85%; padding: 25px; border-radius: 25px; text-align: center; }
+        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
+        .p-card.active { border-color: var(--primary); background: #f0fffb; }
+        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
+        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); }
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; }
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
     </style>
 </head>
-<body>
-
+<body oncontextmenu="return false;">
     <div class="header">
-        <div class="badge" id="idShow">🆔 ID...</div>
-        <div class="badge" style="color:var(--gold)" id="planShow">⭐ VIP TRỌN ĐỜI</div>
+        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
     </div>
-
     <div class="stats-bar">
-        <div class="stat-item" style="border-right: 1px solid #333;">
-            <div style="font-size:9px;">CƯỚC (VNĐ)</div>
-            <div id="cost" class="stat-value">0</div>
-        </div>
-        <div class="stat-item">
-            <div style="font-size:9px;">KHOẢNG CÁCH (KM)</div>
-            <div id="km" class="stat-value">0.00</div>
-        </div>
+        <div class="stat-item" style="border-right: 1px solid #eee;"><div class="stat-label">CƯỚC (VNĐ)</div><div id="cost" class="stat-value">0</div></div>
+        <div class="stat-item"><div class="stat-label">KM</div><div id="km" class="stat-value">0.00</div></div>
     </div>
-
     <div id="map"></div>
-
     <div id="tab-vi" class="tab-content">
-        <div class="p-header"><b>VÍ TIỀN</b></div>
-        <div class="p-grid" id="packList"></div>
-        <div style="text-align:center; padding: 20px;">
-            <img id="qrImg" style="width:180px; border-radius:15px; border:3px solid white;">
-            <p style="color:white; font-size:12px;">Nội dung: <b id="qrContent" style="color:var(--primary)"></b></p>
+        <div class="p-header"><div style="font-size: 20px; font-weight: 800;">GÓI CƯỚC</div></div>
+        <div class="p-grid">
+            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)"><b>BASIC</b><span>19k</span></div>
+            <div class="p-card active" onclick="selectPack(49000, 'VIP', this)"><b>VIP</b><span>49k</span></div>
         </div>
+        <div style="text-align:center; padding: 20px;"><img id="qrImg" style="width:150px;"><br><b id="qrContent"></b></div>
     </div>
-
     <div id="tab-lichsu" class="tab-content"><div class="p-header">LỊCH SỬ</div><div id="historyList"></div></div>
-    <div id="tab-toi" class="tab-content"><div class="p-header">TÔI</div><div id="profileBox" style="padding:20px; color:white;"></div></div>
+    <div id="tab-toi" class="tab-content"><div class="p-header">THIẾT LẬP</div><div id="profileID" style="padding:20px;"></div></div>
 
     <div class="footer-panel">
         <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:white; font-size:12px;">
-                <span>GIÁ/KM: <b id="rateLabel">15,000</b>đ</span>
-            </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" id="rateInput" style="width:100%; margin-bottom:15px; accent-color:var(--primary);">
-            <button id="mainBtn" class="btn-main">BẮT ĐẦU CHUYẾN ĐI</button>
+            <div style="display:flex; justify-content:space-between; padding:5px; font-size:12px;"><span>GIÁ/KM</span><span id="rateLabel">15,000</span>đ</div>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)" style="width:100%">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
         </div>
         <div class="nav-grid">
-            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i><br>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i><br>Ví tiền</button>
-            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i><br>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i><br>Tôi</button>
+            <button class="nav-item active" onclick="showTab('home', this)">🏠 Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)">💰 Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)">📊 Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)">👤 Tôi</button>
         </div>
-        <div style="font-size:9px; text-align:center; color:var(--primary); margin-top:5px; font-weight:bold;">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="ui-control.js"></script>
     <script src="map-engine.js"></script>
-    <script src="ai-module/ai-config.js"></script>
-    <script src="ai-module/ai-client.js"></script>
 </body>
 </html>
