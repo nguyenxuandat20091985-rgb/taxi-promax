@@ -77,7 +77,7 @@
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible && content.innerHTML === "") {
-                const welcome = "Chào anh! Em đã bật chế độ giữ màn hình luôn sáng để anh tiện xem bản đồ rồi nhé!";
+                const welcome = "Chào anh!May mắn không chỉ là điều bất ngờ, mà còn là phần thưởng cho sự chăm chỉ và trái tim thiện lương. Chúc anh luôn tràn đầy cả hai  !";
                 addMsg(welcome, 'ai'); speak(welcome);
             }
         }
