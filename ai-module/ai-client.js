@@ -92,7 +92,7 @@
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible && content.innerHTML === "") {
-                const welcome = "Chào Anh! Em Robot đã quay lại đây. Anh cần Em giúp gì không?";
+                const welcome = "Chào Anh! Em đã quay lại đây. Anh cần Em giúp gì không?";
                 addMsg(welcome, 'ai');
                 speak(welcome);
             }
