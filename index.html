@@ -12,11 +12,12 @@
 
     <title>TAXI PROMAX</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+
     <style>
         :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         
-        /* NÂNG CẤP MỤC 5: CHỐNG CUỘN VÀ FIX FULL MÀN HÌNH */
         body, html { 
             margin: 0; padding: 0; height: 100%; 
             font-family: 'Segoe UI', Roboto, sans-serif; 
@@ -24,10 +25,8 @@
             position: fixed; width: 100%;
         }
 
-        /* NÂNG CẤP MỤC 1: BẢN ĐỒ SẮC NÉT */
         #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); } 
 
-        /* NÂNG CẤP MỤC 5: CO GIÃN THEO TAI THỎ VÀ CÁC DÒNG ĐIỆN THOẠI */
         .header { 
             position: fixed; 
             top: env(safe-area-inset-top, 10px); 
@@ -50,7 +49,47 @@
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
 
-        /* CO GIÃN FOOTER TRÁNH VẠCH HOME IPHONE */
+        /* CSS CHO KHUNG CHAT AI VOICE MỚI */
+        .ai-chat-panel {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #eee;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #chat-content {
+            height: 80px;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 12px;
+            color: var(--dark);
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .ai-input-group {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+        }
+        #ai-input {
+            flex: 1;
+            border: none;
+            background: none;
+            font-size: 13px;
+            padding: 8px;
+        }
+        #mic-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 18px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .mic-active { color: var(--danger) !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
         .footer-panel { 
             position: fixed; bottom: 0; left: 0; right: 0; 
             background: white; z-index: 2000; 
@@ -59,29 +98,19 @@
             padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); 
         }
 
-        /* --- CẤM SỬA CHỮA CÁC PHẦN DƯỚI ĐÂY --- */
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; }
         .nav-item.active { color: var(--primary); }
         .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; } 
-        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
+        
         .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
         .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
-        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
-        .p-card b { display: block; font-size: 13px; color: var(--dark); }
-        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
-        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
-        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .h-info { text-align: left; }
-        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
-        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
-        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); transition: transform 0.2s; } 
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; }
-        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
+        
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); }
+        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); }
         .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
         .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
+        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-top: 5px; font-weight: bold; }
     </style>
 </head>
 <body oncontextmenu="return false;"> 
@@ -105,54 +134,29 @@
     <div id="map"></div> 
 
     <div id="tab-vi" class="tab-content">
-        <div class="p-header">
-            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
-        </div>
-        <div class="p-grid">
-            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
-                <b>GÓI BASIC</b><span>19.000đ</span>
-                <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul>
+        <div class="p-header"><div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div></div>
+        <div style="padding: 15px;" id="packageList">
             </div>
-            <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
-                <b>GÓI PRO</b><span>29.000đ</span>
-                <ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul>
-            </div>
-            <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)">
-                <b>GÓI VIP 1TH</b><span>49.000đ</span>
-                <ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul>
-            </div>
-            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)">
-                <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
-                <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
-            </div>
-        </div>
-        <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
-            <img id="qrImg" style="width:180px; border-radius:10px;" src="">
-            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
-            <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
-        </div>
     </div> 
 
     <div id="tab-lichsu" class="tab-content">
         <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
-    </div> 
-
-    <div id="tab-toi" class="tab-content">
-        <div class="p-header">THIẾT LẬP</div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
-                <p>Mã tài xế: <b id="profileID">...</b></p>
-                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
-                <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
-                <p>Offline Mode: <b>TỰ ĐỘNG KÍCH HOẠT</b></p>
-            </div>
-        </div>
+        <div id="historyList"></div>
     </div> 
 
     <div class="footer-panel">
         <div id="homeControls">
+            <div class="ai-chat-panel">
+                <div id="chat-content">
+                    <div style="color: var(--primary); font-weight: 800;">AI: Chào anh Đạt! Nhấn Mic để ra lệnh.</div>
+                </div>
+                <div class="ai-input-group">
+                    <button id="mic-btn" onclick="startVoice()"><i class="fas fa-microphone"></i></button>
+                    <input type="text" id="ai-input" placeholder="Hỏi về giá, lộ trình..." onkeypress="if(event.key==='Enter') chatWithAI()">
+                    <button onclick="chatWithAI()" style="border:none; background:none; color:var(--primary); font-weight:800;">GỬI</button>
+                </div>
+            </div>
+
             <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
                 <span>GIÁ/KM</span>
                 <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
@@ -160,6 +164,7 @@
             <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
             <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
         </div> 
+
         <div class="nav-grid">
             <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
             <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
@@ -169,37 +174,27 @@
         <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div> 
 
-    <div id="wishModal" class="custom-modal">
-        <div class="modal-content">
-            <h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3>
-            <p style="font-size:14px; color:#666;">Hệ thống bảo mật & Offline đã sẵn sàng.</p>
-            <button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button>
-        </div>
-    </div> 
-
-    <div id="endModal" class="custom-modal">
-        <div class="modal-content">
-            <h3>HOÀN THÀNH!</h3>
-            <div id="endSummary" style="padding: 15px 0;"></div>
-            <button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button>
-        </div>
-    </div> 
+    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3>THƯỢNG LỘ BÌNH AN!</h3><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
+    <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script src="map-engine.js"></script>
     <script src="ui-control.js"></script>
-    <script src="tracking.js"></script>
-    <script src="ai-module/ai-config.js"></script>
     <script src="ai-module/ai-client.js"></script>
     
     <script>
-        // TỰ ĐỘNG FULL MÀN HÌNH KHI CHẠM LẦN ĐẦU
         document.addEventListener('click', function() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(() => {});
             }
         }, { once: true });
+        
+        function showTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            if(tabId !== 'home') document.getElementById('tab-' + tabId).style.display = 'flex';
+            btn.classList.add('active');
+        }
     </script>
 </body>
 </html>
