@@ -42,3 +42,23 @@ if (Date.now() - install > 7 * 24 * 60 * 60 * 1000) {
     alert("Hết hạn dùng thử!");
     showTab('vi', document.querySelectorAll('.nav-item')[1]);
 }
+// =========================================================
+// HỆ THỐNG BẢO MẬT CHẠY NGẦM - PHÁT TRIỂN BỞI: NGUYEN XUAN DAT
+// =========================================================
+
+// 1. KHÓA CHỐNG SOI CODE (F12 & CHUỘT PHẢI)
+document.addEventListener('keydown', function(e) {
+    if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74 || e.keyCode == 67))) {
+        e.preventDefault();
+    }
+});
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// 2. NHẬN DIỆN THIẾT BỊ CHÍNH CHỦ (CHỐNG COPY APP)
+(function() {
+    const devID = btoa(navigator.userAgent + screen.width);
+    if(!localStorage.getItem('_secure_id')) {
+        localStorage.setItem('_secure_id', devID);
+    }
+    console.log("🛡️ Hệ thống NGUYÊN XUÂN ĐẠT: Security Active");
+})();
