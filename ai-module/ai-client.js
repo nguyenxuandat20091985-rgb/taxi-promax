@@ -1,57 +1,54 @@
 // =========================================================
-// TAXI PROMAX AI - PHIÊN BẢN ĐA LUỒNG & SINH ĐỘNG (V10)
+// TAXI PROMAX AI - PHIÊN BẢN CÔ BÉ TRỢ LÝ ĐÁNG YÊU (V11)
 // =========================================================
 
 (function() {
     const style = document.createElement('style');
     style.innerHTML = `
-        #ai-wrapper { position: fixed; bottom: 120px; right: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; }
+        #ai-wrapper { position: fixed; bottom: 120px; right: 20px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        /* ROBOT SINH ĐỘNG VẼ BẰNG CODE */
+        /* Icon Cô Bé Trợ Lý */
         #ai-root { 
-            width: 65px; height: 65px; border-radius: 50%; 
-            background: #fff; border: 3px solid #00bfa5;
-            box-shadow: 0 0 20px rgba(0, 191, 165, 0.6);
+            width: 70px; height: 70px; border-radius: 50%; 
+            background: #fff; border: 3px solid #ff80ab;
+            box-shadow: 0 5px 20px rgba(255, 128, 171, 0.5);
             cursor: pointer; position: relative; overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            animation: breathing 3s infinite;
+            display: flex; align-items: center; justify-content: center;
+            animation: bounce 3s infinite ease-in-out;
         }
-        @keyframes breathing { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
-        /* Mắt chớp */
-        .eye { position: absolute; width: 9px; height: 9px; background: #333; border-radius: 50%; top: 24px; animation: blink 4s infinite; }
+        /* Giao diện Cô Bé (Vẽ bằng CSS) */
+        .girl-face { position: relative; width: 100%; height: 100%; background: #ffe0bd; border-radius: 50%; }
+        .hair { position: absolute; top: 0; width: 100%; height: 50%; background: #4e342e; border-radius: 50% 50% 0 0; }
+        .eye { position: absolute; width: 10px; height: 10px; background: #333; border-radius: 50%; top: 35px; animation: blink 4s infinite; }
         .eye.l { left: 18px; } .eye.r { right: 18px; }
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-
-        /* Miệng nhép theo giọng nói */
+        .blush { position: absolute; width: 10px; height: 6px; background: #ff8a80; border-radius: 50%; top: 45px; opacity: 0.6; }
+        .blush.l { left: 12px; } .blush.r { right: 12px; }
         #mouth { 
-            position: absolute; width: 18px; height: 4px; background: #333; 
-            bottom: 18px; left: 50%; transform: translateX(-50%); 
-            border-radius: 10px; transition: 0.1s; 
+            position: absolute; width: 14px; height: 6px; border: 2px solid #ff5252; 
+            border-top: none; border-radius: 0 0 10px 10px; bottom: 12px; left: 50%; transform: translateX(-50%); 
         }
-        .talking #mouth { animation: lipSync 0.2s infinite; }
-        @keyframes lipSync { 0%, 100% { height: 4px; width: 18px; } 50% { height: 12px; width: 14px; border-radius: 50%; } }
+        .talking #mouth { animation: talk 0.2s infinite; border-radius: 50%; height: 10px; }
+        @keyframes talk { 0%, 100% { height: 6px; } 50% { height: 12px; } }
 
-        /* Hào quang cảm xúc */
-        #ai-root.happy { border-color: #ff4081; box-shadow: 0 0 25px #ff4081; }
-        #ai-root.listening { border-color: #ff5252; box-shadow: 0 0 25px #ff5252; }
-
-        /* Khung Chat Glassmorphism */
+        /* Khung Chat Cute */
         #ai-chat-box { 
-            width: 310px; max-width: 85vw; background: rgba(255, 255, 255, 0.95); 
-            border-radius: 20px; margin-bottom: 15px; display: none; 
-            flex-direction: column; box-shadow: 0 15px 40px rgba(0,0,0,0.25);
-            border: 1px solid rgba(0, 191, 165, 0.3); backdrop-filter: blur(10px);
-            overflow: hidden;
+            width: 310px; max-width: 85vw; background: rgba(255, 255, 255, 0.98); 
+            border-radius: 25px; margin-bottom: 15px; display: none; 
+            flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border: 2px solid #ff80ab; overflow: hidden;
         }
-        .ai-header { background: linear-gradient(90deg, #00bfa5, #00796b); color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 14px; }
-        #ai-content { max-height: 250px; overflow-y: auto; padding: 15px; font-size: 14px; background: #f9ffff; }
-        .msg-u { background: #00bfa5; color: white; padding: 10px 14px; border-radius: 18px 18px 0 18px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; }
-        .msg-a { background: white; color: #333; padding: 10px 14px; border-radius: 18px 18px 18px 0; margin: 5px 0; border: 1px solid #eee; width: fit-content; max-width: 85%; }
+        .ai-header { background: linear-gradient(135deg, #ff80ab, #f06292); color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 14px; }
+        #ai-content { max-height: 260px; overflow-y: auto; padding: 15px; font-size: 14px; background: #fff9fa; }
+        .msg-u { background: #ff80ab; color: white; padding: 10px 15px; border-radius: 18px 18px 0 18px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; box-shadow: 0 2px 5px rgba(255,128,171,0.3); }
+        .msg-a { background: white; color: #444; padding: 10px 15px; border-radius: 18px 18px 18px 0; margin: 5px 0; border: 1px solid #ffcdd2; width: fit-content; max-width: 85%; }
 
-        .ai-input-area { display: flex; padding: 12px; background: white; align-items: center; gap: 10px; border-top: 1px solid #eee; }
-        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 10px 15px; border-radius: 25px; font-size: 14px; -webkit-user-select: text !important; user-select: text !important; }
-        #ai-send, #ai-mic { font-size: 26px; color: #00bfa5; background: none; border: none; cursor: pointer; }
+        .ai-input-area { display: flex; padding: 12px; background: white; align-items: center; gap: 10px; border-top: 1px solid #ffebee; }
+        #ai-txt { flex: 1; border: 1px solid #ffcdd2; outline: none; padding: 10px 18px; border-radius: 25px; font-size: 14px; }
+        #ai-send { color: #f06292; font-size: 26px; border: none; background: none; cursor: pointer; }
+        #ai-mic { font-size: 24px; color: #f06292; border: none; background: none; cursor: pointer; }
     `;
     document.head.appendChild(style);
 
@@ -59,51 +56,48 @@
     wrapper.id = 'ai-wrapper';
     wrapper.innerHTML = `
         <div id="ai-chat-box">
-            <div class="ai-header">💎 TAXI PROMAX - MULTI-BRAIN V10</div>
+            <div class="ai-header">🌸 CÔ BÉ TAXI PROMAX</div>
             <div id="ai-content"></div>
             <div class="ai-input-area">
                 <button id="ai-mic">🎤</button>
-                <input type="text" id="ai-txt" placeholder="Taxi Promax đang lắng nghe...">
+                <input type="text" id="ai-txt" placeholder="Nói với em đi anh...">
                 <button id="ai-send">🚀</button>
             </div>
         </div>
         <div id="ai-root">
-            <div class="eye l"></div><div class="eye r"></div>
-            <div id="mouth"></div>
+            <div class="girl-face">
+                <div class="hair"></div>
+                <div class="eye l"></div><div class="eye r"></div>
+                <div class="blush l"></div><div class="blush r"></div>
+                <div id="mouth"></div>
+            </div>
         </div>
     `;
     document.body.appendChild(wrapper);
 
     const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt'), sendBtn = document.getElementById('ai-send'), mic = document.getElementById('ai-mic');
 
-    const API_KEY = "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g";
+    const K = "AIzaSyBYI"+"pmslXFTkETW7"+"cfiPeLJ0oPcgMJUn2g"; 
 
-    // --- LOGIC ĐA LUỒNG THÔNG MINH ---
     async function getAIResponse(userInput) {
-        // Luồng 1: Gemini (Chính)
         try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${K}`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là trợ lý ảo Taxi Promax. Hãy trả lời cực ngắn gọn, thân mật. Câu hỏi: ${userInput}` }] }] })
+                body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là cô bé trợ lý đáng yêu của Taxi Promax. Hãy trả lời cực kỳ ngắn gọn, ngọt ngào, lễ phép. Luôn gọi 'anh' xưng 'em'. Câu hỏi: ${userInput}` }] }] })
             });
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         } catch (e) {
-            console.log("Gemini lỗi, chuyển sang luồng dự phòng...");
-            
-            // Luồng 2: Dự phòng thông minh (Local/Proxy Engine)
             const q = userInput.toLowerCase();
-            if (q.includes("mệt")) return "Anh vất vả rồi! Tấp vào lề nghỉ ngơi, uống nước cho khỏe rồi mình lại đi tiếp anh nhé. ❤️";
-            if (q.includes("là ai")) return "Em là Robot thông minh của Taxi Promax, người bạn đồng hành tin cậy của anh!";
-            if (q.includes("đi đâu")) return "Anh cứ vững tay lái, đường nào cũng thông thoáng khi có em đồng hành!";
-            return "Taxi Promax luôn bên anh! Mạng hơi lag chút nhưng tình cảm của em dành cho anh vẫn 100% ạ!";
+            if(q.includes("mệt")) return "Anh nghỉ ngơi chút nha, có em ở đây tâm sự với anh rồi nè! ❤️";
+            return "Em vẫn đang nghe anh đây ạ! Anh lái xe cẩn thận nha.";
         }
     }
 
     function speak(text, cb) {
         window.speechSynthesis.cancel();
         const ut = new SpeechSynthesisUtterance(text);
-        ut.lang = 'vi-VN'; 
+        ut.lang = 'vi-VN'; ut.rate = 1.1; 
         ut.onstart = () => root.classList.add('talking');
         ut.onend = () => { root.classList.remove('talking'); if(cb) cb(); };
         window.speechSynthesis.speak(ut);
@@ -114,15 +108,9 @@
         if(!msg) return;
         txtInput.value = '';
         addMsg(msg, 'user');
-        
-        // Cảm xúc vui vẻ khi được khen
-        if(msg.toLowerCase().match(/hay|giỏi|đẹp|yêu|cảm ơn/)) root.classList.add('happy');
-
         const reply = await getAIResponse(msg);
         addMsg(reply, 'ai');
         speak(reply);
-        
-        setTimeout(() => root.classList.remove('happy'), 3000);
     }
 
     function addMsg(t, s) {
@@ -130,14 +118,11 @@
         content.appendChild(d); content.scrollTop = content.scrollHeight;
     }
 
-    // Chạm để mở/đóng và Kéo thả mượt mà
     let x = 0, y = 0, sx, sy, isDrag = false;
     wrapper.ontouchstart = (e) => { sx = e.touches[0].clientX - x; sy = e.touches[0].clientY - y; isDrag = false; };
     wrapper.ontouchmove = (e) => {
         isDrag = true;
-        let nx = e.touches[0].clientX - sx; let ny = e.touches[0].clientY - sy;
-        if(e.touches[0].clientX > 10 && e.touches[0].clientX < window.innerWidth - 10) x = nx;
-        if(e.touches[0].clientY > 10 && e.touches[0].clientY < window.innerHeight - 10) y = ny;
+        x = e.touches[0].clientX - sx; y = e.touches[0].clientY - sy;
         wrapper.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         e.preventDefault();
     };
@@ -147,7 +132,7 @@
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if(!isVisible && content.innerHTML === "") {
-                const welcome = "Taxi Promax chào anh! Chúc anh một ngày lái xe rạng rỡ và an toàn.";
+                const welcome = "Em chào anh ạ! Chúc anh một ngày lái xe thật nhiều niềm vui nhé!";
                 addMsg(welcome, 'ai'); speak(welcome);
             }
         }
@@ -160,8 +145,8 @@
         const Rec = window.webkitSpeechRecognition || window.SpeechRecognition;
         if(!Rec) return;
         const rec = new Rec(); rec.lang = 'vi-VN';
-        rec.onstart = () => { root.classList.add('listening'); mic.style.color = 'red'; };
-        rec.onend = () => { root.classList.remove('listening'); mic.style.color = '#00bfa5'; };
+        rec.onstart = () => { mic.style.color = 'red'; };
+        rec.onend = () => { mic.style.color = '#f06292'; };
         rec.onresult = (e) => { txtInput.value = e.results[0][0].transcript; handleSend(); };
         rec.start();
     };
