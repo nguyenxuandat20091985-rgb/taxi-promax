@@ -1,5 +1,5 @@
 // =========================================================
-// ROBOT TAXI PROMAX - BẢN FIX LỖI BIẾN MẤT (100% HIỂN THỊ)
+// ROBOT TAXI PROMAX - BẢN GIỌNG NÓI ẤM ÁP CHÂN THỰC
 // =========================================================
 
 (function() {
@@ -10,14 +10,12 @@
             display: flex; flex-direction: column; align-items: flex-end;
             touch-action: none; width: 70px;
         }
-
         #ai-root { 
             width: 70px; height: 70px; border-radius: 50%; 
             border: 3px solid #00bfa5; box-shadow: 0 4px 20px rgba(0,0,0,0.4); 
             overflow: hidden; background: white; cursor: pointer;
         }
         #ai-root img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
-        
         #ai-chat-box { 
             width: 280px; background: white; border-radius: 20px; 
             margin-bottom: 10px; display: none; flex-direction: column; 
@@ -28,7 +26,6 @@
         #ai-content { max-height: 200px; overflow-y: auto; padding: 12px; font-size: 14px; background: #faffff; }
         .msg-u { background: #00bfa5; color: white; padding: 8px 12px; border-radius: 15px 15px 0 15px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; }
         .msg-a { background: #e0f2f1; color: #004d40; padding: 8px 12px; border-radius: 15px 15px 15px 0; margin: 5px 0; border-left: 4px solid #00bfa5; width: fit-content; max-width: 85%; }
-        
         .ai-input-area { display: flex; padding: 10px; border-top: 1px solid #eee; background: white; align-items: center; gap: 8px; }
         #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px; border-radius: 10px; font-size: 14px; }
         #ai-mic { font-size: 28px; color: #00bfa5; background: none; border: none; cursor: pointer; }
@@ -45,7 +42,7 @@
             <div id="ai-content"></div>
             <div class="ai-input-area">
                 <button id="ai-mic">🎤</button>
-                <input type="text" id="ai-txt" placeholder="Nói với Em...">
+                <input type="text" id="ai-txt" placeholder="Tâm sự với em đi anh...">
             </div>
         </div>
         <div id="ai-root">
@@ -54,47 +51,38 @@
     `;
     document.body.appendChild(wrapper);
 
-    const root = document.getElementById('ai-root'), 
-          chat = document.getElementById('ai-chat-box'), 
-          mic = document.getElementById('ai-mic'), 
-          content = document.getElementById('ai-content');
+    const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), mic = document.getElementById('ai-mic'), content = document.getElementById('ai-content');
 
-    // --- XỬ LÝ DI CHUYỂN AN TOÀN ---
+    // --- DI CHUYỂN ---
     let isDragging = false, startX, startY, currentX = 0, currentY = 0;
+    wrapper.addEventListener('touchstart', (e) => { isDragging = false; startX = e.touches[0].clientX - currentX; startY = e.touches[0].clientY - currentY; }, {passive: true});
+    wrapper.addEventListener('touchmove', (e) => { isDragging = true; currentX = e.touches[0].clientX - startX; currentY = e.touches[0].clientY - startY; wrapper.style.transform = `translate(${currentX}px, ${currentY}px)`; }, {passive: false});
 
-    wrapper.addEventListener('touchstart', (e) => {
-        isDragging = false;
-        startX = e.touches[0].clientX - currentX;
-        startY = e.touches[0].clientY - currentY;
-    }, {passive: true});
+    // --- GIỌNG NÓI TỐI ƯU (GIỐNG NGƯỜI THẬT) ---
+    function speak(text) {
+        window.speechSynthesis.cancel(); // Dừng câu cũ ngay lập tức
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Tìm giọng nữ miền Nam hoặc giọng tự nhiên nhất
+        const voices = window.speechSynthesis.getVoices();
+        const vnVoice = voices.find(v => v.lang.includes('vi')) || voices[0];
+        
+        utterance.voice = vnVoice;
+        utterance.lang = 'vi-VN';
+        utterance.pitch = 1.1;  // Độ cao vừa phải, nghe ấm áp
+        utterance.rate = 0.95;  // Tốc độ chậm lại một chút để rõ chữ như người nói
+        utterance.volume = 1;   // Âm lượng tối đa
+        
+        window.speechSynthesis.speak(utterance);
+    }
 
-    wrapper.addEventListener('touchmove', (e) => {
-        isDragging = true;
-        currentX = e.touches[0].clientX - startX;
-        currentY = e.touches[0].clientY - startY;
-        wrapper.style.transform = `translate(${currentX}px, ${currentY}px)`;
-    }, {passive: false});
-
-    wrapper.addEventListener('touchend', () => {
-        // Chống Robot bay ra khỏi màn hình
-        const rect = wrapper.getBoundingClientRect();
-        if (rect.left < 0 || rect.right > window.innerWidth || rect.top < 0 || rect.bottom > window.innerHeight) {
-            currentX = 0; currentY = 0;
-            wrapper.style.transition = '0.3s';
-            wrapper.style.transform = `translate(0px, 0px)`;
-            setTimeout(() => wrapper.style.transition = 'none', 300);
-        }
-    });
-
-    // --- CLICK CHẮC CHẮN HIỆN CHAT ---
-    root.addEventListener('click', (e) => {
+    root.addEventListener('click', () => {
         if (!isDragging) {
             const isVisible = chat.style.display === 'flex';
             chat.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible && content.innerHTML === "") {
-                const welcome = "Chào Anh! Em đã quay lại đây. Anh cần Em giúp gì không?";
-                addMsg(welcome, 'ai');
-                speak(welcome);
+                const welcome = "Em chào anh! Chúc anh một ngày lái xe thật nhiều niềm vui và đắt khách nhé!";
+                addMsg(welcome, 'ai'); speak(welcome);
             }
         }
     });
@@ -104,18 +92,12 @@
         content.appendChild(d); content.scrollTop = content.scrollHeight;
     }
 
-    function speak(t) {
-        window.speechSynthesis.cancel();
-        const s = new SpeechSynthesisUtterance(t); s.lang = 'vi-VN';
-        window.speechSynthesis.speak(s);
-    }
-
     mic.onclick = (e) => {
         e.stopPropagation();
         const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Rec) return;
         const rec = new Rec(); rec.lang = 'vi-VN';
-        rec.onstart = () => mic.classList.add('mic-active');
+        rec.onstart = () => { mic.classList.add('mic-active'); window.speechSynthesis.cancel(); };
         rec.onend = () => mic.classList.remove('mic-active');
         rec.onresult = (e) => processAI(e.results[0][0].transcript);
         rec.start();
@@ -124,17 +106,18 @@
     async function processAI(msg) {
         addMsg(msg, 'user');
         let reply = "";
-        if (msg.toLowerCase().includes("yêu") || msg.toLowerCase().includes("thương")) {
-            reply = "Em thương Anh nhất, chúc Anh lái xe thật an toàn!";
-        } else {
+        const m = msg.toLowerCase();
+        if (m.includes("yêu") || m.includes("thương")) reply = "Em lúc nào cũng thương và ủng hộ anh hết mình. Anh lái xe cẩn thận nhé!";
+        else if (m.includes("mệt")) reply = "Anh mệt rồi sao? Cố gắng lên một chút nữa, hoặc ghé đâu đó uống ly cafe cho tỉnh táo rồi chạy tiếp anh nhé!";
+        else {
             try {
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: `Trả lời ngắn gọn câu: ${msg}. Gọi là Anh, không dùng tên Đạt.` }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Trả lời ngắn gọn, tình cảm như người yêu câu: ${msg}. Gọi là Anh, không dùng tên Đạt.` }] }] })
                 });
                 const data = await res.json();
                 reply = data.candidates[0].content.parts[0].text;
-            } catch (e) { reply = "Em nghe rồi ạ!"; }
+            } catch (e) { reply = "Em vẫn đang lắng nghe anh đây!"; }
         }
         addMsg(reply, 'ai'); speak(reply);
     }
