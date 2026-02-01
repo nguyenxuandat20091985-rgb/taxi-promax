@@ -2,258 +2,49 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
-    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
-
-    <title>TAXI PROMAX</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        
-        /* NÂNG CẤP MỤC 5: CHỐNG CUỘN VÀ FIX FULL MÀN HÌNH */
-        body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            font-family: 'Segoe UI', Roboto, sans-serif; 
-            overflow: hidden; background: var(--bg);
-            position: fixed; width: 100%;
-        }
-
-        /* NÂNG CẤP MỤC 1: BẢN ĐỒ SẮC NÉT */
-        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); } 
-
-        /* NÂNG CẤP MỤC 5: CO GIÃN THEO TAI THỎ VÀ CÁC DÒNG ĐIỆN THOẠI */
-        .header { 
-            position: fixed; 
-            top: env(safe-area-inset-top, 10px); 
-            left: 10px; right: 10px; 
-            display: flex; justify-content: space-between; 
-            z-index: 1000; pointer-events: none; 
-        }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
-
-        .stats-bar { 
-            position: fixed; 
-            top: calc(env(safe-area-inset-top, 10px) + 45px); 
-            left: 10px; right: 10px; 
-            background: var(--glass); border-radius: 15px; 
-            display: flex; padding: 12px; 
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-            z-index: 1000; border: 1px solid white; 
-        }
-        .stat-item { flex: 1; text-align: center; }
-        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
-
-        /* CO GIÃN FOOTER TRÁNH VẠCH HOME IPHONE */
-        .footer-panel { 
-            position: fixed; bottom: 0; left: 0; right: 0; 
-            background: white; z-index: 2000; 
-            border-radius: 25px 25px 0 0; 
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.08); 
-            padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); 
-        }
-
-        /* --- CẤM SỬA CHỮA CÁC PHẦN DƯỚI ĐÂY --- */
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
-        .nav-item.active { color: var(--primary); }
-        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; } 
-        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
-        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
-        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
-        .p-card b { display: block; font-size: 13px; color: var(--dark); }
-        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
-        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
-        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .h-info { text-align: left; }
-        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
-        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
-        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); transition: transform 0.2s; } 
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; }
-        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
-    </style>
-</head>
-<body oncontextmenu="return false;"> 
-
-    <div class="header">
-        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
-        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
-    </div> 
-
-    <div class="stats-bar" id="statsUI">
-        <div class="stat-item" style="border-right: 1px solid #eee;">
-            <div class="stat-label">CƯỚC (VNĐ)</div>
-            <div id="cost" class="stat-value">0</div>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Promax - Trợ Lý Platinum</title>
+    </head>
+<body>
+    <div id="ai-wrapper">
+        <div id="ai-chat-box">
+            <div class="ai-header">🌿 TRỢ LÝ TAXI PROMAX PLATINUM</div>
+            <div id="ai-content"></div>
+            <div class="ai-input-area"><input type="text" id="ai-txt" placeholder="Em giúp gì được anh/chị ạ? ✨"><button id="ai-send">🚀</button></div>
         </div>
-        <div class="stat-item">
-            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
-            <div id="km" class="stat-value">0.00</div>
-        </div>
-    </div> 
-
-    <div id="map"></div> 
-
-    <div id="tab-vi" class="tab-content">
-        <div class="p-header">
-            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
-        </div>
-        <div class="p-grid">
-            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
-                <b>GÓI BASIC</b><span>19.000đ</span>
-                <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul>
-            </div>
-            <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
-                <b>GÓI PRO</b><span>29.000đ</span>
-                <ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul>
-            </div>
-            <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)">
-                <b>GÓI VIP 1TH</b><span>49.000đ</span>
-                <ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul>
-            </div>
-            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)">
-                <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
-                <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
-            </div>
-        </div>
-        <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
-            <img id="qrImg" style="width:180px; border-radius:10px;" src="">
-            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
-            <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
-        </div>
-    </div> 
-
-    <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
-    </div> 
-
-    <div id="tab-toi" class="tab-content">
-        <div class="p-header">THIẾT LẬP</div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
-                <p>Mã tài xế: <b id="profileID">...</b></p>
-                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
-                <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
-                <p>Offline Mode: <b>TỰ ĐỘNG KÍCH HOẠT</b></p>
-            </div>
-        </div>
-    </div> 
-
-    <div class="footer-panel">
-        <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
-                <span>GIÁ/KM</span>
-                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
-            </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-        </div> 
-        <div class="nav-grid">
-            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
-        </div>
-        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
-    </div> 
-
-    <div id="wishModal" class="custom-modal">
-        <div class="modal-content">
-            <h3 style="color:var(--primary)">CHÚC ANH CHỊ THƯỢNG LỘ BÌNH AN!</h3>
-            <p style="font-size:14px; color:#666;">Hệ thống bảo mật & Offline đã sẵn sàng.</p>
-            <button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button>
-        </div>
-    </div> 
-
-    <div id="endModal" class="custom-modal">
-        <div class="modal-content">
-            <h3>HOÀN THÀNH!</h3>
-            <div id="endSummary" style="padding: 15px 0;"></div>
-            <button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button>
-        </div>
-    </div> 
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script src="map-engine.js"></script>
-    <script src="ui-control.js"></script>
-    <script src="tracking.js"></script>
-    <script src="ai-module/ai-config.js"></script>
-    <script src="ai-module/ai-client.js"></script>
-    
-    <script>
-        // TỰ ĐỘNG FULL MÀN HÌNH KHI CHẠM LẦN ĐẦU
-        document.addEventListener('click', function() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            }
-        }, { once: true });
-    </script>
-<div id="ai-wrapper">
-    <div id="ai-chat-box">
-        <div class="ai-header">🌿 TRỢ LÝ TAXI PROMAX PLATINUM</div>
-        <div id="ai-content"></div>
-        <div class="ai-input-area">
-            <input type="text" id="ai-txt" placeholder="Em giúp gì được anh/chị ạ? ✨">
-            <button id="ai-send">🚀</button>
-        </div>
+        <div id="ai-root"></div>
     </div>
-    <div id="ai-root"></div>
-</div>
-
-<style>
-    #ai-wrapper { position: fixed; bottom: 120px; right: 15px; z-index: 999999; display: flex; flex-direction: column; align-items: flex-end; font-family: 'Lexend', sans-serif; }
-    #ai-root { 
-        width: 80px; height: 80px; border-radius: 50%; 
-        background: #000 url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; 
-        background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); 
-        cursor: pointer; animation: floating 3s infinite ease-in-out; 
-    }
-    @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-    #ai-chat-box { width: 300px; max-width: 80vw; background: #fff; border-radius: 20px; margin-bottom: 12px; display: none; flex-direction: column; border: 1px solid #00f2ff; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-    .ai-header { background: #00d1d1; color: white; padding: 12px; text-align: center; font-weight: 600; }
-    #ai-content { max-height: 250px; min-height: 100px; overflow-y: auto; padding: 15px; background: #f0fbfc; }
-    .msg-a { background: #fff; padding: 8px 12px; border-radius: 15px 15px 15px 0; margin: 5px 0; border: 1px solid #e0f7f7; font-size: 13px; width: fit-content; max-width: 85%; }
-    .msg-u { background: #00d1d1; color: white; padding: 8px 12px; border-radius: 15px 15px 0 15px; margin: 5px 0 5px auto; font-size: 13px; width: fit-content; max-width: 85%; }
-    .ai-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #eee; }
-    #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px 15px; border-radius: 20px; font-size: 13px; }
-    #ai-send { color: #00d1d1; font-size: 22px; border: none; background: none; cursor: pointer; }
-</style>
-
-<script>
-    (function(){
-        const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt'), sendBtn = document.getElementById('ai-send');
-        root.onclick = () => { 
-            chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex'; 
-            if(chat.style.display === 'flex' && content.innerHTML === "") addMsg("Chào anh/chị! Em là trợ lý ảo Taxi Promax Platinum. Em sẵn sàng phục vụ ạ! ✨", 'ai'); 
-        };
-        function addMsg(t, s) { const d = document.createElement('div'); d.className = s === 'user' ? 'msg-u' : 'msg-a'; d.innerHTML = t; content.appendChild(d); content.scrollTop = 9999; }
-        sendBtn.onclick = async () => {
-            const m = txtInput.value.trim(); if(!m) return;
-            txtInput.value = ''; addMsg(m, 'user');
-            try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là trợ lý ảo Taxi Promax Platinum. Gọi khách là anh/chị xưng em. Trả lời ngọt ngào, ngắn gọn: ${m}` }] }] })
-                });
-                const data = await res.json(); addMsg(data.candidates[0].content.parts[0].text, 'ai');
-            } catch { addMsg("Taxi Promax nghe đây ạ! ✨", 'ai'); }
-        };
-        txtInput.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
-    })();
-</script>
-
+    <style>
+        #ai-wrapper { position: fixed; bottom: 120px; right: 15px; z-index: 999999; display: flex; flex-direction: column; align-items: flex-end; font-family: 'Lexend', sans-serif; }
+        #ai-root { width: 80px; height: 80px; border-radius: 50%; background: url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); cursor: pointer; animation: floating 3s infinite ease-in-out; }
+        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        #ai-chat-box { width: 300px; max-width: 80vw; background: #fff; border-radius: 20px; margin-bottom: 12px; display: none; flex-direction: column; border: 1px solid #00f2ff; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .ai-header { background: #00d1d1; color: white; padding: 12px; text-align: center; font-weight: 600; }
+        #ai-content { max-height: 250px; min-height: 100px; overflow-y: auto; padding: 15px; background: #f0fbfc; }
+        .msg-a { background: #fff; padding: 8px 12px; border-radius: 15px 15px 15px 0; margin: 5px 0; border: 1px solid #e0f7f7; font-size: 13px; width: fit-content; max-width: 85%; }
+        .msg-u { background: #00d1d1; color: white; padding: 8px 12px; border-radius: 15px 15px 0 15px; margin: 5px 0 5px auto; font-size: 13px; width: fit-content; max-width: 85%; }
+        .ai-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #eee; }
+        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px 15px; border-radius: 20px; font-size: 13px; }
+        #ai-send { color: #00d1d1; font-size: 22px; border: none; background: none; cursor: pointer; }
+    </style>
+    <script>
+        (function(){
+            const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt'), sendBtn = document.getElementById('ai-send');
+            root.onclick = () => { chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex'; if(chat.style.display === 'flex' && content.innerHTML === "") addMsg("Chào anh/chị! Em là trợ lý ảo Taxi Promax Platinum. Em sẵn sàng phục vụ ạ! ✨", 'ai'); };
+            function addMsg(t, s) { const d = document.createElement('div'); d.className = s === 'user' ? 'msg-u' : 'msg-a'; d.innerHTML = t; content.appendChild(d); content.scrollTop = 9999; }
+            sendBtn.onclick = async () => {
+                const m = txtInput.value.trim(); if(!m) return;
+                txtInput.value = ''; addMsg(m, 'user');
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là trợ lý ảo Taxi Promax Platinum. Gọi khách là anh/chị xưng em. Trả lời ngọt ngào, ngắn gọn: ${m}` }] }] })
+                    });
+                    const data = await res.json(); addMsg(data.candidates[0].content.parts[0].text, 'ai');
+                } catch { addMsg("Taxi Promax nghe đây ạ! ✨", 'ai'); }
+            };
+            txtInput.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
+        })();
+    </script>
 </body>
 </html>
