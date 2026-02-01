@@ -1,128 +1,150 @@
-// =========================================================
-// TAXI PROMAX AI - PHIÊN BẢN ADMIN CHỦ ĐỘNG (V26)
-// TỰ CHỌN ẢNH TỪ ĐIỆN THOẠI - GIAO DIỆN SIÊU "CHUYẾN"
-// =========================================================
-
-(function() {
-    const style = document.createElement('style');
-    style.innerHTML = `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TAXI PROMAX - ADMIN SUPREME V26</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
         @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap');
+        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         
-        #ai-wrapper { 
-            position: fixed; bottom: 150px; right: 20px; z-index: 2147483647; 
-            display: flex; flex-direction: column; align-items: flex-end; 
-            touch-action: none; font-family: 'Lexend', sans-serif; 
-        }
-        
-        /* Icon Trợ Lý - Viền LED chạy cực chuyến */
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Lexend', sans-serif; overflow: hidden; background: var(--bg); position: fixed; width: 100%; }
+        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); } 
+
+        /* TAI THỎ & STATS */
+        .header { position: fixed; top: env(safe-area-inset-top, 10px); left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
+        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
+        .stats-bar { position: fixed; top: calc(env(safe-area-inset-top, 10px) + 45px); left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
+        .stat-item { flex: 1; text-align: center; }
+        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); }
+
+        /* FOOTER */
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 4px 15px rgba(0,191,165,0.3); width: 100%; }
+        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; flex: 1; text-align: center; }
+        .nav-item.active { color: var(--primary); }
+
+        /* AI V26 SUPREME */
+        #ai-wrapper { position: fixed; bottom: 125px; right: 15px; z-index: 999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; }
         #ai-root { 
-            width: 95px; height: 95px; border-radius: 50%; 
+            width: 85px; height: 85px; border-radius: 50%; 
             background: #222 url('https://i.ibb.co/0jXq0M3n/angel.jpg') no-repeat center;
             background-size: cover; border: 4px solid #00ff88;
-            box-shadow: 0 0 20px #00ff88, inset 0 0 10px #00ff88;
-            cursor: pointer; position: relative;
+            box-shadow: 0 0 15px #00ff88; cursor: pointer; position: relative;
             animation: floating 3s infinite ease-in-out, neonPulse 2s infinite;
         }
-        @keyframes neonPulse { 0%, 100% { border-color: #00ff88; box-shadow: 0 0 20px #00ff88; } 50% { border-color: #00dbff; box-shadow: 0 0 30px #00dbff; } }
-        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
-
-        /* Nút Admin thay ảnh (Ẩn) */
-        #admin-upload { position: absolute; top: -10px; left: -10px; background: #333; color: #fff; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 1px solid #fff; z-index: 10; cursor: pointer; }
-
-        /* Khung Chat "Chuyến" - Kính mờ hiện đại */
-        #ai-chat-box { 
-            width: 340px; max-width: 88vw; background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px); border-radius: 30px; margin-bottom: 20px; 
-            display: none; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.4);
-            border: 2px solid rgba(0, 255, 136, 0.3); overflow: hidden;
-        }
-        .ai-header { background: linear-gradient(90deg, #1a1a1a, #333); color: #00ff88; padding: 18px; text-align: center; font-weight: 700; border-bottom: 1px solid #444; letter-spacing: 1px; }
-        #ai-content { max-height: 300px; min-height: 120px; overflow-y: auto; padding: 20px; font-size: 15px; background: rgba(255,255,255,0.5); }
+        @keyframes neonPulse { 0%, 100% { border-color: #00ff88; box-shadow: 0 0 15px #00ff88; } 50% { border-color: #00dbff; box-shadow: 0 0 25px #00dbff; } }
+        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         
-        .msg-u { background: #1a1a1a; color: #00ff88; padding: 12px 18px; border-radius: 20px 20px 0 20px; margin: 10px 0 10px auto; width: fit-content; max-width: 85%; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); }
-        .msg-a { background: #fff; color: #222; padding: 12px 18px; border-radius: 20px 20px 20px 0; margin: 10px 0; border: 1px solid #eee; width: fit-content; max-width: 85%; font-weight: 500; }
+        #admin-upload { position: absolute; top: -5px; left: -5px; background: #1a1a1a; color: #00ff88; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 1px solid #00ff88; z-index: 10; cursor: pointer; }
+        
+        #ai-chat-box { width: 320px; max-width: 85vw; background: white; border-radius: 25px; margin-bottom: 12px; display: none; flex-direction: column; border: 2px solid #00ff88; overflow: hidden; box-shadow: 0 15px 50px rgba(0,0,0,0.3); }
+        .ai-header { background: #1a1a1a; color: #00ff88; padding: 15px; text-align: center; font-weight: 700; border-bottom: 1px solid #333; }
+        #ai-content { max-height: 250px; min-height: 100px; overflow-y: auto; padding: 15px; background: #f9f9f9; }
+        .msg-u { background: #1a1a1a; color: #00ff88; padding: 8px 12px; border-radius: 12px 12px 0 12px; margin: 5px 0 5px auto; width: fit-content; max-width: 85%; font-size: 13px; }
+        .msg-a { background: #fff; color: #222; padding: 8px 12px; border-radius: 12px 12px 12px 0; margin: 5px 0; width: fit-content; max-width: 85%; font-size: 13px; border: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="badge">🆔 ADMIN: ĐẠT</div>
+        <div class="badge" style="color:var(--gold)">⭐ PLATINUM V26</div>
+    </div>
+    
+    <div class="stats-bar">
+        <div class="stat-item" style="border-right: 1px solid #eee;"><div>CƯỚC</div><div id="cost" class="stat-value">0</div></div>
+        <div class="stat-item"><div>KM</div><div id="km" class="stat-value">0.00</div></div>
+    </div>
 
-        .ai-input-area { display: flex; padding: 15px; background: #fff; align-items: center; gap: 12px; border-top: 1px solid #eee; }
-        #ai-txt { flex: 1; border: 2px solid #eee; outline: none; padding: 12px 20px; border-radius: 30px; font-size: 14px; transition: 0.3s; }
-        #ai-txt:focus { border-color: #00ff88; }
-        #ai-send { font-size: 28px; color: #1a1a1a; background: none; border: none; cursor: pointer; }
-    `;
-    document.head.appendChild(style);
+    <div id="map"></div>
 
-    const wrapper = document.createElement('div');
-    wrapper.id = 'ai-wrapper';
-    wrapper.innerHTML = `
+    <div id="ai-wrapper">
         <div id="ai-chat-box">
             <div class="ai-header">TAXI PROMAX SUPREME AI</div>
             <div id="ai-content"></div>
-            <div class="ai-input-area">
-                <input type="text" id="ai-txt" placeholder="Lệnh cho em đi anh...">
-                <button id="ai-send">🚀</button>
+            <div style="display:flex; padding:10px; border-top:1px solid #eee; gap:5px; background: #fff;">
+                <input type="text" id="ai-txt" style="flex:1; border:1px solid #ddd; border-radius:20px; padding:8px 15px;" placeholder="Lệnh cho em đi anh...">
+                <button id="ai-send" style="background:none; border:none; font-size:22px;">🚀</button>
             </div>
         </div>
-        <div id="ai-root">
-            <div id="admin-upload">⚙️</div>
+        <div id="ai-root"><div id="admin-upload" title="Đồng bộ ảnh">⚙️</div></div>
+    </div>
+
+    <div class="footer-panel">
+        <button class="btn-main">BẮT ĐẦU CHUYẾN ĐI</button>
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="location.reload()">🏠 Chủ</button>
+            <button class="nav-item" onclick="alert('Ví Tiền')">💰 Ví</button>
+            <button class="nav-item" onclick="alert('Cài đặt Admin')">👤 Tôi</button>
         </div>
-        <input type="file" id="file-input" style="display:none" accept="image/*">
-    `;
-    document.body.appendChild(wrapper);
+    </div>
 
-    const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt'), sendBtn = document.getElementById('ai-send'), fileInput = document.getElementById('file-input'), adminBtn = document.getElementById('admin-upload');
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // --- 1. KHỞI TẠO BẢN ĐỒ ---
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // --- CƠ CHẾ ADMIN TỰ THAY ẢNH ---
-    const savedImg = localStorage.getItem('taxi_ai_img');
-    if(savedImg) root.style.backgroundImage = `url(${savedImg})`;
+        // --- 2. HỆ THỐNG ĐỒNG BỘ ẢNH VÀ AI ---
+        (function(){
+            // --- CẤU HÌNH ĐỒNG BỘ CHO ANH ĐẠT ---
+            const HỆ_THỐNG_ẢNH_ĐỒNG_BỘ = 'https://i.ibb.co/0jXq0M3n/angel.jpg'; // Dán link ảnh online vào đây
 
-    adminBtn.onclick = (e) => { e.stopPropagation(); fileInput.click(); };
-    fileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            root.style.backgroundImage = `url(${reader.result})`;
-            localStorage.setItem('taxi_ai_img', reader.result);
-            alert("Đã cập nhật diện mạo Thư ký cho anh!");
-        };
-        reader.readAsDataURL(file);
-    };
+            const root = document.getElementById('ai-root'), chat = document.getElementById('ai-chat-box'), 
+                  content = document.getElementById('ai-content'), txtInput = document.getElementById('ai-txt'), 
+                  sendBtn = document.getElementById('ai-send'), adminBtn = document.getElementById('admin-upload'), 
+                  wrapper = document.getElementById('ai-wrapper');
 
-    // --- DI CHUYỂN MƯỢT MÀ ---
-    let curX = 0, curY = 0, startX = 0, startY = 0, drag = false;
-    wrapper.ontouchstart = (e) => { drag = false; startX = e.touches[0].clientX - curX; startY = e.touches[0].clientY - curY; };
-    wrapper.ontouchmove = (e) => { drag = true; curX = e.touches[0].clientX - startX; curY = e.touches[0].clientY - startY; wrapper.style.transform = `translate(${curX}px, ${curY}px)`; e.preventDefault(); };
+            // Load ảnh từ bộ nhớ hoặc link đồng bộ
+            const savedImg = localStorage.getItem('taxi_ai_img') || HỆ_THỐNG_ẢNH_ĐỒNG_BỘ;
+            root.style.backgroundImage = `url('${savedImg}')`;
 
-    // --- NÃO BỘ GPT-4O ---
-    async function getAIResponse(userInput) {
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là thư ký cấp cao của Taxi Promax. Không gọi tên Đạt. Gọi 'anh' xưng 'em'. Trả lời cực chuyến, thông minh, chuyên nghiệp nhưng vẫn ngọt ngào. Câu hỏi: ${userInput}` }] }] })
-            });
-            const data = await res.json();
-            return data.candidates[0].content.parts[0].text;
-        } catch (e) { return "Lệnh của anh đã được ghi nhận! ❤️"; }
-    }
+            // Admin thay ảnh bằng LINK ONLINE để đồng bộ với khách
+            adminBtn.onclick = (e) => { 
+                e.stopPropagation(); 
+                const link = prompt("Anh Đạt dán link ảnh Thư ký mới vào đây (Imgur, FB...):", savedImg);
+                if(link) {
+                    localStorage.setItem('taxi_ai_img', link);
+                    root.style.backgroundImage = `url('${link}')`;
+                    alert("Đã cập nhật! Anh nhớ dán link này vào code bản Khách hàng nhé.");
+                }
+            };
 
-    function addMsg(t, s) {
-        const d = document.createElement('div'); d.className = s === 'user' ? 'msg-u' : 'msg-a'; d.textContent = t;
-        content.appendChild(d); content.scrollTop = content.scrollHeight;
-    }
+            // Logic Di chuyển (Drag)
+            let curX = 0, curY = 0, startX = 0, startY = 0, drag = false;
+            wrapper.ontouchstart = (e) => { drag = false; startX = e.touches[0].clientX - curX; startY = e.touches[0].clientY - curY; };
+            wrapper.ontouchmove = (e) => { drag = true; curX = e.touches[0].clientX - startX; curY = e.touches[0].clientY - startY; wrapper.style.transform = `translate(${curX}px, ${curY}px)`; e.preventDefault(); };
 
-    root.onclick = () => {
-        if (!drag) {
-            const open = chat.style.display === 'none' || chat.style.display === '';
-            chat.style.display = open ? 'flex' : 'none';
-            if (open && content.innerHTML === "") {
-                addMsg("Thư ký Taxi Promax báo cáo! Diện mạo của em nằm trong tay anh, anh muốn em nhìn thế nào cũng được. Lệnh cho em đi!", 'ai');
+            function addMsg(t, s) { 
+                const d = document.createElement('div'); d.className = s === 'user' ? 'msg-u' : 'msg-a'; 
+                d.textContent = t; content.appendChild(d); content.scrollTop = 9999; 
             }
-        }
-    };
 
-    sendBtn.onclick = async () => {
-        const msg = txtInput.value.trim();
-        if(!msg) return;
-        txtInput.value = '';
-        addMsg(msg, 'user');
-        const reply = await getAIResponse(msg);
-        addMsg(reply, 'ai');
-    };
-})();
+            root.onclick = () => { 
+                if(!drag) {
+                    const isOpening = chat.style.display !== 'flex';
+                    chat.style.display = isOpening ? 'flex' : 'none';
+                    if(isOpening && content.innerHTML === "") addMsg("Thư ký Taxi Promax nghe lệnh anh Đạt! Diện mạo của em hôm nay anh thấy thế nào?", "ai");
+                }
+            };
+
+            sendBtn.onclick = async () => {
+                const m = txtInput.value.trim(); if(!m) return;
+                txtInput.value = ''; addMsg(m, 'user');
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: `Bạn là thư ký Taxi Promax. Gọi anh xưng em. Trả lời cực chuyến, ngọt ngào cho anh Đạt: ${m}` }] }] })
+                    });
+                    const data = await res.json();
+                    addMsg(data.candidates[0].content.parts[0].text, 'ai');
+                } catch { addMsg("Lệnh của anh em đã rõ!", "ai"); }
+            };
+            txtInput.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
+        })();
+    </script>
+</body>
+</html>
