@@ -2,194 +2,162 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROMAX COMMAND CENTER - SẾP ĐẠT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AI COMMANDER PROMAX</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root { --neon: #00f2ff; --hot: #ff003c; --glass: rgba(0, 20, 30, 0.85); }
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; color: white; font-family: 'Quicksand', sans-serif; overflow: hidden; }
+        :root { --neon: #00f2ff; --bg: rgba(0, 10, 20, 0.9); }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         
-        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.5) contrast(1.2) hue-rotate(-20deg); }
+        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.4); }
 
-        /* HUD Panels */
-        .hud-top {
-            position: absolute; top: 15px; left: 15px; right: 15px; z-index: 100;
-            display: flex; justify-content: space-between; pointer-events: none;
+        /* Bảng dữ liệu phi thuyền */
+        .hud-panel {
+            position: absolute; top: 15px; left: 15px; z-index: 100;
+            background: var(--bg); border: 1px solid var(--neon);
+            padding: 15px; border-radius: 10px; width: 220px;
+            box-shadow: 0 0 15px var(--neon); pointer-events: none;
         }
-        .glass-card {
-            background: var(--glass); border: 1px solid rgba(0, 242, 255, 0.3);
-            backdrop-filter: blur(15px); padding: 15px; border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5); pointer-events: auto;
-        }
+        .data-row { margin-bottom: 10px; }
+        .label { font-size: 10px; color: var(--neon); font-weight: bold; }
+        .val { font-size: 20px; color: white; font-weight: bold; }
 
-        .revenue-box { border-left: 4px solid var(--neon); min-width: 180px; }
-        .data-title { font-size: 10px; color: var(--neon); font-family: 'Orbitron'; letter-spacing: 2px; }
-        .data-value { font-size: 22px; font-weight: bold; margin-top: 5px; }
-
-        /* Bảng danh sách khách hàng */
-        .customer-list {
-            position: absolute; top: 110px; left: 15px; bottom: 20px; width: 280px;
-            overflow-y: auto; z-index: 100;
+        /* AI Trợ lý - Có thể di chuyển */
+        #ai-assistant {
+            position: absolute; bottom: 50px; right: 20px; z-index: 9999;
+            width: 90px; height: 90px; cursor: grab; touch-action: none;
         }
-        .cust-item {
-            background: rgba(255,255,255,0.05); padding: 10px; margin-bottom: 8px;
-            border-radius: 8px; border-bottom: 1px solid rgba(0,242,255,0.1);
-            font-size: 13px; transition: 0.3s;
+        .avatar-circle {
+            width: 80px; height: 80px; border-radius: 50%;
+            border: 3px solid var(--neon); box-shadow: 0 0 20px var(--neon);
+            object-fit: cover; background: #222;
         }
-        .cust-item:hover { background: rgba(0,242,255,0.1); }
-
-        /* AI AVATAR & MICRO */
-        #ai-hero {
-            position: absolute; bottom: 30px; right: 30px; z-index: 1000;
-            display: flex; flex-direction: column; align-items: center; cursor: move;
-        }
-        .avatar-frame {
-            position: relative; width: 90px; height: 90px;
-            border-radius: 50%; padding: 5px; background: conic-gradient(from 0deg, var(--neon), transparent);
-            animation: rotate 4s linear infinite;
-        }
-        #avatar-img {
-            width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
-            background: #111; border: 2px solid #000; position: relative; z-index: 2;
-        }
-        .mic-trigger {
-            position: absolute; bottom: -10px; background: var(--hot); border: none;
-            width: 45px; height: 45px; border-radius: 50%; color: white; font-size: 20px;
-            box-shadow: 0 0 20px var(--hot); cursor: pointer; z-index: 1001;
+        .mic-btn {
+            position: absolute; bottom: -5px; right: -5px;
+            background: #ff003c; border: none; width: 35px; height: 35px;
+            border-radius: 50%; color: white; font-size: 18px; cursor: pointer;
+            box-shadow: 0 0 10px #ff003c;
         }
 
         /* Bong bóng hội thoại */
-        .ai-bubble {
-            position: absolute; right: 110px; bottom: 20px; width: 250px;
-            background: white; color: #000; padding: 15px; border-radius: 20px 20px 0 20px;
-            display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        #speech-bubble {
+            position: absolute; bottom: 100px; right: 0; width: 200px;
+            background: white; color: black; padding: 12px; border-radius: 15px;
+            display: none; font-size: 13px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }
-
-        @keyframes rotate { to { transform: rotate(360deg); } }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0px var(--hot); } 50% { box-shadow: 0 0 25px var(--hot); } 100% { box-shadow: 0 0 0px var(--hot); } }
-        .recording { animation: pulse-red 1s infinite !important; }
-
-        /* Nút ẩn/hiện cài đặt */
-        .settings-btn { position: absolute; top: 15px; right: 15px; z-index: 1001; opacity: 0.5; }
     </style>
 </head>
 <body>
 
     <div id="admin-map"></div>
 
-    <div class="hud-top">
-        <div class="glass-card revenue-box">
-            <div class="data-title">TỔNG DOANH THU</div>
-            <div id="total-revenue" class="data-value">Đang tải...</div>
+    <div class="hud-panel">
+        <div class="data-row">
+            <div class="label">DOANH THU HỆ THỐNG</div>
+            <div id="revenue" class="val">0đ</div>
         </div>
-        <div class="glass-card" style="text-align: right;">
-            <div class="data-title">TRỰC TUYẾN</div>
-            <div id="online-count" class="data-value" style="color: #0f0;">0</div>
+        <div class="data-row">
+            <div class="label">THIẾT BỊ ONLINE</div>
+            <div id="online" class="val">0</div>
         </div>
     </div>
 
-    <div class="customer-list glass-card" id="list-container">
-        <div class="data-title" style="margin-bottom: 10px;">LỊCH SỬ GIAO DỊCH</div>
-        <div id="customer-data">Đang quét dữ liệu...</div>
-    </div>
-
-    <div class="settings-btn">
-        <label style="cursor: pointer; font-size: 10px;">[ THAY AVATAR ] <input type="file" id="up-avt" hidden></label>
-    </div>
-
-    <div id="ai-hero">
-        <div class="avatar-frame">
-            <img id="avatar-img" src="https://i.imgur.com/8Qp2e0O.png" alt="AI">
-        </div>
-        <button id="start-voice" class="mic-trigger">🎤</button>
-        
-        <div id="ai-chat" class="ai-bubble">
-            <div id="ai-text" style="font-weight: 600;">Chào Sếp Đạt, em là trợ lý ngọt ngào của anh đây!</div>
-        </div>
+    <div id="ai-assistant">
+        <div id="speech-bubble">Đang nghe đây sếp...</div>
+        <img id="ai-img" class="avatar-circle" src="https://i.imgur.com/8Qp2e0O.png" onclick="triggerUpload()">
+        <button class="mic-btn" id="mic-start">🎤</button>
+        <input type="file" id="ai-upload" hidden accept="image/*">
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Khởi tạo bản đồ chuyên nghiệp
+        // 1. Bản đồ
         let map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // 2. Kéo thả Trợ lý
-        const hero = document.getElementById('ai-hero');
-        let isDrag = false, startPos = [0,0];
-        hero.onmousedown = (e) => { isDrag = true; startPos = [hero.offsetLeft - e.clientX, hero.offsetTop - e.clientY]; };
-        document.onmousemove = (e) => { if(isDrag){ hero.style.left=(e.clientX+startPos[0])+'px'; hero.style.top=(e.clientY+startPos[1])+'px'; } };
-        document.onmouseup = () => isDrag = false;
+        // 2. CƠ CHẾ DI CHUYỂN MỚI (Touch & Mouse)
+        const aiBox = document.getElementById('ai-assistant');
+        let isMoving = false;
+        let startX, startY, currentX = 0, currentY = 0;
 
-        // 3. Tải dữ liệu thật từ API của anh
-        async function fetchData() {
+        const moveStart = (e) => {
+            isMoving = true;
+            const event = e.touches ? e.touches[0] : e;
+            startX = event.clientX - aiBox.offsetLeft;
+            startY = event.clientY - aiBox.offsetTop;
+            aiBox.style.cursor = 'grabbing';
+        };
+
+        const moveProcess = (e) => {
+            if (!isMoving) return;
+            e.preventDefault();
+            const event = e.touches ? e.touches[0] : e;
+            let x = event.clientX - startX;
+            let y = event.clientY - startY;
+            aiBox.style.left = x + 'px';
+            aiBox.style.top = y + 'px';
+            aiBox.style.bottom = 'auto'; // Hủy cố định bottom
+            aiBox.style.right = 'auto';  // Hủy cố định right
+        };
+
+        const moveEnd = () => { isMoving = false; aiBox.style.cursor = 'grab'; };
+
+        aiBox.addEventListener('mousedown', moveStart);
+        document.addEventListener('mousemove', moveProcess);
+        document.addEventListener('mouseup', moveEnd);
+        aiBox.addEventListener('touchstart', moveStart);
+        document.addEventListener('touchmove', moveProcess, {passive: false});
+        document.addEventListener('touchend', moveEnd);
+
+        // 3. THAY ĐỔI AVATAR
+        function triggerUpload() { document.getElementById('ai-upload').click(); }
+        document.getElementById('ai-upload').onchange = function(e) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { document.getElementById('ai-img').src = ev.target.result; };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+
+        // 4. DỮ LIỆU THẬT
+        async function sync() {
             try {
                 const res = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
                 const data = await res.json();
-                
-                // Cập nhật con số
-                document.getElementById('total-revenue').innerText = data.total_revenue.toLocaleString() + "đ";
-                document.getElementById('online-count').innerText = data.customers.length;
-
-                // Cập nhật danh sách
-                const list = document.getElementById('customer-data');
-                list.innerHTML = data.customers.slice(0, 10).map(c => `
-                    <div class="cust-item">
-                        <b>${c.name}</b> <span style="float:right; color:var(--neon)">+${c.amount.toLocaleString()}</span>
-                        <div style="font-size:10px; color:#888">${c.phone} | ${c.date}</div>
-                    </div>
-                `).join('');
-            } catch (err) { console.error("Lỗi dữ liệu"); }
+                document.getElementById('revenue').innerText = data.total_revenue.toLocaleString() + "đ";
+                document.getElementById('online').innerText = data.customers.length;
+            } catch(e) {}
         }
-        setInterval(fetchData, 5000); fetchData();
+        setInterval(sync, 5000); sync();
 
-        // 4. Giọng nữ ngọt ngào & Micro
-        const micBtn = document.getElementById('start-voice');
-        const aiText = document.getElementById('ai-text');
-        const bubble = document.getElementById('ai-chat');
+        // 5. GIỌNG NỮ NGỌT NGÀO & MICRO
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-
         if (Speech) {
             const rec = new Speech();
             rec.lang = 'vi-VN';
+            document.getElementById('mic-start').onclick = () => {
+                rec.start();
+                document.getElementById('speech-bubble').style.display = 'block';
+            };
 
-            micBtn.onclick = () => { rec.start(); micBtn.classList.add('recording'); bubble.style.display = 'block'; };
-
-            rec.onresult = async (e) => {
-                const query = e.results[0][0].transcript;
-                micBtn.classList.remove('recording');
-                aiText.innerText = "Sếp nói: " + query + "...";
-                
-                // Gửi Gemini xử lý
+            rec.onresult = async (event) => {
+                const text = event.results[0][0].transcript;
+                // Gọi Gemini (Key của anh đã tích hợp sẵn)
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý ảo tên Linh, giọng nữ ngọt ngào, lễ phép với sếp Đạt. Trả lời ngắn: " + query}]}]})
+                    body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý ảo Linh, giọng nữ ngọt ngào. Trả lời cực ngắn lệnh sau: " + text}]}]})
                 });
                 const d = await res.json();
                 const reply = d.candidates[0].content.parts[0].text;
                 
-                aiText.innerText = reply;
-                speak(reply);
+                document.getElementById('speech-bubble').innerText = reply;
+                
+                // Phát giọng nữ
+                const msg = new SpeechSynthesisUtterance(reply);
+                msg.lang = 'vi-VN';
+                msg.pitch = 1.3; // Chỉnh giọng nữ trong trẻo
+                window.speechSynthesis.speak(msg);
             };
         }
-
-        function speak(msg) {
-            const utter = new SpeechSynthesisUtterance(msg);
-            utter.lang = 'vi-VN';
-            // Chỉnh giọng nữ ngọt ngào
-            utter.pitch = 1.2; // Cao độ nữ
-            utter.rate = 1.0;  // Tốc độ vừa phải
-            window.speechSynthesis.speak(utter);
-        }
-
-        // Thay Avatar
-        document.getElementById('up-avt').onchange = function(e) {
-            const f = new FileReader();
-            f.onload = (x) => document.getElementById('avatar-img').src = x.target.result;
-            f.readAsDataURL(e.target.files[0]);
-        };
     </script>
 </body>
 </html>
