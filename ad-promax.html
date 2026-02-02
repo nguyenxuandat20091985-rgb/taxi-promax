@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>HỆ THỐNG QUẢN TRỊ - TAXI PROMAX</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #111; color: #fff; display: flex; height: 100vh; }
+        #sidebar { width: 320px; background: #1a1a1a; border-right: 2px solid #333; display: flex; flex-direction: column; padding: 15px; }
+        #admin-map { flex: 1; }
+        .stat-box { background: #252525; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #00bfa5; }
+        .customer-card { background: #333; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 13px; border-bottom: 2px solid #444; }
+        h2 { color: #00bfa5; font-size: 18px; text-transform: uppercase; margin-top: 0; }
+        .btn-refresh { background: #00bfa5; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body style="display:none;" id="main-content"> <div id="sidebar">
+        <h2>☢️ ADMIN CONTROL</h2>
+        <div class="stat-box">
+            <div>Doanh thu: <b id="total-money" style="color:#00bfa5">0đ</b></div>
+            <div>Khách Online: <b id="online-count">0</b></div>
+        </div>
+        <button class="btn-refresh" onclick="fetchData()">LÀM MỚI DỮ LIỆU</button>
+        <div id="customer-list" style="margin-top:20px; overflow-y:auto;">
+            <p style="color:#888;">Đang quét dữ liệu...</p>
+        </div>
+    </div>
+
+    <div id="admin-map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. LỚP BẢO MẬT MẬT KHẨU
+        const PASS_ADMIN = "1985"; // Anh có thể đổi lại mã này
+        const access = prompt("NHẬP MÃ TRUY CẬP ADMIN:");
+        
+        if (access === PASS_ADMIN) {
+            document.getElementById('main-content').style.display = 'flex';
+            initAdmin();
+        } else {
+            alert("Mật khẩu sai!");
+            window.location.href = "index.html"; 
+        }
+
+        let adminMap;
+        let markers = {};
+
+        function initAdmin() {
+            adminMap = L.map('admin-map').setView([21.0285, 105.8542], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap);
+            fetchData();
+            setInterval(fetchData, 10000); // Tự động cập nhật mỗi 10 giây
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
+                const data = await res.json();
+                
+                document.getElementById('total-money').innerText = data.total_revenue + "đ";
+                document.getElementById('online-count').innerText = data.customers.length;
+                
+                const list = document.getElementById('customer-list');
+                list.innerHTML = "";
+                
+                data.customers.forEach(c => {
+                    // Cập nhật danh sách bên trái
+                    const item = document.createElement('div');
+                    item.className = 'customer-card';
+                    item.innerHTML = `<b>ID: ${c.id}</b><br>Gói: ${c.package}<br>Tiền: ${c.amount}đ`;
+                    list.appendChild(item);
+
+                    // Cập nhật bản đồ bên phải
+                    if (markers[c.id]) {
+                        markers[c.id].setLatLng([c.lat, c.lng]);
+                    } else {
+                        markers[c.id] = L.marker([c.lat, c.lng]).addTo(adminMap).bindPopup("Khách: " + c.id);
+                    }
+                });
+            } catch (e) { console.log("Lỗi kết nối Webhook"); }
+        }
+    </script>
+</body>
+</html>
