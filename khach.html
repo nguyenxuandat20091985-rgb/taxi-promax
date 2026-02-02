@@ -36,14 +36,16 @@
             height: 100%; 
             width: 100%;
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; 
-            overflow: hidden; 
-            position: fixed; 
             background: var(--bg); 
+            overflow-x: hidden;
         } 
         
         #map { 
-            height: 100vh; 
-            width: 100vw; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             z-index: 1; 
             filter: contrast(1.05) saturate(1.1); 
         } 
@@ -190,13 +192,14 @@
             top: 0; 
             left: 0; 
             width: 100%; 
-            height: calc(100% - clamp(110px, 30vh, 150px)); 
+            height: 100%; 
             background: #fdfdfd; 
             z-index: 1500; 
             display: none; 
             flex-direction: column; 
             overflow-y: auto; 
-            padding-bottom: clamp(20px, 8vw, 40px);
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
             -webkit-overflow-scrolling: touch;
         }
         
@@ -340,12 +343,12 @@
         /* AI WRAPPER - FIXED POSITIONING */
         #ai-wrapper { 
             position: fixed; 
-            bottom: clamp(140px, 25vh, 180px); 
             right: clamp(12px, 4vw, 20px); 
-            z-index: 999999; 
+            z-index: 1001;
             display: flex; 
             flex-direction: column; 
             align-items: flex-end; 
+            pointer-events: none;
         }
         
         #ai-root { 
@@ -358,6 +361,7 @@
             box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); 
             cursor: pointer; 
             animation: floating 3s infinite ease-in-out; 
+            pointer-events: auto;
         }
         
         @keyframes floating { 
@@ -377,6 +381,7 @@
             overflow: hidden; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
             max-height: 60vh;
+            pointer-events: auto;
         }
         
         .ai-header { 
@@ -478,18 +483,9 @@
             .stat-value {
                 font-size: 20px;
             }
-            
-            #ai-wrapper {
-                bottom: clamp(150px, 28vh, 200px);
-                right: 10px;
-            }
-            
-            #ai-root {
-                width: 65px;
-                height: 65px;
-            }
         }
         
+        /* MEDIA QUERY CHO MÀN HÌNH ≤360px */
         @media (max-width: 360px) {
             .badge {
                 font-size: 9px;
@@ -504,9 +500,17 @@
                 font-size: 16px;
             }
             
-            #ai-root {
-                width: 55px;
-                height: 55px;
+            #ai-root { 
+                width: 50px; 
+                height: 50px;
+                bottom: 16px !important;
+                right: 12px !important;
+            }
+            
+            #ai-chat-box {
+                width: 85vw;
+                max-width: 300px;
+                bottom: 75px !important;
             }
         }
         
@@ -664,11 +668,14 @@
         let isDriving = false;
         let totalDistance = 0;
         let lastPos = null;
+        let lastUpdateTime = null;
         let currentPricePerKm = 15000;
         let wakeLock = null;
         let selectedPackage = null;
         let driverId = null;
-        
+        let gpsWatchId = null;
+        let gpsPositions = [];
+
         // ==================== HÀM KHỞI TẠO ====================
         function initApp() {
             // Tạo ID tài xế ngẫu nhiên
@@ -690,8 +697,8 @@
             // Thiết lập AI
             setupAI();
             
-            // Auto fullscreen
-            setupFullscreen();
+            // Cập nhật vị trí AI button
+            updateAIPosition();
             
             // Hiển thị welcome modal
             setTimeout(() => {
@@ -773,42 +780,80 @@
             }
         }
         
-        // ==================== THEO DÕI VỊ TRÍ ====================
+        // ==================== THEO DÕI VỊ TRÍ (ĐÃ SỬA) ====================
         function startTracking() {
+            // Dừng watcher cũ nếu có
+            if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId);
+                gpsWatchId = null;
+            }
+            
             if ("geolocation" in navigator) {
                 const options = {
                     enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
+                    maximumAge: 2000,
+                    timeout: 10000
                 };
                 
-                navigator.geolocation.watchPosition(
+                gpsWatchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const { latitude, longitude, speed } = position.coords;
                         const nowPos = L.latLng(latitude, longitude);
+                        const nowTime = Date.now();
                         
                         // Cập nhật marker
                         taxiMarker.setLatLng(nowPos);
-                        map.panTo(nowPos);
+                        if (!isDriving) {
+                            map.panTo(nowPos);
+                        }
                         
-                        if (isDriving) {
-                            if (lastPos) {
-                                let distance = nowPos.distanceTo(lastPos) / 1000;
+                        if (isDriving && lastPos) {
+                            const distance = nowPos.distanceTo(lastPos) / 1000; // KM
+                            const timeDiff = lastUpdateTime ? (nowTime - lastUpdateTime) / 1000 : 0; // Giây
+                            
+                            // ĐIỀU KIỆN CHẶN NHẢY ẢO:
+                            // 1. Tốc độ hợp lệ (> 0.5 m/s ≈ 1.8 km/h)
+                            // 2. Khoảng cách hợp lý (> 5m)
+                            // 3. Thời gian đủ lớn (> 1 giây)
+                            const isValidSpeed = speed > 0.5;
+                            const isValidDistance = distance > 0.005;
+                            const isValidTime = timeDiff > 1;
+                            
+                            if (isValidSpeed && isValidDistance && isValidTime) {
+                                totalDistance += distance;
+                                updateUI();
                                 
-                                // CHẶN NHẢY ẢO
-                                if (speed > 0.4 || distance > 0.01) {
-                                    totalDistance += distance;
-                                    updateUI();
+                                // Lưu vị trí để kiểm tra
+                                gpsPositions.push({
+                                    pos: nowPos,
+                                    time: nowTime,
+                                    distance: distance
+                                });
+                                
+                                // Giữ tối đa 10 vị trí gần nhất
+                                if (gpsPositions.length > 10) {
+                                    gpsPositions.shift();
                                 }
+                                
+                                lastUpdateTime = nowTime;
+                                lastPos = nowPos;
+                            } else if (isValidDistance && timeDiff > 5) {
+                                // Nếu đứng yên lâu (>5s) nhưng GPS nhảy, bỏ qua
+                                lastUpdateTime = nowTime;
                             }
+                        } else if (isDriving) {
+                            // Lần đầu tiên bắt đầu chuyến
                             lastPos = nowPos;
+                            lastUpdateTime = nowTime;
                         }
                     },
                     (err) => {
-                        console.log("Mất tín hiệu GPS - Đang chờ kết nối lại...");
+                        console.warn("Lỗi GPS:", err.message);
                     },
                     options
                 );
+            } else {
+                alert("Thiết bị không hỗ trợ GPS");
             }
         }
         
@@ -829,7 +874,7 @@
             }
         }
         
-        // ==================== XỬ LÝ CHUYẾN ĐI ====================
+        // ==================== XỬ LÝ CHUYẾN ĐI (ĐÃ SỬA) ====================
         function handleTrip() {
             // Kiểm tra trial trước
             if (!checkTrialStatus()) {
@@ -839,20 +884,103 @@
             
             const btn = document.getElementById('mainBtn');
             if (!isDriving) {
+                // YÊU CẦU FULLSCREEN KHI BẮT ĐẦU
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                }
+                
                 isDriving = true;
                 totalDistance = 0;
                 lastPos = null;
+                lastUpdateTime = null;
+                gpsPositions = [];
+                
                 btn.textContent = "ĐANG TÍNH CƯỚC - DỪNG";
                 btn.style.background = "var(--danger)";
                 startTracking();
                 requestWakeLock();
             } else {
+                // DỪNG CHUYẾN
                 isDriving = false;
                 btn.textContent = "BẮT ĐẦU CHUYẾN ĐI";
                 btn.style.background = "var(--primary)";
-                if(wakeLock) wakeLock.release();
+                
+                // Dừng GPS watcher
+                if (gpsWatchId !== null) {
+                    navigator.geolocation.clearWatch(gpsWatchId);
+                    gpsWatchId = null;
+                }
+                
+                // Tắt wake lock
+                if (wakeLock) {
+                    wakeLock.release();
+                    wakeLock = null;
+                }
+                
+                // Lưu lịch sử và hiển thị modal
+                saveTripToHistory();
                 showEndModal();
             }
+            
+            // Cập nhật vị trí AI button sau khi thay đổi trạng thái
+            setTimeout(updateAIPosition, 100);
+        }
+        
+        // ==================== LƯU LỊCH SỬ CHUYẾN ĐI ====================
+        function saveTripToHistory() {
+            if (totalDistance <= 0) return;
+            
+            const tripData = {
+                id: Date.now(),
+                date: new Date().toLocaleString('vi-VN'),
+                distance: parseFloat(totalDistance.toFixed(2)),
+                rate: currentPricePerKm,
+                cost: Math.round(totalDistance * currentPricePerKm),
+                timestamp: Date.now()
+            };
+            
+            // Lấy lịch sử hiện tại
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            
+            // Thêm chuyến mới vào đầu
+            history.unshift(tripData);
+            
+            // Giới hạn tối đa 50 chuyến
+            if (history.length > 50) {
+                history = history.slice(0, 50);
+            }
+            
+            // Lưu vào localStorage
+            localStorage.setItem('trip_history', JSON.stringify(history));
+            
+            console.log('Đã lưu chuyến đi:', tripData);
+        }
+        
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            const container = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center; padding:40px 20px; color:#666;">
+                        <div style="font-size:40px;">📊</div>
+                        <p style="margin-top:10px; font-size:14px;">Chưa có lịch sử chuyến đi</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = history.map(trip => `
+                <div class="history-card">
+                    <div>
+                        <div style="font-weight:800; font-size:13px;">${trip.date}</div>
+                        <div style="font-size:11px; color:#666;">
+                            ${trip.distance} km • ${trip.rate.toLocaleString()}đ/km
+                        </div>
+                    </div>
+                    <div class="h-price">${trip.cost.toLocaleString()}đ</div>
+                </div>
+            `).join('');
         }
         
         function showEndModal() {
@@ -861,7 +989,12 @@
             
             document.getElementById('endSummary').innerHTML = `
                 <p>Quãng đường: <b>${distance} KM</b></p>
-                <p>Tổng cước: <b style="color:var(--primary); font-size:clamp(20px, 6vw, 24px);">${cost.toLocaleString()} VNĐ</b></p>
+                <p>Tổng cước: <b style="color:var(--primary); font-size:clamp(20px, 6vw, 24px);">
+                    ${cost.toLocaleString()} VNĐ
+                </b></p>
+                <p style="font-size:12px; color:#666; margin-top:10px;">
+                    Chuyến đi đã được lưu tự động
+                </p>
             `;
             document.getElementById('endModal').style.display = 'flex';
         }
@@ -882,32 +1015,6 @@
             document.getElementById('qrContent').textContent = qrContent;
         }
         
-        // ==================== LỊCH SỬ CHUYẾN ĐI ====================
-        function loadHistory() {
-            const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            const container = document.getElementById('historyList');
-            
-            if (history.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align:center; padding:40px 20px; color:#666;">
-                        <div style="font-size:40px;">📊</div>
-                        <p style="margin-top:10px; font-size:14px;">Chưa có lịch sử chuyến đi</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = history.slice(0, 10).map(trip => `
-                <div class="history-card">
-                    <div>
-                        <div style="font-weight:800; font-size:13px;">${trip.date || 'Chưa có ngày'}</div>
-                        <div style="font-size:11px; color:#666;">${trip.distance || '0'} km • ${(trip.rate || 0).toLocaleString()}đ/km</div>
-                    </div>
-                    <div class="h-price">${(trip.cost || 0).toLocaleString()}đ</div>
-                </div>
-            `).join('');
-        }
-        
         // ==================== HỆ THỐNG AI ====================
         function setupAI() {
             const aiInput = document.getElementById('ai-txt');
@@ -922,6 +1029,7 @@
             if (chatBox.style.display === 'flex') {
                 showAIMessage("Xin chào! Tôi là trợ lý AI của Taxi Promax. Tôi có thể giúp gì cho anh/chị?");
             }
+            updateAIPosition(); // Cập nhật vị trí khi mở/đóng chat
         }
         
         function showAIMessage(message) {
@@ -951,6 +1059,59 @@
             }
         }
         
+        // ==================== TÍNH TOÁN VỊ TRÍ AI BUTTON ====================
+        function updateAIPosition() {
+            const aiWrapper = document.getElementById('ai-wrapper');
+            const aiRoot = document.getElementById('ai-root');
+            const aiChatBox = document.getElementById('ai-chat-box');
+            const footer = document.querySelector('.footer-panel');
+            const mainBtn = document.getElementById('mainBtn');
+            
+            if (!aiWrapper || !footer || !mainBtn) return;
+            
+            // Tính toán vị trí dựa trên footer
+            const footerRect = footer.getBoundingClientRect();
+            const footerTop = footerRect.top;
+            const windowHeight = window.innerHeight;
+            
+            // Đặt AI button cao hơn footer 20px
+            const aiBottom = windowHeight - footerTop + 20;
+            
+            // Kiểm tra không che nút chính
+            const mainBtnRect = mainBtn.getBoundingClientRect();
+            const aiSize = aiRoot.offsetWidth || 70;
+            
+            let aiRight = 20;
+            const minDistanceFromButton = 30;
+            
+            // Tính toán vùng an toàn
+            const aiLeftPosition = window.innerWidth - aiRight - aiSize;
+            const mainBtnRight = mainBtnRect.right;
+            
+            // Nếu che nút chính, di chuyển sang trái hoặc phải
+            if (aiLeftPosition < mainBtnRight + minDistanceFromButton) {
+                // Kiểm tra xem bên trái có đủ chỗ không
+                const spaceOnLeft = mainBtnRect.left - minDistanceFromButton - aiSize;
+                if (spaceOnLeft > 20) {
+                    aiRight = window.innerWidth - mainBtnRect.left + minDistanceFromButton;
+                } else {
+                    // Nếu không đủ chỗ bên trái, đẩy lên cao hơn
+                    aiRight = 20;
+                    aiWrapper.style.bottom = `${aiBottom + 50}px`;
+                }
+            }
+            
+            // Áp dụng vị trí
+            aiWrapper.style.bottom = `${aiBottom}px`;
+            aiWrapper.style.right = `${aiRight}px`;
+            
+            // Đặt vị trí cho chat box
+            if (aiChatBox.style.display === 'flex') {
+                aiChatBox.style.bottom = `${aiBottom + aiSize + 15}px`;
+                aiChatBox.style.right = `${aiRight}px`;
+            }
+        }
+        
         // ==================== CHUYỂN TAB ====================
         function showTab(tabId, el) {
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
@@ -962,6 +1123,9 @@
             }
             
             el.classList.add('active');
+            
+            // Cập nhật vị trí AI button sau khi UI thay đổi
+            setTimeout(updateAIPosition, 100);
         }
         
         // ==================== CẬP NHẬT GIÁ ====================
@@ -970,23 +1134,23 @@
             document.getElementById('rateLabel').textContent = currentPricePerKm.toLocaleString();
         }
         
-        // ==================== FULLSCREEN ====================
-        function setupFullscreen() {
-            document.addEventListener('click', function() {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                }
-            }, { once: true });
-        }
-        
-        // ==================== KHỞI CHẠY ỨNG DỤNG ====================
-        document.addEventListener('DOMContentLoaded', initApp);
-        
-        // ==================== XỬ LÝ RESIZE ====================
+        // ==================== XỬ LÝ RESIZE & LOAD ====================
         window.addEventListener('resize', function() {
             if (map) {
                 map.invalidateSize();
             }
+            updateAIPosition();
+        });
+        
+        window.addEventListener('load', function() {
+            initApp();
+        });
+        
+        // Cập nhật vị trí khi cuộn (cho các trình duyệt có thanh điều hướng ẩn/hiện)
+        let resizeTimer;
+        window.addEventListener('scroll', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(updateAIPosition, 250);
         });
     </script>
 </body>
