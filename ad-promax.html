@@ -3,161 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROMAX COMMANDER v8.5</title>
+    <title>PROMAX COMMAND v9.0</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --neon: #00f2ff; --bg: #00050a; }
-        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        :root { --neon: #00f2ff; --hot: #ff003c; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         
-        /* Bản đồ nền tối, dịu mắt không bị rối */
-        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.3) contrast(1.2) grayscale(0.5); }
+        /* Bản đồ nền tối tối giản - Không rối mắt */
+        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.4) contrast(1.2) saturate(0.5); }
 
-        /* HUD Chỉ số */
-        .hud-top {
-            position: absolute; top: 15px; left: 15px; z-index: 100;
-            background: rgba(0, 10, 20, 0.85); border-left: 4px solid var(--neon);
-            padding: 10px 15px; border-radius: 4px; pointer-events: none;
+        /* Bảng doanh thu nổi bật */
+        .dashboard {
+            position: absolute; top: 20px; left: 20px; z-index: 100;
+            background: rgba(0, 10, 20, 0.9); border: 1px solid var(--neon);
+            padding: 15px; border-radius: 8px; color: white; pointer-events: none;
         }
-        .hud-top b { font-size: 10px; color: var(--neon); text-transform: uppercase; letter-spacing: 1px; }
-        .hud-top div { font-size: 22px; color: white; font-weight: bold; }
+        .dashboard b { font-size: 11px; color: var(--neon); text-transform: uppercase; display: block; }
+        .dashboard span { font-size: 24px; font-weight: 900; display: block; margin-bottom: 10px; }
 
-        /* Trợ lý Linh */
-        #ai-wrap {
+        /* Trợ lý AI - Có lưu trữ vị trí & ảnh */
+        #ai-container {
             position: absolute; z-index: 9999; width: 100px; height: 100px;
             display: flex; flex-direction: column; align-items: center; touch-action: none;
         }
-        #ai-avt {
+        #ai-face {
             width: 80px; height: 80px; border-radius: 50%;
-            border: 2px solid var(--neon); box-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
-            background: #111; object-fit: cover;
+            border: 3px solid var(--neon); box-shadow: 0 0 20px var(--neon);
+            object-fit: cover; background: #000; cursor: pointer;
         }
-        .mic-btn {
+        .btn-mic {
             position: absolute; bottom: 5px; right: 5px;
-            background: #ff003c; border: none; width: 36px; height: 36px;
-            border-radius: 50%; color: white; font-size: 18px; cursor: pointer;
-            box-shadow: 0 0 10px rgba(255, 0, 60, 0.5);
+            background: var(--hot); border: none; width: 38px; height: 38px;
+            border-radius: 50%; color: white; font-size: 20px; cursor: pointer;
+            box-shadow: 0 0 15px var(--hot); z-index: 10001;
         }
-        .mic-active { animation: pulse 0.6s infinite; background: #fff !important; color: #ff003c !important; }
+        .talking { animation: wave 0.8s infinite; background: #fff !important; color: var(--hot) !important; }
 
-        #linh-chat {
+        #linh-speech {
             position: absolute; bottom: 110px; width: 200px;
-            background: white; color: black; padding: 12px; border-radius: 12px;
-            display: none; font-size: 13px; font-weight: bold; box-shadow: 0 10px 30px #000;
+            background: rgba(255,255,255,0.95); color: #000; padding: 12px;
+            border-radius: 15px; display: none; font-size: 14px; font-weight: bold;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.5); border: 2px solid var(--neon);
         }
 
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes wave { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
     <div id="admin-map"></div>
 
-    <div class="hud-top">
-        <b>Doanh Thu</b> <div id="r-val">0đ</div>
-        <b style="margin-top:5px; display:block;">Thiết Bị</b> <div id="o-val">0</div>
+    <div class="dashboard">
+        <b>DOANH THU APP</b> <span id="txt-revenue">0đ</span>
+        <b>THIẾT BỊ ONLINE</b> <span id="txt-online">0</span>
     </div>
 
-    <div id="ai-wrap">
-        <div id="linh-chat">Dạ sếp!</div>
-        <img id="ai-avt" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('pick-img').click()">
-        <button class="mic-btn" id="mic-go">🎤</button>
-        <input type="file" id="pick-img" hidden accept="image/*">
+    <div id="ai-container">
+        <div id="linh-speech">Dạ, em nghe sếp!</div>
+        <img id="ai-face" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('img-input').click()">
+        <button class="btn-mic" id="btn-mic">🎤</button>
+        <input type="file" id="img-input" hidden accept="image/*">
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Khởi tạo bản đồ - View trung tâm hệ thống
-        const map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 12);
+        // 1. Khởi tạo bản đồ chuyên nghiệp (Giao diện Dark Vệ tinh)
+        const map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        const wrap = document.getElementById('ai-wrap');
-        const avt = document.getElementById('ai-avt');
+        const ai = document.getElementById('ai-container');
+        const face = document.getElementById('ai-face');
 
-        // 2. Tải dữ liệu cũ (Ảnh + Vị trí)
-        if(localStorage.getItem('p-x')) {
-            wrap.style.left = localStorage.getItem('p-x')+'px';
-            wrap.style.top = localStorage.getItem('p-y')+'px';
-        } else { wrap.style.bottom = "40px"; wrap.style.right = "20px"; }
-        if(localStorage.getItem('p-img')) avt.src = localStorage.getItem('p-img');
+        // 2. Tự động khôi phục ảnh và vị trí từ bộ nhớ máy
+        if(localStorage.getItem('saved-x')) {
+            ai.style.left = localStorage.getItem('saved-x') + 'px';
+            ai.style.top = localStorage.getItem('saved-y') + 'px';
+        } else { ai.style.bottom = "40px"; ai.style.right = "20px"; }
+        if(localStorage.getItem('saved-img')) face.src = localStorage.getItem('saved-img');
 
-        // 3. Cơ chế kéo thả cực chuẩn cho Mobile
-        let isDrag = false, offset = [0,0];
-        const start = (e) => {
-            isDrag = true;
+        // 3. Kéo thả AI mượt mà (Lưu vị trí ngay khi buông tay)
+        let dragging = false, pos = [0,0];
+        const onStart = (e) => {
+            dragging = true;
             let ev = e.touches ? e.touches[0] : e;
-            offset = [wrap.offsetLeft - ev.clientX, wrap.offsetTop - ev.clientY];
+            pos = [ai.offsetLeft - ev.clientX, ai.offsetTop - ev.clientY];
+            // "Mồi" âm thanh cho trình duyệt ngay khi sếp chạm vào màn hình
+            window.speechSynthesis.getVoices();
         };
-        const move = (e) => {
-            if(!isDrag) return;
+        const onMove = (e) => {
+            if(!dragging) return;
             let ev = e.touches ? e.touches[0] : e;
-            let x = ev.clientX + offset[0]; let y = ev.clientY + offset[1];
-            wrap.style.left = x + 'px'; wrap.style.top = y + 'px';
-            wrap.style.bottom = 'auto'; wrap.style.right = 'auto';
-            localStorage.setItem('p-x', x); localStorage.setItem('p-y', y);
+            let x = ev.clientX + pos[0]; let y = ev.clientY + pos[1];
+            ai.style.left = x + 'px'; ai.style.top = y + 'px';
+            ai.style.bottom = 'auto'; ai.style.right = 'auto';
+            localStorage.setItem('saved-x', x); localStorage.setItem('saved-y', y);
         };
-        const end = () => isDrag = false;
-        wrap.addEventListener('touchstart', start); document.addEventListener('touchmove', move, {passive: false}); document.addEventListener('touchend', end);
-        wrap.addEventListener('mousedown', start); document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', () => dragging = false);
+        ai.addEventListener('touchstart', onStart); document.addEventListener('touchmove', onMove, {passive: false});
+        document.addEventListener('touchend', () => dragging = false);
 
-        // 4. Thay ảnh & Lưu vĩnh viễn
-        document.getElementById('pick-img').onchange = (e) => {
-            const f = e.target.files[0];
+        // 4. Lưu ảnh đại diện vĩnh viễn
+        document.getElementById('img-input').onchange = (e) => {
             const reader = new FileReader();
-            reader.onload = (ev) => { avt.src = ev.target.result; localStorage.setItem('p-img', ev.target.result); };
-            reader.readAsDataURL(f);
+            reader.onload = (v) => { face.src = v.target.result; localStorage.setItem('saved-img', v.target.result); };
+            reader.readAsDataURL(e.target.files[0]);
         };
 
-        // 5. Kết nối API Taxi Promax - Chạy ngầm
-        async function syncData() {
+        // 5. Đồng bộ dữ liệu doanh thu
+        async function updateData() {
             try {
                 const res = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
                 const d = await res.json();
-                document.getElementById('r-val').innerText = d.total_revenue.toLocaleString() + "đ";
-                document.getElementById('o-val').innerText = d.customers.length;
-            } catch(err) { console.log("Lỗi đồng bộ API"); }
+                document.getElementById('txt-revenue').innerText = d.total_revenue.toLocaleString() + "đ";
+                document.getElementById('txt-online').innerText = d.customers.length;
+            } catch(e) {}
         }
-        setInterval(syncData, 5000); syncData();
+        setInterval(updateData, 5000); updateData();
 
-        // 6. Fix lỗi Micro & Kết nối AI (Đa khóa API)
-        const mic = document.getElementById('mic-go');
-        const bubble = document.getElementById('linh-chat');
-        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+        // 6. FIX MICRO & AI (Ép trình duyệt nhận lệnh)
+        const mic = document.getElementById('btn-mic');
+        const bubble = document.getElementById('linh-speech');
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        if (Speech) {
-            const rec = new Speech(); rec.lang = 'vi-VN';
-            mic.onclick = () => { 
-                try { window.speechSynthesis.cancel(); rec.start(); } catch(e) { rec.stop(); }
-                mic.classList.add('mic-active');
-                bubble.innerText = "Linh đang nghe sếp nói...";
+        if (Recognition) {
+            const rec = new Recognition();
+            rec.lang = 'vi-VN';
+            rec.continuous = false;
+
+            mic.onclick = () => {
+                // Buộc trình duyệt mở khóa âm thanh
+                const unlock = new SpeechSynthesisUtterance("");
+                window.speechSynthesis.speak(unlock);
+                
+                window.speechSynthesis.cancel();
+                rec.start();
+                mic.classList.add('talking');
+                bubble.innerText = "Linh đang lắng nghe...";
                 bubble.style.display = 'block';
             };
 
-            rec.onresult = async (e) => {
-                mic.classList.remove('mic-active');
-                const ask = e.results[0][0].transcript;
-                bubble.innerText = "Sếp: " + ask;
+            rec.onresult = async (event) => {
+                mic.classList.remove('talking');
+                const userTalk = event.results[0][0].transcript;
+                bubble.innerText = "Sếp dặn: " + userTalk;
 
-                // THỬ GỌI AI VỚI CƠ CHẾ DỰ PHÒNG
                 try {
-                    const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
+                    const aiApi = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({contents:[{parts:[{text: "Bạn là Linh, trợ lý taxi, trả lời sếp Đạt cực ngắn: " + ask}]}]})
+                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là Linh, trợ lý taxi, giọng nữ ngọt ngào. Trả lời sếp Đạt cực ngắn: " + userTalk}]}]})
                     });
-                    const data = await aiRes.json();
-                    const reply = data.candidates[0].content.parts[0].text;
-                    bubble.innerText = reply;
+                    const data = await aiApi.json();
+                    const linhTraLoi = data.candidates[0].content.parts[0].text;
                     
-                    const speak = new SpeechSynthesisUtterance(reply);
-                    speak.lang = 'vi-VN'; speak.pitch = 1.3;
-                    window.speechSynthesis.speak(speak);
-                } catch(err) {
-                    bubble.innerText = "Lỗi kết nối AI, sếp bấm lại nhé!";
+                    bubble.innerText = linhTraLoi;
+                    speakLinh(linhTraLoi);
+                } catch(e) {
+                    bubble.innerText = "Lỗi mạng rồi sếp ơi!";
                 }
             };
-            rec.onerror = () => mic.classList.remove('mic-active');
-        } else {
-            alert("Trình duyệt này không hỗ trợ Micro sếp ạ!");
+            rec.onerror = () => mic.classList.remove('talking');
+        }
+
+        function speakLinh(txt) {
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(txt);
+            msg.lang = 'vi-VN';
+            msg.pitch = 1.4; // Giọng nữ cao, ngọt
+            msg.rate = 1.0;  // Tốc độ chuẩn
+            window.speechSynthesis.speak(msg);
         }
     </script>
 </body>
