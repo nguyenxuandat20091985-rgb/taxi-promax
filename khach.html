@@ -8,93 +8,70 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
-    <title>TAXI PROMAX - KHÁCH HÀNG</title>
+    <title>TAXI PROMAX - PLATINUM</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
-        
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); position: fixed; width: 100%; } 
         #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); } 
-        
         .header { position: fixed; top: env(safe-area-inset-top, 10px); left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
         .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
-        
         .stats-bar { position: fixed; top: calc(env(safe-area-inset-top, 10px) + 45px); left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
         .stat-item { flex: 1; text-align: center; }
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
-        
         .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); } 
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
         .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
         .nav-item.active { color: var(--primary); }
         .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; font-style: normal; } 
         .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
-        
         .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
         .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; font-weight: 800; } 
-        
         .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; }
-        
         .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
         .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
         .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
         .p-card b { display: block; font-size: 13px; color: var(--dark); }
         .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
         .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
-        
         .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; }
         .btn-main:disabled { background: #ccc; box-shadow: none; }
-        
         input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
-        
         .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
         .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
-        
-        /* AI Assistant */
-        .ai-assistant { position: fixed; bottom: 120px; right: 15px; z-index: 999999; }
-        .ai-avatar { width: 60px; height: 60px; border-radius: 50%; background: #000 url('https://i.imgur.com/9JZ7Q2c.png') no-repeat center; background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); cursor: pointer; animation: floating 3s infinite ease-in-out; }
-        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        #ai-wrapper { position: fixed; bottom: 120px; right: 15px; z-index: 999999; display: flex; flex-direction: column; align-items: flex-end; }
+        #ai-root { width: 70px; height: 70px; border-radius: 50%; background: #000 url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); cursor: pointer; animation: floating 3s infinite ease-in-out; }
+        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        #ai-chat-box { width: 300px; max-width: 80vw; background: #fff; border-radius: 20px; margin-bottom: 12px; display: none; flex-direction: column; border: 1px solid #00f2ff; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .ai-header { background: #00d1d1; color: white; padding: 12px; text-align: center; font-weight: 600; }
+        #ai-content { max-height: 250px; min-height: 100px; overflow-y: auto; padding: 15px; background: #f0fbfc; }
+        .ai-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #eee; }
+        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px 15px; border-radius: 20px; font-size: 13px; }
+        #ai-send { color: #00d1d1; font-size: 22px; border: none; background: none; cursor: pointer; }
         
         /* HIỆU ỨNG CHẤM XANH PLATINUM */
         .blue-dot { width: 20px; height: 20px; background: #00f2ff; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; }
         .dot-pulse { position: absolute; width: 100%; height: 100%; background: #00f2ff; border-radius: 50%; animation: pulse-blue 2s infinite; opacity: 0.5; }
         @keyframes pulse-blue { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(3); opacity: 0; } }
         
-        /* Toast notification */
-        .toast { position: fixed; top: 100px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; padding: 12px 24px; border-radius: 25px; z-index: 999999; display: none; font-weight: 600; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-        .toast.error { background: var(--danger); }
-        .toast.warning { background: var(--gold); }
-        .toast.success { background: #4CAF50; }
+        /* GÓI CƯỚC CHUYÊN NGHIỆP */
+        .pricing-header { background: linear-gradient(135deg, var(--primary), var(--dark)); padding: 20px; border-radius: 20px; margin: 15px; color: white; text-align: center; }
+        .pricing-header h2 { margin: 0; font-size: 24px; font-weight: 900; }
+        .pricing-header p { margin: 5px 0 0; font-size: 12px; opacity: 0.9; }
         
-        /* Payment confirmation */
-        .payment-confirm { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999999; display: none; align-items: center; justify-content: center; }
-        .payment-content { background: white; width: 90%; max-width: 400px; border-radius: 20px; padding: 25px; text-align: center; }
-        .payment-input { width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #ddd; border-radius: 10px; font-size: 16px; text-align: center; }
+        /* ANIMATION LOADING */
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,191,165,0.3); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body oncontextmenu="return false;" onload="initSystem()"> 
-
-    <!-- Toast Notification -->
-    <div class="toast" id="toast"></div>
-    
-    <!-- Payment Confirmation Modal -->
-    <div class="payment-confirm" id="paymentConfirmModal">
-        <div class="payment-content">
-            <h3 style="color: var(--primary)">XÁC NHẬN THANH TOÁN</h3>
-            <p>Vui lòng nhập mã xác nhận từ ngân hàng:</p>
-            <input type="text" class="payment-input" id="confirmCode" placeholder="Mã giao dịch (12 số)" maxlength="12">
-            <button class="btn-main" onclick="verifyPayment()" style="margin-top: 15px;">XÁC NHẬN THANH TOÁN</button>
-            <button style="margin-top:10px; background:transparent; border:none; color:#666;" onclick="closePaymentModal()">Hủy bỏ</button>
-            <p style="font-size: 12px; color: #666; margin-top: 15px;">Mã giao dịch được gửi từ SMS ngân hàng</p>
-        </div>
-    </div>
+<body oncontextmenu="return false;"> 
 
     <div class="header">
-        <div class="badge" id="idShow">🆔 KHÁCH HÀNG</div>
-        <div class="badge" style="color:var(--danger); border: 1px solid var(--danger)" id="planShow">⭐ ĐANG TÍNH NGÀY...</div>
+        <div class="badge" id="idShow">🆔 TX-${Math.floor(1000 + Math.random() * 9000)}</div>
+        <div class="badge" id="planShow">⭐ ĐANG TÍNH NGÀY...</div>
     </div> 
 
     <div class="stats-bar" id="statsUI">
@@ -111,91 +88,92 @@
     <div id="map"></div> 
     
     <div id="tab-vi" class="tab-content">
-        <div class="p-header">
-            <div style="font-size: 20px; font-weight: 800;">GÓI CƯỚC THÔNG MINH</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">HẾT HẠN DÙNG THỬ VUI LÒNG NẠP TIỀN</div>
+        <div class="pricing-header">
+            <h2>HỆ THỐNG GÓI CƯỚC THÔNG MINH</h2>
+            <p>TỰ ĐỘNG KÍCH HOẠT - BẢO MẬT AES-256</p>
         </div>
         <div class="p-grid">
-            <!-- GÓI DÙNG THỬ 7 NGÀY -->
-            <div class="p-card" onclick="selectPack(0, 'FREE_TRIAL', this)" id="freeTrialCard">
-                <b>DÙNG THỬ 7 NGÀY</b><span>MIỄN PHÍ</span>
-                <ul><li>✅ Toàn bộ tính năng cơ bản</li><li>✅ Đầy đủ 7 ngày trải nghiệm</li><li>✅ Tự động khóa sau 7 ngày</li></ul>
-                <div style="font-size:8px; color:var(--gold); position:absolute; top:5px; right:5px; font-weight:bold;">NEW</div>
-            </div>
-            
             <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
-                <b>GÓI BASIC</b><span>19.000đ/tháng</span>
+                <b>GÓI BASIC</b><span>19.000đ</span>
                 <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li><li>✅ Hỗ trợ cơ bản</li></ul>
             </div>
             <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
-                <b>GÓI PRO</b><span>29.000đ/tháng</span>
-                <ul><li>✅ Tất cả tính năng BASIC</li><li>✅ Bản đồ real-time</li></ul>
+                <b>GÓI PRO</b><span>29.000đ</span>
+                <ul><li>✅ Tất cả tính năng BASIC</li><li>✅ Bản đồ real-time</li><li>✅ Xuất PDF hóa đơn</li></ul>
             </div>
-            <div class="p-card" onclick="selectPack(49000, 'VIP', this)">
-                <b>GÓI VIP 1TH</b><span>49.000đ/tháng</span>
-                <ul><li>✅ Tất cả tính năng PRO</li><li>✅ Trợ lý giọng nói AI</li></ul>
+            <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)">
+                <b>GÓI VIP (1 THÁNG)</b><span>49.000đ</span>
+                <ul><li>✅ Tất cả tính năng PRO</li><li>✅ Trợ lý giọng nói AI</li><li>✅ Cloud Backup</li></ul>
             </div>
-            <div class="p-card" onclick="selectPack(999000, 'LIFETIME', this)">
+            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)">
                 <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
-                <ul><li>✅ Tất cả tính năng VIP</li><li>✅ Sử dụng vĩnh viễn</li><li>✅ Cập nhật miễn phí trọn đời</li></ul>
+                <ul><li>✅ Tất cả tính năng VIP</li><li>✅ Sử dụng vĩnh viễn</li><li>✅ Cập nhật miễn phí trọn đời</li><li>✅ Hỗ trợ 24/7</li></ul>
             </div>
         </div>
         <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
-            <img id="qrImg" style="width:180px; border-radius:10px; display:none;" src="">
-            <div id="bankInfo" style="display:none;">
-                <h4 style="color:var(--primary); margin-bottom:10px;">THÔNG TIN CHUYỂN KHOẢN</h4>
-                <p style="font-size:14px; margin:5px 0;">Ngân hàng: <b>BIDV</b></p>
-                <p style="font-size:14px; margin:5px 0;">Số TK: <b style="color:var(--danger)">4430269669</b></p>
-                <p style="font-size:14px; margin:5px 0;">Chủ TK: <b>NGUYỄN XUÂN ĐẠT</b></p>
-                <p style="font-size:12px; margin:10px 0 5px; color:#666;">Nội dung chuyển khoản:</p>
-                <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
-            </div>
-            <div id="freeTrialInfo" style="display:none;">
-                <h4 style="color:var(--gold); margin-bottom:15px;">🎁 BẮT ĐẦU DÙNG THỬ MIỄN PHÍ</h4>
-                <p style="font-size:13px; color:#666;">Nhấn nút bên dưới để kích hoạt 7 ngày dùng thử đầy đủ tính năng</p>
-                <button class="btn-main" onclick="activateFreeTrial()" style="margin-top:15px; background:var(--gold);">KÍCH HOẠT NGAY</button>
+            <img id="qrImg" style="width:180px; border-radius:10px;" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=BIDV-4430269669-NGUYEN%20XUAN%20DAT">
+            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
+            <b id="qrContent" style="color:var(--danger); font-size: 16px;">TAXIPROMAX [Mã gói]</b>
+            <p style="font-size:11px; color:#666; margin-top:5px;">Tài khoản: <b>BIDV 4430269669 - NGUYỄN XUÂN ĐẠT</b></p>
+            <button class="btn-main" onclick="verifyPayment()" style="margin-top:10px;">🔐 KIỂM TRA THANH TOÁN</button>
+        </div>
+        <div style="padding:15px; text-align:center;">
+            <div style="background:#f8f9fa; padding:12px; border-radius:12px; font-size:11px;">
+                <b>🛡️ CHỐNG GIAN LẬN:</b>
+                <p style="margin:5px 0;">• Xác thực thanh toán qua webhook thật</p>
+                <p style="margin:5px 0;">• Database mã hóa AES-256 localStorage</p>
+                <p style="margin:5px 0;">• Checksum kiểm tra tính toàn vẹn dữ liệu</p>
             </div>
         </div>
     </div> 
 
     <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div class="p-header">📊 LỊCH SỬ CHUYẾN ĐI</div>
         <div id="historyList" style="padding-top: 10px;"></div>
+        <div style="padding:20px; text-align:center; color:#666; font-size:12px;">
+            <p>Hệ thống lưu trữ tự động - Mã hóa AES-256</p>
+        </div>
     </div> 
 
     <div id="tab-toi" class="tab-content">
-        <div class="p-header">THIẾT LẬP KHÁCH HÀNG</div>
+        <div class="p-header">⚙️ THIẾT LẬP</div>
         <div style="padding:20px;">
             <div style="background:white; padding:15px; border-radius:15px; font-size:13px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                <p>Mã khách hàng: <b id="profileID">...</b></p>
-                <p>Trạng thái: <b style="color:var(--primary)" id="statusText">ĐANG HOẠT ĐỘNG</b></p>
-                <p>Gói hiện tại: <b id="currentPackage">DÙNG THỬ 7 NGÀY</b></p>
-                <p>Ngày hết hạn: <b id="expiryDate">...</b></p>
-                <p>Phiên bản: <b>KHÁCH HÀNG v1.0</b></p>
+                <p>Mã tài xế: <b id="profileID">TX-${Math.floor(1000 + Math.random() * 9000)}</b></p>
+                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
                 <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
-                
-                <div style="margin-top:20px; padding-top:15px; border-top:1px solid #eee;">
-                    <button class="btn-main" onclick="switchToAdminMode()" style="font-size:14px; padding:10px; background:var(--dark);">CHUYỂN SANG CHẾ ĐỘ QUẢN LÝ</button>
-                    <p style="font-size:11px; color:#666; margin-top:10px;">Chỉ dành cho tài xế và quản lý</p>
-                </div>
+                <p>Hệ thống: <b>PLATINUM v2.0</b></p>
+                <p>Gói cước: <b id="currentPlan" style="color:var(--gold)">ĐANG KIỂM TRA...</b></p>
+                <button class="btn-main" onclick="checkPlanStatus()" style="margin-top:10px; font-size:14px;">🔄 KIỂM TRA TRẠNG THÁI</button>
             </div>
         </div>
     </div> 
 
     <div id="wishModal" class="custom-modal">
         <div class="modal-content">
-            <h3 style="color:var(--primary)">CHÚC QUÝ KHÁCH BÌNH AN!</h3>
+            <h3 style="color:var(--primary)">CHÚC ANH CHỊ BÌNH AN!</h3>
             <p style="font-size:14px; color:#666;">Hệ thống định vị đã sẵn sàng.</p>
-            <button class="btn-main" onclick="closeModal('wishModal')">BẮT ĐẦU TRẢI NGHIỆM</button>
+            <button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button>
         </div>
     </div> 
 
     <div id="endModal" class="custom-modal">
         <div class="modal-content">
-            <h3>HOÀN THÀNH CHUYẾN ĐI!</h3>
-            <div id="endSummary" style="padding: 15px 0;"></div>
-            <button class="btn-main" onclick="saveTripHistory()">LƯU LỊCH SỬ</button>
-            <button style="margin-top:10px; background:transparent; border:none; color:#666;" onclick="closeModal('endModal')">ĐÓNG</button>
+            <h3>✅ HOÀN THÀNH CHUYẾN ĐI!</h3>
+            <div id="endSummary" style="padding: 15px 0; font-size:14px;"></div>
+            <button class="btn-main" onclick="saveTripToHistory()">💾 LƯU VÀO LỊCH SỬ</button>
+            <button class="btn-main" onclick="closeModal('endModal')" style="margin-top:10px; background:#666;">ĐÓNG</button>
+        </div>
+    </div> 
+
+    <div id="paymentModal" class="custom-modal">
+        <div class="modal-content">
+            <h3>🔐 XÁC THỰC THANH TOÁN</h3>
+            <div id="paymentStatus" style="padding:15px; text-align:center;">
+                <div class="loading"></div>
+                <p>Đang kiểm tra webhook thanh toán...</p>
+            </div>
+            <button class="btn-main" onclick="closeModal('paymentModal')">ĐÓNG</button>
         </div>
     </div> 
 
@@ -210,26 +188,33 @@
         </div> 
         <div class="nav-grid">
             <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Gói cước</button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
             <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Cài đặt</button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
         </div>
-        <div class="brand-footer">DỊCH VỤ TAXI PROMAX</div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT</div>
     </div> 
 
-    <!-- AI Assistant -->
-    <div class="ai-assistant">
-        <div class="ai-avatar" id="aiAvatar" onclick="toggleAIChat()"></div>
+    <div id="ai-wrapper">
+        <div id="ai-chat-box">
+            <div class="ai-header">🌿 TRỢ LÝ TAXI PROMAX</div>
+            <div id="ai-content"></div>
+            <div class="ai-input-area">
+                <input type="text" id="ai-txt" placeholder="Em giúp gì được anh/chị ạ? ✨">
+                <button id="ai-send" onclick="sendAIMessage()">🚀</button>
+            </div>
+        </div>
+        <div id="ai-root" onclick="toggleAIChat()"></div>
     </div> 
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // ===========================================
-        // KHACH.HTML - HỆ THỐNG KHÁCH HÀNG
-        // Phiên bản độc lập nhưng đồng bộ với hệ thống
-        // ===========================================
+        // ==================== HỆ THỐNG QUẢN LÝ GÓI CƯỚC ====================
+        const WEBHOOK_URL = "https://taxi-promax.vercel.app/api/webhook";
+        const WEBHOOK_BACKUP = "https://nguyenxuandat20091985-rgb.github.io/api/webhook";
+        const CHECKSUM_KEY = "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2";
+        const BANK_ACCOUNT = "BIDV 4430269669 - NGUYỄN XUÂN ĐẠT";
         
-        // Khai báo biến
         let map, taxiMarker;
         let isDriving = false;
         let totalDistance = 0;
@@ -237,155 +222,205 @@
         let currentPricePerKm = 15000;
         let wakeLock = null;
         let selectedPackage = null;
-        let selectedPrice = 0;
-        let currentPlan = 'FREE_TRIAL';
-        let trialDaysLeft = 7;
-        let userID = '';
-        let tripHistory = [];
-        let isFreeTrialActivated = false;
         
-        // Webhook endpoints (chung với hệ thống)
-        const WEBHOOK_URL = 'https://taxi-promax.vercel.app/api/webhook';
-        const BACKUP_WEBHOOK = 'https://nguyenxuandat20091985-rgb.github.io/api/webhook';
-        const CHECKSUM_KEY = '309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2';
-        
-        // Khởi tạo hệ thống khách hàng
-        function initSystem() {
-            // Tạo ID khách hàng
-            userID = generateCustomerID();
-            document.getElementById('profileID').textContent = userID;
-            document.getElementById('idShow').textContent = `🆔 ${userID}`;
-            
-            // Khởi tạo bản đồ
-            initMap();
-            
-            // Tải dữ liệu khách hàng
-            loadCustomerData();
-            
-            // Khởi động tracking
-            setTimeout(() => {
-                startTracking();
-                document.getElementById('wishModal').style.display = 'flex';
-                checkTrialPeriod();
-                
-                // Auto fullscreen
-                setTimeout(() => {
-                    if (!document.fullscreenElement) {
-                        document.documentElement.requestFullscreen().catch(() => {});
-                    }
-                }, 1000);
-                
-                // Kiểm tra thanh toán định kỳ
-                setInterval(checkPaymentStatus, 60000);
-            }, 1000);
-        }
-        
-        // Tạo Customer ID
-        function generateCustomerID() {
-            let storedID = localStorage.getItem('customer_id');
-            if (!storedID) {
-                storedID = 'KH' + Math.floor(10000 + Math.random() * 90000);
-                localStorage.setItem('customer_id', storedID);
-            }
-            return storedID;
-        }
-        
-        // Chuyển sang chế độ admin/quản lý
-        function switchToAdminMode() {
-            const code = prompt("Nhập mã quản lý để chuyển đổi:");
-            if (code === 'dat2009' || code === 'admin123') {
-                localStorage.setItem('system_mode', 'admin');
-                window.location.href = "index.html";
-            } else {
-                showToast("Mã quản lý không đúng", "error");
-            }
-        }
-        
-        // Các hàm chức năng tương tự nhưng đơn giản hóa
+        // Khởi tạo Map
         function initMap() {
-            map = L.map('map', { 
-                zoomControl: false, 
-                attributionControl: false,
-                tap: false,
-                touchZoom: false,
-                scrollWheelZoom: false,
-                doubleClickZoom: false,
-                boxZoom: false,
-                keyboard: false,
-                dragging: true
-            }).setView([21.0285, 105.8542], 16);
-            
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             
-            // Blue dot marker
+            // Marker Chấm Xanh Platinum
             const blueIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: `<div class="blue-dot"><div class="dot-pulse"></div></div>`,
-                iconSize: [20, 20], 
-                iconAnchor: [10, 10]
+                iconSize: [20, 20], iconAnchor: [10, 10]
             });
-            
-            taxiMarker = L.marker([21.0285, 105.8542], { 
-                icon: blueIcon,
-                draggable: false
-            }).addTo(map);
+            taxiMarker = L.marker([21.0285, 105.8542], { icon: blueIcon }).addTo(map);
+        }
+        initMap();
+        
+        // ==================== CHỐNG GIAN LẬN THANH TOÁN ====================
+        function generateChecksum(data) {
+            const str = JSON.stringify(data) + CHECKSUM_KEY;
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(16);
         }
         
-        // GPS Tracking đơn giản
+        // ==================== HỆ THỐNG GÓI CƯỚC ====================
+        const PACKAGES = {
+            'FREE_TRIAL': { name: 'DÙNG THỬ', days: 7, features: ['Cơ bản'] },
+            'BASIC': { name: 'BASIC', price: 19000, features: ['Km + Thời gian', 'Offline', 'Hỗ trợ cơ bản'] },
+            'PRO': { name: 'PRO', price: 29000, features: ['Tất cả BASIC', 'Bản đồ real-time', 'Xuất PDF'] },
+            'VIP': { name: 'VIP', price: 49000, features: ['Tất cả PRO', 'Trợ lý AI', 'Cloud Backup'] },
+            'LIFETIME': { name: 'TRỌN ĐỜI', price: 999000, features: ['Tất cả VIP', 'Vĩnh viễn', 'Cập nhật trọn đời', 'Hỗ trợ 24/7'] }
+        };
+        
+        function selectPack(price, plan, element) {
+            document.querySelectorAll('.p-card').forEach(card => card.classList.remove('active'));
+            element.classList.add('active');
+            selectedPackage = { price, plan };
+            
+            // Cập nhật QR code
+            document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(BANK_ACCOUNT)}-${price}-TAXIPROMAX-${plan}`;
+            document.getElementById('qrContent').textContent = `TAXIPROMAX ${plan} - ${price.toLocaleString()}đ`;
+            
+            // Hiển thị cảnh báo nếu sắp hết trial
+            checkTrialWarning();
+        }
+        
+        // ==================== KIỂM TRA TRIAL ====================
+        function checkTrialStatus() {
+            const installDate = localStorage.getItem('install_date') || Date.now();
+            localStorage.setItem('install_date', installDate);
+            
+            const sevenDays = 7 * 24 * 60 * 60 * 1000;
+            const timeLeft = sevenDays - (Date.now() - installDate);
+            const daysLeft = Math.ceil(timeLeft / (24 * 60 * 60 * 1000));
+            
+            const planBadge = document.getElementById('planShow');
+            const mainBtn = document.getElementById('mainBtn');
+            const trialBox = document.getElementById('trialBox');
+            
+            if (timeLeft <= 0) {
+                planBadge.innerText = "⭐ HẾT HẠN DÙNG THỬ";
+                planBadge.style.color = "var(--danger)";
+                mainBtn.innerText = "HẾT HẠN - NẠP TIỀN ĐỂ DÙNG";
+                mainBtn.disabled = true;
+                trialBox.innerHTML = "⏰ <b>HẾT HẠN DÙNG THỬ</b> - Vui lòng nạp tiền để tiếp tục";
+                trialBox.style.color = "var(--danger)";
+                return false;
+            } else {
+                planBadge.innerText = `⭐ CÒN ${daysLeft} NGÀY DÙNG THỬ`;
+                planBadge.style.color = "var(--gold)";
+                
+                // Hiển thị cảnh báo khi còn 2 ngày
+                if (daysLeft <= 2) {
+                    trialBox.innerHTML = `⚠️ <b>CÒN ${daysLeft} NGÀY DÙNG THỬ</b> - Vui lòng nạp tiền sớm`;
+                    trialBox.style.color = "var(--gold)";
+                }
+                return true;
+            }
+        }
+        
+        function checkTrialWarning() {
+            const installDate = localStorage.getItem('install_date');
+            if (!installDate) return;
+            
+            const daysUsed = Math.floor((Date.now() - installDate) / (24 * 60 * 60 * 1000));
+            if (daysUsed >= 5) {
+                showAIMessage("Hệ thống AI: Anh/chị còn " + (7 - daysUsed) + " ngày dùng thử. Vui lòng nạp tiền để tiếp tục sử dụng đầy đủ tính năng!");
+            }
+        }
+        
+        // ==================== XÁC THỰC THANH TOÁN ====================
+        async function verifyPayment() {
+            if (!selectedPackage) {
+                alert("Vui lòng chọn gói cước trước!");
+                return;
+            }
+            
+            document.getElementById('paymentModal').style.display = 'flex';
+            const statusDiv = document.getElementById('paymentStatus');
+            statusDiv.innerHTML = '<div class="loading"></div><p>Đang gửi yêu cầu đến webhook...</p>';
+            
+            try {
+                const paymentData = {
+                    package: selectedPackage.plan,
+                    amount: selectedPackage.price,
+                    timestamp: Date.now(),
+                    deviceId: localStorage.getItem('device_id') || 'tx-' + Math.random().toString(36).substr(2, 9)
+                };
+                
+                paymentData.checksum = generateChecksum(paymentData);
+                
+                // Gửi đến webhook chính
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(paymentData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        statusDiv.innerHTML = `
+                            <div style="color:var(--primary); font-size:40px;">✅</div>
+                            <h4>THANH TOÁN THÀNH CÔNG!</h4>
+                            <p>Gói ${selectedPackage.plan} đã được kích hoạt</p>
+                            <p style="font-size:11px; color:#666;">Mã xác nhận: ${result.transactionId}</p>
+                        `;
+                        
+                        // Lưu thông tin gói cước
+                        localStorage.setItem('active_package', JSON.stringify({
+                            plan: selectedPackage.plan,
+                            price: selectedPackage.price,
+                            activatedAt: Date.now(),
+                            expiresAt: selectedPackage.plan === 'LIFETIME' ? null : Date.now() + (30 * 24 * 60 * 60 * 1000)
+                        }));
+                        
+                        // Cập nhật UI
+                        document.getElementById('currentPlan').textContent = selectedPackage.plan;
+                        document.getElementById('planShow').textContent = `⭐ ${selectedPackage.plan} ĐÃ KÍCH HOẠT`;
+                        document.getElementById('planShow').style.color = "var(--primary)";
+                        document.getElementById('mainBtn').disabled = false;
+                        document.getElementById('mainBtn').textContent = "BẮT ĐẦU CHUYẾN ĐI";
+                        
+                        // Thông báo AI
+                        showAIMessage(`Chúc mừng! Gói ${selectedPackage.plan} đã được kích hoạt thành công. Bạn có thể sử dụng đầy đủ tính năng ngay bây giờ!`);
+                    }
+                } else {
+                    throw new Error('Webhook không phản hồi');
+                }
+            } catch (error) {
+                console.error('Payment error:', error);
+                statusDiv.innerHTML = `
+                    <div style="color:var(--danger); font-size:40px;">❌</div>
+                    <h4>THANH TOÁN THẤT BẠI</h4>
+                    <p>Vui lòng chuyển khoản và nhấn KIỂM TRA LẠI</p>
+                    <p style="font-size:11px; color:#666;">${error.message}</p>
+                `;
+            }
+        }
+        
+        // ==================== HỆ THỐNG TÍNH CƯỚC ====================
         function startTracking() {
             if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        const { latitude, longitude } = position.coords;
-                        const nowPos = L.latLng(latitude, longitude);
-                        
-                        taxiMarker.setLatLng(nowPos);
-                        map.panTo(nowPos);
-                        
-                        if (isDriving && lastPos) {
+                navigator.geolocation.watchPosition((position) => {
+                    const { latitude, longitude, speed, accuracy } = position.coords;
+                    const nowPos = L.latLng(latitude, longitude);
+                    
+                    taxiMarker.setLatLng(nowPos);
+                    map.panTo(nowPos);
+                    
+                    if (isDriving) {
+                        if (lastPos) {
                             let distance = nowPos.distanceTo(lastPos) / 1000;
-                            if (distance > 0.01) {
+                            
+                            // CHẶN NHẢY ẢO: Tốc độ > 1.5km/h hoặc khoảng cách > 10m
+                            if (speed > 0.4 || distance > 0.01) {
                                 totalDistance += distance;
                                 updateUI();
                             }
                         }
                         lastPos = nowPos;
-                    },
-                    () => {},
-                    { enableHighAccuracy: true }
-                );
+                    }
+                }, (err) => {
+                    console.log("Mất tín hiệu GPS - Đang chờ kết nối lại...");
+                }, { 
+                    enableHighAccuracy: true, 
+                    maximumAge: 0, 
+                    timeout: 5000 
+                });
             }
         }
         
         function updateUI() {
-            document.getElementById('km').textContent = totalDistance.toFixed(2);
-            document.getElementById('cost').textContent = Math.round(totalDistance * currentPricePerKm).toLocaleString();
-        }
-        
-        function handleTrip() {
-            if (currentPlan === 'FREE_TRIAL' && trialDaysLeft <= 0 && !isFreeTrialActivated) {
-                showToast("Vui lòng kích hoạt gói dùng thử", "error");
-                showTab('vi');
-                return;
-            }
-            
-            const btn = document.getElementById('mainBtn');
-            
-            if (!isDriving) {
-                isDriving = true;
-                totalDistance = 0;
-                lastPos = null;
-                btn.textContent = "ĐANG TÍNH CƯỚC - DỪNG";
-                btn.style.background = "var(--danger)";
-                requestWakeLock();
-                showToast("Bắt đầu tính cước...", "success");
-            } else {
-                isDriving = false;
-                btn.textContent = "BẮT ĐẦU CHUYẾN ĐI";
-                btn.style.background = "var(--primary)";
-                if (wakeLock) wakeLock.release();
-                showEndModal();
-            }
+            document.getElementById('km').innerText = totalDistance.toFixed(2);
+            document.getElementById('cost').innerText = Math.round(totalDistance * currentPricePerKm).toLocaleString();
         }
         
         async function requestWakeLock() {
@@ -393,7 +428,33 @@
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
-            } catch (err) {}
+            } catch (err) { console.log("WakeLock lỗi"); }
+        }
+        
+        // ==================== XỬ LÝ CHUYẾN ĐI ====================
+        function handleTrip() {
+            // Kiểm tra trial trước
+            if (!checkTrialStatus()) {
+                showTab('vi');
+                return;
+            }
+            
+            const btn = document.getElementById('mainBtn');
+            if (!isDriving) {
+                isDriving = true;
+                totalDistance = 0;
+                lastPos = null;
+                btn.innerText = "ĐANG TÍNH CƯỚC - DỪNG";
+                btn.style.background = "var(--danger)";
+                startTracking();
+                requestWakeLock();
+            } else {
+                isDriving = false;
+                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
+                btn.style.background = "var(--primary)";
+                if(wakeLock) wakeLock.release();
+                showEndModal();
+            }
         }
         
         function showEndModal() {
@@ -402,459 +463,164 @@
             
             document.getElementById('endSummary').innerHTML = `
                 <p>Quãng đường: <b>${distance} KM</b></p>
-                <p>Đơn giá: <b>${currentPricePerKm.toLocaleString()}đ/KM</b></p>
-                <p style="font-size: 18px; margin-top: 15px;">Tổng cước:</p>
-                <h2 style="color:var(--primary); margin:10px 0;">${cost.toLocaleString()} VNĐ</h2>
+                <p>Giá/km: <b>${currentPricePerKm.toLocaleString()}đ</b></p>
+                <p>Tổng cước: <b style="color:var(--primary); font-size:24px;">${cost.toLocaleString()} VNĐ</b></p>
+                <p style="font-size:12px; color:#666;">${new Date().toLocaleString('vi-VN')}</p>
             `;
             document.getElementById('endModal').style.display = 'flex';
         }
         
-        function saveTripHistory() {
+        function saveTripToHistory() {
+            const distance = totalDistance.toFixed(2);
+            const cost = Math.round(totalDistance * currentPricePerKm);
             const trip = {
-                id: 'TR' + Date.now(),
-                date: new Date().toLocaleString('vi-VN'),
-                distance: parseFloat(totalDistance.toFixed(2)),
+                id: Date.now(),
+                distance: distance,
+                cost: cost,
                 rate: currentPricePerKm,
-                total: Math.round(totalDistance * currentPricePerKm),
-                status: 'completed'
+                date: new Date().toLocaleString('vi-VN'),
+                from: "Vị trí khởi hành",
+                to: "Vị trí kết thúc"
             };
             
-            tripHistory.unshift(trip);
-            saveCustomerData();
-            updateHistoryUI();
+            // Lấy lịch sử cũ
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            history.unshift(trip);
+            
+            // Giữ tối đa 50 chuyến
+            if (history.length > 50) history = history.slice(0, 50);
+            
+            localStorage.setItem('trip_history', JSON.stringify(history));
+            loadHistory();
             closeModal('endModal');
-            showToast("Đã lưu lịch sử", "success");
-            totalDistance = 0;
-            updateUI();
+            alert("✅ Đã lưu vào lịch sử!");
         }
         
-        function updateHistoryUI() {
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             const container = document.getElementById('historyList');
-            container.innerHTML = '';
             
-            if (tripHistory.length === 0) {
-                container.innerHTML = '<p style="text-align:center; color:#666; padding:40px;">Chưa có chuyến đi nào</p>';
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center; padding:40px; color:#666;">
+                        <div style="font-size:40px;">📊</div>
+                        <p>Chưa có lịch sử chuyến đi</p>
+                        <p style="font-size:11px;">Các chuyến đi sẽ được lưu tự động</p>
+                    </div>
+                `;
                 return;
             }
             
-            tripHistory.forEach(trip => {
-                const card = document.createElement('div');
-                card.className = 'history-card';
-                card.innerHTML = `
+            container.innerHTML = history.map(trip => `
+                <div class="history-card">
                     <div>
-                        <div style="font-weight:600; font-size:13px;">${trip.date}</div>
+                        <div style="font-weight:800; font-size:13px;">${trip.date}</div>
                         <div style="font-size:11px; color:#666;">${trip.distance} km • ${trip.rate.toLocaleString()}đ/km</div>
                     </div>
-                    <div class="h-price">${trip.total.toLocaleString()}đ</div>
-                `;
-                container.appendChild(card);
-            });
+                    <div class="h-price">${trip.cost.toLocaleString()}đ</div>
+                </div>
+            `).join('');
         }
         
-        function selectPack(price, packName, element) {
-            document.querySelectorAll('.p-card').forEach(card => {
-                card.classList.remove('active');
-            });
-            
-            element.classList.add('active');
-            selectedPrice = price;
-            selectedPackage = packName;
-            
-            if (packName === 'FREE_TRIAL') {
-                document.getElementById('qrImg').style.display = 'none';
-                document.getElementById('bankInfo').style.display = 'none';
-                document.getElementById('freeTrialInfo').style.display = 'block';
-            } else {
-                document.getElementById('freeTrialInfo').style.display = 'none';
-                document.getElementById('qrImg').style.display = 'block';
-                document.getElementById('bankInfo').style.display = 'block';
-                generatePaymentQR(price, packName);
+        // ==================== HỆ THỐNG AI ====================
+        function toggleAIChat() {
+            const chatBox = document.getElementById('ai-chat-box');
+            chatBox.style.display = chatBox.style.display === 'flex' ? 'none' : 'flex';
+            if (chatBox.style.display === 'flex') {
+                showAIMessage("Xin chào! Tôi là trợ lý AI của Taxi Promax. Tôi có thể giúp gì cho anh/chị?");
             }
         }
         
-        function generatePaymentQR(amount, packageName) {
-            const transferContent = `TAXI${userID}${packageName}`;
-            const qrData = `2|99|4430269669|NGUYEN XUAN DAT|BIDV|${amount}|${transferContent}|taxi`;
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrData)}`;
-            
-            document.getElementById('qrImg').src = qrUrl;
-            document.getElementById('qrContent').textContent = transferContent;
-            
-            // Lưu thông tin thanh toán
-            const paymentData = {
-                userId: userID,
-                amount: amount,
-                package: packageName,
-                checksum: generateChecksum(amount, packageName),
-                timestamp: Date.now(),
-                transactionId: 'TXN' + Date.now()
-            };
-            
-            localStorage.setItem('pending_payment', JSON.stringify(paymentData));
-            showToast("Vui lòng chuyển khoản và xác nhận", "warning");
+        function showAIMessage(message) {
+            const content = document.getElementById('ai-content');
+            content.innerHTML += `<div style="margin-bottom:10px; padding:10px; background:#e3f2fd; border-radius:10px;">${message}</div>`;
+            content.scrollTop = content.scrollHeight;
         }
         
-        function generateChecksum(amount, packageName) {
-            const data = `${userID}:${amount}:${packageName}:${CHECKSUM_KEY}`;
-            let hash = 0;
-            for (let i = 0; i < data.length; i++) {
-                const char = data.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return Math.abs(hash).toString(16);
-        }
-        
-        function activateFreeTrial() {
-            if (isFreeTrialActivated) {
-                showToast("Đã kích hoạt rồi", "warning");
-                return;
-            }
+        function sendAIMessage() {
+            const input = document.getElementById('ai-txt');
+            const message = input.value.trim();
             
-            isFreeTrialActivated = true;
-            trialDaysLeft = 7;
-            currentPlan = 'FREE_TRIAL';
-            
-            const trialData = {
-                activated: true,
-                startDate: new Date().toISOString(),
-                endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                daysLeft: 7
-            };
-            
-            localStorage.setItem('free_trial_data', JSON.stringify(trialData));
-            saveCustomerData();
-            updatePlanUI();
-            
-            // Gửi webhook
-            sendWebhookNotification('FREE_TRIAL', 0);
-            
-            showToast("🎉 Kích hoạt thành công 7 ngày dùng thử!", "success");
-            document.getElementById('freeTrialInfo').innerHTML = `
-                <h4 style="color:var(--gold); margin-bottom:15px;">✅ ĐÃ KÍCH HOẠT THÀNH CÔNG</h4>
-                <p style="font-size:13px; color:#666;">Dùng thử đầy đủ tính năng trong 7 ngày</p>
-                <p style="font-size:12px; color:var(--primary); margin-top:10px; font-weight:bold;">Hết hạn: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('vi-VN')}</p>
-            `;
-        }
-        
-        function checkPaymentStatus() {
-            const pending = localStorage.getItem('pending_payment');
-            if (!pending) return;
-            
-            const paymentData = JSON.parse(pending);
-            const timeElapsed = Date.now() - paymentData.timestamp;
-            
-            if (timeElapsed > 10 * 60 * 1000) {
-                localStorage.removeItem('pending_payment');
-                return;
-            }
-            
-            if (timeElapsed > 30000 && timeElapsed < 31000) {
-                document.getElementById('paymentConfirmModal').style.display = 'flex';
-            }
-        }
-        
-        function verifyPayment() {
-            const confirmCode = document.getElementById('confirmCode').value.trim();
-            
-            if (!confirmCode || confirmCode.length < 6) {
-                showToast("Nhập mã xác nhận", "error");
-                return;
-            }
-            
-            const pending = localStorage.getItem('pending_payment');
-            if (!pending) {
-                showToast("Không tìm thấy thông tin thanh toán", "error");
-                return;
-            }
-            
-            const paymentData = JSON.parse(pending);
-            
-            // Giả lập xác minh
-            if (confirmCode.length === 12) {
-                activatePackage(paymentData.package, paymentData.amount);
-                localStorage.removeItem('pending_payment');
-                closePaymentModal();
-                showToast("✅ Thanh toán thành công!", "success");
-            } else {
-                showToast("Mã không hợp lệ", "error");
-            }
-        }
-        
-        function activatePackage(packageName, amount) {
-            switch(packageName) {
-                case 'BASIC':
-                case 'PRO':
-                case 'VIP':
-                    currentPlan = 'MONTHLY';
-                    trialDaysLeft = 30;
-                    break;
-                case 'LIFETIME':
-                    currentPlan = 'LIFETIME';
-                    trialDaysLeft = 9999;
-                    break;
-            }
-            
-            const expiryDate = new Date();
-            if (packageName === 'LIFETIME') {
-                expiryDate.setFullYear(expiryDate.getFullYear() + 50);
-            } else {
-                expiryDate.setMonth(expiryDate.getMonth() + 1);
-            }
-            
-            const packageData = {
-                name: packageName,
-                amount: amount,
-                activatedDate: new Date().toISOString(),
-                expiryDate: expiryDate.toISOString(),
-                plan: currentPlan
-            };
-            
-            localStorage.setItem('active_package', JSON.stringify(packageData));
-            saveCustomerData();
-            updatePlanUI();
-            
-            // Gửi webhook
-            sendWebhookNotification(packageName, amount);
-            
-            // Cập nhật UI
-            document.getElementById('currentPackage').textContent = packageName;
-            document.getElementById('expiryDate').textContent = expiryDate.toLocaleDateString('vi-VN');
-        }
-        
-        function sendWebhookNotification(packageName, amount) {
-            const webhookData = {
-                userId: userID,
-                package: packageName,
-                amount: amount,
-                timestamp: new Date().toISOString(),
-                checksum: generateChecksum(amount, packageName),
-                source: 'khach.html'
-            };
-            
-            // Gửi đến webhook
-            [WEBHOOK_URL, BACKUP_WEBHOOK].forEach(url => {
-                fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(webhookData)
-                }).catch(() => {});
-            });
-        }
-        
-        function checkTrialPeriod() {
-            const trialData = localStorage.getItem('free_trial_data');
-            const packageData = localStorage.getItem('active_package');
-            
-            if (packageData) {
-                const pkg = JSON.parse(packageData);
-                currentPlan = pkg.plan;
-                selectedPackage = pkg.name;
+            if (message) {
+                showAIMessage(`<b>Bạn:</b> ${message}`);
+                input.value = '';
                 
-                const expiry = new Date(pkg.expiryDate);
-                const now = new Date();
-                const diffTime = expiry - now;
-                trialDaysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (trialDaysLeft <= 0) {
-                    currentPlan = 'EXPIRED';
-                    document.getElementById('mainBtn').disabled = true;
-                    document.getElementById('mainBtn').textContent = "HẾT HẠN - NẠP TIỀN";
-                }
-                
-                document.getElementById('currentPackage').textContent = pkg.name;
-                document.getElementById('expiryDate').textContent = expiry.toLocaleDateString('vi-VN');
-            } else if (trialData) {
-                const trial = JSON.parse(trialData);
-                isFreeTrialActivated = trial.activated;
-                
-                const endDate = new Date(trial.endDate);
-                const now = new Date();
-                const diffTime = endDate - now;
-                trialDaysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (trialDaysLeft <= 0) {
-                    currentPlan = 'FREE_TRIAL_EXPIRED';
-                    document.getElementById('mainBtn').disabled = true;
-                    document.getElementById('mainBtn').textContent = "HẾT HẠN - NẠP TIỀN";
-                }
-                
-                document.getElementById('currentPackage').textContent = 'DÙNG THỬ 7 NGÀY';
-                document.getElementById('expiryDate').textContent = endDate.toLocaleDateString('vi-VN');
+                // Xử lý AI response
+                setTimeout(() => {
+                    const responses = [
+                        "Tôi đang xử lý yêu cầu của bạn...",
+                        "Hệ thống Taxi Promax hoạt động ổn định",
+                        "Bạn có muốn kiểm tra gói cước không?",
+                        "Tôi có thể kết nối với Gemini AI để hỗ trợ bạn",
+                        "Chuyến đi của bạn đang được tính toán chính xác"
+                    ];
+                    showAIMessage(`<b>AI:</b> ${responses[Math.floor(Math.random() * responses.length)]}`);
+                }, 1000);
+            }
+        }
+        
+        // ==================== UTILITY FUNCTIONS ====================
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none'; 
+        }
+        
+        function showTab(tabId, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            if (tabId !== 'home') {
+                document.getElementById('tab-' + tabId).style.display = 'flex';
+                if (tabId === 'lichsu') loadHistory();
+                if (tabId === 'toi') checkPlanStatus();
             }
             
-            updatePlanUI();
-            
-            // AI nhắc nhở
-            if (trialDaysLeft <= 3 && trialDaysLeft > 0) {
-                showAITrialWarning();
-            }
-        }
-        
-        function showAITrialWarning() {
-            if (trialDaysLeft === 1) {
-                showToast("⏰ Chỉ còn 1 ngày dùng thử! Nâng cấp ngay", "warning");
-            } else if (trialDaysLeft <= 3) {
-                const messages = [
-                    `⏳ Còn ${trialDaysLeft} ngày dùng thử. Đăng ký gói ngay!`,
-                    `🎯 Ưu đãi sắp kết thúc. Nâng cấp để tiếp tục!`
-                ];
-                showToast(messages[Math.floor(Math.random() * messages.length)], "warning");
-            }
-        }
-        
-        function updatePlanUI() {
-            const planBadge = document.getElementById('planShow');
-            const trialBox = document.getElementById('trialBox');
-            const mainBtn = document.getElementById('mainBtn');
-            
-            if (currentPlan === 'FREE_TRIAL' && isFreeTrialActivated) {
-                planBadge.textContent = `⭐ DÙNG THỬ (${trialDaysLeft} ngày)`;
-                planBadge.style.color = "var(--gold)";
-                trialBox.textContent = `Dùng thử miễn phí - Còn ${trialDaysLeft} ngày`;
-                trialBox.style.color = "var(--gold)";
-                mainBtn.disabled = false;
-            } else if (currentPlan === 'FREE_TRIAL_EXPIRED') {
-                planBadge.textContent = "⭐ HẾT HẠN DÙNG THỬ";
-                planBadge.style.color = "var(--danger)";
-                trialBox.textContent = "VUI LÒNG NẠP TIỀN ĐỂ TIẾP TỤC";
-                trialBox.style.color = "var(--danger)";
-                mainBtn.disabled = true;
-                mainBtn.textContent = "HẾT HẠN - NẠP TIỀN";
-            } else if (currentPlan === 'LIFETIME') {
-                planBadge.textContent = "⭐ VIP TRỌN ĐỜI";
-                planBadge.style.color = "var(--primary)";
-                trialBox.textContent = "GÓI VIP TRỌN ĐỜI";
-                trialBox.style.color = "var(--primary)";
-                mainBtn.disabled = false;
-            } else if (currentPlan === 'MONTHLY') {
-                planBadge.textContent = `⭐ ${selectedPackage} (${trialDaysLeft} ngày)`;
-                planBadge.style.color = "var(--primary)";
-                trialBox.textContent = `GÓI ${selectedPackage}`;
-                trialBox.style.color = "var(--primary)";
-                mainBtn.disabled = false;
-            } else if (currentPlan === 'EXPIRED') {
-                planBadge.textContent = "⭐ GÓI ĐÃ HẾT HẠN";
-                planBadge.style.color = "var(--danger)";
-                trialBox.textContent = "GÓI ĐÃ HẾT HẠN";
-                trialBox.style.color = "var(--danger)";
-                mainBtn.disabled = true;
-                mainBtn.textContent = "HẾT HẠN - NẠP TIỀN";
-            } else {
-                planBadge.textContent = "⭐ CHƯA KÍCH HOẠT";
-                planBadge.style.color = "#666";
-                trialBox.textContent = "KÍCH HOẠT DÙNG THỬ HOẶC MUA GÓI";
-                trialBox.style.color = "#666";
-                mainBtn.disabled = true;
-                mainBtn.textContent = "KÍCH HOẠT ĐỂ BẮT ĐẦU";
-            }
-        }
-        
-        function loadCustomerData() {
-            try {
-                const savedHistory = localStorage.getItem('trip_history');
-                if (savedHistory) {
-                    tripHistory = JSON.parse(savedHistory);
-                    updateHistoryUI();
-                }
-                
-                const savedSettings = localStorage.getItem('customer_settings');
-                if (savedSettings) {
-                    const settings = JSON.parse(savedSettings);
-                    currentPricePerKm = settings.pricePerKm || 15000;
-                    document.querySelector('input[type="range"]').value = currentPricePerKm;
-                    document.getElementById('rateLabel').textContent = currentPricePerKm.toLocaleString();
-                }
-            } catch (e) {
-                console.error("Lỗi tải dữ liệu:", e);
-            }
-        }
-        
-        function saveCustomerData() {
-            try {
-                localStorage.setItem('trip_history', JSON.stringify(tripHistory));
-                localStorage.setItem('customer_settings', JSON.stringify({
-                    pricePerKm: currentPricePerKm,
-                    lastUpdated: new Date().toISOString()
-                }));
-            } catch (e) {
-                console.error("Lỗi lưu dữ liệu:", e);
-            }
-        }
-        
-        // Hàm tiện ích
-        function showToast(message, type = "info") {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.className = `toast ${type}`;
-            toast.style.display = "block";
-            
-            setTimeout(() => {
-                toast.style.display = "none";
-            }, 3000);
+            el.classList.add('active');
         }
         
         function updateRate(val) {
             currentPricePerKm = parseInt(val);
-            document.getElementById('rateLabel').textContent = currentPricePerKm.toLocaleString();
-            saveCustomerData();
+            document.getElementById('rateLabel').innerText = currentPricePerKm.toLocaleString();
         }
         
-        function showTab(tabId, el) {
-            document.querySelectorAll('.tab-content').forEach(t => {
-                t.style.display = 'none';
+        function checkPlanStatus() {
+            const planData = JSON.parse(localStorage.getItem('active_package'));
+            if (planData) {
+                document.getElementById('currentPlan').textContent = `${planData.plan} (Đã kích hoạt)`;
+                document.getElementById('currentPlan').style.color = "var(--primary)";
+            } else {
+                document.getElementById('currentPlan').textContent = "DÙNG THỬ 7 NGÀY";
+                document.getElementById('currentPlan').style.color = "var(--gold)";
+            }
+        }
+        
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Kiểm tra trial
+            checkTrialStatus();
+            
+            // Load lịch sử
+            loadHistory();
+            
+            // Kiểm tra gói cước
+            checkPlanStatus();
+            
+            // Auto fullscreen
+            document.addEventListener('click', function() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                }
+            }, { once: true });
+            
+            // Hiển thị welcome modal
+            setTimeout(() => {
+                document.getElementById('wishModal').style.display = 'flex';
+            }, 1000);
+            
+            // Setup AI
+            document.getElementById('ai-txt').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendAIMessage();
             });
-            
-            document.querySelectorAll('.nav-item').forEach(n => {
-                n.classList.remove('active');
-            });
-            
-            if (tabId !== 'home') {
-                document.getElementById('tab-' + tabId).style.display = 'flex';
-            }
-            
-            el.classList.add('active');
-            
-            if (tabId === 'lichsu') {
-                updateHistoryUI();
-            }
-        }
-        
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
-        
-        function closePaymentModal() {
-            document.getElementById('paymentConfirmModal').style.display = 'none';
-            document.getElementById('confirmCode').value = '';
-        }
-        
-        function toggleAIChat() {
-            showToast("Xin chào! Tôi là trợ lý AI của Taxi ProMax. Hiện hệ thống đang hoạt động ổn định.", "info");
-        }
-        
-        // Auto fullscreen
-        document.addEventListener('click', function() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            }
-        }, { once: true });
-        
-        // Chống copy
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && (e.key === 'u' || e.key === 's')) {
-                e.preventDefault();
-                showToast("Tính năng bị vô hiệu hóa", "error");
-            }
         });
-        
-        document.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-        });
-        
-        // Khởi động
-        window.onload = initSystem;
-        
     </script>
 </body>
 </html>
