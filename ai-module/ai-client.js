@@ -1,279 +1,405 @@
-// AI CLIENT MODULE
-// Module xử lý AI độc lập
-
+// AI Client for Taxi Promax - Gemini & ChatGPT Integration
 class AIClient {
-    constructor(config) {
-        this.config = config || window.AI_CONFIG;
-        this.isInitialized = false;
-        this.messageHistory = [];
+    constructor() {
+        this.config = window.AIConfig || {};
+        this.conversationHistory = [];
+        this.isSpeaking = false;
+        this.speechSynthesis = window.speechSynthesis;
+        this.initialize();
     }
     
-    // Khởi tạo AI Client
     initialize() {
-        console.log("🔄 Đang khởi tạo AI Client...");
-        
-        // Tải lịch sử tin nhắn
-        this.loadMessageHistory();
-        
-        // Kết nối với Gemini AI
-        this.connectToGemini();
-        
-        this.isInitialized = true;
-        console.log("✅ AI Client đã sẵn sàng");
-        
-        return this;
+        this.loadConversationHistory();
+        this.setupEventListeners();
+        console.log("AI Client initialized");
     }
     
-    // Kết nối với Gemini AI
-    connectToGemini() {
-        const apiKey = this.config.GEMINI_API_KEY;
-        
-        if (!apiKey || apiKey.length < 30) {
-            console.warn("⚠️ Gemini API Key không hợp lệ. Sử dụng AI cục bộ.");
+    // ==================== GEMINI AI INTEGRATION ====================
+    async queryGemini(prompt, context = "DRIVER_ASSISTANT") {
+        try {
+            if (!this.config.GEMINI_API_KEY) {
+                throw new Error("Gemini API Key not configured");
+            }
+            
+            const systemPrompt = this.config.SYSTEM_PROMPTS[context] || this.config.SYSTEM_PROMPTS.DRIVER_ASSISTANT;
+            
+            const response = await fetch(`${this.config.GEMINI_API_URL}?key=${this.config.GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: `${systemPrompt}\n\nUser: ${prompt}\n\nAssistant:`
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 500
+                    }
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Gemini API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Xin lỗi, tôi không thể phản hồi ngay lúc này.";
+            
+            // Save to history
+            this.saveToHistory(prompt, aiResponse, context);
+            
+            return {
+                success: true,
+                response: aiResponse,
+                source: 'gemini'
+            };
+        } catch (error) {
+            console.error("Gemini query error:", error);
+            return {
+                success: false,
+                error: error.message,
+                response: "Hệ thống AI tạm thời gián đoạn. Vui lòng thử lại sau."
+            };
+        }
+    }
+    
+    // ==================== VOICE SYNTHESIS ====================
+    speak(text) {
+        if (!this.config.VOICE_SETTINGS.enabled || this.isSpeaking) {
             return false;
         }
         
-        console.log("🔗 Đang kết nối với Gemini AI...");
+        return new Promise((resolve) => {
+            this.isSpeaking = true;
+            
+            // Cancel any ongoing speech
+            this.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = this.config.VOICE_SETTINGS.language;
+            utterance.rate = this.config.VOICE_SETTINGS.rate;
+            utterance.pitch = this.config.VOICE_SETTINGS.pitch;
+            utterance.volume = this.config.VOICE_SETTINGS.volume;
+            
+            utterance.onend = () => {
+                this.isSpeaking = false;
+                resolve(true);
+            };
+            
+            utterance.onerror = (error) => {
+                console.error("Speech synthesis error:", error);
+                this.isSpeaking = false;
+                resolve(false);
+            };
+            
+            this.speechSynthesis.speak(utterance);
+        });
+    }
+    
+    stopSpeaking() {
+        this.speechSynthesis.cancel();
+        this.isSpeaking = false;
+    }
+    
+    // ==================== CONVERSATION MANAGEMENT ====================
+    saveToHistory(userMessage, aiResponse, context) {
+        const conversation = {
+            timestamp: Date.now(),
+            context: context,
+            user: userMessage,
+            ai: aiResponse
+        };
         
-        // Lưu trạng thái kết nối
-        localStorage.setItem('ai_connection_status', 'connecting');
+        this.conversationHistory.unshift(conversation);
         
-        // Giả lập kết nối thành công
-        setTimeout(() => {
-            localStorage.setItem('ai_connection_status', 'connected');
-            console.log("✅ Đã kết nối với Gemini AI");
-        }, 1000);
+        // Keep only last 50 conversations
+        if (this.conversationHistory.length > 50) {
+            this.conversationHistory = this.conversationHistory.slice(0, 50);
+        }
         
+        // Save to localStorage
+        this.saveConversationHistory();
+        
+        return conversation;
+    }
+    
+    getConversationHistory(limit = 10) {
+        return this.conversationHistory.slice(0, limit);
+    }
+    
+    clearConversationHistory() {
+        this.conversationHistory = [];
+        localStorage.removeItem('ai_conversation_history');
         return true;
     }
     
-    // Gửi tin nhắn đến AI
-    async sendMessage(message) {
-        if (!this.isInitialized) {
-            this.initialize();
-        }
-        
-        // Thêm vào lịch sử
-        this.addToHistory('user', message);
-        
-        // Xử lý tin nhắn
-        const response = await this.processMessage(message);
-        
-        // Thêm phản hồi vào lịch sử
-        this.addToHistory('ai', response);
-        
-        // Lưu lịch sử
-        this.saveMessageHistory();
-        
-        return response;
-    }
-    
-    // Xử lý tin nhắn
-    async processMessage(message) {
-        const lowerMsg = message.toLowerCase();
-        
-        // Kiểm tra kết nối Gemini
-        const connectionStatus = localStorage.getItem('ai_connection_status');
-        
-        if (connectionStatus === 'connected') {
-            // Nếu có kết nối, sử dụng AI thông minh
-            return await this.processWithGemini(message);
-        } else {
-            // Sử dụng AI cục bộ
-            return this.processLocally(message);
-        }
-    }
-    
-    // Xử lý với Gemini AI
-    async processWithGemini(message) {
+    loadConversationHistory() {
         try {
-            // Giả lập gọi API Gemini
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Trong thực tế sẽ gọi API thật
-            // const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
-            //     method: 'POST',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //         'x-goog-api-key': this.config.GEMINI_API_KEY
-            //     },
-            //     body: JSON.stringify({
-            //         contents: [{
-            //             parts: [{
-            //                 text: message
-            //             }]
-            //         }]
-            //     })
-            // });
-            
-            // Tạm thời sử dụng AI cục bộ
-            return this.processLocally(message);
-            
+            const saved = localStorage.getItem('ai_conversation_history');
+            if (saved) {
+                this.conversationHistory = JSON.parse(saved);
+            }
         } catch (error) {
-            console.error("Lỗi kết nối Gemini:", error);
-            return this.processLocally(message);
+            console.error("Error loading conversation history:", error);
+            this.conversationHistory = [];
         }
     }
     
-    // Xử lý cục bộ
-    processLocally(message) {
-        const lowerMsg = message.toLowerCase();
-        const templates = this.config.RESPONSE_TEMPLATES;
-        
-        if (lowerMsg.includes('chào') || lowerMsg.includes('hello') || lowerMsg.includes('hi')) {
-            return templates.GREETING;
-        } else if (lowerMsg.includes('giá') || lowerMsg.includes('cước') || lowerMsg.includes('tiền')) {
-            // Lấy giá hiện tại từ localStorage
-            const currentPrice = localStorage.getItem('current_price') || '15,000';
-            return templates.PRICE_INFO.replace('{price}', currentPrice);
-        } else if (lowerMsg.includes('gói') || lowerMsg.includes('nâng cấp') || lowerMsg.includes('cước')) {
-            return templates.PACKAGE_INFO;
-        } else if (lowerMsg.includes('lịch sử') || lowerMsg.includes('chuyến đi')) {
-            return templates.HISTORY_INFO;
-        } else if (lowerMsg.includes('hỗ trợ') || lowerMsg.includes('giúp đỡ') || lowerMsg.includes('liên hệ')) {
-            return templates.SUPPORT_INFO;
-        } else if (lowerMsg.includes('cảm ơn') || lowerMsg.includes('thanks')) {
-            return templates.THANKS;
-        } else if (lowerMsg.includes('trial') || lowerMsg.includes('dùng thử') || lowerMsg.includes('hết hạn')) {
-            // Kiểm tra ngày dùng thử
-            const trialData = localStorage.getItem('free_trial_data');
-            if (trialData) {
-                const trial = JSON.parse(trialData);
-                const endDate = new Date(trial.endDate);
-                const now = new Date();
-                const diffTime = endDate - now;
-                const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (daysLeft <= this.config.REMINDER_DAYS_BEFORE) {
-                    return templates.TRIAL_WARNING.replace('{days}', daysLeft);
-                }
+    saveConversationHistory() {
+        try {
+            localStorage.setItem('ai_conversation_history', JSON.stringify(this.conversationHistory));
+        } catch (error) {
+            console.error("Error saving conversation history:", error);
+        }
+    }
+    
+    // ==================== PAYMENT VERIFICATION ====================
+    async verifyPayment(transactionData) {
+        try {
+            if (!this.config.SECURITY.checksumEnabled) {
+                return { success: true, message: "Checksum validation disabled" };
             }
-            return templates.DEFAULT;
+            
+            // Generate checksum
+            const checksum = this.generateChecksum(transactionData);
+            
+            if (checksum !== transactionData.checksum) {
+                return { 
+                    success: false, 
+                    error: "Checksum validation failed",
+                    message: "Giao dịch không hợp lệ. Vui lòng thử lại."
+                };
+            }
+            
+            // Simulate webhook verification
+            const verificationResult = await this.simulateWebhookVerification(transactionData);
+            
+            return verificationResult;
+        } catch (error) {
+            console.error("Payment verification error:", error);
+            return {
+                success: false,
+                error: error.message,
+                message: "Xác thực thanh toán thất bại. Vui lòng liên hệ hỗ trợ."
+            };
+        }
+    }
+    
+    generateChecksum(data) {
+        const str = JSON.stringify(data) + this.config.SECURITY.checksumKey;
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+    }
+    
+    async simulateWebhookVerification(transactionData) {
+        // This simulates the actual webhook verification
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    success: true,
+                    transactionId: `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+                    verifiedAt: new Date().toISOString(),
+                    package: transactionData.package,
+                    amount: transactionData.amount,
+                    message: "Thanh toán đã được xác thực thành công"
+                });
+            }, 1500);
+        });
+    }
+    
+    // ==================== TRIP ANALYSIS ====================
+    analyzeTrip(tripData) {
+        try {
+            const { distance, duration, cost, rate } = tripData;
+            
+            // Calculate efficiency
+            const efficiency = (cost / distance).toFixed(2);
+            const hourlyEarning = (cost / (duration / 60)).toFixed(0);
+            
+            const analysis = {
+                efficiency: efficiency,
+                hourlyEarning: hourlyEarning,
+                recommendation: this.generateRecommendation(efficiency, hourlyEarning),
+                insights: this.generateInsights(tripData)
+            };
+            
+            return {
+                success: true,
+                analysis: analysis
+            };
+        } catch (error) {
+            console.error("Trip analysis error:", error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+    
+    generateRecommendation(efficiency, hourlyEarning) {
+        if (efficiency > 20000) {
+            return "Chuyến đi có hiệu suất tốt! Tiếp tục duy trì.";
+        } else if (efficiency > 15000) {
+            return "Hiệu suất trung bình. Có thể cải thiện bằng cách chọn tuyến đường tốt hơn.";
         } else {
-            const randomResponses = [
-                "Em hiểu rồi ạ! Để em hỗ trợ anh/chị vấn đề này.",
-                "Anh/chị có thể mô tả rõ hơn được không ạ?",
-                "Em sẽ ghi nhận yêu cầu này và báo lại với đội kỹ thuật.",
-                "Hiện tại tính năng này đang được phát triển. Anh/chị vui lòng thử lại sau nhé!",
-                "Anh/chị có muốn xem hướng dẫn sử dụng chi tiết không ạ?"
-            ];
-            return randomResponses[Math.floor(Math.random() * randomResponses.length)];
+            return "Hiệu suất thấp. Xem xét điều chỉnh giá hoặc tìm vị trí có nhu cầu cao hơn.";
         }
     }
     
-    // Gửi cảnh báo hết hạn dùng thử
-    sendTrialWarning(daysLeft) {
-        if (!this.config.REMINDER_ENABLED) return;
+    generateInsights(tripData) {
+        const insights = [];
+        const now = new Date();
+        const hour = now.getHours();
         
-        if (daysLeft <= this.config.REMINDER_DAYS_BEFORE) {
-            const warningMessage = this.config.RESPONSE_TEMPLATES.TRIAL_WARNING.replace('{days}', daysLeft);
-            
-            // Gửi webhook cảnh báo
-            this.sendWebhookWarning(daysLeft);
-            
-            return warningMessage;
+        if (hour >= 7 && hour <= 9) {
+            insights.push("Giờ cao điểm sáng: Giá có thể tăng 10-15%");
         }
         
-        return null;
+        if (hour >= 17 && hour <= 19) {
+            insights.push("Giờ cao điểm chiều: Nhu cầu cao, tăng giá hợp lý");
+        }
+        
+        if (tripData.distance > 10) {
+            insights.push("Chuyến đi dài: Có thể đề xuất khách hàng đặt gói cự ly");
+        }
+        
+        if (tripData.cost > 200000) {
+            insights.push("Chuyến đi giá trị cao: Cân nhắc ưu đãi cho khách hàng thân thiết");
+        }
+        
+        return insights;
     }
     
-    // Gửi webhook cảnh báo
-    sendWebhookWarning(daysLeft) {
-        const webhookData = {
-            type: 'trial_warning',
-            days_left: daysLeft,
-            timestamp: new Date().toISOString(),
-            message: `Khách hàng còn ${daysLeft} ngày dùng thử`
-        };
+    // ==================== PACKAGE MANAGEMENT ====================
+    getPackageRecommendation(usageData) {
+        const { dailyTrips, monthlyEarning, featuresUsed } = usageData;
         
-        // Gửi đến webhook AI
-        fetch(this.config.AI_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(webhookData)
-        }).catch(() => {
-            // Gửi đến backup
-            fetch(this.config.BACKUP_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(webhookData)
-            });
+        if (monthlyEarning > 3000000) {
+            return {
+                recommended: "LIFETIME",
+                reason: "Thu nhập cao, đầu tư một lần dùng vĩnh viễn",
+                savings: "Tiết kiệm ~2.9 triệu/năm so với gói VIP"
+            };
+        } else if (dailyTrips > 15) {
+            return {
+                recommended: "VIP",
+                reason: "Số chuyến nhiều, cần trợ lý AI và backup cloud",
+                savings: "Hiệu quả hơn 35% so với gói PRO"
+            };
+        } else if (featuresUsed.includes('real-time') || featuresUsed.includes('pdf')) {
+            return {
+                recommended: "PRO",
+                reason: "Cần bản đồ real-time và xuất hóa đơn",
+                savings: "Phù hợp với nhu cầu chuyên nghiệp"
+            };
+        } else {
+            return {
+                recommended: "BASIC",
+                reason: "Nhu cầu cơ bản, chi phí thấp",
+                savings: "Tiết kiệm 10k so với gói PRO"
+            };
+        }
+    }
+    
+    // ==================== UTILITIES ====================
+    setupEventListeners() {
+        // Listen for AI requests from other parts of the app
+        window.addEventListener('ai-request', (event) => {
+            this.handleAIRequest(event.detail);
+        });
+        
+        // Listen for payment events
+        window.addEventListener('payment-verification', async (event) => {
+            const result = await this.verifyPayment(event.detail);
+            window.dispatchEvent(new CustomEvent('payment-result', { detail: result }));
+        });
+        
+        // Listen for trip analysis requests
+        window.addEventListener('trip-analysis', (event) => {
+            const result = this.analyzeTrip(event.detail);
+            window.dispatchEvent(new CustomEvent('trip-analysis-result', { detail: result }));
         });
     }
     
-    // Thêm vào lịch sử tin nhắn
-    addToHistory(role, content) {
-        this.messageHistory.push({
-            role: role,
-            content: content,
-            timestamp: new Date().toISOString()
-        });
+    async handleAIRequest(request) {
+        const { type, data, context } = request;
         
-        // Giới hạn lịch sử 50 tin nhắn
-        if (this.messageHistory.length > 50) {
-            this.messageHistory = this.messageHistory.slice(-50);
+        switch (type) {
+            case 'query':
+                return await this.queryGemini(data, context);
+            case 'speak':
+                return await this.speak(data);
+            case 'analyze':
+                return this.analyzeTrip(data);
+            case 'recommend':
+                return this.getPackageRecommendation(data);
+            default:
+                return {
+                    success: false,
+                    error: "Unknown request type"
+                };
         }
     }
     
-    // Lưu lịch sử tin nhắn
-    saveMessageHistory() {
-        try {
-            localStorage.setItem('ai_message_history', JSON.stringify(this.messageHistory));
-        } catch (e) {
-            console.error("Lỗi lưu lịch sử tin nhắn:", e);
-        }
+    // ==================== PUBLIC API ====================
+    async ask(prompt, context = "DRIVER_ASSISTANT") {
+        return await this.queryGemini(prompt, context);
     }
     
-    // Tải lịch sử tin nhắn
-    loadMessageHistory() {
-        try {
-            const savedHistory = localStorage.getItem('ai_message_history');
-            if (savedHistory) {
-                this.messageHistory = JSON.parse(savedHistory);
-            }
-        } catch (e) {
-            console.error("Lỗi tải lịch sử tin nhắn:", e);
-        }
+    async say(text) {
+        return await this.speak(text);
     }
     
-    // Lấy lịch sử tin nhắn
-    getMessageHistory() {
-        return this.messageHistory;
+    stop() {
+        this.stopSpeaking();
     }
     
-    // Xóa lịch sử tin nhắn
-    clearMessageHistory() {
-        this.messageHistory = [];
-        localStorage.removeItem('ai_message_history');
+    getHistory() {
+        return this.getConversationHistory();
     }
     
-    // Kiểm tra kết nối
-    checkConnection() {
-        const status = localStorage.getItem('ai_connection_status');
-        return status === 'connected';
+    clearHistory() {
+        return this.clearConversationHistory();
     }
     
-    // Cập nhật cấu hình
-    updateConfig(newConfig) {
-        this.config = { ...this.config, ...newConfig };
-        localStorage.setItem('ai_config', JSON.stringify(this.config));
+    getConfig() {
+        return this.config.getAllSettings();
+    }
+    
+    updateConfig(category, key, value) {
+        return this.config.updateSetting(category, key, value);
+    }
+    
+    validateConfig() {
+        return this.config.validate();
+    }
+    
+    resetConfig() {
+        return this.config.reset();
     }
 }
 
-// Tạo instance toàn cục
-if (typeof window !== 'undefined') {
-    window.AIClient = AIClient;
-    
-    // Tự động khởi tạo khi tải trang
-    document.addEventListener('DOMContentLoaded', function() {
-        if (window.AI_CONFIG) {
-            window.aiClient = new AIClient(window.AI_CONFIG);
-            window.aiClient.initialize();
-        }
-    });
-}
+// Initialize and export
+const AI = new AIClient();
+window.AI = AI;
 
-// Export cho Node.js
+// Auto-initialize when loaded
+document.addEventListener('DOMContentLoaded', () => {
+    if (!window.AI) {
+        window.AI = new AIClient();
+    }
+    console.log("Taxi Promax AI Module ready");
+});
+
+// Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = AIClient;
+    module.exports = AI;
 }
