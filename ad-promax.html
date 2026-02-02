@@ -3,175 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROMAX COMMAND v9.0</title>
+    <title>TAXI PROMAX CONTROL HUB</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --neon: #00f2ff; --hot: #ff003c; }
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        :root { --neon: #00f2ff; --bg: #000a0f; }
+        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
         
-        /* Bản đồ nền tối tối giản - Không rối mắt */
-        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.4) contrast(1.2) saturate(0.5); }
+        /* Bản đồ vệ tinh phong cách quân đội */
+        #main-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.3) contrast(1.3) saturate(0.2); }
 
-        /* Bảng doanh thu nổi bật */
-        .dashboard {
+        /* Bảng doanh thu trung tâm */
+        .admin-panel {
             position: absolute; top: 20px; left: 20px; z-index: 100;
-            background: rgba(0, 10, 20, 0.9); border: 1px solid var(--neon);
-            padding: 15px; border-radius: 8px; color: white; pointer-events: none;
+            background: rgba(0, 20, 30, 0.9); border: 2px solid var(--neon);
+            padding: 15px 25px; border-radius: 10px; color: white;
+            box-shadow: 0 0 25px rgba(0, 242, 255, 0.2);
         }
-        .dashboard b { font-size: 11px; color: var(--neon); text-transform: uppercase; display: block; }
-        .dashboard span { font-size: 24px; font-weight: 900; display: block; margin-bottom: 10px; }
+        .admin-panel b { font-size: 11px; color: var(--neon); text-transform: uppercase; letter-spacing: 2px; }
+        .admin-panel div { font-size: 28px; font-weight: 900; margin: 5px 0 15px 0; text-shadow: 0 0 10px var(--neon); }
 
-        /* Trợ lý AI - Có lưu trữ vị trí & ảnh */
-        #ai-container {
-            position: absolute; z-index: 9999; width: 100px; height: 100px;
+        /* Trợ lý Linh - Di động & Lưu trữ */
+        #ai-hero {
+            position: absolute; z-index: 9999; width: 120px; height: 120px;
             display: flex; flex-direction: column; align-items: center; touch-action: none;
         }
-        #ai-face {
-            width: 80px; height: 80px; border-radius: 50%;
-            border: 3px solid var(--neon); box-shadow: 0 0 20px var(--neon);
-            object-fit: cover; background: #000; cursor: pointer;
+        #ai-avatar {
+            width: 90px; height: 90px; border-radius: 50%;
+            border: 3px solid var(--neon); background: #000;
+            object-fit: cover; box-shadow: 0 0 20px var(--neon); cursor: grab;
         }
-        .btn-mic {
-            position: absolute; bottom: 5px; right: 5px;
-            background: var(--hot); border: none; width: 38px; height: 38px;
-            border-radius: 50%; color: white; font-size: 20px; cursor: pointer;
-            box-shadow: 0 0 15px var(--hot); z-index: 10001;
+        .mic-trigger {
+            position: absolute; bottom: 10px; right: 10px;
+            background: #ff003c; border: none; width: 42px; height: 42px;
+            border-radius: 50%; color: white; font-size: 22px; cursor: pointer;
+            box-shadow: 0 0 15px #ff003c; transition: 0.3s;
         }
-        .talking { animation: wave 0.8s infinite; background: #fff !important; color: var(--hot) !important; }
+        .mic-trigger.active { animation: pulse 0.7s infinite; background: #fff; color: #ff003c; }
 
-        #linh-speech {
-            position: absolute; bottom: 110px; width: 200px;
-            background: rgba(255,255,255,0.95); color: #000; padding: 12px;
-            border-radius: 15px; display: none; font-size: 14px; font-weight: bold;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.5); border: 2px solid var(--neon);
+        #speech-bubble {
+            position: absolute; bottom: 130px; width: 220px;
+            background: white; color: #000; padding: 15px; border-radius: 15px;
+            display: none; font-size: 14px; font-weight: bold; line-height: 1.4;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 2px solid var(--neon);
         }
 
-        @keyframes wave { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
-    <div id="admin-map"></div>
+    <div id="main-map"></div>
 
-    <div class="dashboard">
-        <b>DOANH THU APP</b> <span id="txt-revenue">0đ</span>
-        <b>THIẾT BỊ ONLINE</b> <span id="txt-online">0</span>
+    <div class="admin-panel">
+        <b>Doanh Thu Tổng</b>
+        <div id="rev-val">Đang tải...</div>
+        <b>Thiết Bị Hoạt Động</b>
+        <div id="online-val">0</div>
     </div>
 
-    <div id="ai-container">
-        <div id="linh-speech">Dạ, em nghe sếp!</div>
-        <img id="ai-face" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('img-input').click()">
-        <button class="btn-mic" id="btn-mic">🎤</button>
-        <input type="file" id="img-input" hidden accept="image/*">
+    <div id="ai-hero">
+        <div id="speech-bubble">Dạ sếp Đạt!</div>
+        <img id="ai-avatar" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('file-in').click()">
+        <button class="mic-trigger" id="mic-btn">🎤</button>
+        <input type="file" id="file-in" hidden accept="image/*">
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Khởi tạo bản đồ chuyên nghiệp (Giao diện Dark Vệ tinh)
-        const map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
+        // --- CẤU HÌNH BẢN ĐỒ ---
+        const map = L.map('main-map', {zoomControl: false}).setView([21.0285, 105.8542], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        const ai = document.getElementById('ai-container');
-        const face = document.getElementById('ai-face');
+        const hero = document.getElementById('ai-hero');
+        const avt = document.getElementById('ai-avatar');
 
-        // 2. Tự động khôi phục ảnh và vị trí từ bộ nhớ máy
-        if(localStorage.getItem('saved-x')) {
-            ai.style.left = localStorage.getItem('saved-x') + 'px';
-            ai.style.top = localStorage.getItem('saved-y') + 'px';
-        } else { ai.style.bottom = "40px"; ai.style.right = "20px"; }
-        if(localStorage.getItem('saved-img')) face.src = localStorage.getItem('saved-img');
+        // --- KHÔI PHỤC DỮ LIỆU ĐÃ LƯU ---
+        if(localStorage.getItem('dat-ai-x')) {
+            hero.style.left = localStorage.getItem('dat-ai-x') + 'px';
+            hero.style.top = localStorage.getItem('dat-ai-y') + 'px';
+        } else { hero.style.bottom = "50px"; hero.style.right = "30px"; }
+        
+        if(localStorage.getItem('dat-ai-img')) {
+            avt.src = localStorage.getItem('dat-ai-img');
+        }
 
-        // 3. Kéo thả AI mượt mà (Lưu vị trí ngay khi buông tay)
-        let dragging = false, pos = [0,0];
-        const onStart = (e) => {
-            dragging = true;
+        // --- CƠ CHẾ KÉO THẢ & LƯU VỊ TRÍ ---
+        let drag = false, gap = [0,0];
+        const startDrag = (e) => {
+            drag = true;
             let ev = e.touches ? e.touches[0] : e;
-            pos = [ai.offsetLeft - ev.clientX, ai.offsetTop - ev.clientY];
-            // "Mồi" âm thanh cho trình duyệt ngay khi sếp chạm vào màn hình
-            window.speechSynthesis.getVoices();
+            gap = [hero.offsetLeft - ev.clientX, hero.offsetTop - ev.clientY];
         };
-        const onMove = (e) => {
-            if(!dragging) return;
+        const moveDrag = (e) => {
+            if(!drag) return;
             let ev = e.touches ? e.touches[0] : e;
-            let x = ev.clientX + pos[0]; let y = ev.clientY + pos[1];
-            ai.style.left = x + 'px'; ai.style.top = y + 'px';
-            ai.style.bottom = 'auto'; ai.style.right = 'auto';
-            localStorage.setItem('saved-x', x); localStorage.setItem('saved-y', y);
+            let x = ev.clientX + gap[0];
+            let y = ev.clientY + gap[1];
+            hero.style.left = x + 'px'; hero.style.top = y + 'px';
+            hero.style.bottom = 'auto'; hero.style.right = 'auto';
+            localStorage.setItem('dat-ai-x', x);
+            localStorage.setItem('dat-ai-y', y);
         };
-        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', () => dragging = false);
-        ai.addEventListener('touchstart', onStart); document.addEventListener('touchmove', onMove, {passive: false});
-        document.addEventListener('touchend', () => dragging = false);
+        document.addEventListener('mousemove', moveDrag); document.addEventListener('mouseup', () => drag = false);
+        hero.addEventListener('touchstart', startDrag); document.addEventListener('touchmove', moveDrag, {passive: false}); document.addEventListener('touchend', () => drag = false);
 
-        // 4. Lưu ảnh đại diện vĩnh viễn
-        document.getElementById('img-input').onchange = (e) => {
+        // --- ĐỔI ẢNH & LƯU VĨNH VIỄN ---
+        document.getElementById('file-in').onchange = (e) => {
             const reader = new FileReader();
-            reader.onload = (v) => { face.src = v.target.result; localStorage.setItem('saved-img', v.target.result); };
+            reader.onload = (v) => {
+                avt.src = v.target.result;
+                localStorage.setItem('dat-ai-img', v.target.result);
+            };
             reader.readAsDataURL(e.target.files[0]);
         };
 
-        // 5. Đồng bộ dữ liệu doanh thu
-        async function updateData() {
+        // --- KẾT NỐI API TAXI PROMAX ---
+        async function syncApp() {
             try {
-                const res = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
-                const d = await res.json();
-                document.getElementById('txt-revenue').innerText = d.total_revenue.toLocaleString() + "đ";
-                document.getElementById('txt-online').innerText = d.customers.length;
-            } catch(e) {}
+                const r = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
+                const d = await r.json();
+                document.getElementById('rev-val').innerText = d.total_revenue.toLocaleString() + "đ";
+                document.getElementById('online-val').innerText = d.customers.length;
+            } catch(e) { console.error("Lỗi đồng bộ app"); }
         }
-        setInterval(updateData, 5000); updateData();
+        setInterval(syncApp, 5000); syncApp();
 
-        // 6. FIX MICRO & AI (Ép trình duyệt nhận lệnh)
-        const mic = document.getElementById('btn-mic');
-        const bubble = document.getElementById('linh-speech');
-        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        // --- TRỢ LÝ LINH - FIX LỖI KẾT NỐI ---
+        const mic = document.getElementById('mic-btn');
+        const bubble = document.getElementById('speech-bubble');
+        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        if (Recognition) {
-            const rec = new Recognition();
+        if (Speech) {
+            const rec = new Speech();
             rec.lang = 'vi-VN';
-            rec.continuous = false;
 
             mic.onclick = () => {
-                // Buộc trình duyệt mở khóa âm thanh
-                const unlock = new SpeechSynthesisUtterance("");
-                window.speechSynthesis.speak(unlock);
-                
                 window.speechSynthesis.cancel();
                 rec.start();
-                mic.classList.add('talking');
-                bubble.innerText = "Linh đang lắng nghe...";
+                mic.classList.add('active');
+                bubble.innerText = "Linh đang nghe sếp ơi...";
                 bubble.style.display = 'block';
             };
 
-            rec.onresult = async (event) => {
-                mic.classList.remove('talking');
-                const userTalk = event.results[0][0].transcript;
-                bubble.innerText = "Sếp dặn: " + userTalk;
+            rec.onresult = async (e) => {
+                mic.classList.remove('active');
+                const text = e.results[0][0].transcript;
+                bubble.innerText = "Sếp dặn: " + text;
 
                 try {
-                    const aiApi = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
+                    // API KEY GEMINI - SỬ DỤNG MODEL FLASH ĐỂ TỐI ƯU TỐC ĐỘ
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là Linh, trợ lý taxi, giọng nữ ngọt ngào. Trả lời sếp Đạt cực ngắn: " + userTalk}]}]})
+                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là Linh, trợ lý taxi, giọng nữ ngọt ngào, lễ phép. Trả lời sếp Đạt (nguyenxuandat20091985@gmail.com) cực ngắn gọn: " + text}]}]})
                     });
-                    const data = await aiApi.json();
-                    const linhTraLoi = data.candidates[0].content.parts[0].text;
+                    const data = await res.json();
+                    const reply = data.candidates[0].content.parts[0].text;
+                    bubble.innerText = reply;
                     
-                    bubble.innerText = linhTraLoi;
-                    speakLinh(linhTraLoi);
-                } catch(e) {
-                    bubble.innerText = "Lỗi mạng rồi sếp ơi!";
+                    const speak = new SpeechSynthesisUtterance(reply);
+                    speak.lang = 'vi-VN'; speak.pitch = 1.4;
+                    window.speechSynthesis.speak(speak);
+                } catch(err) {
+                    bubble.innerText = "Sếp ơi, kết nối AI bị nghẽn, sếp thử lại giúp em!";
                 }
             };
-            rec.onerror = () => mic.classList.remove('talking');
-        }
-
-        function speakLinh(txt) {
-            window.speechSynthesis.cancel();
-            const msg = new SpeechSynthesisUtterance(txt);
-            msg.lang = 'vi-VN';
-            msg.pitch = 1.4; // Giọng nữ cao, ngọt
-            msg.rate = 1.0;  // Tốc độ chuẩn
-            window.speechSynthesis.speak(msg);
+            rec.onerror = () => mic.classList.remove('active');
         }
     </script>
 </body>
