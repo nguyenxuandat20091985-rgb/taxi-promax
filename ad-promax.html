@@ -3,50 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROMAX SUPER CONTROL</title>
+    <title>PROMAX CONTROL CENTER v8.1</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --neon: #00f2ff; --bg: rgba(0, 15, 25, 0.9); }
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        :root { --neon: #00f2ff; --bg: rgba(0, 15, 25, 0.95); }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.4) contrast(1.1); }
         
-        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.4) contrast(1.2); }
-
-        /* Bảng chỉ số */
         .hud {
-            position: absolute; top: 20px; left: 20px; z-index: 100;
+            position: absolute; top: 15px; left: 15px; z-index: 100;
             background: var(--bg); border: 1px solid var(--neon);
-            padding: 15px; border-radius: 12px; min-width: 180px;
-            box-shadow: 0 0 20px rgba(0,242,255,0.2); pointer-events: none;
+            padding: 12px; border-radius: 10px; color: white; pointer-events: none;
         }
-        .hud b { display: block; font-size: 10px; color: var(--neon); letter-spacing: 1px; }
-        .hud span { display: block; font-size: 22px; color: white; font-weight: bold; margin-bottom: 8px; }
+        .hud b { font-size: 10px; color: var(--neon); display: block; }
+        .hud span { font-size: 20px; font-weight: bold; }
 
-        /* AI Trợ lý Di động & Lưu trữ */
         #ai-hero {
-            position: absolute; z-index: 9999;
-            width: 100px; height: 100px; display: flex; flex-direction: column; align-items: center;
-            touch-action: none; cursor: grab;
+            position: absolute; z-index: 9999; width: 100px; height: 100px;
+            display: flex; flex-direction: column; align-items: center; touch-action: none;
         }
         #ai-avatar {
-            width: 85px; height: 85px; border-radius: 50%;
-            border: 3px solid var(--neon); box-shadow: 0 0 20px var(--neon);
+            width: 80px; height: 80px; border-radius: 50%;
+            border: 3px solid var(--neon); box-shadow: 0 0 15px var(--neon);
             object-fit: cover; background: #111;
         }
         .mic-btn {
             position: absolute; bottom: 10px; right: 5px;
-            background: #ff003c; border: none; width: 38px; height: 38px;
-            border-radius: 50%; color: white; font-size: 20px; cursor: pointer;
-            box-shadow: 0 0 15px #ff003c;
+            background: #ff003c; border: none; width: 35px; height: 35px;
+            border-radius: 50%; color: white; font-size: 18px; cursor: pointer;
         }
-        .recording { animation: pulse 0.8s infinite; background: #fff; color: #ff003c; }
+        .recording { animation: pulse 0.6s infinite; background: #fff; color: #ff003c; }
 
         #bubble {
-            position: absolute; bottom: 115px; right: 0; width: 200px;
-            background: rgba(255,255,255,0.95); color: #000; padding: 12px; 
-            border-radius: 15px; display: none; font-size: 13px; font-weight: 600;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 2px solid var(--neon);
+            position: absolute; bottom: 110px; width: 200px;
+            background: #fff; color: #000; padding: 12px; border-radius: 15px;
+            display: none; font-size: 13px; font-weight: bold; border: 2px solid var(--neon);
         }
-
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
@@ -55,14 +47,12 @@
     <div id="admin-map"></div>
 
     <div class="hud">
-        <b>DOANH THU HÔM NAY</b>
-        <span id="revenue">0đ</span>
-        <b>TỔNG KHÁCH HÀNG</b>
-        <span id="online">0</span>
+        <b>DOANH THU</b> <span id="revenue">0đ</span><br>
+        <b>THIẾT BỊ</b> <span id="online">0</span>
     </div>
 
     <div id="ai-hero">
-        <div id="bubble">Em nghe sếp ơi...</div>
+        <div id="bubble">Đang xử lý...</div>
         <img id="ai-avatar" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('file-in').click()">
         <button class="mic-btn" id="mic-trigger">🎤</button>
         <input type="file" id="file-in" hidden accept="image/*">
@@ -70,111 +60,83 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- 1. KHỞI TẠO BẢN ĐỒ ---
         const map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // --- 2. LƯU TRỮ VÀ DI CHUYỂN AI ---
         const aiHero = document.getElementById('ai-hero');
         const aiAvatar = document.getElementById('ai-avatar');
-
-        // Tải vị trí và ảnh đã lưu
+        
+        // Khôi phục dữ liệu đã lưu
         if(localStorage.getItem('ai-pos-x')) {
             aiHero.style.left = localStorage.getItem('ai-pos-x') + 'px';
             aiHero.style.top = localStorage.getItem('ai-pos-y') + 'px';
-        } else {
-            aiHero.style.bottom = "40px"; aiHero.style.right = "20px";
-        }
+        } else { aiHero.style.bottom = "30px"; aiHero.style.right = "20px"; }
         if(localStorage.getItem('ai-img')) aiAvatar.src = localStorage.getItem('ai-img');
 
-        // Cơ chế kéo thả
-        let isDragging = false, offset = [0,0];
-        const start = (e) => {
-            isDragging = true;
-            const ev = e.touches ? e.touches[0] : e;
-            offset = [aiHero.offsetLeft - ev.clientX, aiHero.offsetTop - ev.clientY];
-        };
-        const move = (e) => {
-            if(!isDragging) return;
-            const ev = e.touches ? e.touches[0] : e;
-            const x = ev.clientX + offset[0];
-            const y = ev.clientY + offset[1];
-            aiHero.style.left = x + 'px';
-            aiHero.style.top = y + 'px';
+        // Di chuyển và Lưu
+        let isDrag = false, startPos = [0,0];
+        const onStart = (e) => { isDrag = true; let ev = e.touches ? e.touches[0] : e; startPos = [aiHero.offsetLeft - ev.clientX, aiHero.offsetTop - ev.clientY]; };
+        const onMove = (e) => {
+            if(!isDrag) return;
+            let ev = e.touches ? e.touches[0] : e;
+            let x = ev.clientX + startPos[0]; let y = ev.clientY + startPos[1];
+            aiHero.style.left = x + 'px'; aiHero.style.top = y + 'px';
             aiHero.style.bottom = 'auto'; aiHero.style.right = 'auto';
-            // Lưu vị trí
-            localStorage.setItem('ai-pos-x', x);
-            localStorage.setItem('ai-pos-y', y);
+            localStorage.setItem('ai-pos-x', x); localStorage.setItem('ai-pos-y', y);
         };
-        const end = () => isDragging = false;
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', () => isDrag = false);
+        aiHero.addEventListener('touchstart', onStart); document.addEventListener('touchmove', onMove, {passive: false});
+        document.addEventListener('touchend', () => isDrag = false);
 
-        aiHero.addEventListener('mousedown', start);
-        document.addEventListener('mousemove', move);
-        document.addEventListener('mouseup', end);
-        aiHero.addEventListener('touchstart', start);
-        document.addEventListener('touchmove', move, {passive: false});
-        document.addEventListener('touchend', end);
-
-        // --- 3. LƯU ẢNH AVATAR ---
-        document.getElementById('file-in').onchange = function(e) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const base64 = ev.target.result;
-                aiAvatar.src = base64;
-                localStorage.setItem('ai-img', base64); // Lưu ảnh vĩnh viễn
-            };
-            reader.readAsDataURL(e.target.files[0]);
+        // Lưu Ảnh
+        document.getElementById('file-in').onchange = (e) => {
+            const r = new FileReader(); r.onload = (v) => { aiAvatar.src = v.target.result; localStorage.setItem('ai-img', v.target.result); };
+            r.readAsDataURL(e.target.files[0]);
         };
 
-        // --- 4. DỮ LIỆU THỰC ---
-        async function updateStats() {
+        // Đồng bộ dữ liệu sếp
+        async function sync() {
             try {
-                const res = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
-                const data = await res.json();
-                document.getElementById('revenue').innerText = data.total_revenue.toLocaleString() + "đ";
-                document.getElementById('online').innerText = data.customers.length;
+                const r = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
+                const d = await r.json();
+                document.getElementById('revenue').innerText = d.total_revenue.toLocaleString() + "đ";
+                document.getElementById('online').innerText = d.customers.length;
             } catch(e) {}
         }
-        setInterval(updateStats, 5000); updateStats();
+        setInterval(sync, 5000); sync();
 
-        // --- 5. MICRO 2 CHIỀU & GIỌNG LINH ---
-        const micBtn = document.getElementById('mic-trigger');
+        // MICRO 2 CHIỀU & FIX LỖI KẾT NỐI
+        const mic = document.getElementById('mic-trigger');
         const bubble = document.getElementById('bubble');
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 
         if (Speech) {
-            const rec = new Speech();
-            rec.lang = 'vi-VN';
-
-            micBtn.onclick = () => {
-                window.speechSynthesis.cancel(); // Dừng nói cũ
-                rec.start();
-                micBtn.classList.add('recording');
-                bubble.innerText = "Sếp Đạt ơi, Linh đang nghe...";
-                bubble.style.display = 'block';
-            };
+            const rec = new Speech(); rec.lang = 'vi-VN';
+            mic.onclick = () => { window.speechSynthesis.cancel(); rec.start(); mic.classList.add('recording'); bubble.style.display = 'block'; };
 
             rec.onresult = async (e) => {
-                micBtn.classList.remove('recording');
-                const text = e.results[0][0].transcript;
-                
+                mic.classList.remove('recording');
+                const txt = e.results[0][0].transcript;
+                bubble.innerText = "Đang xử lý...";
+
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
+                    // SỬ DỤNG PHƯƠNG THỨC GỌI TRỰC TIẾP CỦA GOOGLE ĐỂ TRÁNH LỖI KẾT NỐI
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý Linh, giọng nữ ngọt ngào, lễ phép. Trả lời sếp Đạt cực ngắn: " + text}]}]})
+                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý Linh, giọng nữ ngọt ngào. Trả lời cực ngắn: " + txt}]}]})
                     });
-                    const d = await res.json();
+                    const d = await response.json();
                     const reply = d.candidates[0].content.parts[0].text;
                     bubble.innerText = reply;
-                    
-                    // Linh trả lời bằng giọng nữ
                     const talk = new SpeechSynthesisUtterance(reply);
-                    talk.lang = 'vi-VN'; talk.pitch = 1.4; talk.rate = 1.0;
-                    window.speechSynthesis.speak(talk);
-                } catch(err) { bubble.innerText = "Lỗi kết nối sếp ạ!"; }
+                    talk.lang = 'vi-VN'; talk.pitch = 1.4; window.speechSynthesis.speak(talk);
+                } catch(err) {
+                    bubble.innerText = "Sếp ơi, mạng hơi yếu ạ!";
+                    console.log(err);
+                }
             };
-            rec.onerror = () => micBtn.classList.remove('recording');
+            rec.onerror = () => mic.classList.remove('recording');
         }
     </script>
 </body>
