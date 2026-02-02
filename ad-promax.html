@@ -3,140 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROMAX CONTROL CENTER v8.1</title>
+    <title>TAXI PROMAX - COMMANDER v8.2</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --neon: #00f2ff; --bg: rgba(0, 15, 25, 0.95); }
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
-        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.4) contrast(1.1); }
+        :root { --neon: #00f2ff; --hot: #ff003c; --panel: rgba(0, 5, 10, 0.9); }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
         
-        .hud {
-            position: absolute; top: 15px; left: 15px; z-index: 100;
-            background: var(--bg); border: 1px solid var(--neon);
-            padding: 12px; border-radius: 10px; color: white; pointer-events: none;
-        }
-        .hud b { font-size: 10px; color: var(--neon); display: block; }
-        .hud span { font-size: 20px; font-weight: bold; }
+        /* Bản đồ tối giản - Không gây rối mắt */
+        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.2) contrast(1.5) grayscale(100%); }
 
-        #ai-hero {
-            position: absolute; z-index: 9999; width: 100px; height: 100px;
+        /* Bảng doanh thu phong cách Cyberpunk */
+        .hud-stats {
+            position: absolute; top: 25px; left: 20px; z-index: 100;
+            background: var(--panel); border: 1px solid var(--neon);
+            padding: 15px; border-radius: 4px; border-left: 5px solid var(--neon);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.1); pointer-events: none;
+        }
+        .hud-stats b { font-size: 9px; color: var(--neon); letter-spacing: 2px; text-transform: uppercase; }
+        .hud-stats div { font-size: 24px; color: #fff; font-weight: 800; margin-bottom: 10px; font-family: monospace; }
+
+        /* Trợ lý Linh - Di chuyển & Lưu trữ */
+        #ai-assistant {
+            position: absolute; z-index: 9999; width: 110px; height: 110px;
             display: flex; flex-direction: column; align-items: center; touch-action: none;
         }
-        #ai-avatar {
-            width: 80px; height: 80px; border-radius: 50%;
-            border: 3px solid var(--neon); box-shadow: 0 0 15px var(--neon);
-            object-fit: cover; background: #111;
+        #ai-img {
+            width: 85px; height: 85px; border-radius: 50%;
+            border: 2px solid var(--neon); background: #000;
+            object-fit: cover; transition: transform 0.3s;
         }
-        .mic-btn {
-            position: absolute; bottom: 10px; right: 5px;
-            background: #ff003c; border: none; width: 35px; height: 35px;
-            border-radius: 50%; color: white; font-size: 18px; cursor: pointer;
+        .mic-trigger {
+            position: absolute; bottom: 15px; right: 10px;
+            background: var(--hot); border: none; width: 40px; height: 40px;
+            border-radius: 50%; color: white; font-size: 20px; cursor: pointer;
+            box-shadow: 0 0 15px var(--hot);
         }
-        .recording { animation: pulse 0.6s infinite; background: #fff; color: #ff003c; }
+        .active-rec { animation: pulse-red 0.7s infinite; background: #fff !important; color: var(--hot) !important; }
 
-        #bubble {
-            position: absolute; bottom: 110px; width: 200px;
-            background: #fff; color: #000; padding: 12px; border-radius: 15px;
-            display: none; font-size: 13px; font-weight: bold; border: 2px solid var(--neon);
+        #linh-bubble {
+            position: absolute; bottom: 120px; width: 220px;
+            background: white; color: #000; padding: 15px; border-radius: 12px;
+            display: none; font-size: 14px; line-height: 1.4; font-weight: 600;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
         }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        @keyframes pulse-red { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
     <div id="admin-map"></div>
 
-    <div class="hud">
-        <b>DOANH THU</b> <span id="revenue">0đ</span><br>
-        <b>THIẾT BỊ</b> <span id="online">0</span>
+    <div class="hud-stats">
+        <b>Revenue Today</b>
+        <div id="val-revenue">0đ</div>
+        <b>Online Units</b>
+        <div id="val-online">0</div>
     </div>
 
-    <div id="ai-hero">
-        <div id="bubble">Đang xử lý...</div>
-        <img id="ai-avatar" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('file-in').click()">
-        <button class="mic-btn" id="mic-trigger">🎤</button>
-        <input type="file" id="file-in" hidden accept="image/*">
+    <div id="ai-assistant">
+        <div id="linh-bubble">Dạ, Linh nghe đây sếp Đạt!</div>
+        <img id="ai-img" src="https://i.imgur.com/8Qp2e0O.png" onclick="document.getElementById('file-upload').click()">
+        <button class="mic-trigger" id="btn-mic">🎤</button>
+        <input type="file" id="file-upload" hidden accept="image/*">
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // 1. Bản đồ tối giản chuyên nghiệp
         const map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        const aiHero = document.getElementById('ai-hero');
-        const aiAvatar = document.getElementById('ai-avatar');
-        
-        // Khôi phục dữ liệu đã lưu
-        if(localStorage.getItem('ai-pos-x')) {
-            aiHero.style.left = localStorage.getItem('ai-pos-x') + 'px';
-            aiHero.style.top = localStorage.getItem('ai-pos-y') + 'px';
-        } else { aiHero.style.bottom = "30px"; aiHero.style.right = "20px"; }
-        if(localStorage.getItem('ai-img')) aiAvatar.src = localStorage.getItem('ai-img');
+        const hero = document.getElementById('ai-assistant');
+        const avatar = document.getElementById('ai-img');
 
-        // Di chuyển và Lưu
-        let isDrag = false, startPos = [0,0];
-        const onStart = (e) => { isDrag = true; let ev = e.touches ? e.touches[0] : e; startPos = [aiHero.offsetLeft - ev.clientX, aiHero.offsetTop - ev.clientY]; };
-        const onMove = (e) => {
-            if(!isDrag) return;
+        // 2. Tải dữ liệu lưu trữ (Ảnh và Vị trí)
+        if(localStorage.getItem('taxi-ai-x')) {
+            hero.style.left = localStorage.getItem('taxi-ai-x') + 'px';
+            hero.style.top = localStorage.getItem('taxi-ai-y') + 'px';
+        } else { hero.style.bottom = "50px"; hero.style.right = "30px"; }
+        if(localStorage.getItem('taxi-ai-img')) avatar.src = localStorage.getItem('taxi-ai-img');
+
+        // 3. Cơ chế kéo thả mượt mà cho sếp
+        let dragging = false, offset = [0,0];
+        const start = (e) => {
+            dragging = true;
             let ev = e.touches ? e.touches[0] : e;
-            let x = ev.clientX + startPos[0]; let y = ev.clientY + startPos[1];
-            aiHero.style.left = x + 'px'; aiHero.style.top = y + 'px';
-            aiHero.style.bottom = 'auto'; aiHero.style.right = 'auto';
-            localStorage.setItem('ai-pos-x', x); localStorage.setItem('ai-pos-y', y);
+            offset = [hero.offsetLeft - ev.clientX, hero.offsetTop - ev.clientY];
+            avatar.style.transform = "scale(0.9)";
         };
-        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', () => isDrag = false);
-        aiHero.addEventListener('touchstart', onStart); document.addEventListener('touchmove', onMove, {passive: false});
-        document.addEventListener('touchend', () => isDrag = false);
+        const move = (e) => {
+            if(!dragging) return;
+            let ev = e.touches ? e.touches[0] : e;
+            let x = ev.clientX + offset[0]; let y = ev.clientY + offset[1];
+            hero.style.left = x + 'px'; hero.style.top = y + 'px';
+            hero.style.bottom = 'auto'; hero.style.right = 'auto';
+            localStorage.setItem('taxi-ai-x', x); localStorage.setItem('taxi-ai-y', y);
+        };
+        const stop = () => { dragging = false; avatar.style.transform = "scale(1)"; };
 
-        // Lưu Ảnh
-        document.getElementById('file-in').onchange = (e) => {
-            const r = new FileReader(); r.onload = (v) => { aiAvatar.src = v.target.result; localStorage.setItem('ai-img', v.target.result); };
-            r.readAsDataURL(e.target.files[0]);
+        hero.addEventListener('mousedown', start); document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop);
+        hero.addEventListener('touchstart', start); document.addEventListener('touchmove', move, {passive: false}); document.addEventListener('touchend', stop);
+
+        // 4. Đổi và Lưu ảnh vĩnh viễn
+        document.getElementById('file-upload').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (v) => {
+                avatar.src = v.target.result;
+                localStorage.setItem('taxi-ai-img', v.target.result);
+            };
+            reader.readAsDataURL(e.target.files[0]);
         };
 
-        // Đồng bộ dữ liệu sếp
-        async function sync() {
+        // 5. Kết nối API Taxi Promax App
+        async function updateApp() {
             try {
                 const r = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
                 const d = await r.json();
-                document.getElementById('revenue').innerText = d.total_revenue.toLocaleString() + "đ";
-                document.getElementById('online').innerText = d.customers.length;
-            } catch(e) {}
+                document.getElementById('val-revenue').innerText = d.total_revenue.toLocaleString() + "đ";
+                document.getElementById('val-online').innerText = d.customers.length;
+            } catch(e) { console.log("Lỗi đồng bộ app"); }
         }
-        setInterval(sync, 5000); sync();
+        setInterval(updateApp, 5000); updateApp();
 
-        // MICRO 2 CHIỀU & FIX LỖI KẾT NỐI
-        const mic = document.getElementById('mic-trigger');
-        const bubble = document.getElementById('bubble');
+        // 6. Trợ lý Linh - Giọng nữ ngọt ngào & Fix lỗi kết nối
+        const mic = document.getElementById('btn-mic');
+        const bubble = document.getElementById('linh-bubble');
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 
         if (Speech) {
             const rec = new Speech(); rec.lang = 'vi-VN';
-            mic.onclick = () => { window.speechSynthesis.cancel(); rec.start(); mic.classList.add('recording'); bubble.style.display = 'block'; };
+            mic.onclick = () => { 
+                window.speechSynthesis.cancel(); 
+                rec.start(); 
+                mic.classList.add('active-rec');
+                bubble.innerText = "Linh đang lắng nghe sếp...";
+                bubble.style.display = 'block';
+            };
 
             rec.onresult = async (e) => {
-                mic.classList.remove('recording');
-                const txt = e.results[0][0].transcript;
-                bubble.innerText = "Đang xử lý...";
+                mic.classList.remove('active-rec');
+                const text = e.results[0][0].transcript;
+                bubble.innerText = "Sếp dặn: " + text;
 
                 try {
-                    // SỬ DỤNG PHƯƠNG THỨC GỌI TRỰC TIẾP CỦA GOOGLE ĐỂ TRÁNH LỖI KẾT NỐI
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý Linh, giọng nữ ngọt ngào. Trả lời cực ngắn: " + txt}]}]})
+                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là Linh, trợ lý taxi promax, giọng nữ ngọt ngào, lễ phép. Trả lời sếp Đạt ngắn gọn: " + text}]}]})
                     });
-                    const d = await response.json();
+                    const d = await res.json();
                     const reply = d.candidates[0].content.parts[0].text;
                     bubble.innerText = reply;
-                    const talk = new SpeechSynthesisUtterance(reply);
-                    talk.lang = 'vi-VN'; talk.pitch = 1.4; window.speechSynthesis.speak(talk);
-                } catch(err) {
-                    bubble.innerText = "Sếp ơi, mạng hơi yếu ạ!";
-                    console.log(err);
-                }
+                    
+                    const speak = new SpeechSynthesisUtterance(reply);
+                    speak.lang = 'vi-VN'; speak.pitch = 1.4; speak.rate = 1.0;
+                    window.speechSynthesis.speak(speak);
+                } catch(err) { bubble.innerText = "Kết nối bị gián đoạn, sếp thử lại nhé!"; }
             };
-            rec.onerror = () => mic.classList.remove('recording');
+            rec.onerror = () => mic.classList.remove('active-rec');
         }
     </script>
 </body>
