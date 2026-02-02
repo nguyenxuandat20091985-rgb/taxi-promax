@@ -1,32 +1,227 @@
-<div id="ai-wrapper" style="position: fixed; top: 70%; left: 75%; z-index: 1000000; touch-action: none;">
+// AI INTEGRATION MODULE
+// Kết nối AI module với hệ thống chính
+
+class AIIntegration {
+    constructor() {
+        this.aiClient = null;
+        this.isIntegrated = false;
+    }
     
-    <div id="ai-chat-box" style="display: none; width: 335px; height: 485px; background: #ffffff; border-radius: 30px; position: absolute; bottom: 85px; right: 0; box-shadow: 0 20px 60px rgba(0,0,0,0.2); flex-direction: column; overflow: hidden; border: 1px solid rgba(0,128,128,0.15); pointer-events: auto;">
+    // Tích hợp với hệ thống
+    integrateWithSystem() {
+        console.log("🔄 Đang tích hợp AI với hệ thống...");
         
-        <div style="background: #008080; color: white; padding: 20px; font-weight: 700; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 15px;">🚕 TAXI AI PROMAX</span>
-            <span style="cursor:pointer; font-size: 26px; line-height: 1;" id="ai-close-btn">&times;</span>
-        </div>
+        // Kiểm tra cấu hình AI
+        if (!window.AI_CONFIG) {
+            console.error("❌ Không tìm thấy cấu hình AI");
+            return false;
+        }
+        
+        // Khởi tạo AI Client
+        this.aiClient = new window.AIClient(window.AI_CONFIG);
+        this.aiClient.initialize();
+        
+        // Tích hợp sự kiện
+        this.setupEventListeners();
+        
+        // Kiểm tra cảnh báo dùng thử
+        this.checkTrialReminder();
+        
+        this.isIntegrated = true;
+        console.log("✅ Đã tích hợp AI với hệ thống");
+        
+        return true;
+    }
+    
+    // Thiết lập event listeners
+    setupEventListeners() {
+        // Lắng nghe sự kiện từ hệ thống
+        document.addEventListener('ai_send_message', (event) => {
+            this.handleAIMessage(event.detail.message);
+        });
+        
+        // Lắng nghe sự kiện hết hạn dùng thử
+        document.addEventListener('trial_warning', (event) => {
+            this.handleTrialWarning(event.detail.daysLeft);
+        });
+        
+        // Lắng nghe sự kiện thanh toán thành công
+        document.addEventListener('payment_success', (event) => {
+            this.handlePaymentSuccess(event.detail);
+        });
+    }
+    
+    // Xử lý tin nhắn AI
+    async handleAIMessage(message) {
+        if (!this.aiClient) {
+            console.error("AI Client chưa được khởi tạo");
+            return;
+        }
+        
+        try {
+            const response = await this.aiClient.sendMessage(message);
+            
+            // Phát sự kiện phản hồi
+            const responseEvent = new CustomEvent('ai_response', {
+                detail: { response: response }
+            });
+            document.dispatchEvent(responseEvent);
+            
+        } catch (error) {
+            console.error("Lỗi xử lý tin nhắn AI:", error);
+        }
+    }
+    
+    // Xử lý cảnh báo hết hạn dùng thử
+    handleTrialWarning(daysLeft) {
+        if (!this.aiClient || !window.AI_CONFIG.REMINDER_ENABLED) return;
+        
+        const warningMessage = this.aiClient.sendTrialWarning(daysLeft);
+        
+        if (warningMessage) {
+            // Hiển thị cảnh báo
+            this.showAIToast(warningMessage);
+            
+            // Gửi webhook cảnh báo
+            this.sendWarningToServer(daysLeft);
+        }
+    }
+    
+    // Xử lý thanh toán thành công
+    handlePaymentSuccess(paymentData) {
+        if (!this.aiClient) return;
+        
+        // Gửi tin nhắn chúc mừng
+        const congratsMessage = `🎉 Chúc mừng! Bạn đã kích hoạt thành công gói ${paymentData.package}. Cảm ơn đã sử dụng dịch vụ!`;
+        
+        // Thêm vào lịch sử AI
+        this.aiClient.addToHistory('ai', congratsMessage);
+        
+        // Hiển thị thông báo
+        this.showAIToast(congratsMessage);
+    }
+    
+    // Kiểm tra cảnh báo dùng thử
+    checkTrialReminder() {
+        // Kiểm tra dữ liệu dùng thử
+        const trialData = localStorage.getItem('free_trial_data');
+        if (!trialData) return;
+        
+        const trial = JSON.parse(trialData);
+        const endDate = new Date(trial.endDate);
+        const now = new Date();
+        const diffTime = endDate - now;
+        const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (daysLeft <= window.AI_CONFIG.REMINDER_DAYS_BEFORE) {
+            this.handleTrialWarning(daysLeft);
+        }
+    }
+    
+    // Hiển thị toast AI
+    showAIToast(message) {
+        // Tạo toast element nếu chưa có
+        let aiToast = document.getElementById('ai-toast');
+        
+        if (!aiToast) {
+            aiToast = document.createElement('div');
+            aiToast.id = 'ai-toast';
+            aiToast.style.cssText = `
+                position: fixed;
+                bottom: 100px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, #00bfa5, #00897b);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 25px;
+                z-index: 999999;
+                display: none;
+                font-weight: 600;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                max-width: 90%;
+                text-align: center;
+                animation: slideUp 0.3s ease-out;
+            `;
+            
+            // Thêm CSS animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideUp {
+                    from { transform: translate(-50%, 100%); opacity: 0; }
+                    to { transform: translate(-50%, 0); opacity: 1; }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            document.body.appendChild(aiToast);
+        }
+        
+        // Hiển thị toast
+        aiToast.textContent = message;
+        aiToast.style.display = 'block';
+        
+        // Tự động ẩn sau 5 giây
+        setTimeout(() => {
+            aiToast.style.display = 'none';
+        }, 5000);
+    }
+    
+    // Gửi cảnh báo đến server
+    sendWarningToServer(daysLeft) {
+        const warningData = {
+            type: 'ai_trial_warning',
+            days_left: daysLeft,
+            user_id: localStorage.getItem('customer_id') || localStorage.getItem('taxi_user_id'),
+            timestamp: new Date().toISOString()
+        };
+        
+        // Gửi đến webhook
+        fetch(window.AI_CONFIG.AI_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(warningData)
+        }).catch(error => {
+            console.error("Lỗi gửi cảnh báo:", error);
+        });
+    }
+    
+    // Gửi tin nhắn qua AI
+    sendMessage(message) {
+        if (!this.isIntegrated) {
+            this.integrateWithSystem();
+        }
+        
+        return this.handleAIMessage(message);
+    }
+    
+    // Lấy trạng thái tích hợp
+    getIntegrationStatus() {
+        return {
+            integrated: this.isIntegrated,
+            aiConnected: this.aiClient ? this.aiClient.checkConnection() : false,
+            messageCount: this.aiClient ? this.aiClient.getMessageHistory().length : 0
+        };
+    }
+}
 
-        <div id="ai-content" style="flex: 1; padding: 18px; overflow-y: auto; background: #f8ffff; display: flex; flex-direction: column; gap: 12px;">
-            </div>
+// Tạo instance toàn cục
+if (typeof window !== 'undefined') {
+    window.AIIntegration = AIIntegration;
+    
+    // Tự động tích hợp khi tải trang
+    document.addEventListener('DOMContentLoaded', function() {
+        // Chờ một chút để đảm bảo AI_CONFIG đã tải
+        setTimeout(() => {
+            if (window.AI_CONFIG) {
+                window.aiIntegration = new AIIntegration();
+                window.aiIntegration.integrateWithSystem();
+            }
+        }, 1000);
+    });
+}
 
-        <div style="padding: 15px; background: white; border-top: 1px solid #f0f0f0; display: flex; gap: 10px; align-items: center; pointer-events: auto;">
-            <input id="ai-txt" type="text" placeholder="Anh muốn đi đâu?" style="flex: 1; border: 2px solid #008080; border-radius: 25px; padding: 10px 18px; outline: none; font-size: 14px;">
-            <button id="ai-send" style="border: none; background: #008080; color: white; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;">➤</button>
-        </div>
-    </div>
-
-    <div id="ai-root" style="width: 75px; height: 75px; border-radius: 50%; background-color: #000; background-size: cover; background-position: center; border: 3px solid #fff; box-shadow: 0 10px 25px rgba(0,128,128,0.4); cursor: move; display: flex; align-items: center; justify-content: center; position: relative;">
-        <div style="position: absolute; bottom: 5px; right: 5px; width: 15px; height: 15px; background: #00fbff; border: 2px solid #fff; border-radius: 50%; animation: blink 1.5s infinite;"></div>
-    </div>
-</div>
-
-<style>
-@keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
-#ai-content div { max-width: 85%; padding: 12px 16px; border-radius: 20px; font-family: 'Lexend', sans-serif; font-size: 14px; line-height: 1.4; }
-.msg-a { background: white; align-self: flex-start; border: 1px solid #e0f2f1; color: #333; box-shadow: 2px 2px 5px rgba(0,0,0,0.02); }
-.msg-u { background: #008080; color: white; align-self: flex-end; box-shadow: -2px 2px 5px rgba(0,128,128,0.2); }
-
-/* Đảm bảo khung chat không bị trôi khi cuộn trang */
-#ai-wrapper { transition: transform 0.1s ease-out; }
-</style>
+// Export cho Node.js
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = AIIntegration;
+}
