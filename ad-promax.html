@@ -3,118 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HỆ THỐNG ĐIỀU HÀNH - TAXI PROMAX</title>
+    <title>TERMINAL - TAXI PROMAX SYSTEM</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #00f2ff; --bg: #050a0a; --card: #121a1a; }
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; overflow: hidden; display: flex; height: 100vh; }
-        
-        /* Cột bên trái - Bảng điều khiển */
-        #sidebar { width: 350px; background: var(--card); border-right: 1px solid #222; display: flex; flex-direction: column; z-index: 2000; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
-        .header { padding: 20px; background: linear-gradient(to right, #00bfa5, #00f2ff); color: #000; font-weight: bold; text-align: center; }
-        
-        /* Chỉ số thống kê */
-        .stats-container { padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .stat-box { background: #1a2424; padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: center; }
-        .stat-box h3 { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; }
-        .stat-box p { margin: 5px 0 0; font-size: 18px; font-weight: bold; color: var(--primary); }
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-red: #ff003c;
+            --bg-dark: #020505;
+            --panel-bg: rgba(15, 25, 25, 0.85);
+        }
 
-        /* Danh sách khách */
-        .list-header { padding: 10px 20px; font-size: 12px; color: #555; background: #0c1212; border-top: 1px solid #222; }
-        #customer-list { flex: 1; overflow-y: auto; padding: 10px; }
-        .customer-item { background: #1a2424; padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .customer-item b { font-size: 14px; color: #fff; }
-        .customer-item span { font-size: 11px; color: #00bfa5; background: rgba(0,191,165,0.1); padding: 2px 6px; border-radius: 4px; }
+        body { 
+            margin: 0; display: flex; height: 100vh; 
+            font-family: 'Courier New', Courier, monospace; 
+            background: var(--bg-dark); color: var(--neon-cyan);
+            overflow: hidden;
+        }
 
-        /* Bản đồ bên phải */
-        #admin-map { flex: 1; }
+        /* Sidebar công nghệ cao */
+        #sidebar { 
+            width: 380px; background: var(--panel-bg); 
+            border-right: 1px solid var(--neon-cyan);
+            display: flex; flex-direction: column;
+            backdrop-filter: blur(10px);
+            box-shadow: 10px 0 30px rgba(0, 242, 255, 0.1);
+            z-index: 2;
+        }
 
-        /* Lớp phủ bảo mật */
-        #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-        input { padding: 12px; border-radius: 8px; border: 1px solid var(--primary); background: #000; color: #fff; text-align: center; font-size: 18px; outline: none; }
+        .system-header {
+            padding: 25px; border-bottom: 2px solid var(--neon-cyan);
+            text-align: center; background: rgba(0, 242, 255, 0.05);
+        }
+
+        .system-header h1 {
+            margin: 0; font-size: 20px; letter-spacing: 4px;
+            text-shadow: 0 0 10px var(--neon-cyan);
+        }
+
+        /* Chỉ số Radar */
+        .radar-stats {
+            display: grid; grid-template-columns: 1fr 1fr;
+            padding: 20px; gap: 15px;
+        }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.5); padding: 15px;
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            position: relative; overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: ""; position: absolute; top: 0; left: 0;
+            width: 4px; height: 100%; background: var(--neon-cyan);
+        }
+
+        .label { font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 5px; }
+        .value { font-size: 18px; font-weight: bold; }
+
+        /* Danh sách khách hàng Terminal */
+        .terminal-list {
+            flex: 1; overflow-y: auto; padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid #111;
+        }
+
+        .customer-row {
+            padding: 12px; border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+            font-size: 12px; position: relative;
+            transition: 0.3s; cursor: pointer;
+        }
+
+        .customer-row:hover { background: rgba(0, 242, 255, 0.05); }
+
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            display: inline-block; margin-right: 10px;
+            background: #0f0; box-shadow: 0 0 10px #0f0;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; }
+        }
+
+        /* Bản đồ chuyên sâu */
+        #admin-map { flex: 1; filter: hue-rotate(180deg) brightness(0.8) contrast(1.2); }
+
+        /* Nút lệnh */
+        .cmd-btn {
+            margin: 20px; padding: 15px;
+            background: transparent; border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan); font-weight: bold;
+            text-transform: uppercase; cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .cmd-btn:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 20px var(--neon-cyan); }
     </style>
 </head>
 <body>
 
-    <div id="lock-screen">
-        <h2 style="color:var(--primary)">ADMIN ACCESS</h2>
-        <input type="password" id="pass" placeholder="NHẬP MÃ PIN" oninput="checkPass(this.value)">
-        <p style="font-size: 12px; color: #444; margin-top: 20px;">Taxi Promax Secure System</p>
-    </div>
-
     <div id="sidebar">
-        <div class="header">TRUNG TÂM ĐIỀU HÀNH</div>
+        <div class="system-header">
+            <h1>SYSTEM ADMIN v2.0</h1>
+            <small style="color: #444;">SECURITY PROTOCOL ACTIVE</small>
+        </div>
         
-        <div class="stats-container">
-            <div class="stat-box">
-                <h3>Doanh thu</h3>
-                <p id="total-money">0đ</p>
+        <div class="radar-stats">
+            <div class="stat-card">
+                <div class="label">REVENUE (VNĐ)</div>
+                <div class="value" id="total-revenue" style="color: #0f0;">0</div>
             </div>
-            <div class="stat-box">
-                <h3>Online</h3>
-                <p id="online-count">0</p>
+            <div class="stat-card">
+                <div class="label">ACTIVE UNITS</div>
+                <div class="value" id="online-count">0</div>
             </div>
         </div>
 
-        <div class="list-header">KHÁCH HÀNG ĐANG HOẠT ĐỘNG</div>
-        <div id="customer-list">
-            </div>
-        
-        <div style="padding: 15px;">
-            <button onclick="fetchData()" style="width:100%; padding: 12px; background: #111; color: var(--primary); border: 1px solid var(--primary); border-radius: 8px; cursor: pointer; font-weight: bold;">LÀM MỚI HỆ THỐNG</button>
+        <div class="terminal-list" id="customer-list">
+            <div style="text-align: center; color: #333;">SCANNING FOR SIGNALS...</div>
         </div>
+
+        <button class="cmd-btn" onclick="syncNow()">FORCE REFRESH</button>
     </div>
 
     <div id="admin-map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        function checkPass(val) {
-            if(val === "1985") {
-                document.getElementById('lock-screen').style.display = 'none';
-                initAdmin();
-            }
-        }
+        const ADMIN_CONFIG = {
+            WEBHOOK: "https://taxi-promax.vercel.app/api/customers",
+            TOKEN: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2"
+        };
 
-        let adminMap, markers = {};
+        // Khởi tạo bản đồ phong cách Dark Voyager
+        let adminMap = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(adminMap);
 
-        function initAdmin() {
-            adminMap = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
-            L.tileLayer('https://{s}.tile.mapnik.org/{z}/{x}/{y}.png').addTo(adminMap);
-            fetchData();
-            setInterval(fetchData, 10000); // Cập nhật mỗi 10 giây
-        }
+        let markers = {};
 
-        async function fetchData() {
+        async function syncNow() {
             try {
-                // Đường link này sẽ được kết nối tới Backend Vercel của anh
-                const res = await fetch('https://taxi-promax.vercel.app/api/admin-data');
+                const res = await fetch(`${ADMIN_CONFIG.WEBHOOK}?token=${ADMIN_CONFIG.TOKEN}`);
                 const data = await res.json();
                 
-                document.getElementById('total-money').innerText = data.revenue.toLocaleString() + "đ";
+                document.getElementById('total-revenue').innerText = data.total_revenue.toLocaleString();
                 document.getElementById('online-count').innerText = data.customers.length;
                 
                 const list = document.getElementById('customer-list');
                 list.innerHTML = "";
                 
                 data.customers.forEach(c => {
-                    // Update List
-                    list.innerHTML += `<div class="customer-item">
-                        <div><b>${c.id}</b><br><small style="color:#666">${c.lastSeen}</small></div>
-                        <span>${c.package}</span>
-                    </div>`;
+                    // Update List Sidebar
+                    list.innerHTML += `
+                        <div class="customer-row">
+                            <span class="status-dot"></span>
+                            <b>UNIT: ${c.id}</b><br>
+                            <span style="color:#888">PKG:</span> ${c.package} | <span style="color:#888">LAT:</span> ${c.lat.toFixed(3)}
+                        </div>`;
 
-                    // Update Map
-                    if(markers[c.id]) {
+                    // Update Map Markers (Phong cách Neon)
+                    if (markers[c.id]) {
                         markers[c.id].setLatLng([c.lat, c.lng]);
                     } else {
-                        markers[c.id] = L.marker([c.lat, c.lng]).addTo(adminMap).bindPopup("Khách: " + c.id);
+                        markers[c.id] = L.circleMarker([c.lat, c.lng], {
+                            radius: 8, color: '#00f2ff', fillColor: '#00f2ff', fillOpacity: 0.5
+                        }).addTo(adminMap).bindPopup(`UNIT: ${c.id}`);
                     }
                 });
-            } catch (e) {
-                console.log("Hệ thống đang đợi dữ liệu từ máy chủ...");
-            }
+            } catch (e) { console.log("System Idle..."); }
         }
+
+        setInterval(syncNow, 5000); // 5 giây quét một lần cho nó nhạy
+        window.onload = syncNow;
     </script>
 </body>
 </html>
