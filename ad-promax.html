@@ -3,179 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TERMINAL - TAXI PROMAX SYSTEM</title>
+    <title>COMMANDER - TAXI PROMAX AI</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --neon-cyan: #00f2ff;
-            --neon-red: #ff003c;
-            --bg-dark: #020505;
-            --panel-bg: rgba(15, 25, 25, 0.85);
-        }
+        :root { --neon: #00f2ff; --warn: #ff003c; --panel: rgba(5, 15, 15, 0.9); }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        
+        /* Bản đồ nền trung tâm */
+        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.6) contrast(1.2); }
 
-        body { 
-            margin: 0; display: flex; height: 100vh; 
-            font-family: 'Courier New', Courier, monospace; 
-            background: var(--bg-dark); color: var(--neon-cyan);
-            overflow: hidden;
-        }
+        /* Lớp giao diện Hologram phía trên */
+        .overlay { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
+        .overlay * { pointer-events: auto; }
 
-        /* Sidebar công nghệ cao */
-        #sidebar { 
-            width: 380px; background: var(--panel-bg); 
-            border-right: 1px solid var(--neon-cyan);
-            display: flex; flex-direction: column;
-            backdrop-filter: blur(10px);
-            box-shadow: 10px 0 30px rgba(0, 242, 255, 0.1);
-            z-index: 2;
-        }
+        /* Panel Thông số phía trên */
+        .top-stats { display: flex; gap: 20px; justify-content: center; }
+        .glass-card { background: var(--panel); border: 1px solid var(--neon); border-radius: 15px; padding: 15px 30px; box-shadow: 0 0 20px rgba(0,242,255,0.2); backdrop-filter: blur(10px); }
+        .stat-val { font-size: 24px; font-weight: bold; color: var(--neon); text-shadow: 0 0 10px var(--neon); text-align: center; }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: #888; text-align: center; }
 
-        .system-header {
-            padding: 25px; border-bottom: 2px solid var(--neon-cyan);
-            text-align: center; background: rgba(0, 242, 255, 0.05);
-        }
+        /* Khu vực AI Trợ lý - Góc phải */
+        #ai-assistant { width: 350px; height: 450px; align-self: flex-end; display: flex; flex-direction: column; }
+        .ai-chat-box { flex: 1; overflow-y: auto; background: rgba(0,0,0,0.8); border: 1px solid var(--neon); border-radius: 10px; padding: 10px; margin-bottom: 10px; font-size: 13px; color: #00f2ff; }
+        .ai-input { background: rgba(0,242,255,0.1); border: 1px solid var(--neon); color: white; padding: 10px; border-radius: 5px; outline: none; }
 
-        .system-header h1 {
-            margin: 0; font-size: 20px; letter-spacing: 4px;
-            text-shadow: 0 0 10px var(--neon-cyan);
-        }
+        /* Danh sách khách hàng bên trái */
+        #unit-list { width: 250px; height: 60vh; }
+        .unit-item { background: rgba(0,0,0,0.6); border-left: 3px solid var(--neon); padding: 10px; margin-bottom: 5px; font-size: 12px; }
 
-        /* Chỉ số Radar */
-        .radar-stats {
-            display: grid; grid-template-columns: 1fr 1fr;
-            padding: 20px; gap: 15px;
-        }
-
-        .stat-card {
-            background: rgba(0, 0, 0, 0.5); padding: 15px;
-            border: 1px solid rgba(0, 242, 255, 0.3);
-            position: relative; overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: ""; position: absolute; top: 0; left: 0;
-            width: 4px; height: 100%; background: var(--neon-cyan);
-        }
-
-        .label { font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 5px; }
-        .value { font-size: 18px; font-weight: bold; }
-
-        /* Danh sách khách hàng Terminal */
-        .terminal-list {
-            flex: 1; overflow-y: auto; padding: 20px;
-            background: rgba(0, 0, 0, 0.3);
-            border-top: 1px solid #111;
-        }
-
-        .customer-row {
-            padding: 12px; border-bottom: 1px solid rgba(0, 242, 255, 0.1);
-            font-size: 12px; position: relative;
-            transition: 0.3s; cursor: pointer;
-        }
-
-        .customer-row:hover { background: rgba(0, 242, 255, 0.05); }
-
-        .status-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            display: inline-block; margin-right: 10px;
-            background: #0f0; box-shadow: 0 0 10px #0f0;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; }
-        }
-
-        /* Bản đồ chuyên sâu */
-        #admin-map { flex: 1; filter: hue-rotate(180deg) brightness(0.8) contrast(1.2); }
-
-        /* Nút lệnh */
-        .cmd-btn {
-            margin: 20px; padding: 15px;
-            background: transparent; border: 1px solid var(--neon-cyan);
-            color: var(--neon-cyan); font-weight: bold;
-            text-transform: uppercase; cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .cmd-btn:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 20px var(--neon-cyan); }
+        /* Hiệu ứng Scanner */
+        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--neon); opacity: 0.3; animation: scan 4s linear infinite; z-index: 5; }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <div class="system-header">
-            <h1>SYSTEM ADMIN v2.0</h1>
-            <small style="color: #444;">SECURITY PROTOCOL ACTIVE</small>
-        </div>
-        
-        <div class="radar-stats">
-            <div class="stat-card">
-                <div class="label">REVENUE (VNĐ)</div>
-                <div class="value" id="total-revenue" style="color: #0f0;">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">ACTIVE UNITS</div>
-                <div class="value" id="online-count">0</div>
-            </div>
-        </div>
-
-        <div class="terminal-list" id="customer-list">
-            <div style="text-align: center; color: #333;">SCANNING FOR SIGNALS...</div>
-        </div>
-
-        <button class="cmd-btn" onclick="syncNow()">FORCE REFRESH</button>
-    </div>
-
+    <div class="scanner-line"></div>
     <div id="admin-map"></div>
+
+    <div class="overlay">
+        <div class="top-stats">
+            <div class="glass-card">
+                <div class="stat-val" id="total-revenue">0đ</div>
+                <div class="stat-label">TỔNG DOANH THU HỆ THỐNG</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-val" id="online-count">0</div>
+                <div class="stat-label">THIẾT BỊ ĐANG TRỰC TUYẾN</div>
+            </div>
+        </div>
+
+        <div id="unit-list" class="glass-card">
+            <h4 style="margin:0 0 10px 0; font-size:12px; border-bottom:1px solid var(--neon)">📡 RADAR SIGNALS</h4>
+            <div id="units-container" style="overflow-y:auto; height: 90%;"></div>
+        </div>
+
+        <div id="ai-assistant" class="glass-card">
+            <h4 style="margin:0 0 10px 0; font-size:12px; color:var(--neon)">🤖 AI COMMANDER (GEMINI-PRO)</h4>
+            <div id="ai-messages" class="ai-chat-box">Hệ thống sẵn sàng. Chào Chỉ huy Đạt!</div>
+            <input type="text" id="ai-cmd" class="ai-input" placeholder="Ra lệnh cho hệ thống..." onkeypress="handleAI(event)">
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const ADMIN_CONFIG = {
-            WEBHOOK: "https://taxi-promax.vercel.app/api/customers",
-            TOKEN: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2"
+        // Cấu hình mã bảo mật của anh
+        const CONFIG = {
+            API: "https://taxi-promax.vercel.app/api/customers",
+            TOKEN: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2",
+            GEMINI: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g"
         };
 
-        // Khởi tạo bản đồ phong cách Dark Voyager
-        let adminMap = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(adminMap);
+        // 1. Khởi tạo Bản đồ Radar
+        let map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         let markers = {};
 
-        async function syncNow() {
+        // 2. Đồng bộ dữ liệu Real-time
+        async function syncData() {
             try {
-                const res = await fetch(`${ADMIN_CONFIG.WEBHOOK}?token=${ADMIN_CONFIG.TOKEN}`);
+                const res = await fetch(`${CONFIG.API}?token=${CONFIG.TOKEN}`);
                 const data = await res.json();
                 
-                document.getElementById('total-revenue').innerText = data.total_revenue.toLocaleString();
+                document.getElementById('total-revenue').innerText = data.total_revenue.toLocaleString() + "đ";
                 document.getElementById('online-count').innerText = data.customers.length;
-                
-                const list = document.getElementById('customer-list');
-                list.innerHTML = "";
+
+                const container = document.getElementById('units-container');
+                container.innerHTML = "";
                 
                 data.customers.forEach(c => {
-                    // Update List Sidebar
-                    list.innerHTML += `
-                        <div class="customer-row">
-                            <span class="status-dot"></span>
-                            <b>UNIT: ${c.id}</b><br>
-                            <span style="color:#888">PKG:</span> ${c.package} | <span style="color:#888">LAT:</span> ${c.lat.toFixed(3)}
-                        </div>`;
-
-                    // Update Map Markers (Phong cách Neon)
+                    container.innerHTML += `<div class="unit-item"><b>UNIT-${c.id}</b><br>STATUS: OK | PKG: ${c.package}</div>`;
+                    
                     if (markers[c.id]) {
                         markers[c.id].setLatLng([c.lat, c.lng]);
                     } else {
-                        markers[c.id] = L.circleMarker([c.lat, c.lng], {
-                            radius: 8, color: '#00f2ff', fillColor: '#00f2ff', fillOpacity: 0.5
-                        }).addTo(adminMap).bindPopup(`UNIT: ${c.id}`);
+                        markers[c.id] = L.circleMarker([c.lat, c.lng], {radius: 6, color: '#00f2ff', fillOpacity: 0.8}).addTo(map);
                     }
                 });
-            } catch (e) { console.log("System Idle..."); }
+            } catch(e) { console.log("Re-connecting..."); }
         }
 
-        setInterval(syncNow, 5000); // 5 giây quét một lần cho nó nhạy
-        window.onload = syncNow;
+        // 3. Xử lý AI Gemini điều hành
+        async function handleAI(e) {
+            if(e.key === 'Enter') {
+                const prompt = e.target.value;
+                const chatBox = document.getElementById('ai-messages');
+                chatBox.innerHTML += `<div>👤: ${prompt}</div>`;
+                e.target.value = "";
+
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${CONFIG.GEMINI}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý điều hành hệ thống Taxi Promax của sếp Đạt. Hãy trả lời ngắn gọn, chuyên nghiệp: " + prompt}]}]})
+                    });
+                    const d = await res.json();
+                    const reply = d.candidates[0].content.parts[0].text;
+                    chatBox.innerHTML += `<div style="color:#0f0">🤖: ${reply}</div>`;
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } catch(err) { chatBox.innerHTML += `<div>❌ Lỗi kết nối AI</div>`; }
+            }
+        }
+
+        setInterval(syncData, 5000);
+        window.onload = () => {
+            const pass = prompt("AUTHENTICATION REQUIRED:");
+            if(pass !== "1985") window.location.href = "index.html";
+            else syncData();
+        };
     </script>
 </body>
 </html>
