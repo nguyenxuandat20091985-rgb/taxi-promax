@@ -2,27 +2,66 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>HỆ THỐNG QUẢN TRỊ - TAXI PROMAX</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HỆ THỐNG ĐIỀU HÀNH - TAXI PROMAX</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; font-family: sans-serif; background: #111; color: #fff; display: flex; height: 100vh; }
-        #sidebar { width: 320px; background: #1a1a1a; border-right: 2px solid #333; display: flex; flex-direction: column; padding: 15px; }
+        :root { --primary: #00f2ff; --bg: #050a0a; --card: #121a1a; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; overflow: hidden; display: flex; height: 100vh; }
+        
+        /* Cột bên trái - Bảng điều khiển */
+        #sidebar { width: 350px; background: var(--card); border-right: 1px solid #222; display: flex; flex-direction: column; z-index: 2000; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
+        .header { padding: 20px; background: linear-gradient(to right, #00bfa5, #00f2ff); color: #000; font-weight: bold; text-align: center; }
+        
+        /* Chỉ số thống kê */
+        .stats-container { padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-box { background: #1a2424; padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: center; }
+        .stat-box h3 { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; }
+        .stat-box p { margin: 5px 0 0; font-size: 18px; font-weight: bold; color: var(--primary); }
+
+        /* Danh sách khách */
+        .list-header { padding: 10px 20px; font-size: 12px; color: #555; background: #0c1212; border-top: 1px solid #222; }
+        #customer-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .customer-item { background: #1a2424; padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .customer-item b { font-size: 14px; color: #fff; }
+        .customer-item span { font-size: 11px; color: #00bfa5; background: rgba(0,191,165,0.1); padding: 2px 6px; border-radius: 4px; }
+
+        /* Bản đồ bên phải */
         #admin-map { flex: 1; }
-        .stat-box { background: #252525; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #00bfa5; }
-        .customer-card { background: #333; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 13px; border-bottom: 2px solid #444; }
-        h2 { color: #00bfa5; font-size: 18px; text-transform: uppercase; margin-top: 0; }
-        .btn-refresh { background: #00bfa5; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+
+        /* Lớp phủ bảo mật */
+        #lock-screen { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        input { padding: 12px; border-radius: 8px; border: 1px solid var(--primary); background: #000; color: #fff; text-align: center; font-size: 18px; outline: none; }
     </style>
 </head>
-<body style="display:none;" id="main-content"> <div id="sidebar">
-        <h2>☢️ ADMIN CONTROL</h2>
-        <div class="stat-box">
-            <div>Doanh thu: <b id="total-money" style="color:#00bfa5">0đ</b></div>
-            <div>Khách Online: <b id="online-count">0</b></div>
+<body>
+
+    <div id="lock-screen">
+        <h2 style="color:var(--primary)">ADMIN ACCESS</h2>
+        <input type="password" id="pass" placeholder="NHẬP MÃ PIN" oninput="checkPass(this.value)">
+        <p style="font-size: 12px; color: #444; margin-top: 20px;">Taxi Promax Secure System</p>
+    </div>
+
+    <div id="sidebar">
+        <div class="header">TRUNG TÂM ĐIỀU HÀNH</div>
+        
+        <div class="stats-container">
+            <div class="stat-box">
+                <h3>Doanh thu</h3>
+                <p id="total-money">0đ</p>
+            </div>
+            <div class="stat-box">
+                <h3>Online</h3>
+                <p id="online-count">0</p>
+            </div>
         </div>
-        <button class="btn-refresh" onclick="fetchData()">LÀM MỚI DỮ LIỆU</button>
-        <div id="customer-list" style="margin-top:20px; overflow-y:auto;">
-            <p style="color:#888;">Đang quét dữ liệu...</p>
+
+        <div class="list-header">KHÁCH HÀNG ĐANG HOẠT ĐỘNG</div>
+        <div id="customer-list">
+            </div>
+        
+        <div style="padding: 15px;">
+            <button onclick="fetchData()" style="width:100%; padding: 12px; background: #111; color: var(--primary); border: 1px solid var(--primary); border-radius: 8px; cursor: pointer; font-weight: bold;">LÀM MỚI HỆ THỐNG</button>
         </div>
     </div>
 
@@ -30,54 +69,51 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. LỚP BẢO MẬT MẬT KHẨU
-        const PASS_ADMIN = "1985"; // Anh có thể đổi lại mã này
-        const access = prompt("NHẬP MÃ TRUY CẬP ADMIN:");
-        
-        if (access === PASS_ADMIN) {
-            document.getElementById('main-content').style.display = 'flex';
-            initAdmin();
-        } else {
-            alert("Mật khẩu sai!");
-            window.location.href = "index.html"; 
+        function checkPass(val) {
+            if(val === "1985") {
+                document.getElementById('lock-screen').style.display = 'none';
+                initAdmin();
+            }
         }
 
-        let adminMap;
-        let markers = {};
+        let adminMap, markers = {};
 
         function initAdmin() {
-            adminMap = L.map('admin-map').setView([21.0285, 105.8542], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(adminMap);
+            adminMap = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
+            L.tileLayer('https://{s}.tile.mapnik.org/{z}/{x}/{y}.png').addTo(adminMap);
             fetchData();
-            setInterval(fetchData, 10000); // Tự động cập nhật mỗi 10 giây
+            setInterval(fetchData, 10000); // Cập nhật mỗi 10 giây
         }
 
         async function fetchData() {
             try {
-                const res = await fetch('https://taxi-promax.vercel.app/api/customers?token=309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2');
+                // Đường link này sẽ được kết nối tới Backend Vercel của anh
+                const res = await fetch('https://taxi-promax.vercel.app/api/admin-data');
                 const data = await res.json();
                 
-                document.getElementById('total-money').innerText = data.total_revenue + "đ";
+                document.getElementById('total-money').innerText = data.revenue.toLocaleString() + "đ";
                 document.getElementById('online-count').innerText = data.customers.length;
                 
                 const list = document.getElementById('customer-list');
                 list.innerHTML = "";
                 
                 data.customers.forEach(c => {
-                    // Cập nhật danh sách bên trái
-                    const item = document.createElement('div');
-                    item.className = 'customer-card';
-                    item.innerHTML = `<b>ID: ${c.id}</b><br>Gói: ${c.package}<br>Tiền: ${c.amount}đ`;
-                    list.appendChild(item);
+                    // Update List
+                    list.innerHTML += `<div class="customer-item">
+                        <div><b>${c.id}</b><br><small style="color:#666">${c.lastSeen}</small></div>
+                        <span>${c.package}</span>
+                    </div>`;
 
-                    // Cập nhật bản đồ bên phải
-                    if (markers[c.id]) {
+                    // Update Map
+                    if(markers[c.id]) {
                         markers[c.id].setLatLng([c.lat, c.lng]);
                     } else {
                         markers[c.id] = L.marker([c.lat, c.lng]).addTo(adminMap).bindPopup("Khách: " + c.id);
                     }
                 });
-            } catch (e) { console.log("Lỗi kết nối Webhook"); }
+            } catch (e) {
+                console.log("Hệ thống đang đợi dữ liệu từ máy chủ...");
+            }
         }
     </script>
 </body>
