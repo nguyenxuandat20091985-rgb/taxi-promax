@@ -3,135 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>COMMANDER - TAXI PROMAX AI</title>
+    <title>DAT-AI COMMAND CENTER</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --neon: #00f2ff; --warn: #ff003c; --panel: rgba(5, 15, 15, 0.9); }
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        :root { --main: #00f2ff; --glow: rgba(0, 242, 255, 0.5); }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: 'Orbitron', sans-serif; overflow: hidden; color: white; }
         
-        /* Bản đồ nền trung tâm */
-        #admin-map { position: absolute; inset: 0; z-index: 1; filter: brightness(0.6) contrast(1.2); }
+        #admin-map { position: absolute; inset: 0; z-index: 1; filter: contrast(1.2) brightness(0.5) saturate(0.8); }
 
-        /* Lớp giao diện Hologram phía trên */
-        .overlay { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
-        .overlay * { pointer-events: auto; }
+        /* Giao diện HUD */
+        .hud-panel { position: absolute; z-index: 100; pointer-events: none; width: 100%; height: 100%; border: 20px solid transparent; box-sizing: border-box; border-image: url('https://i.imgur.com/8S9S8pX.png') 30 stretch; }
 
-        /* Panel Thông số phía trên */
-        .top-stats { display: flex; gap: 20px; justify-content: center; }
-        .glass-card { background: var(--panel); border: 1px solid var(--neon); border-radius: 15px; padding: 15px 30px; box-shadow: 0 0 20px rgba(0,242,255,0.2); backdrop-filter: blur(10px); }
-        .stat-val { font-size: 24px; font-weight: bold; color: var(--neon); text-shadow: 0 0 10px var(--neon); text-align: center; }
-        .stat-label { font-size: 10px; text-transform: uppercase; color: #888; text-align: center; }
+        /* Khối AI lơ lửng có thể di chuyển */
+        #ai-avatar {
+            position: absolute; width: 80px; height: 80px; top: 70%; left: 80%;
+            background: radial-gradient(circle, var(--main), transparent);
+            border-radius: 50%; z-index: 1000; cursor: move;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 30px var(--glow);
+            animation: float 3s ease-in-out infinite; pointer-events: auto;
+        }
+        .ai-core { width: 40px; height: 40px; background: white; border-radius: 50%; box-shadow: 0 0 20px white; animation: pulse 1s infinite; }
 
-        /* Khu vực AI Trợ lý - Góc phải */
-        #ai-assistant { width: 350px; height: 450px; align-self: flex-end; display: flex; flex-direction: column; }
-        .ai-chat-box { flex: 1; overflow-y: auto; background: rgba(0,0,0,0.8); border: 1px solid var(--neon); border-radius: 10px; padding: 10px; margin-bottom: 10px; font-size: 13px; color: #00f2ff; }
-        .ai-input { background: rgba(0,242,255,0.1); border: 1px solid var(--neon); color: white; padding: 10px; border-radius: 5px; outline: none; }
+        /* Bảng điều khiển nổi */
+        .glass-box {
+            position: absolute; z-index: 10; background: rgba(0, 20, 20, 0.7);
+            backdrop-filter: blur(15px); border: 1px solid var(--main);
+            border-radius: 20px; padding: 20px; pointer-events: auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        .stats { top: 30px; left: 30px; width: 280px; }
+        .log-panel { bottom: 30px; left: 30px; width: 320px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; }
 
-        /* Danh sách khách hàng bên trái */
-        #unit-list { width: 250px; height: 60vh; }
-        .unit-item { background: rgba(0,0,0,0.6); border-left: 3px solid var(--neon); padding: 10px; margin-bottom: 5px; font-size: 12px; }
+        /* Khung Chat AI bên cạnh Avatar */
+        #ai-chat-bubble {
+            position: absolute; bottom: 100px; right: 0; width: 250px;
+            background: rgba(0,0,0,0.8); border: 1px solid var(--main);
+            padding: 15px; border-radius: 15px; display: none; pointer-events: auto;
+        }
 
-        /* Hiệu ứng Scanner */
-        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--neon); opacity: 0.3; animation: scan 4s linear infinite; z-index: 5; }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div class="scanner-line"></div>
     <div id="admin-map"></div>
 
-    <div class="overlay">
-        <div class="top-stats">
-            <div class="glass-card">
-                <div class="stat-val" id="total-revenue">0đ</div>
-                <div class="stat-label">TỔNG DOANH THU HỆ THỐNG</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-val" id="online-count">0</div>
-                <div class="stat-label">THIẾT BỊ ĐANG TRỰC TUYẾN</div>
-            </div>
+    <div class="glass-box stats">
+        <div style="color:var(--main); font-size:10px; margin-bottom:5px;">OPERATIONAL REVENUE</div>
+        <div id="total-revenue" style="font-size:28px; font-weight:bold;">0đ</div>
+        <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
+        <div style="display:flex; justify-content:space-between;">
+            <span>UNITS: <b id="online-count" style="color:var(--main)">0</b></span>
+            <span style="color:#0f0;">● SECURE</span>
         </div>
+    </div>
 
-        <div id="unit-list" class="glass-card">
-            <h4 style="margin:0 0 10px 0; font-size:12px; border-bottom:1px solid var(--neon)">📡 RADAR SIGNALS</h4>
-            <div id="units-container" style="overflow-y:auto; height: 90%;"></div>
-        </div>
+    <div class="glass-box log-panel" id="system-logs">
+        <div style="color:var(--main); border-bottom:1px solid #333; padding-bottom:5px;">SYSTEM_LOGS_v4.0</div>
+        <div id="logs-content"></div>
+    </div>
 
-        <div id="ai-assistant" class="glass-card">
-            <h4 style="margin:0 0 10px 0; font-size:12px; color:var(--neon)">🤖 AI COMMANDER (GEMINI-PRO)</h4>
-            <div id="ai-messages" class="ai-chat-box">Hệ thống sẵn sàng. Chào Chỉ huy Đạt!</div>
-            <input type="text" id="ai-cmd" class="ai-input" placeholder="Ra lệnh cho hệ thống..." onkeypress="handleAI(event)">
+    <div id="ai-avatar" onmousedown="startDrag(event)">
+        <div class="ai-core"></div>
+        <div id="ai-chat-bubble">
+            <div id="ai-text" style="font-size:12px; margin-bottom:10px; color:var(--main)">Xin chào Sếp Đạt, tôi đã sẵn sàng!</div>
+            <input type="text" id="ai-input" placeholder="Ra lệnh..." 
+                   style="width:100%; background:transparent; border:none; border-bottom:1px solid var(--main); color:white; outline:none;"
+                   onkeypress="askAI(event)">
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Cấu hình mã bảo mật của anh
-        const CONFIG = {
-            API: "https://taxi-promax.vercel.app/api/customers",
-            TOKEN: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2",
-            GEMINI: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g"
-        };
-
-        // 1. Khởi tạo Bản đồ Radar
+        const API_KEY = "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g"; // Gemini Key
+        
+        // 1. Bản đồ Trung tâm
         let map = L.map('admin-map', {zoomControl: false}).setView([21.0285, 105.8542], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        let markers = {};
+        // 2. Kéo thả AI quanh màn hình
+        let activeAI = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
+        const aiAvatar = document.getElementById("ai-avatar");
+        const bubble = document.getElementById("ai-chat-bubble");
 
-        // 2. Đồng bộ dữ liệu Real-time
-        async function syncData() {
-            try {
-                const res = await fetch(`${CONFIG.API}?token=${CONFIG.TOKEN}`);
-                const data = await res.json();
-                
-                document.getElementById('total-revenue').innerText = data.total_revenue.toLocaleString() + "đ";
-                document.getElementById('online-count').innerText = data.customers.length;
-
-                const container = document.getElementById('units-container');
-                container.innerHTML = "";
-                
-                data.customers.forEach(c => {
-                    container.innerHTML += `<div class="unit-item"><b>UNIT-${c.id}</b><br>STATUS: OK | PKG: ${c.package}</div>`;
-                    
-                    if (markers[c.id]) {
-                        markers[c.id].setLatLng([c.lat, c.lng]);
-                    } else {
-                        markers[c.id] = L.circleMarker([c.lat, c.lng], {radius: 6, color: '#00f2ff', fillOpacity: 0.8}).addTo(map);
-                    }
-                });
-            } catch(e) { console.log("Re-connecting..."); }
+        function startDrag(e) {
+            initialX = e.clientX - xOffset; initialY = e.clientY - yOffset;
+            if (e.target === aiAvatar || e.target.className === 'ai-core') { activeAI = true; }
+            bubble.style.display = "block"; // Hiện khung chat khi tương tác
         }
 
-        // 3. Xử lý AI Gemini điều hành
-        async function handleAI(e) {
+        document.onmousemove = (e) => {
+            if (activeAI) {
+                currentX = e.clientX - initialX; currentY = e.clientY - initialY;
+                xOffset = currentX; yOffset = currentY;
+                aiAvatar.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+            }
+        }
+        document.onmouseup = () => activeAI = false;
+
+        // 3. AI Nói chuyện (Gemini)
+        async function askAI(e) {
             if(e.key === 'Enter') {
                 const prompt = e.target.value;
-                const chatBox = document.getElementById('ai-messages');
-                chatBox.innerHTML += `<div>👤: ${prompt}</div>`;
-                e.target.value = "";
+                const aiText = document.getElementById('ai-text');
+                aiText.innerText = "Đang xử lý..."; e.target.value = "";
 
                 try {
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${CONFIG.GEMINI}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý điều hành hệ thống Taxi Promax của sếp Đạt. Hãy trả lời ngắn gọn, chuyên nghiệp: " + prompt}]}]})
+                        body: JSON.stringify({contents: [{parts: [{text: "Bạn là trợ lý ảo AI cao cấp của Sếp Đạt. Hãy trả lời cực kỳ ngắn gọn, thông minh: " + prompt}]}]})
                     });
                     const d = await res.json();
-                    const reply = d.candidates[0].content.parts[0].text;
-                    chatBox.innerHTML += `<div style="color:#0f0">🤖: ${reply}</div>`;
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                } catch(err) { chatBox.innerHTML += `<div>❌ Lỗi kết nối AI</div>`; }
+                    aiText.innerText = d.candidates[0].content.parts[0].text;
+                } catch(err) { aiText.innerText = "Lỗi kết nối vệ tinh!"; }
             }
         }
 
-        setInterval(syncData, 5000);
-        window.onload = () => {
-            const pass = prompt("AUTHENTICATION REQUIRED:");
-            if(pass !== "1985") window.location.href = "index.html";
-            else syncData();
-        };
+        // 4. Giả lập dữ liệu (Anh thay bằng link Webhook thật của anh nhé)
+        function updateSystem() {
+            const logs = document.getElementById('logs-content');
+            const time = new Date().toLocaleTimeString();
+            logs.innerHTML = `<div>[${time}] Quét tín hiệu vệ tinh... OK</div>` + logs.innerHTML;
+            document.getElementById('total-revenue').innerText = (Math.random()*1000000).toLocaleString() + "đ";
+            document.getElementById('online-count').innerText = Math.floor(Math.random()*20);
+        }
+        setInterval(updateSystem, 5000);
     </script>
 </body>
 </html>
