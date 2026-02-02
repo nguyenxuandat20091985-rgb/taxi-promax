@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
@@ -11,71 +11,548 @@
     <title>TAXI PROMAX - PLATINUM</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); position: fixed; width: 100%; } 
-        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); } 
-        .header { position: fixed; top: env(safe-area-inset-top, 10px); left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
-        .stats-bar { position: fixed; top: calc(env(safe-area-inset-top, 10px) + 45px); left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
-        .stat-item { flex: 1; text-align: center; }
-        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); } 
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
-        .nav-item.active { color: var(--primary); }
-        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; font-style: normal; } 
-        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
-        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; font-weight: 800; } 
-        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; }
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
-        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
-        .p-card b { display: block; font-size: 13px; color: var(--dark); }
-        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
-        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; }
-        .btn-main:disabled { background: #ccc; box-shadow: none; }
-        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
-        #ai-wrapper { position: fixed; bottom: 120px; right: 15px; z-index: 999999; display: flex; flex-direction: column; align-items: flex-end; }
-        #ai-root { width: 70px; height: 70px; border-radius: 50%; background: #000 url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); cursor: pointer; animation: floating 3s infinite ease-in-out; }
-        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        #ai-chat-box { width: 300px; max-width: 80vw; background: #fff; border-radius: 20px; margin-bottom: 12px; display: none; flex-direction: column; border: 1px solid #00f2ff; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .ai-header { background: #00d1d1; color: white; padding: 12px; text-align: center; font-weight: 600; }
-        #ai-content { max-height: 250px; min-height: 100px; overflow-y: auto; padding: 15px; background: #f0fbfc; }
-        .ai-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #eee; }
-        #ai-txt { flex: 1; border: 1px solid #ddd; outline: none; padding: 8px 15px; border-radius: 20px; font-size: 13px; }
-        #ai-send { color: #00d1d1; font-size: 22px; border: none; background: none; cursor: pointer; }
+        :root { 
+            --primary: #00bfa5; 
+            --dark: #002d26; 
+            --gold: #ffc107; 
+            --danger: #ff5252; 
+            --bg: #f8faf9; 
+            --glass: rgba(255, 255, 255, 0.95); 
+            --safe-top: env(safe-area-inset-top, 10px);
+            --safe-bottom: env(safe-area-inset-bottom, 10px);
+        }
         
-        /* HIỆU ỨNG CHẤM XANH PLATINUM */
-        .blue-dot { width: 20px; height: 20px; background: #00f2ff; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; }
-        .dot-pulse { position: absolute; width: 100%; height: 100%; background: #00f2ff; border-radius: 50%; animation: pulse-blue 2s infinite; opacity: 0.5; }
-        @keyframes pulse-blue { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(3); opacity: 0; } }
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            outline: none; 
+            margin: 0;
+            padding: 0;
+        }
         
-        /* GÓI CƯỚC CHUYÊN NGHIỆP */
-        .pricing-header { background: linear-gradient(135deg, var(--primary), var(--dark)); padding: 20px; border-radius: 20px; margin: 15px; color: white; text-align: center; }
-        .pricing-header h2 { margin: 0; font-size: 24px; font-weight: 900; }
-        .pricing-header p { margin: 5px 0 0; font-size: 12px; opacity: 0.9; }
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            width: 100%;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; 
+            overflow: hidden; 
+            position: fixed; 
+            background: var(--bg); 
+        } 
         
-        /* ANIMATION LOADING */
-        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,191,165,0.3); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        #map { 
+            height: 100vh; 
+            width: 100vw; 
+            z-index: 1; 
+            filter: contrast(1.05) saturate(1.1); 
+        } 
+        
+        /* HEADER - RESPONSIVE */
+        .header { 
+            position: fixed; 
+            top: var(--safe-top);
+            left: 0; 
+            right: 0;
+            display: flex; 
+            justify-content: space-between;
+            padding: 0 clamp(8px, 3vw, 15px);
+            z-index: 1000; 
+            pointer-events: none;
+            gap: clamp(5px, 2vw, 10px);
+        }
+        
+        .badge { 
+            pointer-events: auto; 
+            background: var(--glass); 
+            padding: clamp(6px, 2vw, 10px) clamp(10px, 3vw, 15px); 
+            border-radius: 20px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            font-size: clamp(10px, 3.5vw, 12px); 
+            font-weight: 800; 
+            color: var(--dark); 
+            border: 1px solid white; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-flex;
+            align-items: center;
+            max-width: 48%;
+        }
+        
+        /* STATS BAR - RESPONSIVE */
+        .stats-bar { 
+            position: fixed; 
+            top: calc(var(--safe-top) + clamp(40px, 12vw, 55px));
+            left: clamp(8px, 3vw, 15px); 
+            right: clamp(8px, 3vw, 15px); 
+            background: var(--glass); 
+            border-radius: clamp(12px, 4vw, 18px); 
+            display: flex; 
+            padding: clamp(10px, 3vw, 15px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+            z-index: 1000; 
+            border: 1px solid white; 
+            gap: clamp(10px, 3vw, 15px);
+        }
+        
+        .stat-item { 
+            flex: 1; 
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .stat-label { 
+            font-size: clamp(8px, 2.5vw, 10px); 
+            color: #7f8c8d; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            margin-bottom: clamp(2px, 1vw, 5px);
+        }
+        
+        .stat-value { 
+            font-size: clamp(18px, 6vw, 24px); 
+            font-weight: 900; 
+            color: var(--dark); 
+            line-height: 1;
+        } 
+        
+        /* FOOTER PANEL - RESPONSIVE */
+        .footer-panel { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            background: white; 
+            z-index: 2000; 
+            border-radius: clamp(20px, 6vw, 30px) clamp(20px, 6vw, 30px) 0 0; 
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.08); 
+            padding: clamp(12px, 4vw, 20px) clamp(12px, 4vw, 20px) calc(var(--safe-bottom) + clamp(5px, 2vw, 10px));
+            max-height: 45vh;
+        } 
+        
+        /* NAVIGATION - RESPONSIVE */
+        .nav-grid { 
+            display: flex; 
+            justify-content: space-around; 
+            margin-top: clamp(8px, 3vw, 15px); 
+            padding-top: clamp(8px, 3vw, 12px); 
+            border-top: 1px solid #eee; 
+            gap: clamp(5px, 2vw, 10px);
+        }
+        
+        .nav-item { 
+            border: none; 
+            background: none; 
+            color: #bdc3c7; 
+            font-size: clamp(9px, 2.8vw, 11px); 
+            font-weight: 700; 
+            text-align: center; 
+            flex: 1; 
+            transition: 0.3s; 
+            cursor: pointer; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: clamp(4px, 1.5vw, 8px);
+            border-radius: 12px;
+            min-width: 0;
+        }
+        
+        .nav-item.active { 
+            color: var(--primary); 
+            background: rgba(0, 191, 165, 0.08);
+        }
+        
+        .nav-item i { 
+            font-size: clamp(18px, 6vw, 24px); 
+            display: block; 
+            margin-bottom: clamp(2px, 1vw, 4px); 
+            font-style: normal; 
+        } 
+        
+        .brand-footer { 
+            font-size: clamp(8px, 2.5vw, 10px); 
+            text-align: center; 
+            color: #bdc3c7; 
+            padding-top: clamp(8px, 3vw, 12px); 
+            font-weight: bold; 
+            letter-spacing: 0.5px; 
+            margin-top: clamp(5px, 2vw, 10px);
+            border-top: 1px solid #eee;
+        } 
+        
+        /* TAB CONTENT - RESPONSIVE */
+        .tab-content { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: calc(100% - clamp(110px, 30vh, 150px)); 
+            background: #fdfdfd; 
+            z-index: 1500; 
+            display: none; 
+            flex-direction: column; 
+            overflow-y: auto; 
+            padding-bottom: clamp(20px, 8vw, 40px);
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .p-header { 
+            background: var(--primary); 
+            color: white; 
+            padding: clamp(20px, 6vw, 30px) clamp(15px, 5vw, 25px); 
+            text-align: center; 
+            border-bottom-left-radius: clamp(20px, 6vw, 30px); 
+            border-bottom-right-radius: clamp(20px, 6vw, 30px); 
+            font-weight: 800; 
+            font-size: clamp(16px, 5vw, 22px);
+        } 
+        
+        /* HISTORY CARD - RESPONSIVE */
+        .history-card { 
+            background: white; 
+            margin: clamp(8px, 3vw, 12px) clamp(12px, 4vw, 18px); 
+            padding: clamp(12px, 4vw, 18px); 
+            border-radius: clamp(12px, 4vw, 18px); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            border-left: clamp(4px, 1.5vw, 6px) solid var(--primary); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            gap: clamp(8px, 3vw, 15px);
+        }
+        
+        .h-price { 
+            font-weight: 900; 
+            color: var(--primary); 
+            font-size: clamp(14px, 4.5vw, 18px); 
+            white-space: nowrap;
+        }
+        
+        /* PRICING GRID - RESPONSIVE */
+        .p-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+            gap: clamp(8px, 3vw, 12px); 
+            padding: clamp(12px, 4vw, 18px); 
+        }
+        
+        .p-card { 
+            background: white; 
+            border: 2px solid #ecf0f1; 
+            border-radius: clamp(14px, 4.5vw, 20px); 
+            padding: clamp(10px, 3.5vw, 15px); 
+            transition: 0.3s; 
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+            min-height: 120px;
+        }
+        
+        .p-card.active { 
+            border-color: var(--primary); 
+            background: #f0fffb; 
+            transform: scale(1.02); 
+        }
+        
+        .p-card b { 
+            display: block; 
+            font-size: clamp(12px, 3.8vw, 14px); 
+            color: var(--dark); 
+            margin-bottom: clamp(4px, 1.5vw, 8px);
+        }
+        
+        .p-card span { 
+            color: var(--primary); 
+            font-weight: 800; 
+            font-size: clamp(13px, 4vw, 16px); 
+            margin-bottom: clamp(6px, 2vw, 10px);
+        }
+        
+        .p-card ul { 
+            margin: clamp(6px, 2vw, 10px) 0 0; 
+            padding: 0; 
+            list-style: none; 
+            font-size: clamp(8px, 2.5vw, 10px); 
+            color: #7f8c8d; 
+            line-height: 1.4; 
+            flex-grow: 1;
+        } 
+        
+        /* BUTTONS - RESPONSIVE */
+        .btn-main { 
+            width: 100%; 
+            padding: clamp(12px, 4vw, 18px); 
+            border-radius: clamp(12px, 4vw, 18px); 
+            border: none; 
+            background: var(--primary); 
+            color: white; 
+            font-size: clamp(16px, 5vw, 20px); 
+            font-weight: 900; 
+            box-shadow: 0 6px 20px rgba(0,191,165,0.3); 
+            transition: 0.3s; 
+            cursor: pointer;
+        }
+        
+        .btn-main:disabled { 
+            background: #ccc; 
+            box-shadow: none; 
+            cursor: not-allowed;
+        }
+        
+        /* SLIDER - RESPONSIVE */
+        input[type="range"] { 
+            width: 100%; 
+            margin-bottom: clamp(10px, 3vw, 15px); 
+            accent-color: var(--primary); 
+            height: clamp(4px, 1.5vw, 6px); 
+        }
+        
+        /* MODALS - RESPONSIVE */
+        .custom-modal { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            z-index: 10000; 
+            display: none; 
+            align-items: center; 
+            justify-content: center; 
+            backdrop-filter: blur(4px); 
+            padding: clamp(15px, 5vw, 25px);
+        }
+        
+        .modal-content { 
+            background: white; 
+            width: min(90%, 400px); 
+            padding: clamp(20px, 6vw, 30px); 
+            border-radius: clamp(20px, 6vw, 30px); 
+            text-align: center; 
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        /* AI WRAPPER - FIXED POSITIONING */
+        #ai-wrapper { 
+            position: fixed; 
+            bottom: clamp(140px, 25vh, 180px); 
+            right: clamp(12px, 4vw, 20px); 
+            z-index: 999999; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-end; 
+        }
+        
+        #ai-root { 
+            width: clamp(60px, 18vw, 80px); 
+            height: clamp(60px, 18vw, 80px); 
+            border-radius: 50%; 
+            background: #000 url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; 
+            background-size: cover; 
+            border: clamp(2px, 1vw, 4px) solid #00f2ff; 
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); 
+            cursor: pointer; 
+            animation: floating 3s infinite ease-in-out; 
+        }
+        
+        @keyframes floating { 
+            0%, 100% { transform: translateY(0); } 
+            50% { transform: translateY(-10px); } 
+        }
+        
+        /* AI CHAT BOX - RESPONSIVE */
+        #ai-chat-box { 
+            width: min(85vw, 350px); 
+            background: #fff; 
+            border-radius: clamp(16px, 5vw, 24px); 
+            margin-bottom: clamp(10px, 3vw, 15px); 
+            display: none; 
+            flex-direction: column; 
+            border: 1px solid #00f2ff; 
+            overflow: hidden; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+            max-height: 60vh;
+        }
+        
+        .ai-header { 
+            background: #00d1d1; 
+            color: white; 
+            padding: clamp(10px, 3.5vw, 15px); 
+            text-align: center; 
+            font-weight: 600; 
+            font-size: clamp(14px, 4.5vw, 16px);
+        }
+        
+        #ai-content { 
+            max-height: 250px; 
+            min-height: 100px; 
+            overflow-y: auto; 
+            padding: clamp(12px, 4vw, 18px); 
+            background: #f0fbfc; 
+            font-size: clamp(13px, 4vw, 15px);
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .ai-input-area { 
+            display: flex; 
+            padding: clamp(8px, 3vw, 12px); 
+            background: #fff; 
+            border-top: 1px solid #eee; 
+            gap: clamp(5px, 2vw, 10px);
+        }
+        
+        #ai-txt { 
+            flex: 1; 
+            border: 1px solid #ddd; 
+            outline: none; 
+            padding: clamp(8px, 3vw, 12px) clamp(10px, 3.5vw, 15px); 
+            border-radius: 20px; 
+            font-size: clamp(13px, 4vw, 15px); 
+            font-family: inherit;
+        }
+        
+        #ai-send { 
+            color: #00d1d1; 
+            font-size: clamp(20px, 6vw, 24px); 
+            border: none; 
+            background: none; 
+            cursor: pointer; 
+            padding: clamp(5px, 2vw, 10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
+        }
+        
+        /* BLUE DOT EFFECT */
+        .blue-dot { 
+            width: clamp(16px, 5vw, 24px); 
+            height: clamp(16px, 5vw, 24px); 
+            background: #00f2ff; 
+            border: clamp(2px, 1vw, 4px) solid white; 
+            border-radius: 50%; 
+            box-shadow: 0 0 15px #00f2ff; 
+        }
+        
+        .dot-pulse { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            background: #00f2ff; 
+            border-radius: 50%; 
+            animation: pulse-blue 2s infinite; 
+            opacity: 0.5; 
+        }
+        
+        @keyframes pulse-blue { 
+            0% { transform: scale(1); opacity: 0.6; } 
+            100% { transform: scale(3); opacity: 0; } 
+        }
+        
+        /* MEDIA QUERIES FOR SMALL SCREENS */
+        @media (max-width: 480px) {
+            .stats-bar {
+                flex-direction: column;
+                gap: 8px;
+                padding: 12px;
+            }
+            
+            .stat-item {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                text-align: left;
+            }
+            
+            .stat-label {
+                margin-bottom: 0;
+                font-size: 10px;
+            }
+            
+            .stat-value {
+                font-size: 20px;
+            }
+            
+            #ai-wrapper {
+                bottom: clamp(150px, 28vh, 200px);
+                right: 10px;
+            }
+            
+            #ai-root {
+                width: 65px;
+                height: 65px;
+            }
+        }
+        
+        @media (max-width: 360px) {
+            .badge {
+                font-size: 9px;
+                padding: 6px 10px;
+            }
+            
+            .nav-item {
+                font-size: 8px;
+            }
+            
+            .nav-item i {
+                font-size: 16px;
+            }
+            
+            #ai-root {
+                width: 55px;
+                height: 55px;
+            }
+        }
+        
+        /* LOADING ANIMATION */
+        .loading { 
+            display: inline-block; 
+            width: clamp(16px, 5vw, 24px); 
+            height: clamp(16px, 5vw, 24px); 
+            border: clamp(2px, 1vw, 3px) solid rgba(0,191,165,0.3); 
+            border-radius: 50%; 
+            border-top-color: var(--primary); 
+            animation: spin 1s ease-in-out infinite; 
+        }
+        
+        @keyframes spin { 
+            to { transform: rotate(360deg); } 
+        }
+        
+        /* TOUCH FRIENDLY ELEMENTS */
+        button, 
+        input[type="range"],
+        .p-card,
+        .nav-item {
+            touch-action: manipulation;
+        }
+        
+        /* HIDE SCROLLBAR BUT KEEP FUNCTIONALITY */
+        .scrollbar-hidden {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .scrollbar-hidden::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 <body oncontextmenu="return false;"> 
 
     <div class="header">
-        <div class="badge" id="idShow">🆔 TX-${Math.floor(1000 + Math.random() * 9000)}</div>
-        <div class="badge" id="planShow">⭐ ĐANG TÍNH NGÀY...</div>
+        <div class="badge" id="idShow">🆔 ĐANG TẠO ID...</div>
+        <div class="badge" style="color:var(--danger); border: 1px solid var(--danger)" id="planShow">⭐ ĐANG TÍNH NGÀY...</div>
     </div> 
 
     <div class="stats-bar" id="statsUI">
-        <div class="stat-item" style="border-right: 1px solid #eee;">
+        <div class="stat-item">
             <div class="stat-label">CƯỚC (VNĐ)</div>
             <div id="cost" class="stat-value">0</div>
         </div>
@@ -88,98 +565,71 @@
     <div id="map"></div> 
     
     <div id="tab-vi" class="tab-content">
-        <div class="pricing-header">
-            <h2>HỆ THỐNG GÓI CƯỚC THÔNG MINH</h2>
-            <p>TỰ ĐỘNG KÍCH HOẠT - BẢO MẬT AES-256</p>
+        <div class="p-header">
+            <div style="font-size: clamp(18px, 5.5vw, 24px); font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
+            <div id="trialBox" style="font-size: clamp(10px, 3vw, 12px); opacity: 0.9; margin-top: clamp(5px, 2vw, 10px);">HẾT HẠN DÙNG THỬ VUI LÒNG NẠP TIỀN</div>
         </div>
         <div class="p-grid">
             <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
                 <b>GÓI BASIC</b><span>19.000đ</span>
-                <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li><li>✅ Hỗ trợ cơ bản</li></ul>
+                <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul>
             </div>
             <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
                 <b>GÓI PRO</b><span>29.000đ</span>
-                <ul><li>✅ Tất cả tính năng BASIC</li><li>✅ Bản đồ real-time</li><li>✅ Xuất PDF hóa đơn</li></ul>
+                <ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul>
             </div>
             <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)">
-                <b>GÓI VIP (1 THÁNG)</b><span>49.000đ</span>
-                <ul><li>✅ Tất cả tính năng PRO</li><li>✅ Trợ lý giọng nói AI</li><li>✅ Cloud Backup</li></ul>
+                <b>GÓI VIP 1TH</b><span>49.000đ</span>
+                <ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul>
             </div>
             <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)">
                 <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
-                <ul><li>✅ Tất cả tính năng VIP</li><li>✅ Sử dụng vĩnh viễn</li><li>✅ Cập nhật miễn phí trọn đời</li><li>✅ Hỗ trợ 24/7</li></ul>
+                <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
             </div>
         </div>
-        <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
-            <img id="qrImg" style="width:180px; border-radius:10px;" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=BIDV-4430269669-NGUYEN%20XUAN%20DAT">
-            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
-            <b id="qrContent" style="color:var(--danger); font-size: 16px;">TAXIPROMAX [Mã gói]</b>
-            <p style="font-size:11px; color:#666; margin-top:5px;">Tài khoản: <b>BIDV 4430269669 - NGUYỄN XUÂN ĐẠT</b></p>
-            <button class="btn-main" onclick="verifyPayment()" style="margin-top:10px;">🔐 KIỂM TRA THANH TOÁN</button>
-        </div>
-        <div style="padding:15px; text-align:center;">
-            <div style="background:#f8f9fa; padding:12px; border-radius:12px; font-size:11px;">
-                <b>🛡️ CHỐNG GIAN LẬN:</b>
-                <p style="margin:5px 0;">• Xác thực thanh toán qua webhook thật</p>
-                <p style="margin:5px 0;">• Database mã hóa AES-256 localStorage</p>
-                <p style="margin:5px 0;">• Checksum kiểm tra tính toàn vẹn dữ liệu</p>
-            </div>
+        <div style="text-align:center; padding: clamp(15px, 5vw, 25px); background:white; margin: clamp(8px, 3vw, 12px) clamp(12px, 4vw, 18px); border-radius:clamp(16px, 5vw, 24px); border: 1px dashed #ccc;">
+            <img id="qrImg" style="width:clamp(150px, 45vw, 200px); border-radius:clamp(8px, 3vw, 12px);" src="">
+            <p style="font-size:clamp(11px, 3.5vw, 13px); margin: clamp(8px, 3vw, 12px) 0 clamp(4px, 1.5vw, 6px);">Nội dung chuyển khoản:</p>
+            <b id="qrContent" style="color:var(--danger); font-size: clamp(14px, 4.5vw, 18px);">...</b>
         </div>
     </div> 
 
     <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">📊 LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
-        <div style="padding:20px; text-align:center; color:#666; font-size:12px;">
-            <p>Hệ thống lưu trữ tự động - Mã hóa AES-256</p>
-        </div>
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList" style="padding-top: clamp(8px, 3vw, 12px);"></div>
     </div> 
 
     <div id="tab-toi" class="tab-content">
-        <div class="p-header">⚙️ THIẾT LẬP</div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:15px; border-radius:15px; font-size:13px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                <p>Mã tài xế: <b id="profileID">TX-${Math.floor(1000 + Math.random() * 9000)}</b></p>
+        <div class="p-header">THIẾT LẬP</div>
+        <div style="padding:clamp(15px, 5vw, 25px);">
+            <div style="background:white; padding:clamp(12px, 4vw, 18px); border-radius:clamp(12px, 4vw, 18px); font-size:clamp(13px, 4vw, 15px); box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <p>Mã tài xế: <b id="profileID">...</b></p>
                 <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
                 <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
                 <p>Hệ thống: <b>PLATINUM v2.0</b></p>
-                <p>Gói cước: <b id="currentPlan" style="color:var(--gold)">ĐANG KIỂM TRA...</b></p>
-                <button class="btn-main" onclick="checkPlanStatus()" style="margin-top:10px; font-size:14px;">🔄 KIỂM TRA TRẠNG THÁI</button>
             </div>
         </div>
     </div> 
 
     <div id="wishModal" class="custom-modal">
         <div class="modal-content">
-            <h3 style="color:var(--primary)">CHÚC ANH CHỊ BÌNH AN!</h3>
-            <p style="font-size:14px; color:#666;">Hệ thống định vị đã sẵn sàng.</p>
-            <button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button>
+            <h3 style="color:var(--primary); font-size: clamp(18px, 5.5vw, 22px);">CHÚC ANH CHỊ BÌNH AN!</h3>
+            <p style="font-size:clamp(13px, 4vw, 15px); color:#666; margin: clamp(10px, 3.5vw, 15px) 0;">Hệ thống định vị đã sẵn sàng.</p>
+            <button class="btn-main" onclick="closeModal('wishModal')" style="margin-top: clamp(10px, 3.5vw, 15px);">ĐỒNG Ý</button>
         </div>
     </div> 
 
     <div id="endModal" class="custom-modal">
         <div class="modal-content">
-            <h3>✅ HOÀN THÀNH CHUYẾN ĐI!</h3>
-            <div id="endSummary" style="padding: 15px 0; font-size:14px;"></div>
-            <button class="btn-main" onclick="saveTripToHistory()">💾 LƯU VÀO LỊCH SỬ</button>
-            <button class="btn-main" onclick="closeModal('endModal')" style="margin-top:10px; background:#666;">ĐÓNG</button>
-        </div>
-    </div> 
-
-    <div id="paymentModal" class="custom-modal">
-        <div class="modal-content">
-            <h3>🔐 XÁC THỰC THANH TOÁN</h3>
-            <div id="paymentStatus" style="padding:15px; text-align:center;">
-                <div class="loading"></div>
-                <p>Đang kiểm tra webhook thanh toán...</p>
-            </div>
-            <button class="btn-main" onclick="closeModal('paymentModal')">ĐÓNG</button>
+            <h3 style="font-size: clamp(18px, 5.5vw, 22px);">HOÀN THÀNH!</h3>
+            <div id="endSummary" style="padding: clamp(12px, 4vw, 18px) 0; font-size: clamp(14px, 4.5vw, 16px);"></div>
+            <button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button>
         </div>
     </div> 
 
     <div class="footer-panel">
         <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:clamp(8px, 3vw, 12px); font-size:clamp(11px, 3.5vw, 13px); font-weight:800;">
                 <span>GIÁ/KM</span>
                 <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
             </div>
@@ -209,12 +659,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // ==================== HỆ THỐNG QUẢN LÝ GÓI CƯỚC ====================
-        const WEBHOOK_URL = "https://taxi-promax.vercel.app/api/webhook";
-        const WEBHOOK_BACKUP = "https://nguyenxuandat20091985-rgb.github.io/api/webhook";
-        const CHECKSUM_KEY = "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2";
-        const BANK_ACCOUNT = "BIDV 4430269669 - NGUYỄN XUÂN ĐẠT";
-        
+        // ==================== KHỞI TẠO BIẾN ====================
         let map, taxiMarker;
         let isDriving = false;
         let totalDistance = 0;
@@ -222,54 +667,76 @@
         let currentPricePerKm = 15000;
         let wakeLock = null;
         let selectedPackage = null;
+        let driverId = null;
         
-        // Khởi tạo Map
+        // ==================== HÀM KHỞI TẠO ====================
+        function initApp() {
+            // Tạo ID tài xế ngẫu nhiên
+            driverId = generateDriverId();
+            
+            // Cập nhật ID lên giao diện
+            document.getElementById('idShow').textContent = `🆔 ${driverId}`;
+            document.getElementById('profileID').textContent = driverId;
+            
+            // Khởi tạo bản đồ
+            initMap();
+            
+            // Kiểm tra trial
+            checkTrialStatus();
+            
+            // Load lịch sử
+            loadHistory();
+            
+            // Thiết lập AI
+            setupAI();
+            
+            // Auto fullscreen
+            setupFullscreen();
+            
+            // Hiển thị welcome modal
+            setTimeout(() => {
+                document.getElementById('wishModal').style.display = 'flex';
+            }, 1000);
+        }
+        
+        // ==================== TẠO ID TÀI XẾ ====================
+        function generateDriverId() {
+            const prefix = 'TX-';
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            return prefix + randomNum;
+        }
+        
+        // ==================== KHỞI TẠO BẢN ĐỒ ====================
         function initMap() {
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            map = L.map('map', { 
+                zoomControl: false, 
+                attributionControl: false,
+                tap: false,
+                dragging: true,
+                touchZoom: true,
+                scrollWheelZoom: false
+            }).setView([21.0285, 105.8542], 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                minZoom: 3
+            }).addTo(map);
             
             // Marker Chấm Xanh Platinum
             const blueIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: `<div class="blue-dot"><div class="dot-pulse"></div></div>`,
-                iconSize: [20, 20], iconAnchor: [10, 10]
+                iconSize: [20, 20], 
+                iconAnchor: [10, 10]
             });
-            taxiMarker = L.marker([21.0285, 105.8542], { icon: blueIcon }).addTo(map);
-        }
-        initMap();
-        
-        // ==================== CHỐNG GIAN LẬN THANH TOÁN ====================
-        function generateChecksum(data) {
-            const str = JSON.stringify(data) + CHECKSUM_KEY;
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return Math.abs(hash).toString(16);
-        }
-        
-        // ==================== HỆ THỐNG GÓI CƯỚC ====================
-        const PACKAGES = {
-            'FREE_TRIAL': { name: 'DÙNG THỬ', days: 7, features: ['Cơ bản'] },
-            'BASIC': { name: 'BASIC', price: 19000, features: ['Km + Thời gian', 'Offline', 'Hỗ trợ cơ bản'] },
-            'PRO': { name: 'PRO', price: 29000, features: ['Tất cả BASIC', 'Bản đồ real-time', 'Xuất PDF'] },
-            'VIP': { name: 'VIP', price: 49000, features: ['Tất cả PRO', 'Trợ lý AI', 'Cloud Backup'] },
-            'LIFETIME': { name: 'TRỌN ĐỜI', price: 999000, features: ['Tất cả VIP', 'Vĩnh viễn', 'Cập nhật trọn đời', 'Hỗ trợ 24/7'] }
-        };
-        
-        function selectPack(price, plan, element) {
-            document.querySelectorAll('.p-card').forEach(card => card.classList.remove('active'));
-            element.classList.add('active');
-            selectedPackage = { price, plan };
             
-            // Cập nhật QR code
-            document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(BANK_ACCOUNT)}-${price}-TAXIPROMAX-${plan}`;
-            document.getElementById('qrContent').textContent = `TAXIPROMAX ${plan} - ${price.toLocaleString()}đ`;
+            taxiMarker = L.marker([21.0285, 105.8542], { 
+                icon: blueIcon,
+                draggable: false
+            }).addTo(map);
             
-            // Hiển thị cảnh báo nếu sắp hết trial
-            checkTrialWarning();
+            // Thêm control cho mobile
+            L.control.zoom({ position: 'topright' }).addTo(map);
         }
         
         // ==================== KIỂM TRA TRIAL ====================
@@ -286,15 +753,15 @@
             const trialBox = document.getElementById('trialBox');
             
             if (timeLeft <= 0) {
-                planBadge.innerText = "⭐ HẾT HẠN DÙNG THỬ";
+                planBadge.textContent = "⭐ HẾT HẠN DÙNG THỬ";
                 planBadge.style.color = "var(--danger)";
-                mainBtn.innerText = "HẾT HẠN - NẠP TIỀN ĐỂ DÙNG";
+                mainBtn.textContent = "HẾT HẠN - NẠP TIỀN ĐỂ DÙNG";
                 mainBtn.disabled = true;
                 trialBox.innerHTML = "⏰ <b>HẾT HẠN DÙNG THỬ</b> - Vui lòng nạp tiền để tiếp tục";
                 trialBox.style.color = "var(--danger)";
                 return false;
             } else {
-                planBadge.innerText = `⭐ CÒN ${daysLeft} NGÀY DÙNG THỬ`;
+                planBadge.textContent = `⭐ CÒN ${daysLeft} NGÀY DÙNG THỬ`;
                 planBadge.style.color = "var(--gold)";
                 
                 // Hiển thị cảnh báo khi còn 2 ngày
@@ -306,129 +773,60 @@
             }
         }
         
-        function checkTrialWarning() {
-            const installDate = localStorage.getItem('install_date');
-            if (!installDate) return;
-            
-            const daysUsed = Math.floor((Date.now() - installDate) / (24 * 60 * 60 * 1000));
-            if (daysUsed >= 5) {
-                showAIMessage("Hệ thống AI: Anh/chị còn " + (7 - daysUsed) + " ngày dùng thử. Vui lòng nạp tiền để tiếp tục sử dụng đầy đủ tính năng!");
-            }
-        }
-        
-        // ==================== XÁC THỰC THANH TOÁN ====================
-        async function verifyPayment() {
-            if (!selectedPackage) {
-                alert("Vui lòng chọn gói cước trước!");
-                return;
-            }
-            
-            document.getElementById('paymentModal').style.display = 'flex';
-            const statusDiv = document.getElementById('paymentStatus');
-            statusDiv.innerHTML = '<div class="loading"></div><p>Đang gửi yêu cầu đến webhook...</p>';
-            
-            try {
-                const paymentData = {
-                    package: selectedPackage.plan,
-                    amount: selectedPackage.price,
-                    timestamp: Date.now(),
-                    deviceId: localStorage.getItem('device_id') || 'tx-' + Math.random().toString(36).substr(2, 9)
-                };
-                
-                paymentData.checksum = generateChecksum(paymentData);
-                
-                // Gửi đến webhook chính
-                const response = await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(paymentData)
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.success) {
-                        statusDiv.innerHTML = `
-                            <div style="color:var(--primary); font-size:40px;">✅</div>
-                            <h4>THANH TOÁN THÀNH CÔNG!</h4>
-                            <p>Gói ${selectedPackage.plan} đã được kích hoạt</p>
-                            <p style="font-size:11px; color:#666;">Mã xác nhận: ${result.transactionId}</p>
-                        `;
-                        
-                        // Lưu thông tin gói cước
-                        localStorage.setItem('active_package', JSON.stringify({
-                            plan: selectedPackage.plan,
-                            price: selectedPackage.price,
-                            activatedAt: Date.now(),
-                            expiresAt: selectedPackage.plan === 'LIFETIME' ? null : Date.now() + (30 * 24 * 60 * 60 * 1000)
-                        }));
-                        
-                        // Cập nhật UI
-                        document.getElementById('currentPlan').textContent = selectedPackage.plan;
-                        document.getElementById('planShow').textContent = `⭐ ${selectedPackage.plan} ĐÃ KÍCH HOẠT`;
-                        document.getElementById('planShow').style.color = "var(--primary)";
-                        document.getElementById('mainBtn').disabled = false;
-                        document.getElementById('mainBtn').textContent = "BẮT ĐẦU CHUYẾN ĐI";
-                        
-                        // Thông báo AI
-                        showAIMessage(`Chúc mừng! Gói ${selectedPackage.plan} đã được kích hoạt thành công. Bạn có thể sử dụng đầy đủ tính năng ngay bây giờ!`);
-                    }
-                } else {
-                    throw new Error('Webhook không phản hồi');
-                }
-            } catch (error) {
-                console.error('Payment error:', error);
-                statusDiv.innerHTML = `
-                    <div style="color:var(--danger); font-size:40px;">❌</div>
-                    <h4>THANH TOÁN THẤT BẠI</h4>
-                    <p>Vui lòng chuyển khoản và nhấn KIỂM TRA LẠI</p>
-                    <p style="font-size:11px; color:#666;">${error.message}</p>
-                `;
-            }
-        }
-        
-        // ==================== HỆ THỐNG TÍNH CƯỚC ====================
+        // ==================== THEO DÕI VỊ TRÍ ====================
         function startTracking() {
             if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition((position) => {
-                    const { latitude, longitude, speed, accuracy } = position.coords;
-                    const nowPos = L.latLng(latitude, longitude);
-                    
-                    taxiMarker.setLatLng(nowPos);
-                    map.panTo(nowPos);
-                    
-                    if (isDriving) {
-                        if (lastPos) {
-                            let distance = nowPos.distanceTo(lastPos) / 1000;
-                            
-                            // CHẶN NHẢY ẢO: Tốc độ > 1.5km/h hoặc khoảng cách > 10m
-                            if (speed > 0.4 || distance > 0.01) {
-                                totalDistance += distance;
-                                updateUI();
+                const options = {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 5000
+                };
+                
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        const { latitude, longitude, speed } = position.coords;
+                        const nowPos = L.latLng(latitude, longitude);
+                        
+                        // Cập nhật marker
+                        taxiMarker.setLatLng(nowPos);
+                        map.panTo(nowPos);
+                        
+                        if (isDriving) {
+                            if (lastPos) {
+                                let distance = nowPos.distanceTo(lastPos) / 1000;
+                                
+                                // CHẶN NHẢY ẢO
+                                if (speed > 0.4 || distance > 0.01) {
+                                    totalDistance += distance;
+                                    updateUI();
+                                }
                             }
+                            lastPos = nowPos;
                         }
-                        lastPos = nowPos;
-                    }
-                }, (err) => {
-                    console.log("Mất tín hiệu GPS - Đang chờ kết nối lại...");
-                }, { 
-                    enableHighAccuracy: true, 
-                    maximumAge: 0, 
-                    timeout: 5000 
-                });
+                    },
+                    (err) => {
+                        console.log("Mất tín hiệu GPS - Đang chờ kết nối lại...");
+                    },
+                    options
+                );
             }
         }
         
+        // ==================== CẬP NHẬT GIAO DIỆN ====================
         function updateUI() {
-            document.getElementById('km').innerText = totalDistance.toFixed(2);
-            document.getElementById('cost').innerText = Math.round(totalDistance * currentPricePerKm).toLocaleString();
+            document.getElementById('km').textContent = totalDistance.toFixed(2);
+            document.getElementById('cost').textContent = Math.round(totalDistance * currentPricePerKm).toLocaleString();
         }
         
+        // ==================== WAKE LOCK ====================
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
-            } catch (err) { console.log("WakeLock lỗi"); }
+            } catch (err) { 
+                console.log("WakeLock không hỗ trợ"); 
+            }
         }
         
         // ==================== XỬ LÝ CHUYẾN ĐI ====================
@@ -444,13 +842,13 @@
                 isDriving = true;
                 totalDistance = 0;
                 lastPos = null;
-                btn.innerText = "ĐANG TÍNH CƯỚC - DỪNG";
+                btn.textContent = "ĐANG TÍNH CƯỚC - DỪNG";
                 btn.style.background = "var(--danger)";
                 startTracking();
                 requestWakeLock();
             } else {
                 isDriving = false;
-                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
+                btn.textContent = "BẮT ĐẦU CHUYẾN ĐI";
                 btn.style.background = "var(--primary)";
                 if(wakeLock) wakeLock.release();
                 showEndModal();
@@ -463,66 +861,61 @@
             
             document.getElementById('endSummary').innerHTML = `
                 <p>Quãng đường: <b>${distance} KM</b></p>
-                <p>Giá/km: <b>${currentPricePerKm.toLocaleString()}đ</b></p>
-                <p>Tổng cước: <b style="color:var(--primary); font-size:24px;">${cost.toLocaleString()} VNĐ</b></p>
-                <p style="font-size:12px; color:#666;">${new Date().toLocaleString('vi-VN')}</p>
+                <p>Tổng cước: <b style="color:var(--primary); font-size:clamp(20px, 6vw, 24px);">${cost.toLocaleString()} VNĐ</b></p>
             `;
             document.getElementById('endModal').style.display = 'flex';
         }
         
-        function saveTripToHistory() {
-            const distance = totalDistance.toFixed(2);
-            const cost = Math.round(totalDistance * currentPricePerKm);
-            const trip = {
-                id: Date.now(),
-                distance: distance,
-                cost: cost,
-                rate: currentPricePerKm,
-                date: new Date().toLocaleString('vi-VN'),
-                from: "Vị trí khởi hành",
-                to: "Vị trí kết thúc"
-            };
-            
-            // Lấy lịch sử cũ
-            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            history.unshift(trip);
-            
-            // Giữ tối đa 50 chuyến
-            if (history.length > 50) history = history.slice(0, 50);
-            
-            localStorage.setItem('trip_history', JSON.stringify(history));
-            loadHistory();
-            closeModal('endModal');
-            alert("✅ Đã lưu vào lịch sử!");
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none'; 
         }
         
+        // ==================== CHỌN GÓI CƯỚC ====================
+        function selectPack(price, plan, element) {
+            document.querySelectorAll('.p-card').forEach(card => card.classList.remove('active'));
+            element.classList.add('active');
+            selectedPackage = { price, plan };
+            
+            // Cập nhật QR code
+            const qrContent = `TAXIPROMAX-${plan}-${price}`;
+            document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrContent)}`;
+            document.getElementById('qrContent').textContent = qrContent;
+        }
+        
+        // ==================== LỊCH SỬ CHUYẾN ĐI ====================
         function loadHistory() {
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             const container = document.getElementById('historyList');
             
             if (history.length === 0) {
                 container.innerHTML = `
-                    <div style="text-align:center; padding:40px; color:#666;">
+                    <div style="text-align:center; padding:40px 20px; color:#666;">
                         <div style="font-size:40px;">📊</div>
-                        <p>Chưa có lịch sử chuyến đi</p>
-                        <p style="font-size:11px;">Các chuyến đi sẽ được lưu tự động</p>
+                        <p style="margin-top:10px; font-size:14px;">Chưa có lịch sử chuyến đi</p>
                     </div>
                 `;
                 return;
             }
             
-            container.innerHTML = history.map(trip => `
+            container.innerHTML = history.slice(0, 10).map(trip => `
                 <div class="history-card">
                     <div>
-                        <div style="font-weight:800; font-size:13px;">${trip.date}</div>
-                        <div style="font-size:11px; color:#666;">${trip.distance} km • ${trip.rate.toLocaleString()}đ/km</div>
+                        <div style="font-weight:800; font-size:13px;">${trip.date || 'Chưa có ngày'}</div>
+                        <div style="font-size:11px; color:#666;">${trip.distance || '0'} km • ${(trip.rate || 0).toLocaleString()}đ/km</div>
                     </div>
-                    <div class="h-price">${trip.cost.toLocaleString()}đ</div>
+                    <div class="h-price">${(trip.cost || 0).toLocaleString()}đ</div>
                 </div>
             `).join('');
         }
         
         // ==================== HỆ THỐNG AI ====================
+        function setupAI() {
+            const aiInput = document.getElementById('ai-txt');
+            aiInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendAIMessage();
+            });
+        }
+        
         function toggleAIChat() {
             const chatBox = document.getElementById('ai-chat-box');
             chatBox.style.display = chatBox.style.display === 'flex' ? 'none' : 'flex';
@@ -533,7 +926,7 @@
         
         function showAIMessage(message) {
             const content = document.getElementById('ai-content');
-            content.innerHTML += `<div style="margin-bottom:10px; padding:10px; background:#e3f2fd; border-radius:10px;">${message}</div>`;
+            content.innerHTML += `<div style="margin-bottom:10px; padding:10px; background:#e3f2fd; border-radius:10px; font-size:14px;">${message}</div>`;
             content.scrollTop = content.scrollHeight;
         }
         
@@ -545,13 +938,12 @@
                 showAIMessage(`<b>Bạn:</b> ${message}`);
                 input.value = '';
                 
-                // Xử lý AI response
+                // Simulate AI response
                 setTimeout(() => {
                     const responses = [
                         "Tôi đang xử lý yêu cầu của bạn...",
                         "Hệ thống Taxi Promax hoạt động ổn định",
                         "Bạn có muốn kiểm tra gói cước không?",
-                        "Tôi có thể kết nối với Gemini AI để hỗ trợ bạn",
                         "Chuyến đi của bạn đang được tính toán chính xác"
                     ];
                     showAIMessage(`<b>AI:</b> ${responses[Math.floor(Math.random() * responses.length)]}`);
@@ -559,11 +951,7 @@
             }
         }
         
-        // ==================== UTILITY FUNCTIONS ====================
-        function closeModal(id) { 
-            document.getElementById(id).style.display = 'none'; 
-        }
-        
+        // ==================== CHUYỂN TAB ====================
         function showTab(tabId, el) {
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -571,55 +959,34 @@
             if (tabId !== 'home') {
                 document.getElementById('tab-' + tabId).style.display = 'flex';
                 if (tabId === 'lichsu') loadHistory();
-                if (tabId === 'toi') checkPlanStatus();
             }
             
             el.classList.add('active');
         }
         
+        // ==================== CẬP NHẬT GIÁ ====================
         function updateRate(val) {
             currentPricePerKm = parseInt(val);
-            document.getElementById('rateLabel').innerText = currentPricePerKm.toLocaleString();
+            document.getElementById('rateLabel').textContent = currentPricePerKm.toLocaleString();
         }
         
-        function checkPlanStatus() {
-            const planData = JSON.parse(localStorage.getItem('active_package'));
-            if (planData) {
-                document.getElementById('currentPlan').textContent = `${planData.plan} (Đã kích hoạt)`;
-                document.getElementById('currentPlan').style.color = "var(--primary)";
-            } else {
-                document.getElementById('currentPlan').textContent = "DÙNG THỬ 7 NGÀY";
-                document.getElementById('currentPlan').style.color = "var(--gold)";
-            }
-        }
-        
-        // ==================== INITIALIZATION ====================
-        document.addEventListener('DOMContentLoaded', function() {
-            // Kiểm tra trial
-            checkTrialStatus();
-            
-            // Load lịch sử
-            loadHistory();
-            
-            // Kiểm tra gói cước
-            checkPlanStatus();
-            
-            // Auto fullscreen
+        // ==================== FULLSCREEN ====================
+        function setupFullscreen() {
             document.addEventListener('click', function() {
                 if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen().catch(() => {});
                 }
             }, { once: true });
-            
-            // Hiển thị welcome modal
-            setTimeout(() => {
-                document.getElementById('wishModal').style.display = 'flex';
-            }, 1000);
-            
-            // Setup AI
-            document.getElementById('ai-txt').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') sendAIMessage();
-            });
+        }
+        
+        // ==================== KHỞI CHẠY ỨNG DỤNG ====================
+        document.addEventListener('DOMContentLoaded', initApp);
+        
+        // ==================== XỬ LÝ RESIZE ====================
+        window.addEventListener('resize', function() {
+            if (map) {
+                map.invalidateSize();
+            }
         });
     </script>
 </body>
