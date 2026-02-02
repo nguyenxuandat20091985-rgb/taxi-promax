@@ -1,23 +1,38 @@
-/**
- * TAXI PROMAX - AI CONFIGURATION
- * Quản lý các thiết lập hệ thống Trợ lý ảo
- */
+// AI MODULE CONFIGURATION
+// File cấu hình AI độc lập
 
 const AI_CONFIG = {
-    // 1. Cài đặt cơ bản
-    active: true,
-    botName: "TAXI AI PROMAX",
-    adminName: "Đạt", // Để thư ký gọi đúng tên anh
+    // API Keys
+    GEMINI_API_KEY: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g",
+    CHATGPT_API_KEY: "",
     
-    // 2. Cấu hình Diện mạo (Quan trọng để fix lỗi vòng tròn đen)
-    defaultAvatar: "https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png",
-    themeColor: "#00f2ff", // Màu chủ đạo của Trợ lý
-
-    // 3. Cấu hình Kết nối Gemini
-    apiEndpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-    geminiKey: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g", // Đã đổi tên biến cho khớp với client.js
-
-    // 4. Nội dung phản hồi
-    welcomeMessage: "Chào anh! TAXI AI PROMAX đã sẵn sàng cùng anh ra khơi. ✨",
-    errorMessage: "Lỗi kết nối rồi anh Đạt ơi, anh kiểm tra lại mạng hoặc Key nhé!"
+    // AI Settings
+    AI_NAME: "Trợ lý Taxi ProMax",
+    AI_AVATAR: "https://i.imgur.com/9JZ7Q2c.png",
+    AI_GREETING: "Xin chào! Tôi là trợ lý AI của Taxi ProMax. Tôi có thể giúp gì cho bạn?",
+    
+    // Reminder Settings
+    REMINDER_ENABLED: true,
+    REMINDER_DAYS_BEFORE: 3,
+    
+    // Webhook URLs
+    AI_WEBHOOK: "https://taxi-promax.vercel.app/api/ai-webhook",
+    BACKUP_WEBHOOK: "https://nguyenxuandat20091985-rgb.github.io/api/ai-webhook",
+    
+    // Response Templates
+    RESPONSE_TEMPLATES: {
+        GREETING: "Chào anh/chị! Em là trợ lý ảo Taxi ProMax. Em có thể giúp gì cho anh/chị ạ? ✨",
+        PRICE_INFO: "Hiện tại anh/chị đang sử dụng đơn giá {price}đ/km. Tổng cước = Quãng đường x Đơn giá.",
+        PACKAGE_INFO: "Hệ thống có 4 gói: BASIC (19k/tháng), PRO (29k/tháng), VIP 1TH (49k/tháng), VIP TRỌN ĐỜI (999k).",
+        HISTORY_INFO: "Anh/chị có thể xem lịch sử tất cả chuyến đi trong mục 'Lịch sử'.",
+        SUPPORT_INFO: "Liên hệ hỗ trợ: Qua hệ thống AI này hoặc trực tiếp với admin.",
+        THANKS: "Không có gì ạ! Chúc anh/chị có những chuyến đi an toàn và thuận lợi.",
+        TRIAL_WARNING: "⏰ CHÚ Ý: Chỉ còn {days} ngày dùng thử! Nâng cấp ngay để không bị gián đoạn.",
+        DEFAULT: "Em hiểu rồi ạ! Để em hỗ trợ anh/chị vấn đề này."
+    }
 };
+
+// Export configuration
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = AI_CONFIG;
+}
