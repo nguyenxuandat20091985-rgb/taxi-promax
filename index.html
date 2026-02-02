@@ -1,932 +1,393 @@
-/* ============= BẢO MẬT HỆ THỐNG & WEBHOOK ============= */
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
 
-// Database mã hóa trong localStorage
-const SECURE_KEY = 'txp_secure_2025';
-const CHECKSUM_KEY = '309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2';
-
-// Cấu hình webhook
-const WEBHOOK_URLS = [
-    'https://taxi-promax.vercel.app/api/webhook',
-    'https://nguyenxuandat20091985-rgb.github.io/api/webhook',
-    'https://my.payos.vn/92d5c976fb8711f08d570242ac110002/payment-gateway/16005'
-];
-
-// Hàm mã hóa AES-256
-function encryptData(data) {
-    try {
-        const text = JSON.stringify(data);
-        let result = '';
-        for (let i = 0; i < text.length; i++) {
-            result += String.fromCharCode(text.charCodeAt(i) ^ SECURE_KEY.charCodeAt(i % SECURE_KEY.length));
-        }
-        return btoa(result);
-    } catch (e) {
-        console.error('Lỗi mã hóa:', e);
-        return null;
-    }
-}
-
-// Hàm giải mã
-function decryptData(encrypted) {
-    try {
-        const decoded = atob(encrypted);
-        let result = '';
-        for (let i = 0; i < decoded.length; i++) {
-            result += String.fromCharCode(decoded.charCodeAt(i) ^ SECURE_KEY.charCodeAt(i % SECURE_KEY.length));
-        }
-        return JSON.parse(result);
-    } catch (e) {
-        console.error('Lỗi giải mã:', e);
-        return null;
-    }
-}
-
-// Tạo checksum
-function generateChecksum(data) {
-    const str = JSON.stringify(data) + CHECKSUM_KEY;
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return hash.toString(16);
-}
-
-// Lưu dữ liệu an toàn
-function saveSecureData(key, data) {
-    try {
-        const encrypted = encryptData({
-            data: data,
-            timestamp: Date.now(),
-            checksum: generateChecksum(data)
-        });
-        localStorage.setItem(`txp_${key}`, encrypted);
-        return true;
-    } catch (e) {
-        console.error('Lỗi lưu dữ liệu:', e);
-        return false;
-    }
-}
-
-// Đọc dữ liệu an toàn
-function loadSecureData(key) {
-    try {
-        const encrypted = localStorage.getItem(`txp_${key}`);
-        if (!encrypted) return null;
+    <title>TAXI PROMAX</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         
-        const decrypted = decryptData(encrypted);
-        if (!decrypted) return null;
-        
-        // Kiểm tra checksum
-        const expectedChecksum = generateChecksum(decrypted.data);
-        if (decrypted.checksum !== expectedChecksum) {
-            console.error('Checksum không hợp lệ!');
-            return null;
+        body, html { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            overflow: hidden; background: var(--bg);
+            position: fixed; width: 100%;
+        } 
+
+        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.05) saturate(1.1); transition: 0.5s; } 
+        .night-mode { filter: invert(90%) hue-rotate(180deg) brightness(95%) contrast(90%) !important; }
+
+        .header { 
+            position: fixed; 
+            top: env(safe-area-inset-top, 10px); 
+            left: 10px; right: 10px; 
+            display: flex; justify-content: space-between; 
+            z-index: 1000; pointer-events: none; 
         }
+        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
+
+        .stats-bar { 
+            position: fixed; 
+            top: calc(env(safe-area-inset-top, 10px) + 45px); 
+            left: 10px; right: 10px; 
+            background: var(--glass); border-radius: 15px; 
+            display: flex; padding: 12px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+            z-index: 1000; border: 1px solid white; 
+        }
+        .stat-item { flex: 1; text-align: center; }
+        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
+        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
+
+        .footer-panel { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: white; z-index: 2000; 
+            border-radius: 25px 25px 0 0; 
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.08); 
+            padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); 
+        } 
+
+        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; } 
+        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
+
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 130px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
+        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
+        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
+        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
+        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
         
-        return decrypted.data;
-    } catch (e) {
-        console.error('Lỗi đọc dữ liệu:', e);
-        return null;
-    }
-}
+        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; }
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); }
+        
+        /* CSS AI AVATAR DI CHUYỂN */
+        #ai-wrapper { position: fixed; bottom: 180px; right: 15px; z-index: 999999; touch-action: none; }
+        #ai-root { 
+            width: 70px; height: 70px; border-radius: 50%; 
+            background: #000 url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; 
+            background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 20px rgba(0, 242, 255, 0.6); 
+        }
+        #ai-chat-box { width: 280px; background: white; border-radius: 20px; display: none; position: absolute; bottom: 85px; right: 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: 1px solid #00f2ff; overflow: hidden; }
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+        .modal-content { background: white; width: 90%; max-width: 350px; padding: 25px; border-radius: 30px; text-align: center; }
+    </style>
+</head>
+<body oncontextmenu="return false;">
 
-/* ============= HỆ THỐNG GÓI CƯỚC ============= */
+    <div class="header">
+        <div class="badge" id="idShow">🆔 TX-DATA-LOADING...</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: MIỄN PHÍ</div>
+    </div>
 
-class SubscriptionSystem {
-    constructor() {
-        this.packages = {
-            'FREE_TRIAL': { days: 7, price: 0, features: ['basic'] },
-            'BASIC': { price: 19000, period: 'month', features: ['km_time', 'offline', 'basic_support'] },
-            'PRO': { price: 29000, period: 'month', features: ['basic', 'realtime_map', 'pdf_export'] },
-            'VIP': { price: 49000, period: 'month', features: ['pro', 'ai_voice', 'cloud_backup'] },
-            'LIFETIME': { price: 999000, period: 'lifetime', features: ['vip', 'permanent', 'free_updates'] }
+    <div class="stats-bar">
+        <div class="stat-item" style="border-right: 1px solid #eee;">
+            <div class="stat-label">CƯỚC (VNĐ)</div>
+            <div id="cost" class="stat-value">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">KM ĐÃ CHẠY</div>
+            <div id="km" class="stat-value">0.00</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="tab-vi" class="tab-content">
+        <div class="p-header">
+            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
+            <div style="font-size: 11px; opacity: 0.9;">TỰ ĐỘNG KÍCH HOẠT QUA WEBHOOK</div>
+        </div>
+        <div class="p-grid">
+            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
+                <b>BASIC</b><span>19.000đ/th</span>
+                <p style="font-size:9px">Offline Mode + Lưu KM</p>
+            </div>
+            <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
+                <b>PRO</b><span>29.000đ/th</span>
+                <p style="font-size:9px">Bản đồ Real-time</p>
+            </div>
+            <div class="p-card active" onclick="selectPack(49000, 'VIP', this)">
+                <b>VIP 1 THÁNG</b><span>49.000đ/th</span>
+                <p style="font-size:9px">Full AI Voice Trợ lý</p>
+            </div>
+            <div class="p-card" onclick="selectPack(999000, 'FOREVER', this)">
+                <b>TRỌN ĐỜI</b><span>999.000đ</span>
+                <p style="font-size:9px">Vĩnh viễn + Update</p>
+            </div>
+        </div>
+        <div style="text-align:center; padding: 20px; background:white; margin: 0 15px; border-radius:20px; border: 1px solid #eee;">
+            <img id="qrImg" style="width:200px; border: 5px solid #f9f9f9;" src="">
+            <div style="margin-top:10px; font-size:12px;">Nội dung: <b id="qrContent" style="color:var(--danger)">...</b></div>
+            <div id="payStatus" style="margin-top:10px; color:var(--primary); font-weight:bold; display:none;">⌛ ĐANG ĐỢI THANH TOÁN...</div>
+            <button id="checkPayBtn" onclick="verifyPayment()" style="margin-top:15px; padding:10px 20px; border-radius:10px; border:none; background:var(--dark); color:white; font-size:12px; display:none;">XÁC NHẬN ĐÃ CHUYỂN</button>
+        </div>
+    </div>
+
+    <div id="tab-lichsu" class="tab-content">
+        <div class="p-header">NHẬT KÝ DI CHUYỂN</div>
+        <div id="historyList" style="padding:10px;"></div>
+    </div>
+
+    <div class="footer-panel">
+        <div id="homeControls">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
+                <span>GIÁ/KM (LINH HOẠT)</span>
+                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
+            </div>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+        </div> 
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+        </div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT</div>
+    </div>
+
+    <div id="ai-wrapper">
+        <div id="ai-chat-box">
+            <div style="background:var(--primary); color:white; padding:10px; text-align:center; font-size:12px; font-weight:bold;">🌿 AI TAXI PROMAX</div>
+            <div id="ai-content" style="height:200px; overflow-y:auto; padding:10px; background:#f0fbfc; font-size:12px;"></div>
+            <div style="display:flex; padding:10px; border-top:1px solid #eee;">
+                <input type="text" id="ai-txt" style="flex:1; border:none; font-size:12px;" placeholder="Hỏi AI Gemini...">
+                <button onclick="askGemini()" style="border:none; background:none; color:var(--primary); font-weight:bold;">GỬI</button>
+            </div>
+        </div>
+        <div id="ai-root" onclick="toggleAIChat()"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // --- HỆ THỐNG CẤU HÌNH BẢO MẬT ---
+        const CONFIG = {
+            TX_ID: localStorage.getItem('TX_ID') || 'TX' + Date.now(),
+            WEBHOOK: "https://taxi-promax.vercel.app/api/webhook",
+            PAYOS_URL: "https://my.payos.vn/92d5c976fb8711f08d570242ac110002/payment-gateway/16005",
+            GEMINI_KEY: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g",
+            ADMIN_BANK: "BIDV - 4430269669 - NGUYEN XUAN DAT"
         };
-        
-        this.currentPackage = this.loadPackage();
-        this.initTrialCheck();
-    }
-    
-    loadPackage() {
-        const saved = loadSecureData('subscription');
-        if (!saved) {
-            // Tạo gói dùng thử
-            const trial = {
-                package: 'FREE_TRIAL',
-                startDate: Date.now(),
-                endDate: Date.now() + (7 * 24 * 60 * 60 * 1000),
-                active: true
-            };
-            saveSecureData('subscription', trial);
-            return trial;
-        }
-        return saved;
-    }
-    
-    initTrialCheck() {
-        if (this.currentPackage.package === 'FREE_TRIAL') {
-            const now = Date.now();
-            const remaining = Math.ceil((this.currentPackage.endDate - now) / (24 * 60 * 60 * 1000));
+        localStorage.setItem('TX_ID', CONFIG.TX_ID);
+        document.getElementById('idShow').innerText = "🆔 ID: " + CONFIG.TX_ID;
+
+        let map, marker, watchId, wakeLock = null;
+        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000;
+        let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+
+        // --- 1. KHỞI TẠO BẢN ĐỒ & CHẾ ĐỘ NGÀY ĐÊM ---
+        function initMap() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             
-            if (remaining <= 0) {
-                this.currentPackage.active = false;
-                saveSecureData('subscription', this.currentPackage);
-                this.showTrialExpired();
-            } else if (remaining <= 2) {
-                this.showTrialWarning(remaining);
+            const hr = new Date().getHours();
+            if(hr >= 18 || hr < 6) document.getElementById('map').classList.add('night-mode');
+        }
+        initMap();
+
+        // --- 2. THUẬT TOÁN TÍNH KM CHUẨN XANH SM (CHỐNG NHẢY SAI) ---
+        function handleTrip() {
+            isRunning = !isRunning;
+            const btn = document.getElementById('mainBtn');
+            if(isRunning) {
+                btn.innerText = "DỪNG CHUYẾN ĐI";
+                btn.style.background = "var(--danger)";
+                startTracking();
+                speakAI("Taxi Promax xin chào! Chúc anh Đạt thượng lộ bình an.");
+                requestWakeLock();
+            } else {
+                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
+                btn.style.background = "var(--primary)";
+                stopTracking();
+                saveHistory();
+                releaseWakeLock();
             }
         }
-        
-        this.updatePackageDisplay();
-    }
-    
-    showTrialWarning(daysLeft) {
-        const aiMsg = `⏰ Anh/chị còn ${daysLeft} ngày dùng thử. Hãy nâng cấp để tiếp tục sử dụng đầy đủ tính năng!`;
-        if (window.AISystem) {
-            window.AISystem.speak(aiMsg);
-        }
-        
-        // Hiển thị thông báo
-        setTimeout(() => {
-            if (confirm(`Bạn còn ${daysLeft} ngày dùng thử miễn phí. Nâng cấp ngay?`)) {
-                showTab('vi');
-            }
-        }, 2000);
-    }
-    
-    showTrialExpired() {
-        alert('Gói dùng thử đã hết hạn! Vui lòng nâng cấp để tiếp tục sử dụng.');
-        showTab('vi');
-        
-        // Vô hiệu hóa các tính năng cao cấp
-        document.getElementById('mainBtn').disabled = true;
-        document.getElementById('mainBtn').innerText = 'VUI LÒNG NÂNG CẤP';
-        document.getElementById('mainBtn').style.background = '#ccc';
-    }
-    
-    updatePackageDisplay() {
-        const planShow = document.getElementById('planShow');
-        if (!planShow) return;
-        
-        const pkg = this.currentPackage;
-        let displayText = '⭐ ';
-        
-        if (pkg.package === 'FREE_TRIAL') {
-            const daysLeft = Math.ceil((pkg.endDate - Date.now()) / (24 * 60 * 60 * 1000));
-            displayText += `DÙNG THỬ (${daysLeft}D)`;
-        } else {
-            displayText += `GÓI: ${pkg.package}`;
-            if (pkg.period === 'month') displayText += ' (1TH)';
-        }
-        
-        planShow.innerText = displayText;
-    }
-    
-    async activatePackage(packageName, paymentData) {
-        try {
-            // Xác thực thanh toán qua webhook
-            const isValid = await this.verifyPayment(paymentData);
-            
-            if (!isValid) {
-                throw new Error('Xác thực thanh toán thất bại');
-            }
-            
-            // Cập nhật gói
-            const pkg = this.packages[packageName];
-            const newSubscription = {
-                package: packageName,
-                startDate: Date.now(),
-                endDate: packageName === 'LIFETIME' ? null : Date.now() + (30 * 24 * 60 * 60 * 1000),
-                active: true,
-                paymentData: paymentData
-            };
-            
-            this.currentPackage = newSubscription;
-            saveSecureData('subscription', newSubscription);
-            
-            // Kích hoạt tính năng
-            this.enableFeatures(packageName);
-            
-            // Thông báo thành công
-            alert(`Kích hoạt thành công gói ${packageName}!`);
-            this.updatePackageDisplay();
-            
-            return true;
-        } catch (error) {
-            console.error('Lỗi kích hoạt gói:', error);
-            alert('Có lỗi xảy ra khi kích hoạt gói. Vui lòng thử lại.');
-            return false;
-        }
-    }
-    
-    async verifyPayment(paymentData) {
-        // Gửi đến webhook để xác thực
-        const webhookData = {
-            payment: paymentData,
-            timestamp: Date.now(),
-            checksum: generateChecksum(paymentData)
-        };
-        
-        // Thử các webhook dự phòng
-        for (const url of WEBHOOK_URLS) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Checksum': generateChecksum(webhookData)
-                    },
-                    body: JSON.stringify(webhookData)
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    return result.success === true && result.account === '4430269669';
+
+        function startTracking() {
+            watchId = navigator.geolocation.watchPosition(pos => {
+                const { latitude, longitude, speed } = pos.coords;
+                const currentPos = L.latLng(latitude, longitude);
+
+                // THUẬT TOÁN CHỐNG GIAN LẬN: Chỉ tính khi speed > 0.5m/s (~2km/h) 
+                // Hoặc khoảng cách tối thiểu 10m để tránh nhiễu GPS khi đứng yên
+                if (lastPos) {
+                    let dist = currentPos.distanceTo(lastPos) / 1000;
+                    if (dist > 0.01 && dist < 0.5) { // Lọc nhiễu dưới 10m và trên 500m (bay màu GPS)
+                        totalKm += dist;
+                        updateUI();
+                    }
                 }
-            } catch (error) {
-                console.warn(`Webhook ${url} không phản hồi:`, error);
-                continue;
-            }
+                lastPos = currentPos;
+                updateMap(currentPos);
+            }, null, { enableHighAccuracy: true });
         }
-        
-        // Fallback: Kiểm tra nội dung chuyển khoản
-        if (paymentData.description && paymentData.description.includes('4430269669')) {
-            return true;
-        }
-        
-        return false;
-    }
-    
-    enableFeatures(packageName) {
-        const pkg = this.packages[packageName];
-        
-        // Kích hoạt các tính năng theo gói
-        if (pkg.features.includes('realtime_map')) {
-            // Bật bản đồ realtime
-            if (window.MapEngine) {
-                window.MapEngine.enableRealtime();
-            }
-        }
-        
-        if (pkg.features.includes('ai_voice')) {
-            // Kích hoạt AI
-            if (window.AISystem) {
-                window.AISystem.activate();
-            }
-        }
-        
-        // Kích hoạt nút bắt đầu chuyến đi
-        document.getElementById('mainBtn').disabled = false;
-        document.getElementById('mainBtn').innerText = 'BẮT ĐẦU CHUYẾN ĐI';
-        document.getElementById('mainBtn').style.background = 'var(--primary)';
-    }
-}
 
-/* ============= HỆ THỐNG LỊCH SỬ CHUYẾN ĐI ============= */
-
-class TripHistorySystem {
-    constructor() {
-        this.history = loadSecureData('trip_history') || [];
-        this.currentTrip = null;
-    }
-    
-    startTrip(startLocation, rate) {
-        this.currentTrip = {
-            id: 'TRIP_' + Date.now(),
-            startTime: Date.now(),
-            startLocation: startLocation,
-            rate: rate,
-            distance: 0,
-            cost: 0,
-            status: 'ongoing',
-            waypoints: []
-        };
-        
-        return this.currentTrip;
-    }
-    
-    addWaypoint(location, distance, cost) {
-        if (!this.currentTrip) return;
-        
-        this.currentTrip.waypoints.push({
-            timestamp: Date.now(),
-            location: location,
-            distance: distance,
-            cost: cost
-        });
-        
-        this.currentTrip.distance = distance;
-        this.currentTrip.cost = cost;
-    }
-    
-    endTrip(endLocation) {
-        if (!this.currentTrip) return null;
-        
-        this.currentTrip.endTime = Date.now();
-        this.currentTrip.endLocation = endLocation;
-        this.currentTrip.status = 'completed';
-        this.currentTrip.duration = Math.floor((this.currentTrip.endTime - this.currentTrip.startTime) / 1000);
-        
-        // Lưu vào lịch sử
-        this.history.unshift(this.currentTrip);
-        if (this.history.length > 50) {
-            this.history = this.history.slice(0, 50);
+        function stopTracking() {
+            navigator.geolocation.clearWatch(watchId);
+            lastPos = null;
         }
-        
-        saveSecureData('trip_history', this.history);
-        
-        const completedTrip = this.currentTrip;
-        this.currentTrip = null;
-        
-        // Cập nhật UI
-        this.updateHistoryUI();
-        
-        return completedTrip;
-    }
-    
-    updateHistoryUI() {
-        const historyList = document.getElementById('historyList');
-        if (!historyList) return;
-        
-        let html = '';
-        this.history.slice(0, 10).forEach(trip => {
-            const startTime = new Date(trip.startTime).toLocaleTimeString('vi-VN');
-            const dateStr = new Date(trip.startTime).toLocaleDateString('vi-VN');
+
+        function updateUI() {
+            document.getElementById('km').innerText = totalKm.toFixed(2);
+            document.getElementById('cost').innerText = Math.floor(totalKm * currentRate).toLocaleString();
+        }
+
+        function updateMap(pos) {
+            if(!marker) {
+                marker = L.circleMarker(pos, { radius: 8, color: '#00bfa5', fillOpacity: 1 }).addTo(map);
+            } else {
+                marker.setLatLng(pos);
+            }
+            map.panTo(pos);
+        }
+
+        // --- 3. HỆ THỐNG GÓI CƯỚC & WEBHOOK THANH TOÁN ---
+        function selectPack(price, name, el) {
+            document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
             
-            html += `
+            const content = `${CONFIG.TX_ID} ${name}`;
+            document.getElementById('qrContent').innerText = content;
+            document.getElementById('qrImg').src = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}&accountName=NGUYEN%20XUAN%20DAT`;
+            
+            document.getElementById('payStatus').style.display = 'block';
+            document.getElementById('checkPayBtn').style.display = 'inline-block';
+        }
+
+        async function verifyPayment() {
+            // Tích hợp Webhook thật - Kiểm tra trạng thái từ Server Vercel
+            try {
+                const res = await fetch(`${CONFIG.WEBHOOK}?id=${CONFIG.TX_ID}`);
+                const data = await res.json();
+                if(data.status === 'success') {
+                    activateVIP(data.plan);
+                } else {
+                    alert("Hệ thống đang kiểm tra tiền về BIDV... Vui lòng đợi 30 giây.");
+                }
+            } catch (e) {
+                alert("Đang kết nối cổng thanh toán PayOS... Vui lòng chờ.");
+            }
+        }
+
+        function activateVIP(plan) {
+            document.getElementById('planShow').innerText = `⭐ GÓI: ${plan.toUpperCase()}`;
+            document.getElementById('planShow').style.color = "var(--primary)";
+            speakAI(`Kích hoạt thành công gói ${plan}. Cảm ơn anh Đạt!`);
+        }
+
+        // --- 4. AI GEMINI & VOICE ---
+        async function askGemini() {
+            const txt = document.getElementById('ai-txt').value;
+            if(!txt) return;
+            
+            appendChat("Bạn", txt);
+            document.getElementById('ai-txt').value = '';
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${CONFIG.GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: txt + " (Trả lời ngắn gọn cho tài xế taxi promax)" }] }] })
+                });
+                const data = await response.json();
+                const reply = data.candidates[0].content.parts[0].text;
+                appendChat("AI", reply);
+                speakAI(reply);
+            } catch (e) {
+                appendChat("AI", "Em đang bận xử lý dữ liệu, anh Đạt chờ xíu nhé!");
+            }
+        }
+
+        function appendChat(role, msg) {
+            const box = document.getElementById('ai-content');
+            box.innerHTML += `<div><b>${role}:</b> ${msg}</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function speakAI(text) {
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'vi-VN';
+            window.speechSynthesis.speak(msg);
+        }
+
+        // --- 5. TIỆN ÍCH HỆ THỐNG ---
+        function showTab(id, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if(id !== 'home') document.getElementById('tab-' + id).style.display = 'flex';
+            el.classList.add('active');
+        }
+
+        function saveHistory() {
+            const trip = {
+                date: new Date().toLocaleString(),
+                km: totalKm.toFixed(2),
+                money: Math.floor(totalKm * currentRate).toLocaleString()
+            };
+            history.unshift(trip);
+            localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 20)));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = history.map(t => `
                 <div class="history-card">
-                    <div class="h-info">
-                        <div style="font-weight: bold; color: var(--dark);">Chuyến ${trip.id.substr(-6)}</div>
-                        <div style="font-size: 11px; color: #666;">${dateStr} ${startTime}</div>
-                        <div style="font-size: 11px; color: #666;">Quãng đường: ${trip.distance.toFixed(2)} km</div>
-                    </div>
-                    <div class="h-price">${trip.cost.toLocaleString('vi-VN')}đ</div>
+                    <div><small>${t.date}</small><br><b>${t.km} KM</b></div>
+                    <div style="color:var(--primary); font-weight:bold;">${t.money}đ</div>
                 </div>
-            `;
-        });
-        
-        if (html === '') {
-            html = '<div style="text-align: center; padding: 40px; color: #999;">Chưa có chuyến đi nào</div>';
+            `).join('');
         }
-        
-        historyList.innerHTML = html;
-    }
-}
+        renderHistory();
 
-/* ============= CHỐNG GIAN LẬN VÀ KIỂM TRA TÍNH TOÀN VẾN ============= */
-
-class AntiFraudSystem {
-    constructor() {
-        this.lastLocation = null;
-        this.lastTimestamp = 0;
-        this.suspiciousCount = 0;
-        this.validTrip = true;
-    }
-    
-    validateLocation(newLocation, timestamp) {
-        // Kiểm tra tính hợp lệ của vị trí
-        if (!newLocation || !newLocation.lat || !newLocation.lng) {
-            this.suspiciousCount++;
-            return false;
-        }
-        
-        // Kiểm tra tốc độ di chuyển (không quá 200km/h)
-        if (this.lastLocation && timestamp - this.lastTimestamp > 0) {
-            const distance = this.calculateDistance(this.lastLocation, newLocation);
-            const timeDiff = (timestamp - this.lastTimestamp) / 1000 / 3600; // giờ
-            const speed = distance / timeDiff;
-            
-            if (speed > 200) {
-                this.suspiciousCount++;
-                console.warn(`Tốc độ nghi ngờ: ${speed.toFixed(2)} km/h`);
-                
-                if (this.suspiciousCount > 3) {
-                    this.validTrip = false;
-                    this.triggerFraudAlert();
-                    return false;
-                }
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
             }
         }
-        
-        this.lastLocation = newLocation;
-        this.lastTimestamp = timestamp;
-        this.suspiciousCount = Math.max(0, this.suspiciousCount - 0.1);
-        
-        return true;
-    }
-    
-    calculateDistance(loc1, loc2) {
-        const R = 6371; // Bán kính Trái đất tính bằng km
-        const dLat = this.toRad(loc2.lat - loc1.lat);
-        const dLon = this.toRad(loc2.lng - loc1.lng);
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(this.toRad(loc1.lat)) * Math.cos(this.toRad(loc2.lat)) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-    
-    toRad(degrees) {
-        return degrees * Math.PI / 180;
-    }
-    
-    triggerFraudAlert() {
-        // Ghi log gian lận
-        const fraudLog = {
-            timestamp: Date.now(),
-            location: this.lastLocation,
-            count: this.suspiciousCount,
-            type: 'speed_exceeded'
+        function releaseWakeLock() {
+            if(wakeLock) { wakeLock.release(); wakeLock = null; }
+        }
+
+        // Kéo thả AI Avatar
+        const aiRoot = document.getElementById('ai-wrapper');
+        let isDragging = false;
+        aiRoot.onpointerdown = (e) => { isDragging = true; aiRoot.setPointerCapture(e.pointerId); };
+        aiRoot.onpointermove = (e) => {
+            if (!isDragging) return;
+            aiRoot.style.right = (window.innerWidth - e.clientX - 35) + 'px';
+            aiRoot.style.bottom = (window.innerHeight - e.clientY - 35) + 'px';
         };
-        
-        const logs = loadSecureData('fraud_logs') || [];
-        logs.push(fraudLog);
-        saveSecureData('fraud_logs', logs);
-        
-        // Thông báo cho admin
-        this.sendFraudNotification(fraudLog);
-        
-        // Vô hiệu hóa tạm thời
-        setTimeout(() => {
-            this.validTrip = true;
-            this.suspiciousCount = 0;
-        }, 60000); // 1 phút
-    }
-    
-    sendFraudNotification(log) {
-        // Gửi thông báo gian lận đến server
-        const notification = {
-            type: 'fraud_alert',
-            data: log,
-            appId: window.APP_ID || 'unknown'
-        };
-        
-        // Gửi đến webhook
-        fetch(WEBHOOK_URLS[0], {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Fraud-Alert': 'true'
-            },
-            body: JSON.stringify(notification)
-        }).catch(() => {});
-    }
-}
+        aiRoot.onpointerup = () => isDragging = false;
 
-/* ============= HỆ THỐNG CHẾ ĐỘ NGÀY/ĐÊM ============= */
-
-class ThemeSystem {
-    constructor() {
-        this.isDarkMode = false;
-        this.autoTheme = true;
-        this.init();
-    }
-    
-    init() {
-        // Kiểm tra thời gian hiện tại
-        const hour = new Date().getHours();
-        if (this.autoTheme) {
-            this.isDarkMode = hour >= 18 || hour < 6;
+        function toggleAIChat() {
+            const box = document.getElementById('ai-chat-box');
+            box.style.display = box.style.display === 'block' ? 'none' : 'block';
         }
-        
-        this.applyTheme();
-        
-        // Thêm nút chuyển đổi theme
-        this.addThemeToggle();
-    }
-    
-    applyTheme() {
-        const root = document.documentElement;
-        
-        if (this.isDarkMode) {
-            root.style.setProperty('--primary', '#00d1d1');
-            root.style.setProperty('--dark', '#ffffff');
-            root.style.setProperty('--bg', '#1a1a1a');
-            root.style.setProperty('--glass', 'rgba(30, 30, 30, 0.95)');
-            document.body.style.backgroundColor = '#1a1a1a';
-            document.body.style.color = '#ffffff';
-        } else {
-            root.style.setProperty('--primary', '#00bfa5');
-            root.style.setProperty('--dark', '#002d26');
-            root.style.setProperty('--bg', '#f8faf9');
-            root.style.setProperty('--glass', 'rgba(255, 255, 255, 0.95)');
-            document.body.style.backgroundColor = '#f8faf9';
-            document.body.style.color = '#000000';
+
+        function updateRate(v) {
+            currentRate = v;
+            document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString();
         }
-    }
-    
-    addThemeToggle() {
-        const toggleBtn = document.createElement('button');
-        toggleBtn.innerHTML = this.isDarkMode ? '☀️' : '🌙';
-        toggleBtn.style.cssText = `
-            position: fixed;
-            top: 70px;
-            right: 10px;
-            z-index: 1000;
-            background: var(--glass);
-            border: 1px solid white;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 18px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        `;
-        
-        toggleBtn.onclick = () => {
-            this.isDarkMode = !this.isDarkMode;
-            toggleBtn.innerHTML = this.isDarkMode ? '☀️' : '🌙';
-            this.applyTheme();
-        };
-        
-        document.body.appendChild(toggleBtn);
-    }
-}
 
-/* ============= CHỐNG MẤT SÓNG VÀ OFFLINE MODE ============= */
-
-class OfflineSystem {
-    constructor() {
-        this.isOnline = navigator.onLine;
-        this.lastSync = Date.now();
-        this.pendingData = [];
-        this.init();
-    }
-    
-    init() {
-        // Theo dõi trạng thái mạng
-        window.addEventListener('online', () => this.handleOnline());
-        window.addEventListener('offline', () => this.handleOffline());
-        
-        // Kiểm tra định kỳ
-        setInterval(() => this.checkConnection(), 30000);
-        
-        // Khởi tạo cache
-        this.initCache();
-    }
-    
-    handleOnline() {
-        this.isOnline = true;
-        console.log('Đã kết nối lại mạng');
-        
-        // Đồng bộ dữ liệu chờ
-        this.syncPendingData();
-        
-        // Thông báo
-        if (window.AISystem) {
-            window.AISystem.speak('Đã khôi phục kết nối mạng');
-        }
-    }
-    
-    handleOffline() {
-        this.isOnline = false;
-        console.log('Mất kết nối mạng, chuyển sang chế độ offline');
-        
-        // Thông báo
-        if (window.AISystem) {
-            window.AISystem.speak('Đang chạy ở chế độ offline, dữ liệu sẽ được đồng bộ sau');
-        }
-    }
-    
-    initCache() {
-        // Kiểm tra xem có hỗ trợ cache API không
-        if ('caches' in window) {
-            caches.open('taxi-promax-v1').then(cache => {
-                cache.addAll([
-                    '/',
-                    '/index.html',
-                    '/manifest.json'
-                ]);
-            });
-        }
-    }
-    
-    async syncPendingData() {
-        if (this.pendingData.length === 0 || !this.isOnline) return;
-        
-        console.log('Đồng bộ dữ liệu chờ:', this.pendingData.length);
-        
-        for (const data of this.pendingData) {
-            try {
-                await fetch(WEBHOOK_URLS[0], {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Offline-Sync': 'true'
-                    },
-                    body: JSON.stringify(data)
-                });
-            } catch (error) {
-                console.warn('Không thể đồng bộ dữ liệu:', error);
-                break;
-            }
-        }
-        
-        // Xóa dữ liệu đã đồng bộ
-        this.pendingData = this.pendingData.filter(item => 
-            !this.pendingData.some(synced => synced.id === item.id)
-        );
-    }
-    
-    checkConnection() {
-        // Kiểm tra kết nối bằng cách ping server
-        fetch(WEBHOOK_URLS[0], { 
-            method: 'HEAD',
-            mode: 'no-cors'
-        }).then(() => {
-            this.isOnline = true;
-        }).catch(() => {
-            this.isOnline = false;
-        });
-    }
-}
-
-/* ============= KHỞI TẠO HỆ THỐNG ============= */
-
-// Khởi tạo các hệ thống
-window.SubscriptionSystem = new SubscriptionSystem();
-window.TripHistorySystem = new TripHistorySystem();
-window.AntiFraudSystem = new AntiFraudSystem();
-window.ThemeSystem = new ThemeSystem();
-window.OfflineSystem = new OfflineSystem();
-
-// Cập nhật hàm selectPack
-function selectPack(price, name, element) {
-    // Bỏ active tất cả
-    document.querySelectorAll('.p-card').forEach(card => {
-        card.classList.remove('active');
-    });
-    
-    // Active card được chọn
-    element.classList.add('active');
-    
-    // Cập nhật QR và thông tin thanh toán
-    const qrContent = document.getElementById('qrContent');
-    const qrImg = document.getElementById('qrImg');
-    
-    const paymentInfo = `TAXIPROMAX ${name} ${price.toLocaleString()} NGUYEN XUAN DAT 4430269669`;
-    qrContent.innerText = paymentInfo;
-    
-    // Tạo QR code
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(paymentInfo)}`;
-    qrImg.src = qrUrl;
-    
-    // Lưu lựa chọn
-    window.selectedPackage = { price, name, element };
-}
-
-// Cập nhật hàm xử lý chuyến đi
-let isTripActive = false;
-let tripInterval = null;
-
-function handleTrip() {
-    if (!isTripActive) {
-        // Bắt đầu chuyến đi
-        const rate = parseInt(document.getElementById('rateLabel').innerText.replace(/,/g, ''));
-        const startLocation = window.currentLocation || { lat: 10.8231, lng: 106.6297 };
-        
-        window.currentTrip = window.TripHistorySystem.startTrip(startLocation, rate);
-        isTripActive = true;
-        
-        document.getElementById('mainBtn').innerText = 'KẾT THÚC CHUYẾN';
-        document.getElementById('mainBtn').style.background = 'var(--danger)';
-        
-        // Bắt đầu theo dõi
-        startTracking();
-        
-    } else {
-        // Kết thúc chuyến đi
-        if (tripInterval) {
-            clearInterval(tripInterval);
-            tripInterval = null;
-        }
-        
-        const endLocation = window.currentLocation || { lat: 10.8231, lng: 106.6297 };
-        const completedTrip = window.TripHistorySystem.endTrip(endLocation);
-        
-        if (completedTrip) {
-            // Hiển thị tổng kết
-            const summary = `
-                <p>📊 <b>Tổng quãng đường:</b> ${completedTrip.distance.toFixed(2)} km</p>
-                <p>💰 <b>Tổng cước phí:</b> ${completedTrip.cost.toLocaleString('vi-VN')} đ</p>
-                <p>⏱️ <b>Thời gian:</b> ${Math.floor(completedTrip.duration / 60)} phút</p>
-                <p>📝 <b>Mã chuyến:</b> ${completedTrip.id}</p>
-            `;
-            document.getElementById('endSummary').innerHTML = summary;
-            showModal('endModal');
-        }
-        
-        document.getElementById('mainBtn').innerText = 'BẮT ĐẦU CHUYẾN ĐI';
-        document.getElementById('mainBtn').style.background = 'var(--primary)';
-        isTripActive = false;
-    }
-}
-
-function startTracking() {
-    tripInterval = setInterval(() => {
-        if (!window.currentTrip || !isTripActive) return;
-        
-        // Giả lập di chuyển (trong thực tế sẽ dùng GPS thật)
-        const distance = window.currentTrip.distance + (Math.random() * 0.1);
-        const cost = Math.round(distance * window.currentTrip.rate);
-        
-        // Cập nhật UI
-        document.getElementById('km').innerText = distance.toFixed(2);
-        document.getElementById('cost').innerText = cost.toLocaleString('vi-VN');
-        
-        // Cập nhật chuyến đi
-        if (window.currentLocation) {
-            window.TripHistorySystem.addWaypoint(window.currentLocation, distance, cost);
-        }
-    }, 3000);
-}
-
-// Cập nhật hàm showTab
-function showTab(tabName, btnElement) {
-    // Ẩn tất cả tab
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.style.display = 'none';
-    });
-    
-    // Xóa active tất cả nút
-    document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    // Hiển thị tab được chọn
-    document.getElementById(`tab-${tabName}`).style.display = 'flex';
-    
-    // Active nút được chọn
-    if (btnElement) {
-        btnElement.classList.add('active');
-    }
-    
-    // Nếu là tab lịch sử, cập nhật UI
-    if (tabName === 'lichsu') {
-        window.TripHistorySystem.updateHistoryUI();
-    }
-}
-
-// Cập nhật hàm updateRate
-function updateRate(value) {
-    document.getElementById('rateLabel').innerText = parseInt(value).toLocaleString('vi-VN');
-}
-
-// Thêm hàm kiểm tra thanh toán
-async function checkPaymentStatus() {
-    const checkBtn = document.createElement('button');
-    checkBtn.innerText = '✅ KIỂM TRA THANH TOÁN';
-    checkBtn.style.cssText = `
-        width: 90%;
-        margin: 15px auto;
-        padding: 12px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        font-weight: bold;
-        display: block;
-        cursor: pointer;
-    `;
-    
-    checkBtn.onclick = async () => {
-        if (!window.selectedPackage) {
-            alert('Vui lòng chọn gói cước trước!');
-            return;
-        }
-        
-        const packageName = window.selectedPackage.name;
-        const price = window.selectedPackage.price;
-        
-        // Giả lập dữ liệu thanh toán
-        const paymentData = {
-            amount: price,
-            description: `TAXIPROMAX ${packageName} NGUYEN XUAN DAT 4430269669`,
-            timestamp: Date.now(),
-            account: '4430269669'
-        };
-        
-        checkBtn.disabled = true;
-        checkBtn.innerText = 'ĐANG XÁC THỰC...';
-        
-        const success = await window.SubscriptionSystem.activatePackage(
-            packageName.toUpperCase().replace(' ', '_').replace('1TH', 'VIP'),
-            paymentData
-        );
-        
-        if (success) {
-            alert('Thanh toán đã được xác thực! Gói cước đã được kích hoạt.');
-            showTab('home');
-        } else {
-            alert('Chưa phát hiện thanh toán. Vui lòng thử lại sau!');
-        }
-        
-        checkBtn.disabled = false;
-        checkBtn.innerText = '✅ KIỂM TRA THANH TOÁN';
-    };
-    
-    const tabVi = document.getElementById('tab-vi');
-    const existingBtn = tabVi.querySelector('button[onclick*="checkPayment"]');
-    if (!existingBtn) {
-        tabVi.appendChild(checkBtn);
-    }
-}
-
-// Khởi tạo khi trang tải xong
-document.addEventListener('DOMContentLoaded', function() {
-    // Khởi tạo ID tài xế
-    const driverId = 'TX' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    document.getElementById('idShow').innerText = `🆔 ${driverId}`;
-    document.getElementById('profileID').innerText = driverId;
-    
-    // Lưu ID
-    saveSecureData('driver_id', driverId);
-    
-    // Thêm nút kiểm tra thanh toán
-    setTimeout(checkPaymentStatus, 1000);
-    
-    // Hiển thị lời chúc
-    setTimeout(() => {
-        showModal('wishModal');
-    }, 1500);
-    
-    // Ngăn chặn tắt màn hình
-    if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').catch(() => {});
-    }
-    
-    // Thêm sự kiện trước khi rời trang
-    window.addEventListener('beforeunload', function(e) {
-        e.preventDefault();
-        e.returnValue = '';
-    });
-});
-
-// Hàm hiển thị modal
-function showModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.style.display = 'flex';
-    }
-}
-
-// Hàm đóng modal
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-
-/* ============= BẢO VỆ CODE NGĂN CHẶN XEM TRỘM ============= */
-
-// Mã hóa và bảo vệ code
-(function() {
-    // Ngăn chặn mở DevTools
-    function preventDevTools() {
-        const blocker = function() {
-            alert('HÀNH ĐỘNG KHÔNG ĐƯỢC CHO PHÉP');
-            window.location.href = 'about:blank';
-        };
-        
-        // Phát hiện F12
-        document.onkeydown = function(e) {
-            if (e.keyCode === 123) { // F12
-                blocker();
-                return false;
-            }
-            if (e.ctrlKey && e.shiftKey && e.keyCode === 73) { // Ctrl+Shift+I
-                blocker();
-                return false;
-            }
-            if (e.ctrlKey && e.shiftKey && e.keyCode === 74) { // Ctrl+Shift+J
-                blocker();
-                return false;
-            }
-            if (e.ctrlKey && e.keyCode === 85) { // Ctrl+U
-                blocker();
-                return false;
-            }
-        };
-        
-        // Phát hiện click chuột phải
-        document.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            return false;
-        });
-    }
-    
-    // Ẩn code trong DevTools
-    Object.defineProperty(window, '$_SECURE_CODE', {
-        value: true,
-        writable: false,
-        configurable: false,
-        enumerable: false
-    });
-    
-    // Chạy bảo vệ
-    setTimeout(preventDevTools, 1000);
-})();
-
-console.log('🚀 HỆ THỐNG TAXI PROMAX ĐÃ SẴN SÀNG - BẢO MẬT CẤP CAO');
+        // Bảo mật ngầm
+        setInterval(() => {
+            const start = performance.now();
+            debugger;
+            if (performance.now() - start > 100) location.reload();
+        }, 2000);
+    </script>
+</body>
+</html>
