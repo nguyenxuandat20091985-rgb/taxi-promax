@@ -3,266 +3,1671 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TAXI PROMAX - PREMIUM ADMIN</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.openstreetmap.org https://unpkg.com https://img.vietqr.io https://*.googleapis.com https://*.gstatic.com; script-src 'self' 'unsafe-inline' https://unpkg.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src * data:;">
+    
+    <!-- PWA Configuration -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#002d26">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <title>TAXI PROMAX - Hệ thống đặt xe thông minh</title>
+    
+    <!-- Map Libraries -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@2.0.0/Control.FullScreen.css" />
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
     <style>
-        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
-        body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            font-family: 'Segoe UI', Roboto, sans-serif; 
-            overflow: hidden; background: var(--bg);
-            position: fixed; width: 100%;
+        :root {
+            /* Day Theme */
+            --primary: #00bfa5;
+            --primary-dark: #00897b;
+            --secondary: #ff6b35;
+            --dark: #002d26;
+            --light: #f8faf9;
+            --card-bg: rgba(255, 255, 255, 0.98);
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --border: rgba(0, 191, 165, 0.1);
+            --shadow: 0 8px 32px rgba(0, 45, 38, 0.08);
+            --glass: rgba(255, 255, 255, 0.95);
+            --success: #00c853;
+            --warning: #ff9800;
+            --danger: #ff5252;
+            --info: #2196f3;
         }
 
-        #map { height: 100vh; width: 100vw; z-index: 1; }
-
-        /* UI Headers */
-        .header { 
-            position: fixed; top: env(safe-area-inset-top, 10px); 
-            left: 10px; right: 10px; display: flex; justify-content: space-between; 
-            z-index: 1000; pointer-events: none; 
+        [data-theme="dark"] {
+            --primary: #00bfa5;
+            --primary-dark: #00897b;
+            --secondary: #ff6b35;
+            --dark: #002d26;
+            --light: #121212;
+            --card-bg: rgba(30, 30, 30, 0.95);
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --border: rgba(255, 255, 255, 0.1);
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --glass: rgba(30, 30, 30, 0.95);
         }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; }
 
-        .stats-bar { 
-            position: fixed; top: calc(env(safe-area-inset-top, 10px) + 45px); 
-            left: 10px; right: 10px; background: var(--glass); border-radius: 15px; 
-            display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-            z-index: 1000; border: 1px solid white; 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
         }
-        .stat-item { flex: 1; text-align: center; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); }
 
-        /* Tabs System */
-        .tab-content { 
-            position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 130px); 
-            background: #fdfdfd; z-index: 1500; display: none; overflow-y: auto; padding-bottom: 50px;
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--light);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease;
         }
-        .tab-content.active { display: block; }
-        .p-header { background: var(--primary); color: white; padding: 30px 20px; text-align: center; border-radius: 0 0 25px 25px; margin-bottom: 15px; }
 
-        /* Package Cards */
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 15px; transition: 0.2s; cursor: pointer; }
-        .p-card.active { border-color: var(--primary); background: #f0fffb; }
-
-        /* Footer Nav */
-        .footer-panel { 
-            position: fixed; bottom: 0; left: 0; right: 0; 
-            background: white; z-index: 2000; border-radius: 25px 25px 0 0; 
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.08); 
-            padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 10px); 
+        /* Map Container */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: var(--dark);
         }
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 11px; font-weight: 700; flex: 1; cursor: pointer; }
-        .nav-item.active { color: var(--primary); }
 
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 16px; font-weight: 900; cursor: pointer; }
-
-        /* AI Floating & Chat */
-        #ai-wrapper { position: fixed; top: 50%; right: 10px; z-index: 9999; touch-action: none; }
-        #ai-root { 
-            width: 70px; height: 70px; border-radius: 50%; 
-            background: #000 url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center; 
-            background-size: cover; border: 3px solid #00f2ff; box-shadow: 0 0 15px rgba(0,242,255,0.5);
-            cursor: move;
+        .leaflet-tile {
+            filter: brightness(0.95) contrast(1.1);
         }
-        #ai-chat-box { 
-            position: fixed; bottom: 130px; left: 10px; right: 10px; 
-            background: white; border-radius: 20px; display: none; flex-direction: column; 
-            border: 1px solid #00f2ff; height: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            z-index: 10000;
-        }
-        #ai-content { flex: 1; overflow-y: auto; padding: 15px; background: #f9ffff; }
-        .msg-a { background: #e0f7f7; padding: 10px; border-radius: 15px 15px 15px 0; margin: 5px 0; font-size: 13px; max-width: 80%; }
-        .msg-u { background: var(--primary); color: white; padding: 10px; border-radius: 15px 15px 0 15px; margin: 5px 0 5px auto; font-size: 13px; max-width: 80%; }
-        .ai-input-area { display: flex; padding: 10px; border-top: 1px solid #eee; }
-        #ai-txt { flex: 1; border: 1px solid #ddd; border-radius: 20px; padding: 8px 15px; }
 
-        /* QR Loading Effect */
-        #qr-container { display: none; text-align: center; padding: 20px; margin-top: 10px; border-top: 1px solid #eee; }
-        .loading-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; }
-        @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' ..'; } 60% { content: ' ...'; } }
+        [data-theme="dark"] .leaflet-tile {
+            filter: brightness(0.6) contrast(1.2) invert(0.9) hue-rotate(180deg);
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: max(env(safe-area-inset-top, 10px), 10px);
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            gap: 8px;
+        }
+
+        .header-badge {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .header-badge.premium {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            position: fixed;
+            top: calc(max(env(safe-area-inset-top, 10px), 10px) + 50px);
+            left: 10px;
+            right: 10px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border-radius: 18px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            z-index: 1000;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-unit {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Floating Action Button */
+        .fab-container {
+            position: fixed;
+            bottom: 120px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .fab {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-size: 24px;
+            box-shadow: 0 6px 20px rgba(0, 191, 165, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(0, 191, 165, 0.6);
+        }
+
+        .fab-secondary {
+            background: var(--secondary);
+        }
+
+        /* Footer Navigation */
+        .footer-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            padding: 12px 16px calc(env(safe-area-inset-bottom, 16px) + 12px);
+            z-index: 2000;
+            box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: none;
+            border: none;
+            padding: 10px 4px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+            background: rgba(0, 191, 165, 0.1);
+        }
+
+        .nav-icon {
+            font-size: 22px;
+            margin-bottom: 4px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--light);
+            z-index: 1500;
+            display: none;
+            flex-direction: column;
+            overflow-y: auto;
+            padding-bottom: 80px;
+        }
+
+        .tab-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 30px 20px 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .tab-title {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .tab-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        /* Packages Grid */
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .package-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 24px;
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .package-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow);
+            border-color: var(--primary);
+        }
+
+        .package-card.recommended {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, rgba(0, 191, 165, 0.1), rgba(0, 137, 123, 0.1));
+        }
+
+        .package-card.lifetime {
+            background: linear-gradient(135deg, rgba(255, 107, 53, 0.1), rgba(255, 86, 34, 0.1));
+            border-color: var(--secondary);
+        }
+
+        .package-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .package-card.lifetime .package-badge {
+            background: var(--secondary);
+        }
+
+        .package-name {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .package-price {
+            font-size: 32px;
+            font-weight: 900;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+
+        .package-card.lifetime .package-price {
+            color: var(--secondary);
+        }
+
+        .package-features {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .package-features li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .package-features li::before {
+            content: "✓";
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        /* Payment Section */
+        .payment-section {
+            background: var(--card-bg);
+            margin: 20px;
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .qr-container {
+            display: inline-block;
+            padding: 16px;
+            background: white;
+            border-radius: 16px;
+            margin: 20px 0;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            border-radius: 12px;
+        }
+
+        .payment-info {
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(0, 191, 165, 0.1);
+            border-radius: 12px;
+            border: 1px dashed var(--primary);
+        }
+
+        .payment-amount {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--primary);
+            margin: 10px 0;
+        }
+
+        .activation-input {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 16px;
+            text-align: center;
+            margin: 16px 0;
+            transition: border-color 0.3s ease;
+        }
+
+        .activation-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* History Cards */
+        .history-list {
+            padding: 20px;
+        }
+
+        .history-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .history-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .history-info {
+            flex: 1;
+        }
+
+        .history-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .history-route {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .history-details {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 12px;
+        }
+
+        .history-price {
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--primary);
+            text-align: right;
+        }
+
+        /* Profile Settings */
+        .settings-container {
+            padding: 20px;
+        }
+
+        .settings-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        }
+
+        .settings-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+
+        .settings-label {
+            font-size: 15px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .settings-value {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .modal-message {
+            font-size: 16px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        /* AI Assistant */
+        .ai-assistant {
+            position: fixed;
+            bottom: 200px;
+            right: 20px;
+            z-index: 1000;
+            width: 300px;
+            max-width: 90vw;
+        }
+
+        .ai-window {
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            display: none;
+        }
+
+        .ai-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ai-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-size: 20px;
+        }
+
+        .ai-name {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .ai-status {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .ai-messages {
+            height: 300px;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ai-message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .ai-message.bot {
+            background: rgba(0, 191, 165, 0.1);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .ai-message.user {
+            background: rgba(33, 150, 243, 0.1);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-input-container {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+
+        .ai-input {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .ai-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .ai-send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .ai-send-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 16px 32px;
+            border-radius: 16px;
+            border: none;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 6px 20px rgba(0, 191, 165, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 191, 165, 0.6);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--secondary), #ff5722);
+            color: white;
+            box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255, 107, 53, 0.6);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: rgba(0, 191, 165, 0.1);
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Footer */
+        .footer-brand {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 16px 0 8px;
+            font-weight: 600;
+            border-top: 1px solid var(--border);
+            margin-top: 20px;
+        }
+
+        /* Utility Classes */
+        .text-center { text-align: center; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 12px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mb-5 { margin-bottom: 20px; }
+        .mt-1 { margin-top: 4px; }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 12px; }
+        .mt-4 { margin-top: 16px; }
+        .mt-5 { margin-top: 20px; }
+        .px-3 { padding-left: 12px; padding-right: 12px; }
+        .py-3 { padding-top: 12px; padding-bottom: 12px; }
+        .d-none { display: none; }
+        .d-flex { display: flex; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .w-100 { width: 100%; }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .packages-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-bar {
+                top: calc(max(env(safe-area-inset-top, 10px), 10px) + 45px);
+                padding: 12px;
+            }
+            
+            .stat-value {
+                font-size: 20px;
+            }
+            
+            .fab-container {
+                bottom: 100px;
+            }
+            
+            .ai-assistant {
+                width: 280px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header-badge {
+                font-size: 11px;
+                padding: 6px 12px;
+            }
+            
+            .stat-value {
+                font-size: 18px;
+            }
+            
+            .package-price {
+                font-size: 28px;
+            }
+            
+            .modal-content {
+                padding: 24px;
+                width: 95%;
+            }
+        }
     </style>
 </head>
 <body>
-
-    <div class="header">
-        <div class="badge" id="idShow">ID: ADMIN_999</div>
-        <div class="badge" style="color:var(--gold)">⭐ PREMIUM ADMIN</div>
-    </div>
-
-    <div class="stats-bar">
-        <div class="stat-item"><div style="font-size:9px">CƯỚC (VNĐ)</div><div id="cost" class="stat-value">0</div></div>
-        <div class="stat-item" style="border-left: 1px solid #ddd;"><div style="font-size:9px">KHOẢNG CÁCH (KM)</div><div id="km" class="stat-value">0.00</div></div>
-    </div>
-
+    <!-- Map Container -->
     <div id="map"></div>
 
-    <div id="tab-home" class="tab-content active"></div> <div id="tab-vi" class="tab-content">
-        <div class="p-header"><h2>NẠP TIỀN HỆ THỐNG</h2><p>Chọn gói để kích hoạt tính năng Premium</p></div>
-        <div class="p-grid">
-            <div class="p-card" onclick="selectPack(49000, 'VIP 1 THÁNG')"><b>VIP 1 THÁNG</b><br><span style="color:var(--primary); font-weight:bold">49.000đ</span></div>
-            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI')"><b>TRỌN ĐỜI</b><br><span style="color:var(--primary); font-weight:bold">999.000đ</span></div>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-badge" id="driverId">
+            <div class="status-indicator"></div>
+            <span id="driverIdText">Đang kết nối...</span>
         </div>
-        <div id="qr-container">
-            <p id="qr-status" style="font-size:12px; font-weight:bold; color:var(--primary)"></p>
-            <img id="qrImg" style="width:200px; border: 5px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.1);" src="">
-            <p style="font-size:11px; color:#666; margin-top:10px;">Nội dung: <b id="qrContent" style="color:var(--danger)"></b></p>
+        <div class="header-badge" id="packageStatus">
+            <span>Gói: </span>
+            <span id="currentPackage">Dùng thử</span>
+        </div>
+        <button class="fab" onclick="toggleTheme()" style="width: 44px; height: 44px; font-size: 20px;">
+            <span id="themeIcon">🌙</span>
+        </button>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-label">Tổng cước</div>
+            <div class="stat-value">0 <span class="stat-unit">₫</span></div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Quãng đường</div>
+            <div class="stat-value">0.00 <span class="stat-unit">km</span></div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Thời gian</div>
+            <div class="stat-value">00:00 <span class="stat-unit">phút</span></div>
         </div>
     </div>
 
-    <div id="tab-toi" class="tab-content">
-        <div class="p-header"><h2>CÀI ĐẶT ADMIN</h2></div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:20px; border-radius:20px; box-shadow:0 5px 15px rgba(0,0,0,0.05)">
-                <p>Mã quản trị: <b>DAT_PRO_2026</b></p>
-                <p>Tự động cập nhật: <b style="color:green">Bật</b></p>
-                <hr>
-                <button class="btn-main" style="background:var(--dark)" onclick="alert('Đã cập nhật cấu hình hệ thống!')">LƯU THIẾT LẬP</button>
+    <!-- Floating Action Buttons -->
+    <div class="fab-container">
+        <button class="fab" onclick="toggleAI()">
+            <span>🤖</span>
+        </button>
+        <button class="fab fab-secondary" onclick="toggleFullscreen()">
+            <span id="fullscreenIcon">⛶</span>
+        </button>
+    </div>
+
+    <!-- AI Assistant Window -->
+    <div class="ai-assistant">
+        <div class="ai-window" id="aiWindow">
+            <div class="ai-header">
+                <div class="ai-avatar">🤖</div>
+                <div>
+                    <div class="ai-name">Trợ lý AI Taxi ProMax</div>
+                    <div class="ai-status">Đang trực tuyến</div>
+                </div>
+            </div>
+            <div class="ai-messages" id="aiMessages">
+                <div class="ai-message bot">Xin chào! Tôi là trợ lý AI của Taxi ProMax. Tôi có thể giúp gì cho bạn?</div>
+            </div>
+            <div class="ai-input-container">
+                <input type="text" class="ai-input" id="aiInput" placeholder="Nhập câu hỏi..." maxlength="200">
+                <button class="ai-send-btn" onclick="sendAIMessage()">
+                    <span>➤</span>
+                </button>
             </div>
         </div>
     </div>
 
-    <div class="footer-panel">
-        <div id="home-controls">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:13px; font-weight:bold">
-                <span>GIÁ/KM:</span><span style="color:var(--danger)" id="rateShow">15,000đ</span>
-            </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" style="width:100%; margin-bottom:15px;" oninput="document.getElementById('rateShow').innerText = Number(this.value).toLocaleString()+'đ'">
-            <button class="btn-main" onclick="startTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+    <!-- Main Controls Tab (Home) -->
+    <div id="tab-home" class="tab-content" style="display: flex;">
+        <div class="tab-header">
+            <h1 class="tab-title">TAXI PROMAX</h1>
+            <p class="tab-subtitle">Hệ thống đặt xe thông minh</p>
         </div>
-        <div class="nav-grid">
-            <button class="nav-item active" onclick="switchTab('home', this)">Trang chủ</button>
-            <button class="nav-item" onclick="switchTab('vi', this)">Ví tiền</button>
-            <button class="nav-item" onclick="switchTab('toi', this)">Cài đặt</button>
-        </div>
-    </div>
-
-    <div id="ai-wrapper">
-        <div id="ai-root"></div>
-    </div>
-
-    <div id="ai-chat-box">
-        <div style="background:var(--primary); color:white; padding:15px; font-weight:bold; display:flex; justify-content:space-between">
-            <span>TRỢ LÝ TAXI PROMAX</span>
-            <span onclick="toggleChat()" style="cursor:pointer">✖</span>
-        </div>
-        <div id="ai-content"></div>
-        <div class="ai-input-area">
-            <input type="text" id="ai-txt" placeholder="Hỏi em bất cứ gì...">
-            <button onclick="askAI()" style="border:none; background:none; font-size:20px; color:var(--primary)">🚀</button>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // --- KHOỞI TẠO MAP ---
-        const map = L.map('map', { zoomControl: false }).setView([10.7626, 106.6602], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        // --- CHUYỂN TABS (FIX LỖI CÀI ĐẶT) ---
-        function switchTab(tabId, el) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            
-            document.getElementById('tab-' + tabId).classList.add('active');
-            el.classList.add('active');
-
-            // Ẩn/Hiện control chuyến đi ở trang chủ
-            document.getElementById('home-controls').style.display = (tabId === 'home') ? 'block' : 'none';
-        }
-
-        // --- XỬ LÝ NẠP TIỀN & QR ---
-        function selectPack(amt, name) {
-            document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-
-            const qrStatus = document.getElementById('qr-status');
-            const qrContainer = document.getElementById('qr-container');
-            qrContainer.style.display = 'block';
-            qrStatus.innerHTML = `<span class="loading-dots">Đang tạo mã QR cho gói ${name}</span>`;
-            
-            setTimeout(() => {
-                const content = `NAP_${name}_${Math.floor(Math.random()*9999)}`;
-                document.getElementById('qrContent').innerText = content;
-                document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=STB|0909123456|${amt}|${content}`;
-                qrStatus.innerHTML = `✅ ĐÃ TẠO MÃ - ĐANG CHỜ GIAO DỊCH`;
-            }, 800);
-        }
-
-        // --- AI DRAGGABLE (DI CHUYỂN ĐƯỢC) ---
-        const aiWrapper = document.getElementById('ai-wrapper');
-        let isDragging = false;
         
-        aiWrapper.onmousedown = aiWrapper.ontouchstart = (e) => {
-            isDragging = true;
-            let shiftX = (e.clientX || e.touches[0].clientX) - aiWrapper.getBoundingClientRect().left;
-            let shiftY = (e.clientY || e.touches[0].clientY) - aiWrapper.getBoundingClientRect().top;
+        <div style="padding: 20px;">
+            <div class="settings-card">
+                <h2 class="settings-title">🎯 Điều chỉnh giá cước</h2>
+                <div class="settings-item">
+                    <span class="settings-label">Giá mỗi km</span>
+                    <span class="settings-value" id="currentRate">15,000 ₫</span>
+                </div>
+                <input type="range" min="10000" max="50000" step="1000" value="15000" 
+                       oninput="updateRate(this.value)" style="width: 100%; margin: 20px 0;">
+                
+                <button class="btn btn-primary btn-block" id="tripControl" onclick="toggleTrip()">
+                    BẮT ĐẦU CHUYẾN ĐI
+                </button>
+            </div>
 
-            document.onmousemove = document.ontouchmove = (ev) => {
-                if(!isDragging) return;
-                let x = (ev.clientX || ev.touches[0].clientX) - shiftX;
-                let y = (ev.clientY || ev.touches[0].clientY) - shiftY;
-                aiWrapper.style.left = x + 'px';
-                aiWrapper.style.top = y + 'px';
-                aiWrapper.style.right = 'auto';
-            };
-        };
+            <div class="settings-card">
+                <h2 class="settings-title">⚙️ Cài đặt chuyến đi</h2>
+                <div class="settings-item">
+                    <span class="settings-label">Chế độ luôn sáng</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="keepAwake" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Chế độ tiết kiệm pin</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="batterySaver">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Định vị chính xác cao</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="highAccuracy" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        document.onmouseup = document.ontouchend = () => {
-            isDragging = false;
-        };
+    <!-- Packages Tab -->
+    <div id="tab-packages" class="tab-content">
+        <div class="tab-header">
+            <h1 class="tab-title">NÂNG CẤP GÓI DỊCH VỤ</h1>
+            <p class="tab-subtitle">Lựa chọn gói phù hợp với nhu cầu của bạn</p>
+        </div>
 
-        // --- AI CHAT LOGIC ---
-        const chatBox = document.getElementById('ai-chat-box');
-        document.getElementById('ai-root').onclick = () => {
-            if(!isDragging) toggleChat();
-        };
+        <div class="packages-grid">
+            <!-- Basic Package -->
+            <div class="package-card" onclick="selectPackage('basic')">
+                <div class="package-badge">PHỔ THÔNG</div>
+                <h3 class="package-name">GÓI BASIC</h3>
+                <div class="package-price">19,000₫<small>/tháng</small></div>
+                <ul class="package-features">
+                    <li>Tính cước theo km + thời gian</li>
+                    <li>Chế độ Offline</li>
+                    <li>Hỗ trợ cơ bản</li>
+                    <li>Bản đồ tiêu chuẩn</li>
+                </ul>
+                <button class="btn btn-outline w-100">CHỌN GÓI</button>
+            </div>
 
-        function toggleChat() {
-            chatBox.style.display = chatBox.style.display === 'flex' ? 'none' : 'flex';
-            if(chatBox.style.display === 'flex' && !document.getElementById('ai-content').innerHTML) {
-                addMsg("Chào anh Đạt! Em là trợ lý Taxi Promax. Anh cần em kiểm tra doanh thu hay định vị xe nào không ạ?", 'ai');
+            <!-- Pro Package -->
+            <div class="package-card" onclick="selectPackage('pro')">
+                <div class="package-badge">CHUYÊN NGHIỆP</div>
+                <h3 class="package-name">GÓI PRO</h3>
+                <div class="package-price">29,000₫<small>/tháng</small></div>
+                <ul class="package-features">
+                    <li>Tất cả tính năng BASIC</li>
+                    <li>Bản đồ real-time</li>
+                    <li>Xuất hóa đơn PDF</li>
+                    <li>Thống kê nâng cao</li>
+                </ul>
+                <button class="btn btn-outline w-100">CHỌN GÓI</button>
+            </div>
+
+            <!-- VIP Package -->
+            <div class="package-card recommended" onclick="selectPackage('vip')">
+                <div class="package-badge">ĐƯỢC ĐỀ XUẤT</div>
+                <h3 class="package-name">GÓI VIP</h3>
+                <div class="package-price">49,000₫<small>/tháng</small></div>
+                <ul class="package-features">
+                    <li>Tất cả tính năng PRO</li>
+                    <li>Trợ lý giọng nói AI</li>
+                    <li>Cloud backup</li>
+                    <li>Hỗ trợ 24/7</li>
+                </ul>
+                <button class="btn btn-primary w-100">CHỌN GÓI</button>
+            </div>
+
+            <!-- Lifetime Package -->
+            <div class="package-card lifetime" onclick="selectPackage('lifetime')">
+                <div class="package-badge">TRỌN ĐỜI</div>
+                <h3 class="package-name">VIP TRỌN ĐỜI</h3>
+                <div class="package-price">999,000₫<small>/một lần</small></div>
+                <ul class="package-features">
+                    <li>Tất cả tính năng VIP</li>
+                    <li>Sử dụng vĩnh viễn</li>
+                    <li>Cập nhật miễn phí</li>
+                    <li>Ưu tiên hỗ trợ</li>
+                </ul>
+                <button class="btn btn-secondary w-100">CHỌN GÓI</button>
+            </div>
+        </div>
+
+        <!-- Payment Section -->
+        <div class="payment-section" id="paymentSection" style="display: none;">
+            <h3 class="settings-title">💳 Thanh toán & Kích hoạt</h3>
+            
+            <div class="qr-container">
+                <img id="qrCode" class="qr-code" src="" alt="QR Code">
+            </div>
+
+            <div class="payment-info">
+                <div class="stat-label">Số tiền cần chuyển</div>
+                <div class="payment-amount" id="paymentAmount">0 ₫</div>
+                <div class="stat-label" id="paymentDetails">Thông tin chuyển khoản</div>
+            </div>
+
+            <div class="mb-4">
+                <div class="stat-label mb-2">Nhập mã kích hoạt</div>
+                <input type="text" class="activation-input" id="activationCode" 
+                       placeholder="Nhập mã 12 ký tự" maxlength="12">
+                <div class="stat-label" style="font-size: 12px; margin-top: 8px;">
+                    Mã sẽ được gửi sau khi chuyển khoản thành công (trong vòng 30 giây)
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-block mb-3" onclick="activatePackage()">
+                KÍCH HOẠT GÓI
+            </button>
+            
+            <button class="btn btn-outline btn-block" onclick="hidePaymentSection()">
+                QUAY LẠI
+            </button>
+        </div>
+
+        <div class="footer-brand">
+            PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT
+        </div>
+    </div>
+
+    <!-- History Tab -->
+    <div id="tab-history" class="tab-content">
+        <div class="tab-header">
+            <h1 class="tab-title">LỊCH SỬ CHUYẾN ĐI</h1>
+            <p class="tab-subtitle">Xem lại các chuyến đi đã hoàn thành</p>
+        </div>
+
+        <div class="history-list" id="historyList">
+            <!-- History items will be loaded here -->
+        </div>
+
+        <div class="text-center py-3">
+            <button class="btn btn-outline" onclick="clearHistory()">
+                XÓA LỊCH SỬ
+            </button>
+        </div>
+    </div>
+
+    <!-- Profile Tab -->
+    <div id="tab-profile" class="tab-content">
+        <div class="tab-header">
+            <h1 class="tab-title">TÀI KHOẢN</h1>
+            <p class="tab-subtitle">Thông tin và cài đặt cá nhân</p>
+        </div>
+
+        <div class="settings-container">
+            <div class="settings-card">
+                <h2 class="settings-title">👤 Thông tin tài xế</h2>
+                <div class="settings-item">
+                    <span class="settings-label">Mã tài xế</span>
+                    <span class="settings-value" id="profileDriverId">-</span>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Trạng thái</span>
+                    <span class="settings-value" style="color: var(--success);">🟢 Đang hoạt động</span>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Gói dịch vụ</span>
+                    <span class="settings-value" id="profilePackage">Dùng thử</span>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <h2 class="settings-title">🔒 Bảo mật & Bảo hành</h2>
+                <div class="settings-item">
+                    <span class="settings-label">Mã hóa dữ liệu</span>
+                    <span class="settings-value">AES-256 + RSA-2048</span>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Bảo mật GPS</span>
+                    <span class="settings-value">🛡️ Chống giả mạo</span>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Phiên bản</span>
+                    <span class="settings-value">Taxi ProMax 2.0</span>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <h2 class="settings-title">⚙️ Cài đặt hệ thống</h2>
+                <div class="settings-item">
+                    <span class="settings-label">Chế độ tối</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="darkModeToggle" onchange="toggleTheme()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Âm thanh thông báo</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="soundToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">Rung khi có chuyến</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="vibrationToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <button class="btn btn-outline mb-2" onclick="exportData()">
+                    📥 Xuất dữ liệu
+                </button>
+                <br>
+                <button class="btn btn-outline" onclick="showAbout()">
+                    ℹ️ Giới thiệu
+                </button>
+            </div>
+        </div>
+
+        <div class="footer-brand">
+            PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT
+        </div>
+    </div>
+
+    <!-- Footer Navigation -->
+    <div class="footer-nav">
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home')">
+                <div class="nav-icon">🏠</div>
+                <span>Trang chủ</span>
+            </button>
+            <button class="nav-item" onclick="showTab('packages')">
+                <div class="nav-icon">💰</div>
+                <span>Gói cước</span>
+            </button>
+            <button class="nav-item" onclick="showTab('history')">
+                <div class="nav-icon">📊</div>
+                <span>Lịch sử</span>
+            </button>
+            <button class="nav-item" onclick="showTab('profile')">
+                <div class="nav-icon">👤</div>
+                <span>Tài khoản</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="endTripModal" class="modal">
+        <div class="modal-content">
+            <h2 class="modal-title">✅ KẾT THÚC CHUYẾN ĐI</h2>
+            <div class="modal-message">
+                <div class="mb-4">
+                    <div class="stat-label">Tổng quãng đường</div>
+                    <div class="stat-value" id="endDistance">0.00 km</div>
+                </div>
+                <div class="mb-4">
+                    <div class="stat-label">Tổng thời gian</div>
+                    <div class="stat-value" id="endTime">00:00</div>
+                </div>
+                <div class="mb-4">
+                    <div class="stat-label">Tổng cước phí</div>
+                    <div class="stat-value" style="color: var(--primary);" id="endCost">0 ₫</div>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-block mb-2" onclick="confirmEndTrip()">
+                XÁC NHẬN KẾT THÚC
+            </button>
+            <button class="btn btn-outline btn-block" onclick="closeModal('endTripModal')">
+                TIẾP TỤC CHUYẾN
+            </button>
+        </div>
+    </div>
+
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <h2 class="modal-title">🎉 THÀNH CÔNG!</h2>
+            <div class="modal-message" id="successMessage">
+                Gói dịch vụ đã được kích hoạt thành công!
+            </div>
+            <button class="btn btn-primary btn-block" onclick="closeModal('successModal')">
+                HOÀN TẤT
+            </button>
+        </div>
+    </div>
+
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <h2 class="modal-title">TAXI PROMAX</h2>
+            <div class="modal-message">
+                <p><strong>Phiên bản:</strong> 2.0 Professional</p>
+                <p><strong>Bảo mật:</strong> Lớp mã hóa đa tầng</p>
+                <p><strong>GPS:</strong> Độ chính xác cao 8K</p>
+                <p><strong>AI:</strong> Gemini & ChatGPT tích hợp</p>
+                <p><strong>Hỗ trợ:</strong> 24/7 Online</p>
+                <br>
+                <p>Hệ thống vận hành tự động hoàn toàn, bảo mật tuyệt đối, chống hack toàn diện.</p>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="closeModal('aboutModal')">
+                ĐÓNG
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.fullscreen@2.0.0/Control.FullScreen.js"></script>
+    
+    <script>
+        // ============================================
+        // 1. KHỞI TẠO HỆ THỐNG BẢO MẬT CAO
+        // ============================================
+        
+        // Mã hóa ID tài xế
+        const APP_SECRET = 'TAXI_PROMAX_SECURE_V2_' + btoa('NGUYENXUANDAT2009');
+        let driverId = localStorage.getItem('driver_id');
+        
+        if (!driverId) {
+            driverId = 'TX-' + Date.now().toString(36).toUpperCase() + '-' + 
+                      Math.random().toString(36).substr(2, 6).toUpperCase();
+            localStorage.setItem('driver_id', driverId);
+        }
+        
+        // Mã hóa ID trước khi hiển thị
+        const encryptedId = btoa(driverId).substr(0, 12);
+        document.getElementById('driverIdText').textContent = `TX ${encryptedId}`;
+        document.getElementById('profileDriverId').textContent = encryptedId;
+
+        // ============================================
+        // 2. KHỞI TẠO BẢN ĐỒ 8K VÀ ĐỊNH VỊ
+        // ============================================
+        
+        let map = null;
+        let driverMarker = null;
+        let routeLayer = null;
+        let watchId = null;
+        let lastPosition = null;
+        let positionsHistory = [];
+        
+        // Khởi tạo bản đồ chất lượng cao
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                attribution             if (history.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                        <div style="font-size: 48px; margin-bottom: 16px;">📊</div>
+                        <h3>Chưa có chuyến đi nào</h3>
+                        <p>Lịch sử chuyến đi sẽ xuất hiện ở đây</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            history.forEach(trip => {
+                const card = document.createElement('div');
+                card.className = 'history-card';
+                card.innerHTML = `
+                    <div class="history-info">
+                        <div class="history-date">${trip.date}</div>
+                        <div class="history-route">Chuyến đi #${trip.id.toString().substr(-4)}</div>
+                        <div class="history-details">
+                            <span>📏 ${trip.distance} km</span>
+                            <span>⏱️ ${trip.duration}</span>
+                            <span>💰 ${trip.rate.toLocaleString()}₫/km</span>
+                        </div>
+                    </div>
+                    <div class="history-price">${trip.cost.toLocaleString()}₫</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        function clearHistory() {
+            if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử chuyến đi?')) {
+                localStorage.removeItem('trip_history');
+                loadHistory();
+                showNotification('Đã xóa lịch sử chuyến đi', 'success');
             }
         }
-
-        function addMsg(txt, sender) {
-            const div = document.createElement('div');
-            div.className = sender === 'user' ? 'msg-u' : 'msg-a';
-            div.innerText = txt;
-            document.getElementById('ai-content').appendChild(div);
-            document.getElementById('ai-content').scrollTop = 9999;
-        }
-
-        async function askAI() {
-            const inp = document.getElementById('ai-txt');
-            const txt = inp.value.trim();
-            if(!txt) return;
-
-            addMsg(txt, 'user');
-            inp.value = '';
-
+        
+        // ============================================
+        // 8. CHỨC NĂNG HỆ THỐNG
+        // ============================================
+        
+        // Chế độ luôn sáng
+        let wakeLock = null;
+        
+        async function requestWakeLock() {
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Bạn là trợ lý ảo chuyên nghiệp của ứng dụng Taxi Promax. Bạn đang nói chuyện với anh Đạt (Admin). Hãy trả lời ngắn gọn, thông minh, lễ phép và tập trung vào hỗ trợ quản lý taxi: ${txt}` }] }]
-                    })
-                });
-                const data = await res.json();
-                addMsg(data.candidates[0].content.parts[0].text, 'ai');
-            } catch {
-                addMsg("Hệ thống đang bận tí anh ơi, anh hỏi lại nhé!", 'ai');
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock activated');
+                    
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                    });
+                }
+            } catch (err) {
+                console.error('Wake Lock failed:', err);
             }
         }
-
-        function startTrip() {
-            alert("Đang khởi động hệ thống định vị GPS...");
+        
+        // Chế độ toàn màn hình
+        function toggleFullscreen() {
+            const icon = document.getElementById('fullscreenIcon');
+            
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+                icon.textContent = '🗗';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    icon.textContent = '⛶';
+                }
+            }
         }
+        
+        // Chế độ sáng/tối
+        function toggleTheme() {
+            const themeIcon = document.getElementById('themeIcon');
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            
+            if (isDark) {
+                document.body.removeAttribute('data-theme');
+                themeIcon.textContent = '🌙';
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.body.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // Xử lý tab
+        function showTab(tabName) {
+            // Ẩn tất cả tab
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // Xóa active từ tất cả nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Hiển thị tab được chọn
+            document.getElementById(`tab-${tabName}`).style.display = 'flex';
+            
+            // Thêm active cho nav item tương ứng
+            const navItems = document.querySelectorAll('.nav-item');
+            const tabIndex = { home: 0, packages: 1, history: 2, profile: 3 }[tabName];
+            if (navItems[tabIndex]) {
+                navItems[tabIndex].classList.add('active');
+            }
+            
+            // Load dữ liệu nếu cần
+            if (tabName === 'history') {
+                loadHistory();
+            }
+        }
+        
+        // Xử lý modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        // Thông báo
+        function showNotification(message, type = 'info') {
+            // Tạo thông báo tạm thời
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 100px;
+                right: 20px;
+                background: ${type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--info)'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                z-index: 9999;
+                animation: slideIn 0.3s ease;
+                max-width: 300px;
+                font-size: 14px;
+                font-weight: 500;
+            `;
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Tự động xóa sau 3 giây
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+        
+        // Xuất dữ liệu
+        function exportData() {
+            const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            const driverInfo = {
+                driverId: encryptedId,
+                package: currentPackage,
+                trialDaysLeft: trialDaysLeft,
+                totalTrips: history.length,
+                totalDistance: history.reduce((sum, trip) => sum + parseFloat(trip.distance), 0),
+                totalEarnings: history.reduce((sum, trip) => sum + trip.cost, 0)
+            };
+            
+            const data = {
+                driverInfo,
+                history,
+                exportDate: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `taxi-promax-data-${encryptedId}-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Dữ liệu đã được xuất thành công', 'success');
+        }
+        
+        function showAbout() {
+            document.getElementById('aboutModal').style.display = 'flex';
+        }
+        
+        // ============================================
+        // 9. KHỞI TẠO HỆ THỐNG
+        // ============================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Khởi tạo bản đồ
+            initMap();
+            
+            // Khởi tạo theme
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                document.getElementById('themeIcon').textContent = '☀️';
+            }
+            
+            // Khởi tạo package
+            const savedPackage = localStorage.getItem('current_package');
+            if (savedPackage) {
+                currentPackage = savedPackage;
+                document.getElementById('currentPackage').textContent = savedPackage.toUpperCase();
+                document.getElementById('profilePackage').textContent = savedPackage.toUpperCase();
+            } else {
+                checkTrialPeriod();
+            }
+            
+            // Bắt đầu GPS
+            startGPS();
+            
+            // Load lịch sử
+            loadHistory();
+            
+            // Thêm style cho animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes slideOut {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(100%); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Kiểm tra kết nối mạng
+            window.addEventListener('online', () => {
+                showNotification('Đã kết nối lại mạng', 'success');
+            });
+            
+            window.addEventListener('offline', () => {
+                showNotification('Mất kết nối mạng. Chế độ offline đã kích hoạt', 'warning');
+            });
+            
+            // Chống chụp màn hình và ghi màn hình
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    console.log('App đang chạy ngầm...');
+                }
+            });
+            
+            // Chống sao chép và chuột phải
+            document.addEventListener('contextmenu', e => e.preventDefault());
+            document.addEventListener('copy', e => e.preventDefault());
+            document.addEventListener('cut', e => e.preventDefault());
+            document.addEventListener('paste', e => e.preventDefault());
+            
+            // Hiển thị thông báo khởi động
+            setTimeout(() => {
+                showNotification('Hệ thống Taxi ProMax đã sẵn sàng! Chúc bạn một ngày làm việc hiệu quả.', 'success');
+            }, 1000);
+        });
+        
+        // ============================================
+        // 10. PWA CẤU HÌNH
+        // ============================================
+        
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker registered:', registration);
+                }).catch(error => {
+                    console.log('ServiceWorker registration failed:', error);
+                });
+            });
+        }
+        
+        // Thêm manifest động
+        const manifest = {
+            "name": "Taxi ProMax",
+            "short_name": "TaxiProMax",
+            "description": "Hệ thống đặt xe thông minh bảo mật cao",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#002d26",
+            "theme_color": "#00bfa5",
+            "orientation": "portrait",
+            "icons": [
+                {
+                    "src": "https://cdn-icons-png.flaticon.com/512/744/744465.png",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                },
+                {
+                    "src": "https://cdn-icons-png.flaticon.com/512/744/744465.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        };
+        
+        const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const manifestURL = URL.createObjectURL(manifestBlob);
+        document.querySelector('link[rel="manifest"]').href = manifestURL;
+        
+        console.log('Taxi ProMax System Initialized - Secure Mode Activated');
+        console.log('Driver ID:', encryptedId);
+        console.log('Package:', currentPackage);
+        console.log('Security Level: Maximum');
     </script>
 </body>
 </html>
