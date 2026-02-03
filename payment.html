@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kích Hoạt AI - NGUYEN XUAN DAT</title>
-    <link rel="stylesheet" href="css/style.css">
     <style>
         :root { --primary: #27ae60; --danger: #e74c3c; --dark: #2c3e50; }
-        body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
+        body { font-family: sans-serif; margin: 0; background: #f4f7f6; user-select: none; -webkit-user-select: none; }
         .payment-body { padding: 15px; text-align: center; }
         .package-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .pkg-card { 
@@ -22,9 +21,10 @@
             background: white; padding: 20px; border-radius: 25px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 10px;
         }
-        .qr-code { width: 100%; max-width: 200px; border-radius: 10px; border: 5px solid #fff; transition: 0.5s; }
-        .qr-code:active { transform: scale(0.9); } /* Hiệu ứng khi nhấn giữ */
-
+        .qr-code { 
+            width: 100%; max-width: 200px; border-radius: 10px; border: 5px solid #fff; 
+            transition: 0.5s; touch-action: none; -webkit-touch-callout: none;
+        }
         .pay-detail { text-align: left; font-size: 13px; margin-top: 15px; background: #f9f9f9; padding: 10px; border-radius: 10px; }
         .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
         .highlight { color: var(--danger); font-weight: bold; font-size: 15px; }
@@ -65,7 +65,7 @@
         <div class="qr-section">
             <h4 id="selected-name" style="margin-bottom:10px">Gói BASIC - 1 Tháng</h4>
             <img id="qr-bidv" class="qr-code" src="" alt="QR BIDV" oncontextmenu="return false;">
-            <p style="font-size: 10px; color: #999;">(Quét mã QR để tự động nhập nội dung)</p>
+            <p style="font-size: 10px; color: #999;">(Nhấn giữ mã QR 3 giây để kích hoạt Admin)</p>
             
             <div class="pay-detail">
                 <div class="detail-row"><span>Số tiền:</span> <span class="highlight" id="pay-amount">19.000đ</span></div>
@@ -80,12 +80,10 @@
 </div>
 
 <script>
-    // Hàm chọn gói cước
     function selectPackage(tier, price, duration) {
         document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('active'));
-        event.currentTarget.classList.add('active');
+        if(event) event.currentTarget.classList.add('active');
 
-        // Tạo mã nội dung chuyển khoản: Tên viết tắt + Số ngẫu nhiên để không nhầm
         const randomID = Math.floor(1000 + Math.random() * 9000);
         const note = `DAT ${tier} ${randomID}`;
         
@@ -93,45 +91,41 @@
         document.getElementById('pay-amount').innerText = price.toLocaleString() + 'đ';
         document.getElementById('pay-note').innerText = note;
 
-        // Cập nhật QR BIDV
         const qrUrl = `https://img.vietqr.io/image/bidv-4430269669-compact.jpg?amount=${price}&addInfo=${encodeURIComponent(note)}&accountName=NGUYEN%20XUAN%20DAT`;
         document.getElementById('qr-bidv').src = qrUrl;
     }
 
-    // Hàm kiểm tra thanh toán
     function checkPayment() {
-        alert("Hệ thống đang kiểm tra số dư BIDV của anh Đạt. Vui lòng đợi 1-2 phút để tiền khớp lệnh.");
+        alert("Hệ thống đang kiểm tra số dư. Anh vui lòng đợi giây lát!");
     }
 
-    // --- TÍNH NĂNG KÍCH HOẠT BÍ MẬT DÀNH CHO ANH ĐẠT ---
+    // --- KÍCH HOẠT BÍ MẬT DÀNH CHO ANH ĐẠT ---
     let timer;
     const qrImg = document.getElementById('qr-bidv');
 
-    qrImg.addEventListener('mousedown', startTimer);
-    qrImg.addEventListener('touchstart', startTimer);
-    qrImg.addEventListener('mouseup', stopTimer);
-    qrImg.addEventListener('touchend', stopTimer);
-
-    function startTimer() {
+    // Xử lý nhấn giữ cho cả máy tính và điện thoại
+    const startAction = (e) => {
+        // e.preventDefault(); 
         timer = setTimeout(() => {
-            let pass = prompt("NHẬP MÃ ADMIN ĐỂ KÍCH HOẠT NGAY:");
-            if(pass === "19000") { // Anh nhập 19000 để mở khóa
-                localStorage.setItem('active_package', 'BASIC');
+            let pass = prompt("NHẬP MÃ ADMIN:");
+            if(pass === "19000") {
+                localStorage.setItem('active_package', 'LIFETIME');
                 localStorage.setItem('user_role', 'ADMIN');
-                alert("Đã kích hoạt hệ thống AI độc lập thành công!");
+                alert("XÁC NHẬN CHỦ NHÂN: NGUYỄN XUÂN ĐẠT. Đang mở khóa toàn bộ hệ thống!");
                 window.location.href = 'index.html';
             }
-        }, 3000); // Nhấn giữ 3 giây
-    }
-
-    function stopTimer() {
-        clearTimeout(timer);
-    }
-
-    // Mặc định chọn gói 19k khi mở trang
-    window.onload = () => {
-        document.getElementById('default-pkg').click();
+        }, 3000);
     };
+
+    const stopAction = () => clearTimeout(timer);
+
+    qrImg.addEventListener('mousedown', startAction);
+    qrImg.addEventListener('touchstart', startAction);
+    qrImg.addEventListener('mouseup', stopAction);
+    qrImg.addEventListener('mouseleave', stopAction);
+    qrImg.addEventListener('touchend', stopAction);
+
+    window.onload = () => selectPackage('BASIC', 19000, '1 Tháng');
 </script>
 
 </body>
