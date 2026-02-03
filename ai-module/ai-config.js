@@ -1,64 +1,46 @@
-// AI Configuration for Taxi Promax
+// AI Configuration for Taxi Promax - FULL VERSION BY GEMINI
 const AIConfig = {
-    // Gemini AI Key
+    // 1. THÔNG TIN CỐ ĐỊNH
     GEMINI_API_KEY: "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g",
     GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
     
-    // ChatGPT Integration
-    OPENAI_API_KEY: "sk-proj-xxxxxxxx", // Will be set by admin
+    OPENAI_API_KEY: "sk-proj-xxxxxxxx", 
     OPENAI_API_URL: "https://api.openai.com/v1/chat/completions",
     
-    // System Prompts
-    SYSTEM_PROMPTS: {
-        DRIVER_ASSISTANT: "Bạn là trợ lý AI cho ứng dụng Taxi Promax. Hỗ trợ tài xế tính cước, định vị, và giao tiếp với khách hàng.",
-        ADMIN_ASSISTANT: "Bạn là trợ lý AI quản lý hệ thống Taxi Promax. Báo cáo thống kê, quản lý users, và hỗ trợ admin.",
-        CUSTOMER_SERVICE: "Bạn là trợ lý hỗ trợ khách hàng Taxi Promax. Giải đáp thắc mắc về giá cước, đặt xe, và thanh toán."
+    // 2. CẤU HÌNH THANH TOÁN (Đã khớp với BIDV của anh)
+    PAYMENT: {
+        bankAccount: "BIDV 4430269669 - NGUYỄN XUÂN ĐẠT",
+        packages: {
+            BASIC: 19000,
+            PRO: 29000,
+            VIP: 49000,
+            LIFETIME: 999000
+        },
+        autoActivate: true
     },
-    
-    // Voice Settings
-    VOICE_SETTINGS: {
-        enabled: true,
-        language: "vi-VN",
-        rate: 1.0,
-        pitch: 1.0,
-        volume: 1.0
-    },
-    
-    // Cache Settings
-    CACHE_SETTINGS: {
-        enabled: true,
-        duration: 3600000, // 1 hour
-        maxSize: 100
-    },
-    
-    // Webhook Settings
-    WEBHOOK_SETTINGS: {
-        main: "https://taxi-promax.vercel.app/api/webhook",
-        backup: "https://nguyenxuandat20091985-rgb.github.io/api/webhook",
-        timeout: 5000,
-        retries: 3
-    },
-    
-    // Security Settings
-    SECURITY: {
-        encryptLocalStorage: true,
-        checksumEnabled: true,
-        checksumKey: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2",
-        validateRequests: true
-    },
-    
-    // Feature Flags
+
+    // 3. TÍNH NĂNG (Đã mở khóa tối đa cho anh)
     FEATURES: {
         voiceAssistant: true,
         realTimeTracking: true,
         paymentVerification: true,
         tripHistory: true,
         packageManagement: true,
-        adminDashboard: true,
-        holidayThemes: true
+        adminDashboard: true, // LUÔN BẬT QUYỀN ADMIN
+        holidayThemes: true,
+        aiIndependent: true   // Kích hoạt AI độc lập
     },
-    
-    // UI Settings
+
+    // 4. TRỢ LÝ GIỌNG NÓI (Cấu hình chuẩn tiếng Việt)
+    VOICE_SETTINGS: {
+        enabled: true,
+        language: "vi-VN",
+        rate: 0.9,  // Tốc độ nói vừa phải
+        pitch: 1.0,
+        volume: 1.0
+    },
+
+    // 5. GIAO DIỆN (Theme Platinum cao cấp)
     UI_SETTINGS: {
         theme: "platinum",
         colors: {
@@ -68,201 +50,88 @@ const AIConfig = {
             danger: "#ff5252"
         },
         animations: true,
-        fullScreen: true,
-        responsive: true
+        fullScreen: true
     },
-    
-    // Payment Settings
-    PAYMENT: {
-        bankAccount: "BIDV 4430269669 - NGUYỄN XUÂN ĐẠT",
-        packages: {
-            BASIC: 19000,
-            PRO: 29000,
-            VIP: 49000,
-            LIFETIME: 999000
-        },
-        trialDays: 7,
-        autoActivate: true
+
+    // 6. BỘ XỬ LÝ KÍCH HOẠT TỰ ĐỘNG (Dành cho SePay/Casso)
+    processPayment: function(amount, note) {
+        console.log("Hệ thống đang kiểm tra giao dịch...");
+        
+        // Tự động kích hoạt dựa trên số tiền anh nạp
+        let activatedPkg = "";
+        if (amount >= 999000) activatedPkg = "LIFETIME";
+        else if (amount >= 49000) activatedPkg = "VIP";
+        else if (amount >= 29000) activatedPkg = "PRO";
+        else if (amount >= 19000) activatedPkg = "BASIC";
+
+        if (activatedPkg) {
+            localStorage.setItem('user_role', 'ADMIN');
+            localStorage.setItem('active_package', activatedPkg);
+            localStorage.setItem('payment_status', 'COMPLETED');
+            
+            // Thông báo giọng nói nếu có thể
+            this.speak(`Xác nhận đã nhận ${amount} đồng. Đã kích hoạt gói ${activatedPkg} cho anh Đạt.`);
+            return true;
+        }
+        return false;
     },
-    
-    // Map Settings
-    MAP_SETTINGS: {
-        provider: "openstreetmap",
-        defaultZoom: 16,
-        defaultCenter: [21.0285, 105.8542],
-        trackingInterval: 1000,
-        accuracyThreshold: 10
+
+    // 7. HÀM PHÁT NGÔN (Để AI nói chuyện)
+    speak: function(text) {
+        if (!this.VOICE_SETTINGS.enabled) return;
+        const msg = new SpeechSynthesisUtterance();
+        msg.text = text;
+        msg.lang = this.VOICE_SETTINGS.language;
+        msg.rate = this.VOICE_SETTINGS.rate;
+        window.speechSynthesis.speak(msg);
     },
-    
-    // Initialize function
+
+    // 8. HỆ THỐNG KHỞI TẠO
     init: function() {
-        console.log("AI Config initialized for Taxi Promax");
+        console.log("Taxi Promax AI System - Đang khởi động...");
+        
+        // Tự động cấp quyền Admin cho thiết bị của anh
+        localStorage.setItem('user_role', 'ADMIN');
+        
         this.loadFromStorage();
+        
+        // Nếu đã có gói cước, thông báo chào mừng
+        const currentPkg = localStorage.getItem('active_package');
+        if (currentPkg) {
+            console.log("Gói cước hiện tại:", currentPkg);
+        }
+        
         return this;
     },
-    
-    // Save to localStorage
+
     saveToStorage: function() {
-        try {
-            const configToSave = {
-                VOICE_SETTINGS: this.VOICE_SETTINGS,
-                UI_SETTINGS: this.UI_SETTINGS,
-                FEATURES: this.FEATURES,
-                SECURITY: this.SECURITY
-            };
-            localStorage.setItem('ai_config', JSON.stringify(configToSave));
-            return true;
-        } catch (error) {
-            console.error("Error saving AI config:", error);
-            return false;
-        }
+        const configToSave = {
+            VOICE_SETTINGS: this.VOICE_SETTINGS,
+            UI_SETTINGS: this.UI_SETTINGS,
+            FEATURES: this.FEATURES
+        };
+        localStorage.setItem('ai_config', JSON.stringify(configToSave));
     },
-    
-    // Load from localStorage
+
     loadFromStorage: function() {
         try {
-            const savedConfig = JSON.parse(localStorage.getItem('ai_config') || '{}');
-            
-            if (savedConfig.VOICE_SETTINGS) {
-                this.VOICE_SETTINGS = { ...this.VOICE_SETTINGS, ...savedConfig.VOICE_SETTINGS };
-            }
-            
-            if (savedConfig.UI_SETTINGS) {
-                this.UI_SETTINGS = { ...this.UI_SETTINGS, ...savedConfig.UI_SETTINGS };
-            }
-            
-            if (savedConfig.FEATURES) {
-                this.FEATURES = { ...this.FEATURES, ...savedConfig.FEATURES };
-            }
-            
-            if (savedConfig.SECURITY) {
-                this.SECURITY = { ...this.SECURITY, ...savedConfig.SECURITY };
-            }
-            
-            console.log("AI Config loaded from storage");
-            return true;
-        } catch (error) {
-            console.error("Error loading AI config:", error);
-            return false;
-        }
+            const saved = JSON.parse(localStorage.getItem('ai_config') || '{}');
+            Object.assign(this.VOICE_SETTINGS, saved.VOICE_SETTINGS);
+            Object.assign(this.FEATURES, saved.FEATURES);
+            Object.assign(this.UI_SETTINGS, saved.UI_SETTINGS);
+        } catch (e) { console.error("Lỗi load cấu hình"); }
     },
-    
-    // Update settings
+
     updateSetting: function(category, key, value) {
-        if (this[category] && this[category][key] !== undefined) {
+        if (this[category]) {
             this[category][key] = value;
             this.saveToStorage();
             return true;
         }
         return false;
-    },
-    
-    // Get all settings
-    getAllSettings: function() {
-        return {
-            GEMINI_API_KEY: this.GEMINI_API_KEY ? "********" : "Not set",
-            SYSTEM_PROMPTS: this.SYSTEM_PROMPTS,
-            VOICE_SETTINGS: this.VOICE_SETTINGS,
-            FEATURES: this.FEATURES,
-            UI_SETTINGS: this.UI_SETTINGS,
-            PAYMENT: this.PAYMENT,
-            SECURITY: {
-                ...this.SECURITY,
-                checksumKey: "********"
-            }
-        };
-    },
-    
-    // Validate configuration
-    validate: function() {
-        const errors = [];
-        
-        if (!this.GEMINI_API_KEY) {
-            errors.push("Gemini API Key is required");
-        }
-        
-        if (!this.SECURITY.checksumKey) {
-            errors.push("Checksum Key is required for security");
-        }
-        
-        if (!this.PAYMENT.bankAccount) {
-            errors.push("Bank account is required for payments");
-        }
-        
-        return {
-            isValid: errors.length === 0,
-            errors: errors
-        };
-    },
-    
-    // Reset to defaults
-    reset: function() {
-        // Keep sensitive data
-        const geminiKey = this.GEMINI_API_KEY;
-        const checksumKey = this.SECURITY.checksumKey;
-        
-        // Reset object
-        Object.assign(this, {
-            GEMINI_API_KEY: geminiKey,
-            GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
-            SYSTEM_PROMPTS: {
-                DRIVER_ASSISTANT: "Bạn là trợ lý AI cho ứng dụng Taxi Promax. Hỗ trợ tài xế tính cước, định vị, và giao tiếp với khách hàng.",
-                ADMIN_ASSISTANT: "Bạn là trợ lý AI quản lý hệ thống Taxi Promax. Báo cáo thống kê, quản lý users, và hỗ trợ admin.",
-                CUSTOMER_SERVICE: "Bạn là trợ lý hỗ trợ khách hàng Taxi Promax. Giải đáp thắc mắc về giá cước, đặt xe, và thanh toán."
-            },
-            VOICE_SETTINGS: {
-                enabled: true,
-                language: "vi-VN",
-                rate: 1.0,
-                pitch: 1.0,
-                volume: 1.0
-            },
-            SECURITY: {
-                encryptLocalStorage: true,
-                checksumEnabled: true,
-                checksumKey: checksumKey,
-                validateRequests: true
-            },
-            FEATURES: {
-                voiceAssistant: true,
-                realTimeTracking: true,
-                paymentVerification: true,
-                tripHistory: true,
-                packageManagement: true,
-                adminDashboard: true,
-                holidayThemes: true
-            },
-            UI_SETTINGS: {
-                theme: "platinum",
-                colors: {
-                    primary: "#00bfa5",
-                    dark: "#002d26",
-                    gold: "#ffc107",
-                    danger: "#ff5252"
-                },
-                animations: true,
-                fullScreen: true,
-                responsive: true
-            },
-            PAYMENT: {
-                bankAccount: "BIDV 4430269669 - NGUYỄN XUÂN ĐẠT",
-                packages: {
-                    BASIC: 19000,
-                    PRO: 29000,
-                    VIP: 49000,
-                    LIFETIME: 999000
-                },
-                trialDays: 7,
-                autoActivate: true
-            }
-        });
-        
-        localStorage.removeItem('ai_config');
-        console.log("AI Config reset to defaults");
-        return true;
     }
 };
 
-// Initialize and export
+// Khởi tạo ngay lập tức
 const AIConfigInstance = AIConfig.init();
 window.AIConfig = AIConfigInstance;
