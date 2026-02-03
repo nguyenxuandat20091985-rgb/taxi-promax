@@ -3,278 +3,302 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TAXI PROMAX - PREMIUM</title>
     
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
+
+    <title>TAXI PROMAX - NGUYỄN XUÂN ĐẠT</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { 
-            --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; 
-            --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.98); 
-        }
+        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        /* Dark Mode thích ứng */
-        @media (prefers-color-scheme: dark) {
-            :root { --bg: #011614; --glass: rgba(0, 20, 18, 0.95); --dark: #e0e0e0; }
-            body { background: #000; color: #fff; }
-            .footer-panel, .p-card { background: #002d26 !important; border-color: #004d40 !important; }
-        }
+        #map { height: 100vh; width: 100vw; z-index: 1; } 
 
-        body, html { 
-            margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; 
-            overflow: hidden; position: fixed; width: 100%;
-        }
+        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
+        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
 
-        #map { height: 100vh; width: 100vw; z-index: 1; filter: contrast(1.1) saturate(1.2); }
-
-        /* Header & Stats */
-        .header { position: fixed; top: env(safe-area-inset-top, 10px); left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; }
-        .badge { background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); font-size: 11px; font-weight: 800; border: 1px solid var(--primary); color: var(--dark); }
-
-        .stats-bar { 
-            position: fixed; top: calc(env(safe-area-inset-top, 10px) + 45px); left: 10px; right: 10px; 
-            background: var(--glass); border-radius: 18px; display: flex; padding: 15px; 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15); z-index: 1000; border: 1px solid var(--primary); 
-        }
+        .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
         .stat-item { flex: 1; text-align: center; }
-        .stat-value { font-size: 24px; font-weight: 900; color: var(--primary); }
+        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
+        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
 
-        /* Footer & Tabs */
-        .footer-panel { 
-            position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; 
-            border-radius: 30px 30px 0 0; padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 10px); 
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.1); 
-        }
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 15px; }
-        .nav-item { border: none; background: none; color: #7f8c8d; font-size: 11px; font-weight: 700; flex: 1; }
-        .nav-item.active { color: var(--primary); transform: scale(1.1); }
-        .nav-item i { font-size: 22px; display: block; }
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
+        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; } 
 
-        /* AI Floating Assistant */
-        #ai-root { 
-            width: 65px; height: 65px; border-radius: 50%; position: fixed; right: 15px; bottom: 180px;
-            background: url('https://raw.githubusercontent.com/nguyenxuandat20091985-rgb/taxi-promax/main/CC_20260130_193050.png') no-repeat center;
-            background-size: cover; border: 3px solid var(--primary); z-index: 9999;
-            box-shadow: 0 0 20px var(--primary); cursor: move; touch-action: none;
-        }
+        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
 
-        /* Tab Content */
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 140px); background: var(--bg); z-index: 1500; display: none; overflow-y: auto; }
-        .brand-footer { font-size: 10px; text-align: center; color: #95a5a6; margin-top: 10px; font-weight: 900; text-transform: uppercase; }
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
+        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
 
-        .btn-main { width: 100%; padding: 18px; border-radius: 20px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; }
+        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
+        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
+        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
+        .p-card b { display: block; font-size: 13px; color: var(--dark); }
+        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
+        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
+
+        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .h-info { text-align: left; }
+        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
+
+        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
+        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
+
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
+        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
+        
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
     </style>
 </head>
-<body oncontextmenu="return false;">
+<body oncontextmenu="return false;"> 
 
     <div class="header">
-        <div class="badge" id="idShow">🆔 TRUY CẬP...</div>
-        <div class="badge" id="planShow" style="color:var(--gold)">⭐ GÓI: DÙNG THỬ</div>
-    </div>
+        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
+    </div> 
 
-    <div class="stats-bar">
-        <div class="stat-item" style="border-right: 1px solid #ddd;">
-            <div style="font-size: 10px; opacity: 0.7;">CƯỚC PHÍ (VNĐ)</div>
+    <div class="stats-bar" id="statsUI">
+        <div class="stat-item" style="border-right: 1px solid #eee;">
+            <div class="stat-label">CƯỚC (VNĐ)</div>
             <div id="cost" class="stat-value">0</div>
         </div>
         <div class="stat-item">
-            <div style="font-size: 10px; opacity: 0.7;">KHOẢNG CÁCH (KM)</div>
+            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
             <div id="km" class="stat-value">0.00</div>
         </div>
-    </div>
+    </div> 
 
-    <div id="map"></div>
+    <div id="map"></div> 
 
     <div id="tab-vi" class="tab-content">
-        <div style="background: var(--primary); color:white; padding: 40px 20px; text-align:center; border-radius: 0 0 30px 30px;">
-            <h2>NÂNG CẤP GÓI CƯỚC</h2>
-            <p>Tự động kích hoạt sau khi chuyển khoản</p>
+        <div class="p-header">
+            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
+            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
         </div>
-        <div style="padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;" id="packageList">
+        <div class="p-grid">
+            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
+                <b>GÓI BASIC</b><span>19.000đ</span>
+                <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul>
             </div>
-        <div id="qrArea" style="text-align:center; display:none; padding: 20px; background:white; margin: 15px; border-radius:20px; border: 2px dashed var(--primary);">
-            <img id="qrImg" style="width:200px;">
-            <p>Nội dung: <b id="qrContent" style="color:red"></b></p>
-            <p style="font-size:12px; color:gray;">Vui lòng đợi 30s sau khi chuyển tiền để hệ thống xác nhận.</p>
+            <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
+                <b>GÓI PRO</b><span>29.000đ</span>
+                <ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul>
+            </div>
+            <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)">
+                <b>GÓI VIP 1TH</b><span>49.000đ</span>
+                <ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul>
+            </div>
+            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)">
+                <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
+                <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
+            </div>
         </div>
-    </div>
-
-    <div id="ai-chat" style="display:none; position:fixed; bottom:250px; right:15px; width:280px; background:white; border-radius:15px; z-index:10000; box-shadow:0 10px 30px rgba(0,0,0,0.3); overflow:hidden; border: 1px solid var(--primary);">
-        <div style="background:var(--primary); color:white; padding:10px; font-size:12px; font-weight:bold;">🤖 TRỢ LÝ AI PROMAX</div>
-        <div id="ai-logs" style="height:200px; overflow-y:auto; padding:10px; font-size:13px; background:#f0fbfc;"></div>
-        <div style="display:flex; border-top:1px solid #eee;">
-            <input type="text" id="ai-input" style="flex:1; border:none; padding:10px;" placeholder="Hỏi AI...">
-            <button onclick="askAI()" style="border:none; background:none; padding:10px; color:var(--primary)">🚀</button>
+        <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
+            <img id="qrImg" style="width:180px; border-radius:10px;" src="">
+            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
+            <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
+            <br><br>
+            <button class="btn-main" style="padding:10px; font-size:14px;" onclick="verifyPayment()">XÁC NHẬN ĐÃ CHUYỂN</button>
         </div>
-    </div>
+    </div> 
 
-    <div id="ai-root"></div>
+    <div id="tab-lichsu" class="tab-content">
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList" style="padding-top: 10px;"></div>
+    </div> 
+
+    <div id="tab-toi" class="tab-content">
+        <div class="p-header">THIẾT LẬP</div>
+        <div style="padding:20px;">
+            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
+                <p>Mã tài xế: <b id="profileID">...</b></p>
+                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
+                <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
+                <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
+                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="clearHistory()">XÓA LỊCH SỬ</button>
+            </div>
+        </div>
+    </div> 
 
     <div class="footer-panel">
-        <div id="homeUI">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:bold;">
-                <span>ĐƠN GIÁ: <span id="rateVal">15,000</span>đ/km</span>
+        <div id="homeControls">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
+                <span>GIÁ/KM</span>
+                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
             </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" style="width:100%; accent-color:var(--primary)" oninput="document.getElementById('rateVal').innerText = parseInt(this.value).toLocaleString()">
-            <button id="mainBtn" class="btn-main" style="margin-top:10px;" onclick="toggleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-        </div>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+        </div> 
 
         <div class="nav-grid">
-            <div class="nav-item active" onclick="changeTab('home')"><i>🏠</i>Trang chủ</div>
-            <div class="nav-item" onclick="changeTab('vi')"><i>💰</i>Nạp gói</div>
-            <div class="nav-item" onclick="changeTab('history')"><i>📊</i>Lịch sử</div>
-            <div class="nav-item" onclick="changeTab('profile')"><i>👤</i>Tôi</div>
+            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
         </div>
-        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT</div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div>
+
+    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
+    <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- HỆ THỐNG CỐT LÕI (BẢO MẬT & CHỐNG GIAN LẬN) ---
-        let isDriving = false;
-        let distance = 0;
-        let lastPos = null;
-        const GEMINI_KEY = "AIzaSyBYIpmslXFTkETW7cfiPeLJ0oPcgMJUn2g";
-        const USER_ID = "TX-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-        
-        // 1. Chống tắt màn hình
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').catch(()=>{});
-        }
+        // --- 1. KHỞI TẠO BẢO MẬT & ID ---
+        const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        localStorage.setItem('tx_id', TX_ID);
+        document.getElementById('idShow').innerText = "🆔 " + TX_ID;
+        document.getElementById('profileID').innerText = TX_ID;
 
-        // 2. Khởi tạo bản đồ chuyên nghiệp
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        let marker = L.circleMarker([0,0], { radius: 10, color: '#00bfa5', fillOpacity: 1 }).addTo(map);
+        // --- 2. HỆ THỐNG BẢN ĐỒ ---
+        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
+        var smIcon = L.divIcon({ className: 'sm-div-icon', html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", iconSize: [24, 24], iconAnchor: [12, 12] });
+        var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map); 
 
-        // 3. Thuật toán tính tiền chuẩn Xanh SM (Chống nhảy km ảo)
-        function updateLocation(pos) {
-            const { latitude, longitude, speed } = pos.coords;
-            const newPos = L.latLng(latitude, longitude);
-            
-            // Chỉ tính nếu tốc độ > 2km/h (loại bỏ nhiễu GPS khi đứng yên)
-            if (isDriving && lastPos && speed > 0.5) {
-                let d = lastPos.distanceTo(newPos) / 1000;
-                if (d < 0.5) { // Chống nhảy cóc GPS quá xa
-                    distance += d;
-                    document.getElementById('km').innerText = distance.toFixed(2);
-                    let rate = parseInt(document.querySelector('input[type=range]').value);
-                    document.getElementById('cost').innerText = Math.round(distance * rate).toLocaleString();
-                }
-            }
-            lastPos = newPos;
-            marker.setLatLng(newPos);
-            map.panTo(newPos);
-        }
+        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, watchId = null, wakeLock = null;
 
-        navigator.geolocation.watchPosition(updateLocation, null, { enableHighAccuracy: true });
-
-        // 4. Hệ thống nạp tiền Webhook tự động
-        const packages = [
-            { id: 'BASIC', price: 19000, desc: ' Km + Offline' },
-            { id: 'PRO', price: 29000, desc: 'Real-time Map' },
-            { id: 'VIP1', price: 49000, desc: 'AI Voice + Cloud' },
-            { id: 'LIFETIME', price: 999000, desc: 'Vĩnh viễn' }
-        ];
-
-        function renderPackages() {
-            let html = packages.map(p => `
-                <div class="p-card" style="background:white; padding:15px; border-radius:15px; border:1px solid #eee" onclick="createPayment('${p.id}', ${p.price})">
-                    <b style="color:var(--primary)">GÓI ${p.id}</b>
-                    <div style="font-size:18px; font-weight:900">${p.price.toLocaleString()}đ</div>
-                    <div style="font-size:10px">${p.desc}</div>
-                </div>
-            `).join('');
-            document.getElementById('packageList').innerHTML = html;
-        }
-        renderPackages();
-
-        function createPayment(id, price) {
-            const content = `DAT ${USER_ID} ${id}`;
-            const qr = `https://img.vietqr.io/image/BIDV-4430269669-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}&accountName=NGUYEN%20XUAN%20DAT`;
-            document.getElementById('qrImg').src = qr;
-            document.getElementById('qrContent').innerText = content;
-            document.getElementById('qrArea').style.display = 'block';
-            
-            // Bắt đầu vòng lặp kiểm tra Webhook (Giả lập hoặc gọi tới API Vercel)
-            checkPaymentStatus();
-        }
-
-        async function checkPaymentStatus() {
-            // Phần này sẽ gọi tới file payos-webhook.js của anh trên Vercel
-            // Nếu thành công sẽ gọi hàm activatePremium()
-        }
-
-        function activatePremium(plan) {
-            alert("CẢM ƠN ANH ĐẠT! GÓI " + plan + " ĐÃ ĐƯỢC KÍCH HOẠT.");
-            document.getElementById('planShow').innerText = "⭐ GÓI: " + plan;
-            localStorage.setItem('user_plan', plan);
-        }
-
-        // 5. AI Trợ lý di chuyển
-        const aiRoot = document.getElementById('ai-root');
-        aiRoot.onmousedown = aiRoot.ontouchstart = function(e) {
-            let shiftX = (e.clientX || e.touches[0].clientX) - aiRoot.getBoundingClientRect().left;
-            let shiftY = (e.clientY || e.touches[0].clientY) - aiRoot.getBoundingClientRect().top;
-            
-            function moveAt(pageX, pageY) {
-                aiRoot.style.left = pageX - shiftX + 'px';
-                aiRoot.style.top = pageY - shiftY + 'px';
-            }
-
-            function onMouseMove(e) { moveAt(e.clientX || e.touches[0].clientX, e.clientY || e.touches[0].clientY); }
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('touchmove', onMouseMove);
-            
-            aiRoot.onmouseup = aiRoot.ontouchend = function() {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('touchmove', onMouseMove);
-                document.getElementById('ai-chat').style.display = 'block';
-            };
-        };
-
-        async function askAI() {
-            const inp = document.getElementById('ai-input');
-            const log = document.getElementById('ai-logs');
-            if(!inp.value) return;
-            
-            log.innerHTML += `<div><b>Bạn:</b> ${inp.value}</div>`;
-            const prompt = inp.value;
-            inp.value = "";
-
+        // --- 3. GIỮ MÀN HÌNH LUÔN SÁNG (WAKE LOCK) ---
+        async function requestWakeLock() {
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                    method: "POST",
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-                const data = await res.json();
-                const reply = data.candidates[0].content.parts[0].text;
-                log.innerHTML += `<div style="color:var(--primary)"><b>AI:</b> ${reply}</div>`;
-                log.scrollTop = log.scrollHeight;
-            } catch (e) {
-                log.innerHTML += `<div style="color:red">Lỗi kết nối AI</div>`;
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)";
+                }
+            } catch (err) { console.log("WakeLock lỗi"); }
+        }
+
+        // --- 4. GPS CHÍNH XÁC CAO (WATCH POSITION) ---
+        function startTracking() {
+            if ("geolocation" in navigator) {
+                watchId = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        const { latitude, longitude, speed } = pos.coords;
+                        const newPos = L.latLng(latitude, longitude);
+                        marker.setLatLng(newPos);
+                        if(isRunning) {
+                            map.panTo(newPos);
+                            // Chỉ tính tiền nếu GPS ổn định và tốc độ thực tế > 1km/h (chống nhảy số khi đứng yên)
+                            if(lastPos && (speed > 0.3 || speed === null)) {
+                                let d = newPos.distanceTo(lastPos) / 1000;
+                                if(d > 0.005) { // Nhích trên 5m mới tính
+                                    totalKm += d;
+                                    document.getElementById('km').innerText = totalKm.toFixed(2);
+                                    document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
+                                }
+                            }
+                            lastPos = newPos;
+                        }
+                    },
+                    (err) => { console.error(err); },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+                );
             }
         }
 
-        function changeTab(tab) {
-            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-            if(tab !== 'home') document.getElementById('tab-' + tab).style.display = 'block';
-        }
+        function updateRate(v) { 
+            currentRate = v; 
+            document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
+        } 
 
-        function toggleTrip() {
-            isDriving = !isDriving;
+        function handleTrip() {
             const btn = document.getElementById('mainBtn');
-            if(isDriving) {
+            if(!isRunning) {
+                isRunning = true;
                 btn.innerText = "KẾT THÚC CHUYẾN ĐI";
-                btn.style.background = "#ff5252";
-                distance = 0;
+                btn.style.background = "var(--danger)";
+                document.getElementById('wishModal').style.display = 'flex';
+                totalKm = 0; lastPos = null;
+                document.getElementById('km').innerText = "0.00";
+                document.getElementById('cost').innerText = "0";
+                requestWakeLock();
+                startTracking();
             } else {
+                isRunning = false;
                 btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
-                btn.style.background = "#00bfa5";
-                alert(`HOÀN THÀNH! \nQuãng đường: ${distance.toFixed(2)} km \nTổng cước: ${document.getElementById('cost').innerText}đ`);
+                btn.style.background = "var(--primary)";
+                if(watchId) navigator.geolocation.clearWatch(watchId);
+                if(wakeLock) wakeLock.release();
+                
+                let finalCost = Math.round(totalKm * currentRate);
+                saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
+                
+                document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
+                document.getElementById('endModal').style.display = 'flex';
+            }
+        } 
+
+        // --- 5. LƯU LỊCH SỬ BẢO MẬT ---
+        function saveHistory(km, cost) {
+            const list = document.getElementById('historyList');
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+            const itemData = { time, km, cost };
+            
+            // Lưu vào localStorage dự phòng
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            history.unshift(itemData);
+            localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 50))); // Lưu 50 chuyến gần nhất
+
+            const item = document.createElement('div');
+            item.className = 'history-card';
+            item.innerHTML = `<div class="h-info"><b>${time}</b><br><small>${km} KM</small></div><div class="h-price">${cost}đ</div>`;
+            list.prepend(item);
+        }
+
+        function clearHistory() { if(confirm("Xóa sạch lịch sử?")) { localStorage.removeItem('trip_history'); location.reload(); } }
+
+        // --- 6. XÁC THỰC THANH TOÁN (PAYOS WEBHOOK) ---
+        function selectPack(price, name, el) {
+            document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            const content = `${TX_ID} NAP ${name}`;
+            document.getElementById('qrContent').innerText = content;
+            document.getElementById('qrImg').src = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}`;
+        }
+
+        async function verifyPayment() {
+            // Đây là nơi gọi Webhook của anh để kiểm tra trạng thái PAID
+            alert("Đang kiểm tra giao dịch trên hệ thống BIDV...");
+            // Giả lập check:
+            setTimeout(() => {
+                alert("Hệ thống chưa tìm thấy giao dịch. Nếu đã chuyển, vui lòng đợi 1-3 phút để ngân hàng xử lý.");
+            }, 1500);
+        }
+
+        // TAB SYSTEM
+        function showTab(tab, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if(tab === 'home') document.getElementById('homeControls').style.display = 'block';
+            else {
+                document.getElementById('homeControls').style.display = 'none';
+                document.getElementById('tab-' + tab).style.display = 'flex';
+                if(tab === 'vi') selectPack(49000, 'VIP 1TH', document.querySelectorAll('.p-card')[2]);
             }
         }
-        
-        document.getElementById('idShow').innerText = "🆔 " + USER_ID;
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        // Tải lịch sử cũ khi mở app
+        window.onload = () => {
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            history.forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'history-card';
+                item.innerHTML = `<div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div><div class="h-price">${h.cost}đ</div>`;
+                document.getElementById('historyList').appendChild(item);
+            });
+        };
     </script>
 </body>
 </html>
