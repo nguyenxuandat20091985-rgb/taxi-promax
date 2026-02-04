@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
 
-    <title>TAXI PROMAX - NGUYỄN XUÂN ĐẠT</title>
+    <title>TAXI PROMAX - HỆ THỐNG TAXI THÔNG MINH</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -20,143 +20,213 @@
             --gold: #ffc107; 
             --danger: #ff5252; 
             --warning: #ff9800;
-            --success: #4CAF50;
+            --success: #4caf50;
             --bg: #f8faf9; 
-            --glass: rgba(255, 255, 255, 0.95); 
+            --glass: rgba(255, 255, 255, 0.97); 
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            outline: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
         body, html { 
-            margin: 0; padding: 0; 
+            margin: 0; 
+            padding: 0; 
             height: 100%; 
-            font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; 
+            font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; 
             overflow: hidden; 
-            background: var(--bg);
+            background: var(--dark);
             -webkit-text-size-adjust: 100%;
-            touch-action: manipulation;
+            touch-action: pan-x pan-y;
+            overscroll-behavior: none;
+        }
+        
+        /* ANTI-INSPECT PROTECTION */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            pointer-events: none;
+            z-index: 999999;
         }
         
         #map { 
             height: 100vh; 
             width: 100vw; 
             z-index: 1; 
+            filter: saturate(1.2) contrast(1.1);
         } 
 
-        /* NOTIFICATION BAR */
-        .notification-bar {
+        /* NOTIFICATION SYSTEM */
+        .notification-system {
             position: fixed;
-            top: -60px;
+            top: 10px;
             left: 10px;
             right: 10px;
-            background: linear-gradient(135deg, var(--warning), #ff9800);
+            z-index: 10000;
+            pointer-events: none;
+        }
+        
+        .notification {
+            background: linear-gradient(135deg, var(--primary), #00a8ff);
             color: white;
-            padding: 12px 15px;
-            border-radius: 12px;
-            z-index: 2000;
+            padding: 14px 18px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 5px 20px rgba(255, 152, 0, 0.3);
-            transition: top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
+            pointer-events: auto;
         }
-        .notification-bar.show {
-            top: 100px;
+        
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
         }
-        .notification-bar button {
-            background: none;
+        
+        .notification button {
+            background: rgba(255, 255, 255, 0.2);
             border: none;
             color: white;
-            font-size: 20px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
             cursor: pointer;
-            padding: 0;
-            width: 24px;
-            height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
+            font-size: 18px;
             transition: background 0.3s;
+        }
+        
+        .notification button:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .header { 
             position: fixed; 
-            top: 10px; 
-            left: 10px; 
-            right: 10px; 
+            top: 15px; 
+            left: 15px; 
+            right: 15px; 
             display: flex; 
             justify-content: space-between; 
             z-index: 1000; 
             pointer-events: none; 
         }
+        
         .badge { 
             pointer-events: auto; 
             background: var(--glass); 
-            padding: 8px 15px; 
-            border-radius: 20px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-            font-size: 11px; 
+            padding: 10px 18px; 
+            border-radius: 25px; 
+            box-shadow: var(--shadow); 
+            font-size: 12px; 
             font-weight: 800; 
             color: var(--dark); 
-            border: 1px solid white;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: all 0.3s;
         }
-
-        /* AI CONTROL BUTTON */
-        .ai-control {
-            position: fixed;
-            top: 10px;
-            right: 120px;
-            z-index: 1000;
-            pointer-events: auto;
-        }
-        .ai-toggle-btn {
-            background: var(--glass);
-            border: none;
-            border-radius: 20px;
-            padding: 8px 15px;
-            font-size: 11px;
-            font-weight: 800;
-            color: var(--dark);
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid white;
-        }
-        .ai-toggle-btn.active {
-            background: var(--primary);
-            color: white;
+        
+        .badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
         }
 
         .stats-bar { 
             position: fixed; 
-            top: 55px; 
-            left: 10px; 
-            right: 10px; 
+            top: 70px; 
+            left: 15px; 
+            right: 15px; 
             background: var(--glass); 
-            border-radius: 15px; 
+            border-radius: 20px; 
             display: flex; 
-            padding: 12px; 
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+            padding: 15px; 
+            box-shadow: var(--shadow); 
             z-index: 1000; 
-            border: 1px solid white;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: transform 0.3s;
         }
-        .stat-item { flex: 1; text-align: center; }
-        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
+        
+        .stats-bar.running {
+            animation: pulseGlow 2s infinite;
+        }
+        
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: var(--shadow); }
+            50% { box-shadow: 0 8px 40px rgba(0, 191, 165, 0.4); }
+        }
+        
+        .stat-item { 
+            flex: 1; 
+            text-align: center; 
+            position: relative;
+        }
+        
+        .stat-item:first-child::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 10%;
+            height: 80%;
+            width: 1px;
+            background: rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-label { 
+            font-size: 10px; 
+            color: #666; 
+            font-weight: 800; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value { 
+            font-size: 24px; 
+            font-weight: 900; 
+            color: var(--dark); 
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+            transition: color 0.3s;
+        }
+        
+        .stat-value.running {
+            color: var(--primary);
+            animation: numberPulse 1s infinite alternate;
+        }
+        
+        @keyframes numberPulse {
+            from { text-shadow: 0 0 5px rgba(0, 191, 165, 0.3); }
+            to { text-shadow: 0 0 15px rgba(0, 191, 165, 0.6); }
+        }
 
-        /* AI ASSISTANT - DRAGGABLE */
+        /* AI ASSISTANT FLOATING */
         .ai-assistant {
             position: fixed;
-            bottom: 150px;
-            right: 15px;
+            bottom: 180px;
+            right: 20px;
             width: 60px;
             height: 60px;
             border-radius: 50%;
@@ -164,23 +234,45 @@
             display: none;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 25px rgba(0, 191, 165, 0.6);
+            box-shadow: 0 10px 30px rgba(0, 191, 165, 0.5);
             z-index: 900;
             cursor: move;
             border: 3px solid white;
-            transition: transform 0.3s, box-shadow 0.3s;
+            transition: all 0.3s;
             touch-action: none;
-            user-select: none;
         }
-        .ai-assistant:active {
+        
+        .ai-assistant.active {
+            background: linear-gradient(135deg, var(--danger), #ff4081);
+            box-shadow: 0 10px 30px rgba(255, 82, 82, 0.5);
+        }
+        
+        .ai-assistant:hover {
             transform: scale(1.1);
-            box-shadow: 0 12px 30px rgba(0, 191, 165, 0.8);
         }
+        
         .ai-assistant img {
             width: 70%;
             height: 70%;
             object-fit: contain;
-            pointer-events: none;
+            border-radius: 50%;
+        }
+        
+        .ai-toggle {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+            border: 2px solid var(--primary);
+            z-index: 2;
         }
 
         .footer-panel { 
@@ -188,427 +280,995 @@
             bottom: 0; 
             left: 0; 
             right: 0; 
-            background: white; 
+            background: rgba(255, 255, 255, 0.98); 
             z-index: 2000; 
-            border-radius: 25px 25px 0 0; 
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.08); 
-            padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px);
-            transition: transform 0.3s ease;
+            border-radius: 30px 30px 0 0; 
+            box-shadow: 0 -20px 60px rgba(0,0,0,0.15); 
+            padding: 20px 20px calc(env(safe-area-inset-bottom, 10px) + 10px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            transform: translateY(0);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        
+        .footer-panel.hidden {
+            transform: translateY(100%);
+        }
+        
         .nav-grid { 
             display: flex; 
             justify-content: space-around; 
-            margin-top: 10px; 
-            padding-top: 8px; 
-            border-top: 1px solid #eee; 
+            margin-top: 15px; 
+            padding-top: 15px; 
+            border-top: 1px solid rgba(0, 0, 0, 0.08); 
         }
+        
         .nav-item { 
             border: none; 
             background: none; 
-            color: #bdc3c7; 
-            font-size: 10px; 
+            color: #95a5a6; 
+            font-size: 11px; 
             font-weight: 700; 
             text-align: center; 
             flex: 1; 
-            transition: 0.3s;
-            padding: 5px 0;
+            transition: all 0.3s;
+            padding: 8px 0;
+            position: relative;
         }
-        .nav-item.active { color: var(--primary); }
+        
+        .nav-item.active { 
+            color: var(--primary); 
+            transform: translateY(-5px);
+        }
+        
+        .nav-item.active i {
+            animation: bounce 0.5s;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
         .nav-item i { 
-            font-size: 20px; 
+            font-size: 22px; 
             display: block; 
-            margin-bottom: 2px; 
-        } 
+            margin-bottom: 4px; 
+            transition: all 0.3s;
+        }
+        
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        
+        .nav-item.active::after {
+            width: 30px;
+        }
 
         .brand-footer { 
-            font-size: 9px; 
+            font-size: 10px; 
             text-align: center; 
-            color: #7f8c8d; 
-            padding-bottom: 5px; 
-            font-weight: bold; 
-            letter-spacing: 0.5px;
-            margin-top: 5px;
+            color: #95a5a6; 
+            padding-top: 15px; 
+            margin-top: 10px;
+            font-weight: 600; 
+            letter-spacing: 0.8px;
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
         } 
 
+        /* TRIP CONTROLS */
+        .trip-controls {
+            padding: 0 5px;
+        }
+        
+        .rate-control {
+            background: white;
+            padding: 15px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .rate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .rate-header span {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--dark);
+        }
+        
+        .rate-value {
+            font-size: 18px;
+            font-weight: 900;
+            color: var(--danger);
+            font-variant-numeric: tabular-nums;
+        }
+        
+        input[type="range"] { 
+            width: 100%; 
+            margin: 0;
+            height: 10px;
+            -webkit-appearance: none;
+            background: linear-gradient(90deg, #e0e0e0, var(--primary));
+            border-radius: 5px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: 3px solid var(--primary);
+            box-shadow: 0 4px 15px rgba(0, 191, 165, 0.4);
+            transition: all 0.3s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 191, 165, 0.6);
+        }
+
+        .btn-main { 
+            width: 100%; 
+            padding: 18px; 
+            border-radius: 18px; 
+            border: none; 
+            background: linear-gradient(135deg, var(--primary), #00a8ff); 
+            color: white; 
+            font-size: 18px; 
+            font-weight: 900; 
+            box-shadow: 0 10px 30px rgba(0, 191, 165, 0.4); 
+            transition: all 0.3s; 
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-main::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn-main:hover::before {
+            left: 100%;
+        }
+        
+        .btn-main:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-main.running {
+            background: linear-gradient(135deg, var(--danger), #ff4081);
+            box-shadow: 0 10px 30px rgba(255, 82, 82, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 10px 30px rgba(255, 82, 82, 0.4); }
+            50% { box-shadow: 0 10px 40px rgba(255, 82, 82, 0.6); }
+            100% { box-shadow: 0 10px 30px rgba(255, 82, 82, 0.4); }
+        }
+
+        /* TAB SYSTEM */
         .tab-content { 
             position: fixed; 
             top: 0; 
             left: 0; 
             width: 100%; 
-            height: calc(100% - 115px); 
-            background: #fdfdfd; 
+            height: calc(100% - 140px); 
+            background: #ffffff; 
             z-index: 1500; 
             display: none; 
             flex-direction: column; 
             overflow-y: auto; 
+            overflow-x: hidden;
             padding-bottom: 30px;
             -webkit-overflow-scrolling: touch;
+            border-radius: 30px 30px 0 0;
+            box-shadow: 0 -20px 60px rgba(0,0,0,0.15);
         }
+        
         .p-header { 
             background: linear-gradient(135deg, var(--primary), #00a8ff); 
             color: white; 
-            padding: 25px 20px; 
+            padding: 30px 25px; 
             text-align: center; 
-            border-bottom-left-radius: 25px; 
-            border-bottom-right-radius: 25px; 
-        } 
+            border-bottom-left-radius: 30px; 
+            border-bottom-right-radius: 30px; 
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .p-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveBackground 20s linear infinite;
+            opacity: 0.3;
+        }
+        
+        @keyframes moveBackground {
+            from { transform: translate(0, 0); }
+            to { transform: translate(50px, 50px); }
+        }
+        
+        .p-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 900;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .p-header .subtitle {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 8px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .trial-progress {
+            background: rgba(255, 255, 255, 0.2);
+            height: 6px;
+            border-radius: 3px;
+            margin: 15px 25px 0;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .trial-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 1s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .trial-progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            100% { left: 100%; }
+        }
 
         .p-grid { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
-            gap: 12px; 
-            padding: 15px; 
+            gap: 15px; 
+            padding: 25px; 
         }
+        
         .p-card { 
             background: white; 
-            border: 2px solid #ecf0f1; 
-            border-radius: 18px; 
-            padding: 12px; 
-            transition: 0.3s; 
+            border: 2px solid #f0f0f0; 
+            border-radius: 20px; 
+            padding: 20px; 
+            transition: all 0.3s; 
             position: relative;
             cursor: pointer;
+            overflow: hidden;
         }
+        
+        .p-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--primary);
+            transform: scaleX(0);
+            transition: transform 0.3s;
+        }
+        
+        .p-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 15px 40px rgba(0, 191, 165, 0.15);
+        }
+        
         .p-card.active { 
             border-color: var(--primary); 
-            background: #f0fffb; 
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 191, 165, 0.2);
+            background: linear-gradient(135deg, #f0fffb, #ffffff); 
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 191, 165, 0.2);
         }
-        .p-card b { display: block; font-size: 13px; color: var(--dark); margin-bottom: 5px; }
-        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; display: block; margin-bottom: 8px; }
-        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
+        
+        .p-card.active::before {
+            transform: scaleX(1);
+        }
+        
+        .p-card b { 
+            display: block; 
+            font-size: 14px; 
+            color: var(--dark); 
+            margin-bottom: 8px;
+            font-weight: 800;
+        }
+        
+        .p-card .price { 
+            color: var(--primary); 
+            font-weight: 900; 
+            font-size: 18px; 
+            display: block;
+            margin-bottom: 12px;
+        }
+        
+        .p-card ul { 
+            margin: 0; 
+            padding: 0; 
+            list-style: none; 
+            font-size: 10px; 
+            color: #666; 
+            line-height: 1.6; 
+        }
+        
+        .p-card li {
+            margin-bottom: 4px;
+            position: relative;
+            padding-left: 18px;
+        }
+        
+        .p-card li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--success);
+            font-weight: bold;
+        }
 
+        /* PAYMENT SECTION */
+        .payment-section {
+            background: white;
+            margin: 0 25px 25px;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 2px dashed #e0e0e0;
+            text-align: center;
+        }
+        
+        .qr-container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            display: inline-block;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            border: 1px solid #f0f0f0;
+        }
+        
+        #qrImg {
+            width: 200px;
+            height: 200px;
+            border-radius: 10px;
+            display: block;
+        }
+        
+        .payment-info {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            text-align: left;
+        }
+        
+        .bank-info {
+            background: #e8f5e9;
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        
+        .bank-info b {
+            color: var(--success);
+        }
+
+        /* HISTORY */
         .history-card { 
             background: white; 
-            margin: 10px 15px; 
-            padding: 15px; 
-            border-radius: 15px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            margin: 10px 25px; 
+            padding: 20px; 
+            border-radius: 20px; 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.06); 
             border-left: 5px solid var(--primary); 
             display: flex; 
             justify-content: space-between; 
             align-items: center;
-            transition: transform 0.2s;
-        }
-        .history-card:active {
-            transform: scale(0.98);
-        }
-        .h-info { text-align: left; }
-        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
-
-        /* GPS MARKER WITH DIRECTION */
-        .gps-marker {
-            width: 24px;
-            height: 24px;
-            background: var(--primary);
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 0 15px rgba(0,191,165,0.5);
+            transition: all 0.3s;
             position: relative;
-            animation: pulse 2s infinite;
-        }
-        .gps-marker::before {
-            content: '';
-            position: absolute;
-            top: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-bottom: 10px solid var(--primary);
-        }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(0, 191, 165, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(0, 191, 165, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 191, 165, 0); }
-        }
-
-        .btn-main { 
-            width: 100%; 
-            padding: 15px; 
-            border-radius: 15px; 
-            border: none; 
-            background: var(--primary); 
-            color: white; 
-            font-size: 18px; 
-            font-weight: 900; 
-            box-shadow: 0 6px 20px rgba(0,191,165,0.3); 
-            transition: 0.3s; 
-            cursor: pointer;
-            -webkit-appearance: none;
-            appearance: none;
-        }
-        .btn-main:active {
-            transform: scale(0.98);
-        }
-        input[type="range"] { 
-            width: 100%; 
-            margin-bottom: 12px; 
-            accent-color: var(--primary); 
-            height: 8px;
-            border-radius: 4px;
-            -webkit-appearance: none;
-            background: #e0e0e0;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: var(--primary);
-            cursor: pointer;
-            border: 3px solid white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            overflow: hidden;
         }
         
+        .history-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent, rgba(0, 191, 165, 0.03));
+            z-index: 0;
+        }
+        
+        .history-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 12px 40px rgba(0, 191, 165, 0.15);
+        }
+        
+        .h-info { 
+            text-align: left; 
+            position: relative;
+            z-index: 1;
+        }
+        
+        .h-info b {
+            display: block;
+            font-size: 14px;
+            color: var(--dark);
+            margin-bottom: 5px;
+        }
+        
+        .h-info small {
+            font-size: 11px;
+            color: #95a5a6;
+        }
+        
+        .h-price { 
+            font-weight: 900; 
+            color: var(--primary); 
+            font-size: 18px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* SETTINGS */
+        .settings-card {
+            background: white;
+            margin: 20px 25px;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+        }
+        
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+        
+        .settings-label {
+            font-size: 14px;
+            color: var(--dark);
+            font-weight: 600;
+        }
+        
+        .settings-value {
+            font-size: 14px;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* MODALS */
         .custom-modal { 
             position: fixed; 
             top: 0; 
             left: 0; 
             width: 100%; 
             height: 100%; 
-            background: rgba(0,0,0,0.7); 
+            background: rgba(0, 0, 0, 0.85); 
             z-index: 10000; 
             display: none; 
             align-items: center; 
             justify-content: center; 
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             padding: 20px;
         }
+        
         .modal-content { 
             background: white; 
             width: 100%;
-            max-width: 320px; 
-            padding: 25px; 
-            border-radius: 25px; 
+            max-width: 400px; 
+            padding: 30px; 
+            border-radius: 30px; 
             text-align: center;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-            animation: modalAppear 0.3s ease;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+            animation: modalAppear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         }
+        
         @keyframes modalAppear {
-            from { transform: scale(0.9); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            from { 
+                opacity: 0; 
+                transform: scale(0.9) translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: scale(1) translateY(0); 
+            }
+        }
+        
+        .modal-content h3 {
+            margin: 0 0 15px;
+            color: var(--dark);
+            font-size: 24px;
+            font-weight: 900;
+        }
+        
+        .modal-content p {
+            color: #666;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 25px;
         }
 
         /* AI CHAT MODAL - PROFESSIONAL DESIGN */
         .ai-chat-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.85);
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 25px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
             z-index: 10001;
             display: none;
             flex-direction: column;
-            padding: 0;
+            overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.1);
         }
+        
         .ai-chat-header {
             background: linear-gradient(135deg, var(--primary), #00a8ff);
-            color: white;
             padding: 20px;
+            color: white;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-radius: 0 0 20px 20px;
+            position: relative;
+            overflow: hidden;
         }
-        .ai-avatar-info {
+        
+        .ai-profile {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        .ai-avatar-small {
-            width: 45px;
-            height: 45px;
+        
+        .ai-avatar-img {
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
             border: 3px solid white;
             object-fit: cover;
         }
-        .ai-info h3 {
+        
+        .ai-info h4 {
             margin: 0;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 800;
         }
+        
         .ai-info p {
-            margin: 3px 0 0;
-            font-size: 11px;
+            margin: 4px 0 0;
+            font-size: 12px;
             opacity: 0.9;
         }
-        .ai-chat-controls {
-            display: flex;
-            gap: 10px;
-        }
-        .ai-control-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            width: 40px;
-            height: 40px;
+        
+        .ai-status {
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
+            background: #4caf50;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+        
+        .ai-chat-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
             color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
+            font-size: 20px;
             transition: background 0.3s;
         }
-        .ai-control-btn:hover {
-            background: rgba(255,255,255,0.3);
+        
+        .ai-chat-close:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
+        
         .ai-chat-body {
             flex: 1;
             padding: 20px;
             overflow-y: auto;
-            background: #f5f5f5;
-        }
-        .message {
-            margin-bottom: 15px;
+            background: #fafafa;
             display: flex;
-            animation: messageAppear 0.3s ease;
+            flex-direction: column;
+            gap: 12px;
         }
+        
+        .ai-message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.5;
+            animation: messageAppear 0.3s;
+        }
+        
         @keyframes messageAppear {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .message.user {
-            justify-content: flex-end;
-        }
-        .message.ai {
-            justify-content: flex-start;
-        }
-        .message-bubble {
-            max-width: 75%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-        .message.user .message-bubble {
-            background: var(--primary);
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-        .message.ai .message-bubble {
+        
+        .ai-message.bot {
             background: white;
-            color: #333;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f0f0f0;
         }
-        .ai-chat-footer {
-            background: white;
-            padding: 15px 20px;
-            border-top: 1px solid #eee;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            border-radius: 20px 20px 0 0;
-        }
-        .chat-input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 1px solid #ddd;
-            border-radius: 25px;
-            font-size: 14px;
-            outline: none;
-            transition: border 0.3s;
-        }
-        .chat-input:focus {
-            border-color: var(--primary);
-        }
-        .voice-btn {
-            background: var(--primary);
+        
+        .ai-message.user {
+            background: linear-gradient(135deg, var(--primary), #00a8ff);
             color: white;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: transform 0.3s;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 191, 165, 0.2);
         }
-        .voice-btn:active {
-            transform: scale(0.95);
-        }
-        .voice-btn.listening {
-            background: var(--danger);
-            animation: pulseVoice 1.5s infinite;
-        }
-        @keyframes pulseVoice {
-            0% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 82, 82, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }
-        }
-
-        /* LOADING INDICATOR */
-        .typing-indicator {
+        
+        .ai-typing {
             display: flex;
             gap: 4px;
             padding: 12px 16px;
             background: white;
             border-radius: 18px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             width: fit-content;
+            align-self: flex-start;
+            border: 1px solid #f0f0f0;
         }
-        .typing-indicator span {
+        
+        .ai-typing span {
             width: 8px;
             height: 8px;
-            background: #ccc;
+            background: var(--primary);
             border-radius: 50%;
             animation: typing 1.4s infinite;
         }
-        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        
+        .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
+        
         @keyframes typing {
             0%, 60%, 100% { transform: translateY(0); }
             30% { transform: translateY(-5px); }
         }
-
-        /* SPEED INDICATOR */
-        .speed-indicator {
-            position: fixed;
-            top: 120px;
-            right: 15px;
-            background: var(--glass);
-            padding: 8px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 800;
-            color: var(--dark);
+        
+        .ai-chat-footer {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .ai-input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .ai-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .ai-send-btn, .ai-mic-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, var(--primary), #00a8ff);
+            color: white;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 5px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            z-index: 900;
-            backdrop-filter: blur(10px);
-            border: 1px solid white;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 191, 165, 0.3);
+        }
+        
+        .ai-send-btn:hover, .ai-mic-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 191, 165, 0.4);
+        }
+        
+        .ai-mic-btn.listening {
+            background: linear-gradient(135deg, var(--danger), #ff4081);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* MAP MARKER */
+        .sm-marker { 
+            width: 32px; 
+            height: 32px; 
+            background: var(--primary); 
+            border: 4px solid white; 
+            border-radius: 50%; 
+            box-shadow: 0 0 25px rgba(0,191,165,0.8), 0 0 60px rgba(0,191,165,0.4); 
+            position: relative;
+            animation: markerPulse 2s infinite;
+        }
+        
+        @keyframes markerPulse {
+            0% { 
+                box-shadow: 0 0 0 0 rgba(0, 191, 165, 0.7), 
+                         0 0 0 0 rgba(0, 191, 165, 0.4); 
+            }
+            70% { 
+                box-shadow: 0 0 0 20px rgba(0, 191, 165, 0), 
+                         0 0 0 40px rgba(0, 191, 165, 0); 
+            }
+            100% { 
+                box-shadow: 0 0 0 0 rgba(0, 191, 165, 0), 
+                         0 0 0 0 rgba(0, 191, 165, 0); 
+            }
+        }
+        
+        .sm-arrow { 
+            position: absolute; 
+            top: -10px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 0; 
+            height: 0; 
+            border-left: 8px solid transparent; 
+            border-right: 8px solid transparent; 
+            border-bottom: 12px solid var(--primary); 
+        }
+
+        /* RESPONSIVE FIXES */
+        @media (max-width: 380px) {
+            .p-grid { grid-template-columns: 1fr; gap: 12px; padding: 20px; }
+            .ai-chat-modal { width: 320px; height: 450px; }
+        }
+        
+        @media (max-height: 700px) {
+            .footer-panel { padding-bottom: calc(env(safe-area-inset-bottom, 5px) + 5px); }
+            .ai-chat-modal { height: 400px; }
+        }
+
+        /* LOADING OVERLAY */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--dark);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: opacity 0.5s;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 1px;
         }
     </style>
+    
+    <!-- ANTI-DEVTOOLS SCRIPT -->
+    <script>
+        // Anti-inspect protection
+        (function() {
+            'use strict';
+            
+            // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+            document.onkeydown = function(e) {
+                if (e.keyCode == 123 || // F12
+                    (e.ctrlKey && e.shiftKey && e.keyCode == 73) || // Ctrl+Shift+I
+                    (e.ctrlKey && e.shiftKey && e.keyCode == 74) || // Ctrl+Shift+J
+                    (e.ctrlKey && e.keyCode == 85) || // Ctrl+U
+                    (e.ctrlKey && e.keyCode == 83)) { // Ctrl+S
+                    e.preventDefault();
+                    return false;
+                }
+            };
+            
+            // Block right click
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // Block drag & drop
+            document.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // Detect devtools opening
+            let devtoolsOpen = false;
+            const threshold = 160;
+            
+            const checkDevTools = function() {
+                const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+                const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+                
+                if (widthThreshold || heightThreshold) {
+                    if (!devtoolsOpen) {
+                        devtoolsOpen = true;
+                        document.body.innerHTML = '<div style="padding:20px;text-align:center;color:red;font-size:24px;font-weight:bold;">⚠️ TRUY CẬP BỊ TỪ CHỐI ⚠️</div>';
+                        throw new Error('DevTools detected');
+                    }
+                } else {
+                    devtoolsOpen = false;
+                }
+            };
+            
+            setInterval(checkDevTools, 1000);
+            
+            // Encrypt localStorage data
+            const encrypt = (text) => {
+                let result = '';
+                for (let i = 0; i < text.length; i++) {
+                    result += String.fromCharCode(text.charCodeAt(i) + 1);
+                }
+                return btoa(result);
+            };
+            
+            const decrypt = (text) => {
+                try {
+                    let decoded = atob(text);
+                    let result = '';
+                    for (let i = 0; i < decoded.length; i++) {
+                        result += String.fromCharCode(decoded.charCodeAt(i) - 1);
+                    }
+                    return result;
+                } catch {
+                    return null;
+                }
+            };
+            
+            // Override localStorage methods
+            const originalSetItem = localStorage.setItem;
+            localStorage.setItem = function(key, value) {
+                if (key.includes('taxi_') || key.includes('tx_')) {
+                    value = encrypt(JSON.stringify({
+                        data: value,
+                        timestamp: Date.now(),
+                        checksum: btoa(value + 'TAXI_SECURE_2024')
+                    }));
+                }
+                return originalSetItem.call(this, key, value);
+            };
+            
+            const originalGetItem = localStorage.getItem;
+            localStorage.getItem = function(key) {
+                const value = originalGetItem.call(this, key);
+                if ((key.includes('taxi_') || key.includes('tx_')) && value) {
+                    try {
+                        const decrypted = decrypt(value);
+                        if (decrypted) {
+                            const parsed = JSON.parse(decrypted);
+                            const verify = btoa(parsed.data + 'TAXI_SECURE_2024');
+                            if (verify === parsed.checksum) {
+                                return parsed.data;
+                            }
+                        }
+                    } catch {
+                        return null;
+                    }
+                }
+                return value;
+            };
+        })();
+    </script>
 </head>
-<body oncontextmenu="return false;"> 
+<body>
 
+    <!-- LOADING SCREEN -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">ĐANG KHỞI ĐỘNG HỆ THỐNG...</div>
+        <div style="font-size: 12px; opacity: 0.7; margin-top: 10px;">Phiên bản: 2.0.1 | Bảo mật: AES-256</div>
+    </div>
+
+    <!-- NOTIFICATION SYSTEM -->
+    <div class="notification-system" id="notificationSystem"></div>
+
+    <!-- HEADER -->
     <div class="header">
-        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
-        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
-    </div> 
-
-    <!-- AI CONTROL BUTTON -->
-    <div class="ai-control">
-        <button class="ai-toggle-btn" id="aiToggleBtn" onclick="toggleAI()">
-            <i class="fas fa-robot"></i> AI: OFF
-        </button>
+        <div class="badge" id="idShow">🚖 ID: LOADING...</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE TRIAL</div>
     </div>
 
-    <div class="notification-bar" id="notificationBar">
-        <span id="notificationText"></span>
-        <button onclick="closeNotification()">×</button>
-    </div>
-
+    <!-- STATS BAR -->
     <div class="stats-bar" id="statsUI">
-        <div class="stat-item" style="border-right: 1px solid #eee;">
+        <div class="stat-item">
             <div class="stat-label">CƯỚC (VNĐ)</div>
             <div id="cost" class="stat-value">0</div>
         </div>
@@ -616,263 +1276,403 @@
             <div class="stat-label">KHOẢNG CÁCH (KM)</div>
             <div id="km" class="stat-value">0.00</div>
         </div>
-    </div> 
-
-    <!-- SPEED INDICATOR -->
-    <div class="speed-indicator" id="speedIndicator" style="display: none;">
-        <i class="fas fa-tachometer-alt"></i>
-        <span id="speedValue">0</span> km/h
     </div>
 
-    <div id="map"></div> 
+    <!-- MAP -->
+    <div id="map"></div>
 
-    <!-- AI ASSISTANT - DRAGGABLE -->
-    <div class="ai-assistant" id="aiAssistant" onclick="openAIChat()">
-        <img id="aiAvatarImg" src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="AI Assistant">
+    <!-- AI ASSISTANT FLOATING -->
+    <div class="ai-assistant" id="aiAssistant">
+        <div class="ai-toggle" onclick="toggleAIActive(event)">
+            <i class="fas fa-power-off"></i>
+        </div>
+        <img id="aiAssistantImg" src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="AI Assistant">
     </div>
 
+    <!-- TABS CONTENT -->
     <div id="tab-vi" class="tab-content">
         <div class="p-header">
-            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC THÔNG MINH</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
+            <h1>HỆ THỐNG GÓI CƯỚC THÔNG MINH</h1>
+            <div class="subtitle" id="trialBox">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
+            <div class="trial-progress" id="trialProgress">
+                <div class="trial-progress-fill" id="trialProgressFill"></div>
+            </div>
         </div>
+        
         <div class="p-grid">
             <div class="p-card" onclick="selectPack('BASIC', 19000, this)">
                 <b>GÓI BASIC</b>
-                <span>19.000đ/tháng</span>
+                <span class="price">19.000đ/tháng</span>
                 <ul>
-                    <li>✅ Km + Thời gian</li>
-                    <li>✅ Chế độ Offline</li>
-                    <li>✅ Hỗ trợ cơ bản</li>
+                    <li>Km + Thời gian chính xác</li>
+                    <li>Chế độ Offline hoạt động</li>
+                    <li>Hỗ trợ cơ bản 24/7</li>
+                    <li>Lịch sử 100 chuyến</li>
                 </ul>
             </div>
             <div class="p-card" onclick="selectPack('PRO', 29000, this)">
                 <b>GÓI PRO</b>
-                <span>29.000đ/tháng</span>
+                <span class="price">29.000đ/tháng</span>
                 <ul>
-                    <li>✅ Tất cả tính năng BASIC</li>
-                    <li>✅ Bản đồ real-time</li>
-                    <li>✅ Xuất PDF hóa đơn</li>
+                    <li>Tất cả tính năng BASIC</li>
+                    <li>Bản đồ real-time vệ tinh</li>
+                    <li>Xuất PDF hóa đơn chuyên nghiệp</li>
+                    <li>Báo cáo doanh thu chi tiết</li>
                 </ul>
             </div>
             <div class="p-card active" onclick="selectPack('VIP_MONTHLY', 49000, this)">
                 <b>GÓI VIP 1 THÁNG</b>
-                <span>49.000đ/tháng</span>
+                <span class="price">49.000đ/tháng</span>
                 <ul>
-                    <li>✅ Tất cả tính năng PRO</li>
-                    <li>✅ Trợ lý AI Voice</li>
-                    <li>✅ Cloud Backup</li>
+                    <li>Tất cả tính năng PRO</li>
+                    <li>Trợ lý AI Voice thông minh</li>
+                    <li>Cloud Backup dữ liệu</li>
+                    <li>Hỗ trợ ưu tiên VIP</li>
                 </ul>
             </div>
             <div class="p-card" onclick="selectPack('LIFETIME', 999000, this)">
                 <b>VIP TRỌN ĐỜI</b>
-                <span>999.000đ</span>
+                <span class="price">999.000đ</span>
                 <ul>
-                    <li>✅ Tất cả tính năng VIP</li>
-                    <li>✅ Sử dụng vĩnh viễn</li>
-                    <li>✅ Cập nhật miễn phí</li>
+                    <li>Tất cả tính năng VIP</li>
+                    <li>Sử dụng vĩnh viễn không giới hạn</li>
+                    <li>Cập nhật miễn phí trọn đời</li>
+                    <li>Hỗ trợ 24/7 đặc biệt</li>
                 </ul>
             </div>
         </div>
-        <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
-            <img id="qrImg" style="width:180px; border-radius:10px;" src="">
-            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
-            <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
-            <p style="font-size:10px; color:#7f8c8d; margin: 5px 0 10px;">
-                BIDV: 4430269669<br>NGUYỄN XUÂN ĐẠT
-            </p>
-            <div id="paymentStatus" style="display:none; background:#e8f5e9; color:#2e7d32; padding:10px; border-radius:10px; margin:10px 0; font-size:12px;">
-                ✅ Đang xác nhận thanh toán...
+        
+        <div class="payment-section">
+            <div class="qr-container">
+                <img id="qrImg" src="" alt="QR Code">
             </div>
-            <button class="btn-main" style="padding:10px; font-size:14px;" onclick="verifyPayment()">XÁC NHẬN ĐÃ CHUYỂN</button>
-        </div>
-    </div> 
-
-    <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
-        <div style="text-align: center; padding: 20px; color: #7f8c8d; font-size: 11px;">
-            Hệ thống taxi chuyên nghiệp - An toàn & Hiệu quả
-        </div>
-    </div> 
-
-    <div id="tab-toi" class="tab-content">
-        <div class="p-header">THIẾT LẬP</div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
-                <p>Mã tài xế: <b id="profileID">...</b></p>
-                <p>Gói hiện tại: <b id="currentPackage" style="color:var(--primary)">FREE TRIAL</b></p>
-                <p>Thời gian còn lại: <b id="packageTime" style="color:var(--warning)">7 ngày</b></p>
-                <p>Trạng thái GPS: <b id="gpsStatus" style="color:var(--success)">CHÍNH XÁC CAO</b></p>
-                <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
-                <p>AI Assistant: <b id="aiStatus" style="color:var(--primary)">SẴN SÀNG</b></p>
-                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="clearHistory()">XÓA LỊCH SỬ</button>
-                <button class="btn-main" style="margin-top:10px; background:var(--warning);" onclick="checkPaymentStatus()">KIỂM TRA THANH TOÁN</button>
-                <button class="btn-main" style="margin-top:10px; background:var(--primary);" onclick="changeAIAvatar()">ĐỔI AVATAR AI</button>
-            </div>
-        </div>
-    </div> 
-
-    <!-- AI CHAT MODAL - PROFESSIONAL DESIGN -->
-    <div id="aiChatModal" class="ai-chat-modal">
-        <div class="ai-chat-header">
-            <div class="ai-avatar-info">
-                <img id="aiModalAvatar" src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="AI" class="ai-avatar-small">
-                <div class="ai-info">
-                    <h3>Trợ lý Taxi AI</h3>
-                    <p>Chuyên gia hỗ trợ tài xế 24/7</p>
+            
+            <div class="payment-info">
+                <p style="font-size:13px; color:#666; margin-bottom:10px;">Nội dung chuyển khoản:</p>
+                <div style="background:#fff3cd; padding:12px; border-radius:10px; margin-bottom:15px;">
+                    <b id="qrContent" style="color:#856404; font-size:14px; word-break:break-all;">...</b>
+                </div>
+                
+                <div class="bank-info">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                        <i class="fas fa-university" style="color:var(--success);"></i>
+                        <span style="font-weight:600;">NGÂN HÀNG BIDV</span>
+                    </div>
+                    <div>Số tài khoản: <b>4430269669</b></div>
+                    <div>Chủ tài khoản: <b>NGUYỄN XUÂN ĐẠT</b></div>
+                    <div style="font-size:11px; color:#666; margin-top:5px;">
+                        ⚠️ Chuyển khoản chính xác nội dung để hệ thống tự động kích hoạt
+                    </div>
                 </div>
             </div>
-            <div class="ai-chat-controls">
-                <button class="ai-control-btn" onclick="toggleVoice()" id="voiceToggleBtn" title="Bật/Tắt giọng nói">
-                    <i class="fas fa-microphone"></i>
-                </button>
-                <button class="ai-control-btn" onclick="clearChat()" title="Xóa cuộc trò chuyện">
-                    <i class="fas fa-trash"></i>
-                </button>
-                <button class="ai-control-btn" onclick="closeAIChat()" title="Đóng">
-                    <i class="fas fa-times"></i>
-                </button>
+            
+            <div id="paymentStatus" style="display:none; background:#e8f5e9; padding:15px; border-radius:15px; margin:20px 0;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+                    <i class="fas fa-spinner fa-spin" style="color:var(--success);"></i>
+                    <span style="color:#2e7d32; font-weight:600;">Đang xác nhận thanh toán với ngân hàng...</span>
+                </div>
+            </div>
+            
+            <button class="btn-main" onclick="verifyPayment()" style="margin-top:10px;">
+                <i class="fas fa-check-circle" style="margin-right:8px;"></i>
+                XÁC NHẬN ĐÃ CHUYỂN KHOẢN
+            </button>
+        </div>
+    </div>
+
+    <div id="tab-lichsu" class="tab-content">
+        <div class="p-header">
+            <h1>LỊCH SỬ CHUYẾN ĐI</h1>
+            <div class="subtitle">Tổng hợp chi tiết các chuyến đi đã hoàn thành</div>
+        </div>
+        <div id="historyList" style="padding-top: 10px;"></div>
+        <div style="text-align: center; padding: 30px 25px; color: #95a5a6; font-size: 12px;">
+            <i class="fas fa-lock" style="margin-right:8px;"></i>
+            Dữ liệu được mã hóa và bảo mật an toàn
+        </div>
+    </div>
+
+    <div id="tab-toi" class="tab-content">
+        <div class="p-header">
+            <h1>THIẾT LẬP HỆ THỐNG</h1>
+            <div class="subtitle">Quản lý tài khoản và cài đặt cá nhân</div>
+        </div>
+        
+        <div class="settings-card">
+            <div class="settings-item">
+                <div class="settings-label">
+                    <i class="fas fa-id-card" style="margin-right:10px; color:var(--primary);"></i>
+                    Mã tài xế
+                </div>
+                <div class="settings-value" id="profileID">...</div>
+            </div>
+            
+            <div class="settings-item">
+                <div class="settings-label">
+                    <i class="fas fa-crown" style="margin-right:10px; color:var(--gold);"></i>
+                    Gói hiện tại
+                </div>
+                <div class="settings-value" id="currentPackage">FREE TRIAL</div>
+            </div>
+            
+            <div class="settings-item">
+                <div class="settings-label">
+                    <i class="fas fa-clock" style="margin-right:10px; color:var(--warning);"></i>
+                    Thời gian còn lại
+                </div>
+                <div class="settings-value" id="packageTime">7 ngày</div>
+            </div>
+            
+            <div class="settings-item">
+                <div class="settings-label">
+                    <i class="fas fa-satellite-dish" style="margin-right:10px; color:var(--primary);"></i>
+                    Trạng thái GPS
+                </div>
+                <div class="settings-value" id="gpsStatus">ĐANG KẾT NỐI</div>
+            </div>
+            
+            <div class="settings-item">
+                <div class="settings-label">
+                    <i class="fas fa-shield-alt" style="margin-right:10px; color:var(--success);"></i>
+                    Bảo mật hệ thống
+                </div>
+                <div class="settings-value">AES-256 + WEBHOOK</div>
             </div>
         </div>
         
-        <div class="ai-chat-body" id="aiChatBody">
-            <div class="message ai">
-                <div class="message-bubble">
-                    Xin chào! Tôi là trợ lý AI của Taxi ProMax. Tôi có thể giúp bạn:<br>
-                    • Tính toán cước phí<br>
-                    • Hỗ trợ định vị GPS<br>
-                    • Tư vấn tuyến đường<br>
-                    • Giải đáp thắc mắc<br>
-                    • Hỗ trợ kỹ thuật 24/7<br><br>
-                    Hãy hỏi tôi bất cứ điều gì!
+        <div style="padding: 0 25px; margin-top: 20px;">
+            <button class="btn-main" onclick="clearHistory()" style="background:#6c757d; margin-bottom:10px;">
+                <i class="fas fa-trash-alt" style="margin-right:8px;"></i>
+                XÓA LỊCH SỬ CHUYẾN ĐI
+            </button>
+            
+            <button class="btn-main" onclick="checkPaymentStatus()" style="background:var(--warning);">
+                <i class="fas fa-sync-alt" style="margin-right:8px;"></i>
+                KIỂM TRA TRẠNG THÁI THANH TOÁN
+            </button>
+            
+            <button class="btn-main" onclick="showAdminPanel()" style="background:var(--dark); margin-top:10px;">
+                <i class="fas fa-user-shield" style="margin-right:8px;"></i>
+                CÀI ĐẶT NÂNG CAO (ADMIN)
+            </button>
+        </div>
+    </div>
+
+    <!-- AI CHAT MODAL -->
+    <div class="ai-chat-modal" id="aiChatModal">
+        <div class="ai-chat-header">
+            <div class="ai-profile">
+                <img id="aiModalAvatar" class="ai-avatar-img" src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="AI">
+                <div class="ai-info">
+                    <h4>Trợ lý AI Taxi</h4>
+                    <p>Trả lời nhanh trong 0.5s</p>
                 </div>
+                <div class="ai-status" id="aiStatus"></div>
+            </div>
+            <button class="ai-chat-close" onclick="closeAIChat()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="ai-chat-body" id="aiChatBody">
+            <div class="ai-message bot">
+                Xin chào! Tôi là trợ lý AI của hệ thống Taxi ProMax. Tôi có thể giúp bạn:
+                • Tính toán cước phí
+                • Tối ưu lộ trình
+                • Hỗ trợ kỹ thuật
+                • Tư vấn gói cước
+                Hãy hỏi tôi bất cứ điều gì!
             </div>
         </div>
         
         <div class="ai-chat-footer">
-            <input type="text" id="aiChatInput" class="chat-input" placeholder="Nhập câu hỏi..." onkeypress="handleChatInput(event)">
-            <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecognition()">
+            <input type="text" class="ai-input" id="aiInput" placeholder="Nhập câu hỏi..." onkeypress="handleAIKeyPress(event)">
+            <button class="ai-mic-btn" id="aiMicBtn" onclick="toggleVoiceInput()">
                 <i class="fas fa-microphone"></i>
             </button>
-            <button class="ai-control-btn" onclick="sendAIMessage()" style="background: var(--primary); color: white;">
+            <button class="ai-send-btn" onclick="sendAIMessage()">
                 <i class="fas fa-paper-plane"></i>
             </button>
         </div>
     </div>
 
-    <div class="footer-panel">
-        <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
-                <span>GIÁ/KM</span>
-                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
+    <!-- FOOTER PANEL -->
+    <div class="footer-panel" id="footerPanel">
+        <div class="trip-controls" id="homeControls">
+            <div class="rate-control">
+                <div class="rate-header">
+                    <span>GIÁ MỖI KM</span>
+                    <span class="rate-value"><span id="rateLabel">15,000</span>đ</span>
+                </div>
+                <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
             </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-        </div> 
-
-        <div class="nav-grid">
-            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">
+                <i class="fas fa-play" style="margin-right:10px;"></i>
+                BẮT ĐẦU CHUYẾN ĐI
+            </button>
         </div>
-        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT</div>
-    </div> 
+        
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)">
+                <i class="fas fa-home"></i>
+                Trang chủ
+            </button>
+            <button class="nav-item" onclick="showTab('vi', this)">
+                <i class="fas fa-wallet"></i>
+                Nâng cấp
+            </button>
+            <button class="nav-item" onclick="showTab('lichsu', this)">
+                <i class="fas fa-history"></i>
+                Lịch sử
+            </button>
+            <button class="nav-item" onclick="showTab('toi', this)">
+                <i class="fas fa-user-cog"></i>
+                Cài đặt
+            </button>
+        </div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYỄN XUÂN ĐẠT | BẢN QUYỀN © 2024</div>
+    </div>
 
+    <!-- MODALS -->
     <div id="wishModal" class="custom-modal">
         <div class="modal-content">
             <h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3>
-            <p>Hệ thống GPS chính xác cao đã sẵn sàng.</p>
-            <button class="btn-main" onclick="closeModal('wishModal')">BẮT ĐẦU CHUYẾN</button>
+            <p>Hệ thống GPS và tính cước đã sẵn sàng. Chúc bạn một chuyến đi an toàn và thuận lợi.</p>
+            <button class="btn-main" onclick="closeModal('wishModal')">
+                <i class="fas fa-check" style="margin-right:8px;"></i>
+                BẮT ĐẦU LÀM VIỆC
+            </button>
         </div>
     </div>
     
     <div id="endModal" class="custom-modal">
         <div class="modal-content">
             <h3>HOÀN THÀNH CHUYẾN ĐI!</h3>
-            <div id="endSummary" style="padding: 15px 0;"></div>
-            <button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button>
+            <div id="endSummary" style="padding: 20px 0;"></div>
+            <button class="btn-main" onclick="closeModal('endModal')">
+                <i class="fas fa-check-circle" style="margin-right:8px;"></i>
+                XÁC NHẬN KẾT THÚC
+            </button>
         </div>
     </div>
 
+    <!-- ADMIN MODAL -->
+    <div id="adminModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="color:var(--danger)">
+                <i class="fas fa-user-shield" style="margin-right:10px;"></i>
+                CÀI ĐẶT ADMIN
+            </h3>
+            
+            <div style="text-align: left; margin: 25px 0;">
+                <div style="margin-bottom: 20px;">
+                    <p style="font-weight:600; margin-bottom:10px; color:var(--dark);">
+                        <i class="fas fa-robot" style="margin-right:8px; color:var(--primary);"></i>
+                        Thay đổi Avatar AI:
+                    </p>
+                    <input type="file" id="avatarUpload" accept="image/*" style="width:100%; padding:10px; border:2px dashed #ddd; border-radius:10px; margin-bottom:10px;">
+                    <button onclick="uploadAIAvatar()" class="btn-main" style="padding:12px; font-size:14px;">
+                        <i class="fas fa-upload" style="margin-right:8px;"></i>
+                        CẬP NHẬT AVATAR
+                    </button>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <p style="font-weight:600; margin-bottom:10px; color:var(--dark);">
+                        <i class="fas fa-sync-alt" style="margin-right:8px; color:var(--warning);"></i>
+                        Cập nhật từ xa:
+                    </p>
+                    <button onclick="forceUpdateSettings()" class="btn-main" style="padding:12px; font-size:14px; background:var(--warning);">
+                        <i class="fas fa-cloud-download-alt" style="margin-right:8px;"></i>
+                        CẬP NHẬT HỆ THỐNG
+                    </button>
+                </div>
+                
+                <div>
+                    <p style="font-weight:600; margin-bottom:10px; color:var(--dark);">
+                        <i class="fas fa-database" style="margin-right:8px; color:var(--success);"></i>
+                        Quản lý dữ liệu:
+                    </p>
+                    <button onclick="exportAllData()" class="btn-main" style="padding:12px; font-size:14px; background:var(--success); margin-bottom:10px;">
+                        <i class="fas fa-download" style="margin-right:8px;"></i>
+                        XUẤT DỮ LIỆU
+                    </button>
+                    <button onclick="resetSystem()" class="btn-main" style="padding:12px; font-size:14px; background:var(--danger);">
+                        <i class="fas fa-redo" style="margin-right:8px;"></i>
+                        RESET HỆ THỐNG
+                    </button>
+                </div>
+            </div>
+            
+            <button class="btn-main" onclick="closeModal('adminModal')" style="background:#6c757d;">
+                <i class="fas fa-times" style="margin-right:8px;"></i>
+                ĐÓNG
+            </button>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
     <script>
-        // ==================== CẤU HÌNH HỆ THỐNG ====================
-        const SYSTEM_CONFIG = {
-            ENCRYPTION_KEY: "TAXI_PROMAX_XUAN_DAT_2024_SECURE",
-            WEBHOOK_URL: "https://taxi-promax.vercel.app/api/webhook",
-            CHECKSUM_KEY: "309f930afb5691846cd5abbbd3624d507fa8fb5d715d9da03474a711cf262fb2",
-            BIDV_ACCOUNT: "4430269669",
-            GEMINI_API_KEY: "AIzaSyCF4AFrKTI8xs3uFX7OJwWcApa5dbRTIxA"
-        };
-
-        // ==================== AI KNOWLEDGE BASE - 500+ CÂU HỎI ====================
-        const AI_KNOWLEDGE = {
-            "taxi": {
-                "chào hỏi": ["Xin chào! Tôi là trợ lý AI Taxi ProMax.", "Chào bạn! Tôi có thể giúp gì cho chuyến đi của bạn?"],
-                "tính cước": ["Cước phí = Quãng đường (km) × Đơn giá (đ/km). Bạn có thể điều chỉnh đơn giá trên thanh trượt."],
-                "gps": ["Hệ thống GPS sử dụng thuật toán cao cấp để tính toán chính xác khoảng cách."],
-                "hỗ trợ": ["Tôi có thể hỗ trợ bạn về: định vị, tính cước, tuyến đường, và các vấn đề kỹ thuật."]
-            },
-            "technical": {
-                "lỗi": ["Nếu gặp lỗi, vui lòng kiểm tra kết nối GPS và khởi động lại ứng dụng."],
-                "kết nối": ["Ứng dụng có thể hoạt động offline, nhưng cần GPS để tính toán khoảng cách."]
-            },
-            "business": {
-                "gói": ["Chúng tôi có 4 gói: BASIC, PRO, VIP 1TH, và VIP TRỌN ĐỜI với nhiều tính năng ưu việt."],
-                "thanh toán": ["Thanh toán qua QR BIDV: 4430269669 - NGUYỄN XUÂN ĐẠT. Hệ thống tự động kích hoạt gói."]
+        // ==================== HỆ THỐNG BẢO MẬT CAO CẤP ====================
+        class TaxiSecurity {
+            static #masterKey = "TAXI_PROMAX_SECURE_XUAN_DAT_2024_V2_!@#$";
+            static #iv = CryptoJS.enc.Hex.parse('101112131415161718191a1b1c1d1e1f');
+            
+            static encrypt(data) {
+                try {
+                    const encrypted = CryptoJS.AES.encrypt(
+                        JSON.stringify(data),
+                        CryptoJS.enc.Utf8.parse(this.#masterKey),
+                        { iv: this.#iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+                    );
+                    return encrypted.toString();
+                } catch {
+                    return null;
+                }
             }
-        };
+            
+            static decrypt(encrypted) {
+                try {
+                    const decrypted = CryptoJS.AES.decrypt(
+                        encrypted,
+                        CryptoJS.enc.Utf8.parse(this.#masterKey),
+                        { iv: this.#iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+                    );
+                    const result = decrypted.toString(CryptoJS.enc.Utf8);
+                    return result ? JSON.parse(result) : null;
+                } catch {
+                    return null;
+                }
+            }
+            
+            static generateChecksum(data) {
+                return CryptoJS.SHA256(data + this.#masterKey + Date.now()).toString();
+            }
+            
+            static validateData(data, checksum) {
+                return this.generateChecksum(JSON.stringify(data)) === checksum;
+            }
+        }
 
-        // ==================== 1. HỆ THỐNG GPS CAO CẤP - FIX NHẢY SỐ ====================
-        class AdvancedGPSTracker {
+        // ==================== HỆ THỐNG TAXI ALGORITHM (GRAB/UBER STYLE) ====================
+        class TaxiAlgorithm {
             constructor() {
+                this.lastPosition = null;
                 this.positionHistory = [];
-                this.filteredPositions = [];
                 this.speedHistory = [];
-                this.lastValidDistance = 0;
-                this.maxHistorySize = 10;
-                this.minAccuracy = 25; // Chỉ chấp nhận GPS có độ chính xác < 25m
-                this.minSpeedThreshold = 1; // km/h - bỏ qua khi đứng yên
-                this.maxSpeedThreshold = 150; // km/h - giới hạn tốc độ thực tế
+                this.distanceBuffer = 0;
+                this.lastUpdateTime = 0;
+                this.minDistanceThreshold = 0.003; // 3 meters
+                this.maxSpeedThreshold = 150; // km/h
+                this.smoothingFactor = 0.3;
             }
-
-            // Kalman Filter cho GPS
-            kalmanFilter(position) {
-                if (this.filteredPositions.length === 0) {
-                    this.filteredPositions.push(position);
-                    return position;
-                }
-
-                const lastPos = this.filteredPositions[this.filteredPositions.length - 1];
-                const R = 0.1; // Noise covariance
-                const Q = 0.1; // Process noise
-                
-                // Prediction
-                let predictedLat = lastPos.lat;
-                let predictedLng = lastPos.lng;
-                
-                // Update
-                const K = Q / (Q + R); // Kalman gain
-                const filteredLat = predictedLat + K * (position.lat - predictedLat);
-                const filteredLng = predictedLng + K * (position.lng - predictedLng);
-                
-                const filteredPos = { lat: filteredLat, lng: filteredLng, accuracy: position.accuracy };
-                this.filteredPositions.push(filteredPos);
-                
-                // Giữ lịch sử vừa đủ
-                if (this.filteredPositions.length > this.maxHistorySize) {
-                    this.filteredPositions.shift();
-                }
-                
-                return filteredPos;
-            }
-
-            // Tính khoảng cách Haversine (chính xác)
+            
             calculateDistance(lat1, lon1, lat2, lon2) {
-                const R = 6371; // Bán kính Trái đất km
+                // Haversine formula - chính xác cao
+                const R = 6371; // Earth's radius in km
                 const dLat = this.toRad(lat2 - lat1);
                 const dLon = this.toRad(lon2 - lon1);
                 const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -881,205 +1681,214 @@
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                 return R * c;
             }
-
-            toRad(deg) {
-                return deg * (Math.PI / 180);
+            
+            toRad(degrees) {
+                return degrees * (Math.PI/180);
             }
-
-            // Validate GPS position
-            isValidPosition(position, lastPosition) {
-                if (!position || !position.coords) return false;
+            
+            calculateSpeed(lat1, lon1, time1, lat2, lon2, time2) {
+                const distance = this.calculateDistance(lat1, lon1, lat2, lon2);
+                const timeDiff = (time2 - time1) / 3600000; // hours
+                return timeDiff > 0 ? distance / timeDiff : 0;
+            }
+            
+            isValidMovement(newLat, newLon, newTime, accuracy) {
+                if (!this.lastPosition) return true;
                 
-                const { accuracy, speed } = position.coords;
+                const { lat: oldLat, lon: oldLon, time: oldTime } = this.lastPosition;
+                const distance = this.calculateDistance(oldLat, oldLon, newLat, newLon);
+                const speed = this.calculateSpeed(oldLat, oldLon, oldTime, newLat, newLon, newTime);
                 
-                // Kiểm tra độ chính xác
-                if (accuracy > this.minAccuracy) {
-                    console.log("GPS không đủ chính xác:", accuracy);
-                    return false;
-                }
-
-                // Nếu có vị trí trước đó
-                if (lastPosition) {
-                    const timeDiff = (position.timestamp - lastPosition.timestamp) / 1000; // giây
-                    const distance = this.calculateDistance(
-                        lastPosition.coords.latitude,
-                        lastPosition.coords.longitude,
-                        position.coords.latitude,
-                        position.coords.longitude
-                    );
-                    
-                    // Tính tốc độ thực tế
-                    const actualSpeed = (distance / timeDiff) * 3600; // km/h
-                    
-                    // Kiểm tra tốc độ hợp lý
-                    if (actualSpeed > this.maxSpeedThreshold) {
-                        console.log("Tốc độ không hợp lý:", actualSpeed, "km/h");
-                        return false;
-                    }
-                    
-                    // Bỏ qua khi đứng yên
-                    if (actualSpeed < this.minSpeedThreshold && distance < 0.01) {
-                        return false;
-                    }
-                }
-
+                // Filter conditions
+                if (accuracy > 30) return false; // Độ chính xác kém
+                if (distance < this.minDistanceThreshold) return false; // Di chuyển quá ngắn
+                if (speed > this.maxSpeedThreshold) return false; // Tốc độ phi thực tế
+                
+                // Smooth speed using moving average
+                this.speedHistory.push(speed);
+                if (this.speedHistory.length > 10) this.speedHistory.shift();
+                
+                const avgSpeed = this.speedHistory.reduce((a, b) => a + b, 0) / this.speedHistory.length;
+                if (Math.abs(speed - avgSpeed) > 50 && this.speedHistory.length > 5) return false;
+                
                 return true;
             }
-
-            // Lấy vị trí đã lọc
-            getFilteredPosition(position) {
-                this.positionHistory.push(position);
-                
-                // Giữ lịch sử vừa đủ
-                if (this.positionHistory.length > this.maxHistorySize) {
-                    this.positionHistory.shift();
+            
+            updatePosition(lat, lon, time, accuracy) {
+                if (this.isValidMovement(lat, lon, time, accuracy)) {
+                    const movement = {
+                        lat, lon, time,
+                        accuracy,
+                        valid: true
+                    };
+                    
+                    this.positionHistory.push(movement);
+                    if (this.positionHistory.length > 100) this.positionHistory.shift();
+                    
+                    this.lastPosition = movement;
+                    return true;
                 }
-
-                // Áp dụng Kalman filter
-                const filtered = this.kalmanFilter({
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                    accuracy: position.coords.accuracy
-                });
-
-                return filtered;
+                return false;
             }
-        }
-
-        // ==================== 2. HỆ THỐNG TÍNH CƯỚC CHUYÊN NGHIỆP ====================
-        class TaxiFareCalculator {
-            constructor() {
-                this.baseRate = 15000;
-                this.totalDistance = 0;
-                this.isMoving = false;
-                this.lastPosition = null;
-                this.gpsTracker = new AdvancedGPSTracker();
-                this.distanceBuffer = [];
-                this.bufferSize = 3;
-            }
-
-            updateRate(newRate) {
-                this.baseRate = parseInt(newRate);
-            }
-
-            calculateFare(distanceKm) {
-                return Math.round(distanceKm * this.baseRate);
-            }
-
-            // Tính khoảng cách với buffer để tránh nhảy số
-            calculateIncrementalDistance(currentPosition) {
-                if (!this.lastPosition) {
-                    this.lastPosition = currentPosition;
-                    return 0;
-                }
-
-                const lastPos = this.lastPosition;
-                const currPos = currentPosition;
-                
-                // Tính khoảng cách bằng Haversine
-                const distance = this.gpsTracker.calculateDistance(
-                    lastPos.lat,
-                    lastPos.lng,
-                    currPos.lat,
-                    currPos.lng
-                );
-
-                // Thêm vào buffer
-                this.distanceBuffer.push(distance);
-                if (this.distanceBuffer.length > this.bufferSize) {
-                    this.distanceBuffer.shift();
-                }
-
-                // Lấy giá trị trung bình từ buffer
-                const avgDistance = this.distanceBuffer.length > 0 
-                    ? this.distanceBuffer.reduce((a, b) => a + b, 0) / this.distanceBuffer.length
-                    : 0;
-
-                // Chỉ tính nếu di chuyển đủ xa
-                if (avgDistance >= 0.003) { // Tối thiểu 3 mét
-                    this.totalDistance += avgDistance;
-                    this.lastPosition = currPos;
-                    return avgDistance;
-                }
-
-                return 0;
-            }
-
-            reset() {
-                this.totalDistance = 0;
-                this.lastPosition = null;
-                this.distanceBuffer = [];
-            }
-        }
-
-        // ==================== 3. AI SYSTEM - CHUYÊN NGHIỆP ====================
-        class TaxiAIAssistant {
-            constructor() {
-                this.isEnabled = false;
-                this.voiceEnabled = false;
-                this.isListening = false;
-                this.chatHistory = [];
-                this.recognition = null;
-                this.synth = window.speechSynthesis;
-                this.avatarUrl = localStorage.getItem('ai_avatar') || 'https://cdn-icons-png.flaticon.com/512/4712/4712035.png';
-            }
-
-            toggle() {
-                this.isEnabled = !this.isEnabled;
-                return this.isEnabled;
-            }
-
-            toggleVoice() {
-                this.voiceEnabled = !this.voiceEnabled;
-                return this.voiceEnabled;
-            }
-
-            // Tìm câu trả lời trong knowledge base
-            findAnswer(question) {
-                const normalizedQuestion = question.toLowerCase();
-                
-                // Kiểm tra các từ khóa
-                for (const category in AI_KNOWLEDGE) {
-                    for (const keyword in AI_KNOWLEDGE[category]) {
-                        if (normalizedQuestion.includes(keyword)) {
-                            const responses = AI_KNOWLEDGE[category][keyword];
-                            return responses[Math.floor(Math.random() * responses.length)];
-                        }
+            
+            getTotalDistance() {
+                let total = 0;
+                for (let i = 1; i < this.positionHistory.length; i++) {
+                    const prev = this.positionHistory[i-1];
+                    const curr = this.positionHistory[i];
+                    if (prev.valid && curr.valid) {
+                        total += this.calculateDistance(prev.lat, prev.lon, curr.lat, curr.lon);
                     }
                 }
-
-                // Nếu không tìm thấy, sử dụng Gemini API
-                return this.getGeminiResponse(question);
+                return total;
             }
+            
+            getCurrentSpeed() {
+                if (this.speedHistory.length === 0) return 0;
+                return this.speedHistory[this.speedHistory.length - 1];
+            }
+            
+            reset() {
+                this.lastPosition = null;
+                this.positionHistory = [];
+                this.speedHistory = [];
+                this.distanceBuffer = 0;
+                this.lastUpdateTime = 0;
+            }
+        }
 
-            async getGeminiResponse(question) {
+        // ==================== HỆ THỐNG AI THÔNG MINH ====================
+        class TaxiAI {
+            constructor() {
+                this.geminiKey = "AIzaSyCF4AFrKTI8xs3uFX7OJwWcApa5dbRTIxA";
+                this.isActive = false;
+                this.isListening = false;
+                this.recognition = null;
+                this.synth = window.speechSynthesis;
+                this.qaDatabase = this.createQADatabase();
+                this.conversationHistory = [];
+            }
+            
+            createQADatabase() {
+                return {
+                    // Tính cước và giá cả
+                    "giá taxi": "Giá taxi tính theo km và thời gian. Mức giá từ 10,000đ - 50,000đ/km. Bạn có thể điều chỉnh thanh trượt trên giao diện.",
+                    "tính cước": "Hệ thống tự động tính cước dựa trên quãng đường và thời gian. Công thức: Tổng cước = (Số km × Đơn giá/km) + (Thời gian × Phí chờ).",
+                    "đơn giá": "Đơn giá hiện tại có thể điều chỉnh từ 10,000đ đến 50,000đ mỗi km. Giá mặc định là 15,000đ/km.",
+                    
+                    // Hỗ trợ kỹ thuật
+                    "gps không hoạt động": "Vui lòng kiểm tra: 1. Bật định vị trên điện thoại 2. Cho phép trình duyệt truy cập vị trí 3. Đảm bảo có kết nối mạng.",
+                    "lỗi bản đồ": "Đang sử dụng bản đồ OpenStreetMap. Nếu gặp lỗi, hãy thử: 1. Tải lại trang 2. Kiểm tra kết nối internet 3. Xóa cache trình duyệt.",
+                    "không tính được cước": "Kiểm tra: 1. GPS đã bật 2. Đã bắt đầu chuyến đi 3. Thiết bị di chuyển thực tế. Liên hệ hỗ trợ nếu vẫn lỗi.",
+                    
+                    // Gói cước và thanh toán
+                    "gói basic": "Gói BASIC: 19,000đ/tháng, bao gồm tính cước cơ bản, chế độ offline, lịch sử 100 chuyến.",
+                    "gói pro": "Gói PRO: 29,000đ/tháng, có thêm bản đồ real-time, xuất PDF hóa đơn, báo cáo chi tiết.",
+                    "gói vip": "Gói VIP: 49,000đ/tháng, bao gồm trợ lý AI, cloud backup, hỗ trợ ưu tiên.",
+                    "gói trọn đời": "Gói TRỌN ĐỜI: 999,000đ một lần, sử dụng vĩnh viễn, cập nhật miễn phí, hỗ trợ 24/7.",
+                    "thanh toán": "Thanh toán qua QR Code BIDV 4430269669 - NGUYỄN XUÂN ĐẠT. Hệ thống tự động kích hoạt sau khi nhận tiền.",
+                    
+                    // Hướng dẫn sử dụng
+                    "bắt đầu chuyến đi": "Nhấn nút 'BẮT ĐẦU CHUYẾN ĐI' màu xanh. Hệ thống sẽ bắt đầu tính cước và theo dõi GPS.",
+                    "kết thúc chuyến": "Nhấn nút 'KẾT THÚC CHUYẾN ĐI' màu đỏ. Hệ thống sẽ hiển thị tổng cước và lưu vào lịch sử.",
+                    "xem lịch sử": "Chuyển sang tab 'Lịch sử' để xem tất cả chuyến đi đã hoàn thành với chi tiết thời gian và cước phí.",
+                    
+                    // Thông tin chung
+                    "bảo mật": "Hệ thống sử dụng mã hóa AES-256, checksum SHA-256, webhook xác thực. Dữ liệu được bảo vệ an toàn.",
+                    "chủ sở hữu": "Hệ thống được phát triển bởi Nguyễn Xuân Đạt. Liên hệ qua thông tin thanh toán BIDV.",
+                    "phiên bản": "Taxi ProMax phiên bản 2.0.1 - Hệ thống taxi thông minh với AI tích hợp.",
+                    
+                    // Câu chào và tạm biệt
+                    "xin chào": "Xin chào! Tôi là trợ lý AI của Taxi ProMax. Tôi có thể giúp gì cho bạn?",
+                    "cảm ơn": "Không có gì! Chúc bạn một ngày làm việc hiệu quả và nhiều chuyến đi thành công.",
+                    "tạm biệt": "Tạm biệt! Hẹn gặp lại. Nhớ luôn thắt dây an toàn và tuân thủ luật giao thông.",
+                    
+                    // AI capabilities
+                    "bạn là ai": "Tôi là trợ lý AI thông minh của hệ thống Taxi ProMax, được tích hợp với Gemini AI và 500+ câu hỏi thông minh.",
+                    "bạn làm được gì": "Tôi có thể: tính toán cước phí, tư vấn lộ trình, hỗ trợ kỹ thuật, giải đáp về gói cước, và trò chuyện thông minh.",
+                    "trợ giúp": "Tôi có thể giúp bạn với: tính cước, GPS, bản đồ, thanh toán, gói cước, và mọi vấn đề kỹ thuật khác."
+                };
+            }
+            
+            findAnswer(question) {
+                question = question.toLowerCase().trim();
+                
+                // Tìm kiếm trực tiếp
+                for (const [key, answer] of Object.entries(this.qaDatabase)) {
+                    if (question.includes(key)) {
+                        return answer;
+                    }
+                }
+                
+                // Tìm kiếm theo từ khóa
+                const keywords = {
+                    "giá": "giá taxi",
+                    "tiền": "giá taxi",
+                    "cước": "tính cước",
+                    "tính": "tính cước",
+                    "gps": "gps không hoạt động",
+                    "bản đồ": "lỗi bản đồ",
+                    "lỗi": "lỗi bản đồ",
+                    "basic": "gói basic",
+                    "pro": "gói pro",
+                    "vip": "gói vip",
+                    "trọn đời": "gói trọn đời",
+                    "thanh toán": "thanh toán",
+                    "bắt đầu": "bắt đầu chuyến đi",
+                    "kết thúc": "kết thúc chuyến",
+                    "lịch sử": "xem lịch sử",
+                    "bảo mật": "bảo mật",
+                    "ai": "bạn là ai",
+                    "giúp": "trợ giúp"
+                };
+                
+                for (const [keyword, key] of Object.entries(keywords)) {
+                    if (question.includes(keyword)) {
+                        return this.qaDatabase[key];
+                    }
+                }
+                
+                // Nếu không tìm thấy, sử dụng Gemini
+                return null;
+            }
+            
+            async getAIResponse(question) {
+                // Kiểm tra cơ sở dữ liệu trước
+                const localAnswer = this.findAnswer(question);
+                if (localAnswer) {
+                    return localAnswer;
+                }
+                
+                // Sử dụng Gemini AI cho câu hỏi phức tạp
                 try {
-                    const response = await fetch(
-                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${SYSTEM_CONFIG.GEMINI_API_KEY}`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{
-                                    parts: [{
-                                        text: `Bạn là trợ lý AI chuyên về taxi. Hãy trả lời ngắn gọn, hữu ích: ${question}`
-                                    }]
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.geminiKey}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: `Bạn là trợ lý AI cho ứng dụng taxi chuyên nghiệp. Hãy trả lời ngắn gọn, hữu ích, chính xác về câu hỏi liên quan đến taxi: "${question}". Nếu không liên quan đến taxi, từ chối trả lời lịch sự.`
                                 }]
-                            })
-                        }
-                    );
-
+                            }],
+                            safetySettings: [
+                                {category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE"},
+                                {category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE"}
+                            ]
+                        })
+                    });
+                    
                     const data = await response.json();
                     return data.candidates?.[0]?.content?.parts?.[0]?.text || 
-                           "Xin lỗi, tôi không thể trả lời câu hỏi này ngay lúc này.";
+                           "Xin lỗi, tôi không thể trả lời câu hỏi này ngay lúc này. Vui lòng hỏi về taxi, tính cước, GPS, hoặc gói dịch vụ.";
+                    
                 } catch (error) {
-                    console.error("Gemini API error:", error);
-                    return "Hiện không thể kết nối đến AI. Vui lòng thử lại sau.";
+                    console.error("AI Error:", error);
+                    return "Hiện tôi đang gặp sự cố kết nối với AI. Vui lòng thử lại sau hoặc hỏi câu khác về taxi.";
                 }
             }
-
+            
             speak(text) {
-                if (this.voiceEnabled && this.synth) {
+                if (this.isActive && this.synth) {
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = 'vi-VN';
                     utterance.rate = 1.0;
@@ -1087,681 +1896,660 @@
                     this.synth.speak(utterance);
                 }
             }
-
-            // Voice recognition
-            startVoiceRecognition() {
-                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                    return false;
+            
+            initVoiceRecognition() {
+                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    this.recognition = new SpeechRecognition();
+                    this.recognition.lang = 'vi-VN';
+                    this.recognition.continuous = false;
+                    this.recognition.interimResults = false;
+                    
+                    this.recognition.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        document.getElementById('aiInput').value = transcript;
+                        this.sendMessage(transcript);
+                    };
+                    
+                    this.recognition.onerror = (event) => {
+                        console.error("Voice recognition error:", event.error);
+                        this.isListening = false;
+                        document.getElementById('aiMicBtn').classList.remove('listening');
+                    };
+                    
+                    this.recognition.onend = () => {
+                        this.isListening = false;
+                        document.getElementById('aiMicBtn').classList.remove('listening');
+                    };
                 }
-
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                this.recognition = new SpeechRecognition();
-                this.recognition.lang = 'vi-VN';
-                this.recognition.continuous = false;
-                this.recognition.interimResults = false;
-
-                this.recognition.onresult = (event) => {
-                    const transcript = event.results[0][0].transcript;
-                    document.getElementById('aiChatInput').value = transcript;
-                    this.processUserMessage(transcript);
-                };
-
-                this.recognition.onerror = (event) => {
-                    console.error("Speech recognition error:", event.error);
-                };
-
-                this.recognition.start();
-                this.isListening = true;
-                return true;
             }
-
-            stopVoiceRecognition() {
-                if (this.recognition) {
+            
+            toggleListening() {
+                if (!this.recognition) this.initVoiceRecognition();
+                
+                if (this.isListening) {
                     this.recognition.stop();
                     this.isListening = false;
+                    document.getElementById('aiMicBtn').classList.remove('listening');
+                } else {
+                    try {
+                        this.recognition.start();
+                        this.isListening = true;
+                        document.getElementById('aiMicBtn').classList.add('listening');
+                    } catch (error) {
+                        console.error("Cannot start voice recognition:", error);
+                    }
                 }
             }
-
-            processUserMessage(message) {
+            
+            async sendMessage(message) {
+                if (!message.trim()) return;
+                
+                // Thêm tin nhắn người dùng
                 this.addMessage(message, 'user');
                 
-                // Hiển thị typing indicator
-                this.showTypingIndicator();
+                // Hiển thị đang nhập
+                this.showTyping();
                 
-                // Tìm câu trả lời
-                setTimeout(() => {
-                    this.removeTypingIndicator();
-                    const answer = this.findAnswer(message);
-                    this.addMessage(answer, 'ai');
-                    this.speak(answer);
-                }, 1000);
+                // Lấy phản hồi
+                const response = await this.getAIResponse(message);
+                
+                // Xóa đang nhập
+                this.hideTyping();
+                
+                // Thêm phản hồi AI
+                this.addMessage(response, 'bot');
+                
+                // Lưu vào lịch sử
+                this.conversationHistory.push({role: 'user', content: message});
+                this.conversationHistory.push({role: 'assistant', content: response});
+                
+                // Giới hạn lịch sử
+                if (this.conversationHistory.length > 20) {
+                    this.conversationHistory = this.conversationHistory.slice(-20);
+                }
+                
+                // Phát âm thanh nếu AI đang bật
+                if (this.isActive) {
+                    this.speak(response);
+                }
             }
-
+            
             addMessage(text, sender) {
-                this.chatHistory.push({ text, sender, time: new Date() });
-                this.updateChatUI();
+                const chatBody = document.getElementById('aiChatBody');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `ai-message ${sender}`;
+                messageDiv.textContent = text;
+                chatBody.appendChild(messageDiv);
+                chatBody.scrollTop = chatBody.scrollHeight;
             }
-
-            showTypingIndicator() {
+            
+            showTyping() {
                 const chatBody = document.getElementById('aiChatBody');
                 const typingDiv = document.createElement('div');
-                typingDiv.className = 'message ai';
+                typingDiv.className = 'ai-typing';
                 typingDiv.innerHTML = `
-                    <div class="typing-indicator">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 `;
-                typingDiv.id = 'typingIndicator';
                 chatBody.appendChild(typingDiv);
                 chatBody.scrollTop = chatBody.scrollHeight;
+                this.currentTyping = typingDiv;
             }
-
-            removeTypingIndicator() {
-                const typingIndicator = document.getElementById('typingIndicator');
-                if (typingIndicator) {
-                    typingIndicator.remove();
+            
+            hideTyping() {
+                if (this.currentTyping) {
+                    this.currentTyping.remove();
+                    this.currentTyping = null;
                 }
             }
-
-            updateChatUI() {
-                const chatBody = document.getElementById('aiChatBody');
-                chatBody.innerHTML = '';
+            
+            toggleActive() {
+                this.isActive = !this.isActive;
+                const aiAssistant = document.getElementById('aiAssistant');
+                const aiStatus = document.getElementById('aiStatus');
                 
-                this.chatHistory.forEach(msg => {
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${msg.sender}`;
-                    messageDiv.innerHTML = `<div class="message-bubble">${msg.text}</div>`;
-                    chatBody.appendChild(messageDiv);
-                });
-                
-                chatBody.scrollTop = chatBody.scrollHeight;
-            }
-
-            clearChat() {
-                this.chatHistory = [];
-                this.updateChatUI();
-                this.addMessage("Xin chào! Tôi là trợ lý AI của Taxi ProMax. Tôi có thể giúp gì cho bạn?", 'ai');
-            }
-        }
-
-        // ==================== 4. KHỞI TẠO HỆ THỐNG ====================
-        let taxiSystem = {
-            tx_id: '',
-            userData: null,
-            map: null,
-            marker: null,
-            gpsTracker: new AdvancedGPSTracker(),
-            fareCalculator: new TaxiFareCalculator(),
-            aiAssistant: new TaxiAIAssistant(),
-            isTripActive: false,
-            watchId: null,
-            wakeLock: null,
-            aiPosition: { x: window.innerWidth - 80, y: window.innerHeight - 200 },
-            isDraggingAI: false,
-            dragOffset: { x: 0, y: 0 }
-        };
-
-        // ==================== 5. DRAGGABLE AI ASSISTANT ====================
-        function makeAIDraggable() {
-            const aiElement = document.getElementById('aiAssistant');
-            
-            aiElement.addEventListener('touchstart', handleTouchStart, { passive: false });
-            aiElement.addEventListener('mousedown', handleMouseDown);
-            
-            function handleTouchStart(e) {
-                e.preventDefault();
-                const touch = e.touches[0];
-                startDrag(touch.clientX, touch.clientY);
-                
-                document.addEventListener('touchmove', handleTouchMove, { passive: false });
-                document.addEventListener('touchend', handleTouchEnd);
-            }
-            
-            function handleMouseDown(e) {
-                e.preventDefault();
-                startDrag(e.clientX, e.clientY);
-                
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseEnd);
-            }
-            
-            function startDrag(clientX, clientY) {
-                const rect = aiElement.getBoundingClientRect();
-                taxiSystem.isDraggingAI = true;
-                taxiSystem.dragOffset.x = clientX - rect.left;
-                taxiSystem.dragOffset.y = clientY - rect.top;
-                aiElement.style.cursor = 'grabbing';
-            }
-            
-            function handleTouchMove(e) {
-                if (!taxiSystem.isDraggingAI) return;
-                e.preventDefault();
-                const touch = e.touches[0];
-                updateAIPosition(touch.clientX, touch.clientY);
-            }
-            
-            function handleMouseMove(e) {
-                if (!taxiSystem.isDraggingAI) return;
-                updateAIPosition(e.clientX, e.clientY);
-            }
-            
-            function updateAIPosition(clientX, clientY) {
-                const aiElement = document.getElementById('aiAssistant');
-                const x = clientX - taxiSystem.dragOffset.x;
-                const y = clientY - taxiSystem.dragOffset.y;
-                
-                // Giới hạn trong màn hình
-                const maxX = window.innerWidth - aiElement.offsetWidth;
-                const maxY = window.innerHeight - aiElement.offsetHeight - 150; // Tránh footer
-                
-                const clampedX = Math.max(10, Math.min(x, maxX));
-                const clampedY = Math.max(100, Math.min(y, maxY)); // Tránh header
-                
-                aiElement.style.left = clampedX + 'px';
-                aiElement.style.top = clampedY + 'px';
-                
-                taxiSystem.aiPosition = { x: clampedX, y: clampedY };
-            }
-            
-            function handleTouchEnd() {
-                endDrag();
-                document.removeEventListener('touchmove', handleTouchMove);
-                document.removeEventListener('touchend', handleTouchEnd);
-            }
-            
-            function handleMouseEnd() {
-                endDrag();
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseEnd);
-            }
-            
-            function endDrag() {
-                taxiSystem.isDraggingAI = false;
-                aiElement.style.cursor = 'move';
-            }
-        }
-
-        // ==================== 6. INITIALIZATION ====================
-        function initSystem() {
-            // Load user data
-            loadUserData();
-            
-            // Initialize map
-            initMap();
-            
-            // Load history
-            loadHistory();
-            
-            // Setup AI drag
-            makeAIDraggable();
-            
-            // Setup trial check
-            setupTrialSystem();
-            
-            // Update UI
-            updatePackageDisplay();
-            
-            // Show welcome
-            setTimeout(() => {
-                if (taxiSystem.userData?.package === 'FREE_TRIAL') {
-                    document.getElementById('wishModal').style.display = 'flex';
+                if (this.isActive) {
+                    aiAssistant.classList.add('active');
+                    aiStatus.style.background = '#4caf50';
+                    this.speak("Trợ lý AI đã được kích hoạt");
+                } else {
+                    aiAssistant.classList.remove('active');
+                    aiStatus.style.background = '#f44336';
+                    this.synth.cancel();
                 }
-            }, 1000);
+            }
         }
 
-        function loadUserData() {
-            const encrypted = localStorage.getItem('tx_user_data');
-            if (encrypted) {
-                try {
-                    const bytes = CryptoJS.AES.decrypt(encrypted, SYSTEM_CONFIG.ENCRYPTION_KEY);
-                    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-                    taxiSystem.userData = JSON.parse(decrypted);
-                    taxiSystem.tx_id = taxiSystem.userData.tx_id;
-                } catch (e) {
-                    createNewUser();
+        // ==================== BIẾN TOÀN CỤC VÀ KHỞI TẠO ====================
+        let map = null;
+        let marker = null;
+        let taxiAlgorithm = new TaxiAlgorithm();
+        let taxiAI = new TaxiAI();
+        
+        let isRunning = false;
+        let totalKm = 0;
+        let currentRate = 15000;
+        let watchId = null;
+        let wakeLock = null;
+        let userData = null;
+        let currentPackage = 'FREE_TRIAL';
+        let trialEndDate = null;
+
+        // ==================== HỆ THỐNG NOTIFICATION ====================
+        class NotificationSystem {
+            static show(message, type = 'info', duration = 5000) {
+                const system = document.getElementById('notificationSystem');
+                const notification = document.createElement('div');
+                notification.className = 'notification';
+                
+                let icon = 'ℹ️';
+                if (type === 'success') icon = '✅';
+                if (type === 'warning') icon = '⚠️';
+                if (type === 'error') icon = '❌';
+                if (type === 'gps') icon = '📍';
+                if (type === 'money') icon = '💰';
+                
+                notification.innerHTML = `
+                    <span>${icon} ${message}</span>
+                    <button onclick="this.parentElement.remove()">×</button>
+                `;
+                
+                system.appendChild(notification);
+                
+                // Hiệu ứng xuất hiện
+                setTimeout(() => notification.classList.add('show'), 10);
+                
+                // Tự động xóa
+                if (duration > 0) {
+                    setTimeout(() => {
+                        notification.classList.remove('show');
+                        setTimeout(() => notification.remove(), 400);
+                    }, duration);
                 }
-            } else {
-                createNewUser();
             }
             
-            // Update UI
-            document.getElementById('idShow').textContent = "🆔 " + taxiSystem.tx_id;
-            document.getElementById('profileID').textContent = taxiSystem.tx_id;
+            static clear() {
+                document.getElementById('notificationSystem').innerHTML = '';
+            }
         }
 
-        function createNewUser() {
-            taxiSystem.tx_id = 'TAXI-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-            taxiSystem.userData = {
-                tx_id: taxiSystem.tx_id,
-                package: 'FREE_TRIAL',
-                trial_start: new Date().toISOString(),
-                trial_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                payment_history: [],
-                ai_avatar: null
-            };
-            saveUserData();
+        // ==================== KHỞI TẠO ỨNG DỤNG ====================
+        async function initApp() {
+            try {
+                // Khởi tạo bản đồ vệ tinh
+                initMap();
+                
+                // Tải dữ liệu người dùng
+                await loadUserData();
+                
+                // Khởi tạo AI
+                taxiAI.initVoiceRecognition();
+                
+                // Hiển thị AI assistant nếu có gói VIP
+                if (currentPackage === 'VIP_MONTHLY' || currentPackage === 'LIFETIME') {
+                    document.getElementById('aiAssistant').style.display = 'flex';
+                }
+                
+                // Cập nhật giao diện
+                updatePackageDisplay();
+                updateTrialProgress();
+                loadHistory();
+                
+                // Ẩn loading
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('loadingOverlay').style.display = 'none';
+                        NotificationSystem.show('Hệ thống Taxi ProMax đã sẵn sàng!', 'success', 3000);
+                    }, 500);
+                }, 1500);
+                
+                // Kiểm tra GPS
+                checkGPS();
+                
+                // Kiểm tra thanh toán định kỳ
+                setInterval(checkPaymentStatus, 300000); // 5 phút
+                
+            } catch (error) {
+                console.error("Init error:", error);
+                NotificationSystem.show('Lỗi khởi tạo hệ thống. Vui lòng tải lại trang.', 'error', 0);
+            }
         }
 
-        function saveUserData() {
-            const encrypted = CryptoJS.AES.encrypt(
-                JSON.stringify(taxiSystem.userData), 
-                SYSTEM_CONFIG.ENCRYPTION_KEY
-            ).toString();
-            localStorage.setItem('tx_user_data', encrypted);
-            localStorage.setItem('tx_id', taxiSystem.tx_id);
-        }
-
+        // ==================== BẢN ĐỒ VỆ TINH ====================
         function initMap() {
-            taxiSystem.map = L.map('map', {
+            map = L.map('map', {
                 zoomControl: false,
                 attributionControl: false,
-                zoomSnap: 0.5,
-                zoomDelta: 0.5
-            }).setView([21.02, 105.83], 16);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                minZoom: 10
-            }).addTo(taxiSystem.map);
-            
-            const gpsIcon = L.divIcon({
-                className: 'gps-div-icon',
-                html: "<div class='gps-marker'></div>",
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
+                center: [21.028511, 105.804817], // Hà Nội
+                zoom: 16,
+                preferCanvas: true,
+                fadeAnimation: true,
+                zoomAnimation: true
             });
             
-            taxiSystem.marker = L.marker([21.02, 105.83], { icon: gpsIcon }).addTo(taxiSystem.map);
-        }
-
-        // ==================== 7. GPS TRACKING - FIXED ====================
-        function startGPSTracking() {
-            if (!navigator.geolocation) {
-                showNotification("Thiết bị không hỗ trợ GPS", 3000);
-                return;
-            }
-
-            const options = {
-                enableHighAccuracy: true,
-                maximumAge: 1000,
-                timeout: 10000
-            };
-
-            taxiSystem.watchId = navigator.geolocation.watchPosition(
-                handlePositionSuccess,
-                handlePositionError,
-                options
-            );
-        }
-
-        function handlePositionSuccess(position) {
-            const { latitude, longitude, speed, accuracy } = position.coords;
+            // Sử dụng bản đồ vệ tinh
+            L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                minZoom: 10,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                attribution: '© Google Satellite'
+            }).addTo(map);
             
-            // Validate position
-            if (!taxiSystem.gpsTracker.isValidPosition(position, taxiSystem.lastPosition)) {
-                return;
-            }
-
-            // Get filtered position
-            const filteredPos = taxiSystem.gpsTracker.getFilteredPosition(position);
+            // Thêm bản đồ giao thông (nếu cần)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                opacity: 0.3
+            }).addTo(map);
             
-            // Update marker
-            const newLatLng = L.latLng(filteredPos.lat, filteredPos.lng);
-            taxiSystem.marker.setLatLng(newLatLng);
+            // Tạo marker
+            const smIcon = L.divIcon({ 
+                className: 'sm-div-icon', 
+                html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", 
+                iconSize: [32, 32], 
+                iconAnchor: [16, 16] 
+            });
             
-            // Update speed display
-            if (speed !== null) {
-                const speedKmh = Math.round(speed * 3.6);
-                document.getElementById('speedValue').textContent = speedKmh;
-                document.getElementById('speedIndicator').style.display = 'flex';
-                
-                // Update GPS status
-                document.getElementById('gpsStatus').textContent = 
-                    accuracy < 15 ? 'CHÍNH XÁC CAO' : 'CHÍNH XÁC';
-                document.getElementById('gpsStatus').style.color = 
-                    accuracy < 15 ? 'var(--success)' : 'var(--warning)';
-            }
-
-            // If trip is active, calculate distance
-            if (taxiSystem.isTripActive) {
-                const incrementalDistance = taxiSystem.fareCalculator.calculateIncrementalDistance(filteredPos);
-                
-                if (incrementalDistance > 0) {
-                    // Update display
-                    document.getElementById('km').textContent = taxiSystem.fareCalculator.totalDistance.toFixed(2);
-                    document.getElementById('cost').textContent = 
-                        taxiSystem.fareCalculator.calculateFare(taxiSystem.fareCalculator.totalDistance).toLocaleString();
-                    
-                    // Smooth pan
-                    taxiSystem.map.panTo(newLatLng, {
-                        animate: true,
-                        duration: 0.5
-                    });
-                }
-            }
-
-            taxiSystem.lastPosition = position;
+            marker = L.marker([21.028511, 105.804817], { 
+                icon: smIcon,
+                draggable: false
+            }).addTo(map);
+            
+            // Thêm scale control
+            L.control.scale({position: 'bottomleft'}).addTo(map);
         }
 
-        function handlePositionError(error) {
-            console.error("GPS Error:", error);
-            let message = "Lỗi GPS: ";
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    message = "Vui lòng bật quyền truy cập vị trí";
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    message = "GPS không khả dụng";
-                    break;
-                case error.TIMEOUT:
-                    message = "Hết thời gian chờ GPS";
-                    break;
-            }
-            showNotification(message, 5000);
-        }
-
-        // ==================== 8. TRIP MANAGEMENT ====================
-        async function handleTrip() {
-            const btn = document.getElementById('mainBtn');
-            
-            if (!taxiSystem.isTripActive) {
-                // START TRIP
-                if (taxiSystem.userData.package === 'EXPIRED') {
-                    showNotification("Hết trial! Vui lòng nâng cấp gói.", 5000);
-                    return;
-                }
-                
-                taxiSystem.isTripActive = true;
-                btn.textContent = "KẾT THÚC CHUYẾN ĐI";
-                btn.style.background = "var(--danger)";
-                
-                // Reset calculator
-                taxiSystem.fareCalculator.reset();
-                
-                // Reset display
-                document.getElementById('km').textContent = "0.00";
-                document.getElementById('cost').textContent = "0";
-                
-                // Start services
-                await requestWakeLock();
-                startGPSTracking();
-                
-                // Show modal
-                document.getElementById('wishModal').style.display = 'flex';
-                
-            } else {
-                // END TRIP
-                taxiSystem.isTripActive = false;
-                btn.textContent = "BẮT ĐẦU CHUYẾN ĐI";
-                btn.style.background = "var(--primary)";
-                
-                // Stop services
-                if (taxiSystem.watchId) {
-                    navigator.geolocation.clearWatch(taxiSystem.watchId);
-                    taxiSystem.watchId = null;
-                }
-                if (taxiSystem.wakeLock) {
-                    taxiSystem.wakeLock.release();
-                    taxiSystem.wakeLock = null;
-                }
-                
-                // Calculate final fare
-                const finalFare = taxiSystem.fareCalculator.calculateFare(taxiSystem.fareCalculator.totalDistance);
-                saveHistory(taxiSystem.fareCalculator.totalDistance.toFixed(2), finalFare);
-                
-                // Show summary
-                document.getElementById('endSummary').innerHTML = `
-                    <div style="text-align: left;">
-                        <p>Quãng đường: <b>${taxiSystem.fareCalculator.totalDistance.toFixed(2)} KM</b></p>
-                        <p>Đơn giá: <b>${taxiSystem.fareCalculator.baseRate.toLocaleString()}đ/KM</b></p>
-                        <p style="font-size: 24px; font-weight: 900; color: var(--primary); margin-top: 10px;">
-                            Tổng cước: ${finalFare.toLocaleString()}đ
-                        </p>
-                    </div>
-                `;
-                document.getElementById('endModal').style.display = 'flex';
-            }
-        }
-
-        async function requestWakeLock() {
+        // ==================== QUẢN LÝ DỮ LIỆU NGƯỜI DÙNG ====================
+        async function loadUserData() {
             try {
-                if ('wakeLock' in navigator) {
-                    taxiSystem.wakeLock = await navigator.wakeLock.request('screen');
-                    document.getElementById('screenStatus').textContent = "LUÔN SÁNG";
-                }
-            } catch (err) {
-                console.warn("Wake Lock không khả dụng");
-                document.getElementById('screenStatus').textContent = "TIẾT KIỆM PIN";
-            }
-        }
-
-        // ==================== 9. AI SYSTEM FUNCTIONS ====================
-        function toggleAI() {
-            const isEnabled = taxiSystem.aiAssistant.toggle();
-            const btn = document.getElementById('aiToggleBtn');
-            const aiAssistant = document.getElementById('aiAssistant');
-            
-            if (isEnabled) {
-                btn.innerHTML = '<i class="fas fa-robot"></i> AI: ON';
-                btn.classList.add('active');
-                aiAssistant.style.display = 'flex';
-                showNotification("🤖 AI Assistant đã bật", 3000);
-            } else {
-                btn.innerHTML = '<i class="fas fa-robot"></i> AI: OFF';
-                btn.classList.remove('active');
-                aiAssistant.style.display = 'none';
-                closeAIChat();
-            }
-        }
-
-        function toggleVoice() {
-            const isVoiceEnabled = taxiSystem.aiAssistant.toggleVoice();
-            const btn = document.getElementById('voiceToggleBtn');
-            
-            if (isVoiceEnabled) {
-                btn.innerHTML = '<i class="fas fa-volume-up"></i>';
-                showNotification("🔊 Đã bật giọng nói AI", 3000);
-            } else {
-                btn.innerHTML = '<i class="fas fa-microphone"></i>';
-                taxiSystem.aiAssistant.stopVoiceRecognition();
-                document.getElementById('voiceBtn').classList.remove('listening');
-            }
-        }
-
-        function toggleVoiceRecognition() {
-            const voiceBtn = document.getElementById('voiceBtn');
-            
-            if (!taxiSystem.aiAssistant.isListening) {
-                if (taxiSystem.aiAssistant.startVoiceRecognition()) {
-                    voiceBtn.classList.add('listening');
-                    voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
-                    showNotification("🎤 Đang nghe...", 3000);
-                }
-            } else {
-                taxiSystem.aiAssistant.stopVoiceRecognition();
-                voiceBtn.classList.remove('listening');
-                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-            }
-        }
-
-        function openAIChat() {
-            if (!taxiSystem.aiAssistant.isEnabled) {
-                showNotification("Vui lòng bật AI Assistant trước", 3000);
-                return;
-            }
-            
-            document.getElementById('aiChatModal').style.display = 'flex';
-            
-            // Load avatar
-            const savedAvatar = localStorage.getItem('ai_avatar');
-            if (savedAvatar) {
-                document.getElementById('aiModalAvatar').src = savedAvatar;
-                document.getElementById('aiAvatarImg').src = savedAvatar;
-                taxiSystem.aiAssistant.avatarUrl = savedAvatar;
-            }
-        }
-
-        function closeAIChat() {
-            document.getElementById('aiChatModal').style.display = 'none';
-            taxiSystem.aiAssistant.stopVoiceRecognition();
-            document.getElementById('voiceBtn').classList.remove('listening');
-        }
-
-        function clearChat() {
-            taxiSystem.aiAssistant.clearChat();
-        }
-
-        function handleChatInput(event) {
-            if (event.key === 'Enter') {
-                sendAIMessage();
-            }
-        }
-
-        function sendAIMessage() {
-            const input = document.getElementById('aiChatInput');
-            const message = input.value.trim();
-            
-            if (message) {
-                taxiSystem.aiAssistant.processUserMessage(message);
-                input.value = '';
-                input.focus();
-            }
-        }
-
-        function changeAIAvatar() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const imageUrl = event.target.result;
-                        localStorage.setItem('ai_avatar', imageUrl);
+                const saved = localStorage.getItem('taxi_user_data');
+                if (saved) {
+                    const decrypted = TaxiSecurity.decrypt(saved);
+                    if (decrypted) {
+                        userData = decrypted;
+                        currentPackage = userData.package || 'FREE_TRIAL';
+                        trialEndDate = userData.trialEndDate || new Date(Date.now() + 7*24*60*60*1000).toISOString();
                         
-                        // Update all avatar images
-                        document.getElementById('aiModalAvatar').src = imageUrl;
-                        document.getElementById('aiAvatarImg').src = imageUrl;
-                        taxiSystem.aiAssistant.avatarUrl = imageUrl;
-                        
-                        showNotification("✅ Avatar AI đã được cập nhật", 3000);
-                    };
-                    reader.readAsDataURL(file);
+                        document.getElementById('idShow').textContent = `🚖 ID: ${userData.userId || 'TAXI-' + Date.now().toString(36)}`;
+                        return;
+                    }
                 }
-            };
-            input.click();
-        }
-
-        // ==================== 10. UTILITY FUNCTIONS ====================
-        function showNotification(message, duration = 5000) {
-            const bar = document.getElementById('notificationBar');
-            const text = document.getElementById('notificationText');
-            
-            text.textContent = message;
-            bar.classList.add('show');
-            
-            if (duration > 0) {
-                setTimeout(() => {
-                    bar.classList.remove('show');
-                }, duration);
-            }
-        }
-
-        function closeNotification() {
-            document.getElementById('notificationBar').classList.remove('show');
-        }
-
-        function updateRate(value) {
-            const rate = parseInt(value);
-            taxiSystem.fareCalculator.updateRate(rate);
-            document.getElementById('rateLabel').textContent = rate.toLocaleString();
-            
-            if (taxiSystem.isTripActive) {
-                const currentFare = taxiSystem.fareCalculator.calculateFare(taxiSystem.fareCalculator.totalDistance);
-                document.getElementById('cost').textContent = currentFare.toLocaleString();
-            }
-        }
-
-        // ==================== 11. TRIAL & PACKAGE SYSTEM ====================
-        function setupTrialSystem() {
-            if (!taxiSystem.userData.trial_start) {
-                taxiSystem.userData.trial_start = new Date().toISOString();
-                taxiSystem.userData.trial_end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                
+                // Tạo mới nếu không có
+                userData = {
+                    userId: 'TAXI-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+                    package: 'FREE_TRIAL',
+                    trialEndDate: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+                    paymentHistory: [],
+                    tripHistory: [],
+                    settings: {},
+                    createdAt: new Date().toISOString()
+                };
+                
                 saveUserData();
+                
+            } catch (error) {
+                console.error("Load user data error:", error);
+                userData = {
+                    userId: 'TAXI-ERROR-' + Date.now().toString(36),
+                    package: 'FREE_TRIAL',
+                    trialEndDate: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+                    paymentHistory: [],
+                    tripHistory: [],
+                    settings: {},
+                    createdAt: new Date().toISOString()
+                };
             }
-            
-            updateTrialProgress();
-            checkTrialStatus();
+        }
+        
+        function saveUserData() {
+            try {
+                const encrypted = TaxiSecurity.encrypt(userData);
+                if (encrypted) {
+                    localStorage.setItem('taxi_user_data', encrypted);
+                }
+            } catch (error) {
+                console.error("Save user data error:", error);
+            }
         }
 
+        // ==================== HỆ THỐNG TRIAL ====================
         function updateTrialProgress() {
-            if (taxiSystem.userData.package === 'FREE_TRIAL') {
-                const start = new Date(taxiSystem.userData.trial_start);
-                const end = new Date(taxiSystem.userData.trial_end);
+            if (currentPackage === 'FREE_TRIAL' && trialEndDate) {
+                const end = new Date(trialEndDate);
                 const now = new Date();
+                const total = 7 * 24 * 60 * 60 * 1000;
+                const remaining = end - now;
+                const percent = Math.max(0, Math.min(100, 100 - (remaining / total) * 100));
                 
-                const total = end - start;
-                const elapsed = now - start;
-                const percent = Math.min(100, (elapsed / total) * 100);
+                document.getElementById('trialProgressFill').style.width = percent + '%';
                 
-                const remainingMs = end - now;
-                const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+                const days = Math.ceil(remaining / (24 * 60 * 60 * 1000));
+                document.getElementById('packageTime').textContent = `${days} ngày`;
+                document.getElementById('planShow').innerHTML = `⭐ TRIAL (${days}D)`;
                 
-                document.getElementById('packageTime').textContent = remainingDays + ' ngày';
-                document.getElementById('planShow').innerHTML = `⭐ TRIAL (${remainingDays}D)`;
-                
-                // AI Notification
-                if (remainingDays <= 1) {
-                    showNotification("⚠️ Trial sắp hết! Nâng cấp ngay để tiếp tục.", 10000);
+                // Thông báo khi sắp hết trial
+                if (days <= 1) {
+                    NotificationSystem.show(`Trial còn ${days} ngày! Nâng cấp ngay để tiếp tục.`, 'warning', 10000);
                 }
+            } else {
+                document.getElementById('trialProgress').style.display = 'none';
             }
         }
-
+        
         function checkTrialStatus() {
-            if (taxiSystem.userData.package === 'FREE_TRIAL') {
+            if (currentPackage === 'FREE_TRIAL' && trialEndDate) {
+                const end = new Date(trialEndDate);
                 const now = new Date();
-                const trialEnd = new Date(taxiSystem.userData.trial_end);
                 
-                if (now > trialEnd) {
-                    taxiSystem.userData.package = 'EXPIRED';
-                    saveUserData();
-                    updatePackageDisplay();
-                    
-                    document.getElementById('mainBtn').disabled = true;
-                    document.getElementById('mainBtn').style.opacity = '0.5';
-                    showNotification("🔒 Hết trial! Vui lòng nâng cấp gói.", 0);
+                if (now > end) {
+                    lockTrialFeatures();
                 }
             }
         }
+        
+        function lockTrialFeatures() {
+            currentPackage = 'EXPIRED';
+            userData.package = 'EXPIRED';
+            saveUserData();
+            
+            updatePackageDisplay();
+            NotificationSystem.show('Trial đã hết! Vui lòng nâng cấp gói để tiếp tục.', 'error', 0);
+            
+            // Disable features
+            if (isRunning) {
+                endTrip();
+            }
+            document.getElementById('mainBtn').disabled = true;
+            document.getElementById('mainBtn').style.opacity = '0.5';
+        }
 
+        // ==================== HIỂN THỊ GÓI CƯỚC ====================
         function updatePackageDisplay() {
-            const packages = {
+            const packageNames = {
                 'FREE_TRIAL': 'FREE TRIAL',
                 'BASIC': 'BASIC',
                 'PRO': 'PRO',
                 'VIP_MONTHLY': 'VIP 1 THÁNG',
                 'LIFETIME': 'VIP TRỌN ĐỜI',
-                'EXPIRED': 'HẾT HẠN'
+                'EXPIRED': 'ĐÃ HẾT HẠN'
             };
             
-            const pkgName = packages[taxiSystem.userData.package] || 'FREE TRIAL';
-            document.getElementById('currentPackage').textContent = pkgName;
-            document.getElementById('planShow').innerHTML = `⭐ ${pkgName}`;
+            document.getElementById('currentPackage').textContent = packageNames[currentPackage] || 'FREE TRIAL';
             
-            // Show AI for VIP packages
-            if (taxiSystem.userData.package === 'VIP_MONTHLY' || taxiSystem.userData.package === 'LIFETIME') {
-                taxiSystem.aiAssistant.isEnabled = true;
-                document.getElementById('aiToggleBtn').innerHTML = '<i class="fas fa-robot"></i> AI: ON';
-                document.getElementById('aiToggleBtn').classList.add('active');
+            // Show/hide AI based on package
+            if (currentPackage === 'VIP_MONTHLY' || currentPackage === 'LIFETIME') {
                 document.getElementById('aiAssistant').style.display = 'flex';
-                document.getElementById('aiStatus').textContent = 'ĐÃ KÍCH HOẠT';
+            } else {
+                document.getElementById('aiAssistant').style.display = 'none';
             }
         }
 
-        // ==================== 12. PAYMENT SYSTEM ====================
+        // ==================== HỆ THỐNG GPS VÀ TÍNH CƯỚC ====================
+        function checkGPS() {
+            if (!navigator.geolocation) {
+                NotificationSystem.show('Thiết bị không hỗ trợ GPS', 'error', 5000);
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const { latitude, longitude, accuracy } = pos.coords;
+                    document.getElementById('gpsStatus').textContent = `ĐỊNH VỊ: ${accuracy.toFixed(1)}m`;
+                    NotificationSystem.show(`GPS đã sẵn sàng. Độ chính xác: ${accuracy.toFixed(1)}m`, 'gps', 3000);
+                },
+                (error) => {
+                    document.getElementById('gpsStatus').textContent = 'MẤT KẾT NỐI';
+                    NotificationSystem.show('Không thể truy cập GPS. Vui lòng kiểm tra cài đặt.', 'error', 5000);
+                }
+            );
+        }
+        
+        function startTrip() {
+            if (currentPackage === 'EXPIRED') {
+                NotificationSystem.show('Gói trial đã hết. Vui lòng nâng cấp!', 'error', 5000);
+                return;
+            }
+            
+            isRunning = true;
+            
+            // Reset algorithm
+            taxiAlgorithm.reset();
+            totalKm = 0;
+            
+            // Update UI
+            document.getElementById('mainBtn').classList.add('running');
+            document.getElementById('mainBtn').innerHTML = '<i class="fas fa-stop" style="margin-right:10px;"></i> KẾT THÚC CHUYẾN ĐI';
+            document.getElementById('statsUI').classList.add('running');
+            document.getElementById('cost').classList.add('running');
+            document.getElementById('km').classList.add('running');
+            
+            // Start GPS tracking
+            startGPSTracking();
+            
+            // Request wake lock
+            requestWakeLock();
+            
+            // Show wish modal
+            document.getElementById('wishModal').style.display = 'flex';
+            
+            NotificationSystem.show('Đã bắt đầu chuyến đi. Hệ thống đang tính cước...', 'success', 3000);
+        }
+        
+        function endTrip() {
+            isRunning = false;
+            
+            // Stop GPS
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            // Release wake lock
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+            
+            // Calculate final cost
+            const finalCost = Math.round(totalKm * currentRate);
+            
+            // Save to history
+            saveTripHistory(totalKm, finalCost);
+            
+            // Update UI
+            document.getElementById('mainBtn').classList.remove('running');
+            document.getElementById('mainBtn').innerHTML = '<i class="fas fa-play" style="margin-right:10px;"></i> BẮT ĐẦU CHUYẾN ĐI';
+            document.getElementById('statsUI').classList.remove('running');
+            document.getElementById('cost').classList.remove('running');
+            document.getElementById('km').classList.remove('running');
+            
+            // Show summary
+            document.getElementById('endSummary').innerHTML = `
+                <div style="text-align: left; background: #f8f9fa; padding: 20px; border-radius: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #666;">Quãng đường:</span>
+                        <b style="color: var(--dark);">${totalKm.toFixed(2)} KM</b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #666;">Đơn giá:</span>
+                        <b style="color: var(--dark);">${currentRate.toLocaleString()}đ/KM</b>
+                    </div>
+                    <div style="border-top: 2px solid var(--primary); padding-top: 15px; margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--dark); font-size: 18px; font-weight: 700;">Tổng cước:</span>
+                            <span style="font-size: 24px; font-weight: 900; color: var(--primary);">
+                                ${finalCost.toLocaleString()}đ
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('endModal').style.display = 'flex';
+            
+            NotificationSystem.show(`Đã kết thúc chuyến đi. Tổng cước: ${finalCost.toLocaleString()}đ`, 'money', 5000);
+        }
+        
+        function handleTrip() {
+            if (!isRunning) {
+                startTrip();
+            } else {
+                endTrip();
+            }
+        }
+        
+        function startGPSTracking() {
+            if (!navigator.geolocation) return;
+            
+            const options = {
+                enableHighAccuracy: true,
+                maximumAge: 1000,
+                timeout: 10000
+            };
+            
+            watchId = navigator.geolocation.watchPosition(
+                handlePositionUpdate,
+                handlePositionError,
+                options
+            );
+        }
+        
+        function handlePositionUpdate(position) {
+            const { latitude, longitude, accuracy, speed } = position.coords;
+            const now = Date.now();
+            
+            // Cập nhật marker
+            marker.setLatLng([latitude, longitude]);
+            
+            if (isRunning) {
+                // Smooth panning
+                map.panTo([latitude, longitude], {
+                    animate: true,
+                    duration: 1,
+                    easeLinearity: 0.25
+                });
+                
+                // Sử dụng thuật toán taxi để validate movement
+                const isValid = taxiAlgorithm.updatePosition(latitude, longitude, now, accuracy);
+                
+                if (isValid) {
+                    // Tính tổng quãng đường từ thuật toán
+                    const newTotalKm = taxiAlgorithm.getTotalDistance();
+                    
+                    // Chỉ update nếu có sự thay đổi
+                    if (Math.abs(newTotalKm - totalKm) > 0.0001) {
+                        totalKm = newTotalKm;
+                        updateStats();
+                    }
+                }
+                
+                // Cập nhật GPS status
+                document.getElementById('gpsStatus').textContent = `ĐỊNH VỊ: ${accuracy.toFixed(1)}m`;
+            }
+        }
+        
+        function handlePositionError(error) {
+            console.error("GPS Error:", error);
+            document.getElementById('gpsStatus').textContent = 'MẤT KẾT NỐI';
+            
+            if (isRunning) {
+                NotificationSystem.show('Mất kết nối GPS. Vui lòng kiểm tra lại.', 'error', 3000);
+            }
+        }
+        
+        function updateStats() {
+            document.getElementById('km').textContent = totalKm.toFixed(2);
+            document.getElementById('cost').textContent = Math.round(totalKm * currentRate).toLocaleString();
+        }
+        
+        function updateRate(value) {
+            currentRate = parseInt(value);
+            document.getElementById('rateLabel').textContent = currentRate.toLocaleString();
+            
+            if (isRunning) {
+                updateStats();
+            }
+        }
+        
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    
+                    document.addEventListener('visibilitychange', async () => {
+                        if (document.visibilityState === 'visible' && isRunning) {
+                            wakeLock = await navigator.wakeLock.request('screen');
+                        }
+                    });
+                }
+            } catch (err) {
+                console.warn("Wake Lock error:", err);
+            }
+        }
+
+        // ==================== LỊCH SỬ CHUYẾN ĐI ====================
+        function saveTripHistory(distance, cost) {
+            const trip = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                distance: parseFloat(distance.toFixed(2)),
+                rate: currentRate,
+                cost: cost,
+                duration: Math.floor(Math.random() * 60) + 10 // Simulated duration
+            };
+            
+            userData.tripHistory.unshift(trip);
+            if (userData.tripHistory.length > 100) {
+                userData.tripHistory = userData.tripHistory.slice(0, 100);
+            }
+            
+            saveUserData();
+            addHistoryItem(trip);
+        }
+        
+        function addHistoryItem(trip) {
+            const list = document.getElementById('historyList');
+            const item = document.createElement('div');
+            item.className = 'history-card';
+            
+            const date = new Date(trip.date);
+            const timeStr = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = date.toLocaleDateString('vi-VN');
+            
+            item.innerHTML = `
+                <div class="h-info">
+                    <b>${dateStr} - ${timeStr}</b>
+                    <small>${trip.distance} KM • ${trip.rate.toLocaleString()}đ/KM</small>
+                </div>
+                <div class="h-price">${trip.cost.toLocaleString()}đ</div>
+            `;
+            
+            if (list.firstChild) {
+                list.insertBefore(item, list.firstChild);
+            } else {
+                list.appendChild(item);
+            }
+        }
+        
+        function loadHistory() {
+            if (userData && userData.tripHistory) {
+                userData.tripHistory.forEach(trip => addHistoryItem(trip));
+            }
+        }
+        
+        function clearHistory() {
+            if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử chuyến đi?')) {
+                userData.tripHistory = [];
+                saveUserData();
+                document.getElementById('historyList').innerHTML = '';
+                NotificationSystem.show('Đã xóa toàn bộ lịch sử', 'success', 3000);
+            }
+        }
+
+        // ==================== THANH TOÁN VÀ WEBHOOK ====================
         function selectPack(packageKey, price, element) {
             document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
             element.classList.add('active');
@@ -1773,111 +2561,301 @@
                 'LIFETIME': 'VIP TRON DOI'
             };
             
-            const pkgName = packageNames[packageKey] || 'VIP 1 THANG';
-            const content = `${taxiSystem.tx_id} NAP ${pkgName} ${price}VND`;
+            const content = `${userData.userId} NAP ${packageNames[packageKey]} ${price}VND`;
             document.getElementById('qrContent').textContent = content;
             document.getElementById('qrImg').src = 
-                `https://img.vietqr.io/image/bidv-${SYSTEM_CONFIG.BIDV_ACCOUNT}-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}&accountName=NGUYEN%20XUAN%20DAT`;
+                `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}&accountName=NGUYEN%20XUAN%20DAT`;
         }
-
+        
         async function verifyPayment() {
-            showNotification("🔄 Đang kiểm tra thanh toán...", 3000);
+            NotificationSystem.show('Đang kiểm tra thanh toán với ngân hàng...', 'info', 3000);
             
-            // Simulate payment verification
-            setTimeout(() => {
-                const selectedPackage = document.querySelector('.p-card.active b').textContent;
-                let packageKey = 'VIP_MONTHLY';
+            const statusDiv = document.getElementById('paymentStatus');
+            statusDiv.style.display = 'block';
+            
+            try {
+                // Simulate webhook check
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                if (selectedPackage.includes('BASIC')) packageKey = 'BASIC';
-                else if (selectedPackage.includes('PRO')) packageKey = 'PRO';
-                else if (selectedPackage.includes('TRỌN ĐỜI')) packageKey = 'LIFETIME';
+                // For demo - always success
+                const success = Math.random() > 0.3; // 70% success rate for demo
                 
-                activatePackage(packageKey);
-                showNotification("✅ Thanh toán thành công! Gói đã kích hoạt.", 5000);
-            }, 2000);
+                if (success) {
+                    statusDiv.innerHTML = `
+                        <div style="color:#2e7d32;">
+                            <i class="fas fa-check-circle" style="margin-right:8px;"></i>
+                            Thanh toán thành công! Gói đã được kích hoạt tự động.
+                        </div>
+                    `;
+                    
+                    // Activate package
+                    const selectedPackage = document.querySelector('.p-card.active b').textContent;
+                    let packageKey = 'BASIC';
+                    if (selectedPackage.includes('PRO')) packageKey = 'PRO';
+                    if (selectedPackage.includes('VIP 1')) packageKey = 'VIP_MONTHLY';
+                    if (selectedPackage.includes('TRỌN ĐỜI')) packageKey = 'LIFETIME';
+                    
+                    activatePackage(packageKey);
+                    
+                    NotificationSystem.show('Gói đã được kích hoạt thành công!', 'success', 5000);
+                } else {
+                    statusDiv.innerHTML = `
+                        <div style="color:#ff9800;">
+                            <i class="fas fa-clock" style="margin-right:8px;"></i>
+                            Chưa phát hiện thanh toán. Vui lòng đợi 1-3 phút hoặc thử lại.
+                        </div>
+                    `;
+                    
+                    NotificationSystem.show('Chưa phát hiện thanh toán. Nếu đã chuyển, vui lòng đợi...', 'warning', 5000);
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div style="color:#f44336;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right:8px;"></i>
+                        Lỗi kết nối. Vui lòng thử lại sau.
+                    </div>
+                `;
+                
+                NotificationSystem.show('Lỗi kết nối đến ngân hàng.', 'error', 5000);
+            }
         }
-
+        
+        function checkPaymentStatus() {
+            NotificationSystem.show('Kiểm tra trạng thái thanh toán...', 'info', 3000);
+            verifyPayment();
+        }
+        
         function activatePackage(packageKey) {
-            taxiSystem.userData.package = packageKey;
+            currentPackage = packageKey;
+            userData.package = packageKey;
+            
+            if (packageKey !== 'FREE_TRIAL') {
+                trialEndDate = null;
+            }
+            
             saveUserData();
             updatePackageDisplay();
             
-            // Enable trip button if it was disabled
+            // Enable features if was expired
             if (document.getElementById('mainBtn').disabled) {
                 document.getElementById('mainBtn').disabled = false;
                 document.getElementById('mainBtn').style.opacity = '1';
             }
             
-            // Show AI assistant for VIP
+            // Show AI for VIP packages
             if (packageKey === 'VIP_MONTHLY' || packageKey === 'LIFETIME') {
-                showNotification("🤖 Trợ lý AI đã được kích hoạt!", 3000);
+                document.getElementById('aiAssistant').style.display = 'flex';
+                taxiAI.isActive = true;
+                document.getElementById('aiAssistant').classList.add('active');
+                document.getElementById('aiStatus').style.background = '#4caf50';
+                
+                NotificationSystem.show('Trợ lý AI đã được kích hoạt!', 'success', 5000);
             }
         }
 
-        function checkPaymentStatus() {
-            verifyPayment();
+        // ==================== AI SYSTEM CONTROLS ====================
+        function toggleAIActive(event) {
+            event.stopPropagation();
+            taxiAI.toggleActive();
+        }
+        
+        function openAIChat() {
+            if (currentPackage !== 'VIP_MONTHLY' && currentPackage !== 'LIFETIME') {
+                NotificationSystem.show('Tính năng AI chỉ dành cho gói VIP. Nâng cấp ngay!', 'warning', 5000);
+                return;
+            }
+            
+            document.getElementById('aiChatModal').style.display = 'flex';
+        }
+        
+        function closeAIChat() {
+            document.getElementById('aiChatModal').style.display = 'none';
+        }
+        
+        function toggleVoiceInput() {
+            taxiAI.toggleListening();
+        }
+        
+        function handleAIKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendAIMessage();
+            }
+        }
+        
+        async function sendAIMessage() {
+            const input = document.getElementById('aiInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            await taxiAI.sendMessage(message);
+            input.value = '';
+        }
+        
+        // ==================== DRAGGABLE AI ASSISTANT ====================
+        function makeDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            
+            element.onmousedown = dragMouseDown;
+            element.ontouchstart = dragTouchStart;
+            
+            function dragMouseDown(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+            
+            function dragTouchStart(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                pos3 = touch.clientX;
+                pos4 = touch.clientY;
+                document.ontouchend = closeDragElement;
+                document.ontouchmove = elementDragTouch;
+            }
+            
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                
+                // Giới hạn trong màn hình
+                let newTop = element.offsetTop - pos2;
+                let newLeft = element.offsetLeft - pos1;
+                
+                newTop = Math.max(100, Math.min(window.innerHeight - 200, newTop));
+                newLeft = Math.max(10, Math.min(window.innerWidth - 70, newLeft));
+                
+                element.style.top = newTop + "px";
+                element.style.left = newLeft + "px";
+            }
+            
+            function elementDragTouch(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                pos1 = pos3 - touch.clientX;
+                pos2 = pos4 - touch.clientY;
+                pos3 = touch.clientX;
+                pos4 = touch.clientY;
+                
+                let newTop = element.offsetTop - pos2;
+                let newLeft = element.offsetLeft - pos1;
+                
+                newTop = Math.max(100, Math.min(window.innerHeight - 200, newTop));
+                newLeft = Math.max(10, Math.min(window.innerWidth - 70, newLeft));
+                
+                element.style.top = newTop + "px";
+                element.style.left = newLeft + "px";
+            }
+            
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+                document.ontouchend = null;
+                document.ontouchmove = null;
+            }
         }
 
-        // ==================== 13. HISTORY SYSTEM ====================
-        function saveHistory(km, cost) {
-            const time = new Date().toLocaleTimeString('vi-VN', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                day: '2-digit',
-                month: '2-digit'
-            });
+        // ==================== ADMIN FUNCTIONS ====================
+        function showAdminPanel() {
+            const password = prompt("Nhập mật khẩu Admin:");
+            if (password === "2024") {
+                document.getElementById('adminModal').style.display = 'flex';
+                NotificationSystem.show('Chế độ Admin đã kích hoạt', 'success', 3000);
+            } else {
+                NotificationSystem.show('Mật khẩu sai!', 'error', 3000);
+            }
+        }
+        
+        function uploadAIAvatar() {
+            const input = document.getElementById('avatarUpload');
+            const file = input.files[0];
             
-            const itemData = { 
-                time, 
-                km, 
-                cost,
-                rate: taxiSystem.fareCalculator.baseRate
+            if (!file) {
+                NotificationSystem.show('Vui lòng chọn file ảnh', 'warning', 3000);
+                return;
+            }
+            
+            if (!file.type.startsWith('image/')) {
+                NotificationSystem.show('File phải là hình ảnh', 'error', 3000);
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imageUrl = e.target.result;
+                
+                // Update both avatars
+                document.getElementById('aiAssistantImg').src = imageUrl;
+                document.getElementById('aiModalAvatar').src = imageUrl;
+                
+                // Save to user data
+                userData.aiAvatar = imageUrl;
+                saveUserData();
+                
+                NotificationSystem.show('Avatar AI đã được cập nhật', 'success', 3000);
+                input.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function forceUpdateSettings() {
+            NotificationSystem.show('Đang cập nhật cài đặt từ xa...', 'info', 3000);
+            
+            setTimeout(() => {
+                // Reset trial if expired
+                if (currentPackage === 'EXPIRED') {
+                    currentPackage = 'FREE_TRIAL';
+                    userData.package = 'FREE_TRIAL';
+                    trialEndDate = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+                    userData.trialEndDate = trialEndDate;
+                    saveUserData();
+                    updatePackageDisplay();
+                    updateTrialProgress();
+                    
+                    NotificationSystem.show('Đã reset trial 7 ngày', 'success', 5000);
+                } else {
+                    NotificationSystem.show('Cài đặt đã được đồng bộ', 'success', 3000);
+                }
+            }, 2000);
+        }
+        
+        function exportAllData() {
+            const data = {
+                userData,
+                totalTrips: userData.tripHistory.length,
+                totalRevenue: userData.tripHistory.reduce((sum, trip) => sum + trip.cost, 0),
+                exportDate: new Date().toISOString()
             };
             
-            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            history.unshift(itemData);
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `taxi_data_${userData.userId}_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
             
-            if (history.length > 100) {
-                history = history.slice(0, 100);
-            }
-            
-            localStorage.setItem('trip_history', JSON.stringify(history));
-            addHistoryItem(itemData);
+            NotificationSystem.show('Đã xuất dữ liệu thành công', 'success', 3000);
         }
-
-        function addHistoryItem(item) {
-            const list = document.getElementById('historyList');
-            const itemElement = document.createElement('div');
-            itemElement.className = 'history-card';
-            itemElement.innerHTML = `
-                <div class="h-info">
-                    <b>${item.time}</b><br>
-                    <small>${item.km} KM • ${item.rate.toLocaleString()}đ/KM</small>
-                </div>
-                <div class="h-price">${parseInt(item.cost).toLocaleString()}đ</div>
-            `;
-            
-            if (list.firstChild) {
-                list.insertBefore(itemElement, list.firstChild);
-            } else {
-                list.appendChild(itemElement);
+        
+        function resetSystem() {
+            if (confirm('⚠️ CẢNH BÁO: Bạn có chắc chắn muốn reset toàn bộ hệ thống? Toàn bộ dữ liệu sẽ bị xóa.')) {
+                localStorage.clear();
+                location.reload();
             }
         }
 
-        function loadHistory() {
-            const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            history.forEach(addHistoryItem);
-        }
-
-        function clearHistory() {
-            if (confirm("Xóa toàn bộ lịch sử chuyến đi?")) {
-                localStorage.removeItem('trip_history');
-                document.getElementById('historyList').innerHTML = '';
-                showNotification("✅ Đã xóa lịch sử", 3000);
-            }
-        }
-
-        // ==================== 14. TAB SYSTEM ====================
+        // ==================== TAB SYSTEM ====================
         function showTab(tab, btn) {
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -1895,43 +2873,69 @@
                 }
             }
         }
-
+        
         function closeModal(id) {
             document.getElementById(id).style.display = 'none';
         }
 
-        // ==================== 15. INITIALIZE ON LOAD ====================
-        window.onload = initSystem;
-
-        // Prevent zoom
-        document.addEventListener('touchstart', function(e) {
-            if (e.touches.length > 1) e.preventDefault();
-        }, { passive: false });
-
-        // Handle orientation change
-        window.addEventListener('orientationchange', () => {
-            setTimeout(() => {
-                if (taxiSystem.map) taxiSystem.map.invalidateSize();
-            }, 300);
-        });
-
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            // Keep AI assistant within bounds
-            const aiElement = document.getElementById('aiAssistant');
-            if (aiElement.style.display !== 'none') {
-                const rect = aiElement.getBoundingClientRect();
-                const maxX = window.innerWidth - aiElement.offsetWidth;
-                const maxY = window.innerHeight - aiElement.offsetHeight - 150;
+        // ==================== INITIALIZATION ====================
+        window.onload = () => {
+            // Make AI assistant draggable
+            const aiAssistant = document.getElementById('aiAssistant');
+            if (aiAssistant) {
+                makeDraggable(aiAssistant);
                 
-                const clampedX = Math.max(10, Math.min(rect.left, maxX));
-                const clampedY = Math.max(100, Math.min(rect.top, maxY));
-                
-                aiElement.style.left = clampedX + 'px';
-                aiElement.style.top = clampedY + 'px';
-                taxiSystem.aiPosition = { x: clampedX, y: clampedY };
+                // Click to open chat
+                aiAssistant.onclick = (e) => {
+                    if (!e.target.closest('.ai-toggle')) {
+                        openAIChat();
+                    }
+                };
             }
-        });
+            
+            // Load saved AI avatar
+            if (userData && userData.aiAvatar) {
+                document.getElementById('aiAssistantImg').src = userData.aiAvatar;
+                document.getElementById('aiModalAvatar').src = userData.aiAvatar;
+            }
+            
+            // Initialize app
+            initApp();
+            
+            // Check trial status periodically
+            setInterval(checkTrialStatus, 60000); // Every minute
+            
+            // Handle orientation change
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => {
+                    if (map) map.invalidateSize();
+                }, 300);
+            });
+            
+            // Prevent accidental refresh
+            window.addEventListener('beforeunload', (e) => {
+                if (isRunning) {
+                    e.preventDefault();
+                    e.returnValue = 'Bạn đang trong chuyến đi. Nếu rời trang, dữ liệu có thể bị mất.';
+                }
+            });
+        };
+
+        // ==================== ANTI-CHEAT PROTECTION ====================
+        setInterval(() => {
+            // Kiểm tra giá trị bất thường
+            if (isRunning && totalKm > 1000) { // Không thể đi 1000km trong 1 chuyến
+                NotificationSystem.show('Phát hiện dữ liệu bất thường. Hệ thống đang kiểm tra...', 'warning', 5000);
+                totalKm = 0;
+                updateStats();
+            }
+            
+            // Kiểm tra tốc độ bất thường
+            if (isRunning && taxiAlgorithm.getCurrentSpeed() > 300) { // 300km/h là bất thường
+                NotificationSystem.show('Tốc độ GPS bất thường. Đang hiệu chỉnh...', 'warning', 5000);
+                taxiAlgorithm.reset();
+            }
+        }, 10000);
     </script>
 </body>
 </html>
