@@ -1,153 +1,214 @@
-/**
- * TAXI PROMAX - HỆ THỐNG TÍNH TIỀN THÔNG MINH
- * PHÁT TRIỂN BỞI: NGUYEN XUAN DAT
- */
-
-const TaxiApp = {
-    isRunning: false,
-    watchID: null,
-    timerID: null,
-    lastCoords: null,
-    customBaseFare: 0, // Lưu giá thỏa thuận cuốc vẫy
-    tripData: {
-        distance: 0,
-        fare: 0,
-        startTime: null,
-        waitTime: 0
-    },
-
-    // 1. HÀM THỎA THUẬN GIÁ (Dành cho cuốc vẫy linh hoạt)
-    setCustomPrice() {
-        let price = prompt("Nhập số tiền đã thỏa thuận với khách (VNĐ):", "");
-        
-        if (price === null || price === "") {
-            alert("Anh chưa nhập giá, hệ thống sẽ dùng giá mở cửa mặc định!");
-            this.customBaseFare = TAXI_CONFIG.TARIFF.BASE_FEE; 
-        } else {
-            // Loại bỏ ký tự không phải số và chuyển thành số nguyên
-            this.customBaseFare = parseInt(price.replace(/\D/g,''));
-            alert("✅ Đã chốt giá: " + this.customBaseFare.toLocaleString() + " VNĐ");
-        }
-        
-        // Hiển thị ngay số tiền lên vòng tròn trung tâm
-        document.getElementById('display-fare').innerText = this.customBaseFare.toLocaleString('vi-VN') + " VNĐ";
-        const statusLabel = document.getElementById('trip-status');
-        if(statusLabel) {
-            statusLabel.innerText = "ĐÃ CHỐT GIÁ";
-            statusLabel.style.color = "#e84393"; // Màu hồng nổi bật
-        }
-    },
-
-    // 2. BẮT ĐẦU CHUYẾN ĐI
-    start() {
-        if (this.isRunning) return;
-
-        // Kiểm tra giấy phép (Gói cước)
-        const license = Security.getLicense();
-        if (license.expired) {
-            alert("Gói cước của anh đã hết hạn. Vui lòng nạp tiền để tiếp tục!");
-            return window.location.href = 'payment.html';
-        }
-
-        this.isRunning = true;
-        // Sử dụng giá thỏa thuận nếu có, nếu không dùng giá mở cửa trong config
-        const startFare = (this.customBaseFare > 0) ? this.customBaseFare : TAXI_CONFIG.TARIFF.BASE_FEE;
-
-        this.tripData = {
-            distance: 0,
-            fare: startFare,
-            startTime: Date.now(),
-            waitTime: 0
-        };
-
-        this.lastCoords = null;
-        
-        // Kích hoạt định vị GPS thời gian thực
-        this.watchID = navigator.geolocation.watchPosition(
-            (pos) => this.updateLocation(pos),
-            (err) => console.error("Lỗi GPS: ", err),
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-
-        // Chạy đồng hồ đếm thời gian
-        this.timerID = setInterval(() => this.updateTimer(), 1000);
-        
-        this.updateUI();
-        console.log("Cuốc xe bắt đầu với giá: " + startFare);
-    },
-
-    // 3. CẬP NHẬT VỊ TRÍ VÀ TÍNH QUÃNG ĐƯỜNG
-    updateLocation(position) {
-        if (!this.isRunning) return;
-
-        const { latitude, longitude, speed } = position.coords;
-        const currentCoords = { latitude, longitude };
-
-        if (this.lastCoords) {
-            const dist = this.calculateDistance(this.lastCoords, currentCoords);
-            // Chỉ tính nếu di chuyển trên 5 mét để tránh nhiễu GPS
-            if (dist > 0.005) {
-                this.tripData.distance += dist;
-                this.calculateFare();
-                this.updateUI();
-            }
-        }
-        this.lastCoords = currentCoords;
-    },
-
-    // 4. CÔNG THỨC TÍNH TIỀN
-    calculateFare() {
-        const config = TAXI_CONFIG.TARIFF;
-        // Tổng tiền = Giá thỏa thuận ban đầu + (Số Km chạy thêm * Đơn giá Km)
-        // Lưu ý: Giá thỏa thuận thường đã bao gồm 1km đầu
-        let total = this.tripData.fare + (this.tripData.distance * config.PRICE_PER_KM);
-        
-        // Cộng thêm tiền chờ nếu xe dừng lâu (dưới 5km/h)
-        total += (this.tripData.waitTime / 60) * config.PRICE_PER_MINUTE;
-        
-        document.getElementById('display-fare').innerText = Math.round(total).toLocaleString('vi-VN') + " VNĐ";
-    },
-
-    // 5. CÔNG THỨC TÍNH KHOẢNG CÁCH (Haversine)
-    calculateDistance(p1, p2) {
-        const R = 6371; // Bán kính Trái đất (km)
-        const dLat = (p2.latitude - p1.latitude) * Math.PI / 180;
-        const dLon = (p2.longitude - p1.longitude) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(p1.latitude * Math.PI / 180) * Math.cos(p2.latitude * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    },
-
-    // 6. CẬP NHẬT ĐỒNG HỒ VÀ GIAO DIỆN
-    updateTimer() {
-        if (!this.isRunning) return;
-        const elapsed = Math.floor((Date.now() - this.tripData.startTime) / 1000);
-        const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
-        const s = (elapsed % 60).toString().padStart(2, '0');
-        
-        const timeDisplay = document.getElementById('display-time');
-        if (timeDisplay) timeDisplay.innerText = `${m}:${s}`;
-    },
-
-    updateUI() {
-        document.getElementById('display-km').innerText = this.tripData.distance.toFixed(2) + " Km";
-    },
-
-    // 7. KẾT THÚC CHUYẾN
-    stop() {
-        if (!this.isRunning) return;
-        if (confirm("Anh có chắc muốn kết thúc chuyến xe và thu tiền khách?")) {
-            this.isRunning = false;
-            navigator.geolocation.clearWatch(this.watchID);
-            clearInterval(this.timerID);
+// js/app.js - Module chính khởi tạo ứng dụng
+class TaxiProMaxApp {
+    constructor() {
+        this.taxiSystem = null;
+        this.gpsTracker = null;
+        this.paymentManager = null;
+        this.uiManager = null;
+        this.isInitialized = false;
+    }
+    
+    async init() {
+        try {
+            console.log('🚕 Taxi Pro Max đang khởi động...');
             
-            // Lưu lịch sử (Sẽ phát triển ở bản PRO)
-            alert("Cuốc xe kết thúc! Tổng thu: " + document.getElementById('display-fare').innerText);
+            // 1. Khởi tạo hệ thống core
+            this.taxiSystem = new TaxiSystem();
+            await this.taxiSystem.init();
             
-            // Reset dữ liệu về 0 cho cuốc sau
-            this.customBaseFare = 0;
+            // 2. Khởi tạo các module
+            this.gpsTracker = new GPSTracker(this.taxiSystem);
+            this.paymentManager = new PaymentManager(this.taxiSystem);
+            this.uiManager = new UIManager(this.taxiSystem, this.gpsTracker, this.paymentManager);
+            
+            // 3. Khởi tạo events
+            this.uiManager.initEvents();
+            
+            // 4. Khởi tạo event listeners toàn cục
+            this.initGlobalEvents();
+            
+            // 5. Hiển thị welcome modal
+            setTimeout(() => {
+                this.uiManager.showModal('wishModal');
+            }, 1000);
+            
+            this.isInitialized = true;
+            console.log('✅ Taxi Pro Max đã sẵn sàng!');
+            
+            return this;
+            
+        } catch (error) {
+            console.error('❌ Lỗi khởi động ứng dụng:', error);
+            this.showCriticalError('Lỗi khởi động ứng dụng: ' + error.message);
+            throw error;
         }
     }
+    
+    initGlobalEvents() {
+        // Online/Offline detection
+        window.addEventListener('online', () => {
+            this.uiManager.showSuccess("✅ Đã kết nối lại Internet!");
+        });
+        
+        window.addEventListener('offline', () => {
+            this.taxiSystem.showError("⚠️ Mất kết nối mạng. Ứng dụng vẫn hoạt động ở chế độ offline.");
+        });
+        
+        // Before unload warning
+        window.addEventListener('beforeunload', (e) => {
+            if (this.taxiSystem.isRunning) {
+                e.preventDefault();
+                e.returnValue = 'Bạn có chuyến đi đang chạy. Bạn có chắc muốn thoát?';
+                return e.returnValue;
+            }
+        });
+        
+        // Fullscreen support
+        document.addEventListener('fullscreenchange', () => {
+            if (this.taxiSystem.map) {
+                this.taxiSystem.map.invalidateSize();
+            }
+        });
+        
+        // Service worker registration (PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(error => {
+                    console.log('ServiceWorker registration failed:', error);
+                });
+            });
+        }
+        
+        // Prevent context menu on some elements
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('#map')) {
+                e.preventDefault();
+            }
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            this.handleKeyboardShortcuts(e);
+        });
+    }
+    
+    handleKeyboardShortcuts(e) {
+        // Prevent F12 for dev tools (basic protection)
+        if (e.keyCode === 123) { // F12
+            e.preventDefault();
+            return false;
+        }
+        
+        // Ctrl+Shift+I for dev tools
+        if (e.ctrlKey && e.shiftKey && e.keyCode === 73) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Ctrl+U for view source
+        if (e.ctrlKey && e.keyCode === 85) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            this.closeAllModals();
+        }
+        
+        // Space to start/stop trip when on home tab
+        if (e.key === ' ' && this.uiManager.currentTab === 'home') {
+            e.preventDefault();
+            document.getElementById('mainBtn').click();
+        }
+    }
+    
+    closeAllModals() {
+        const modals = ['wishModal', 'endModal', 'zaloModal', 'successModal'];
+        modals.forEach(modalId => {
+            this.uiManager.closeModal(modalId);
+        });
+    }
+    
+    showCriticalError(message) {
+        // Hiển thị lỗi nghiêm trọng
+        const errorHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: var(--danger); color: white; display: flex; 
+                flex-direction: column; align-items: center; justify-content: center; 
+                z-index: 100000; padding: 20px; text-align: center;">
+                <div style="font-size: 48px;">❌</div>
+                <h1 style="margin: 20px 0 10px 0;">LỖI NGHIÊM TRỌNG</h1>
+                <p style="margin-bottom: 20px;">${message}</p>
+                <button onclick="location.reload()" 
+                    style="background: white; color: var(--danger); border: none; 
+                    padding: 12px 24px; border-radius: 10px; font-weight: 900; 
+                    cursor: pointer;">
+                    🔄 TẢI LẠI ỨNG DỤNG
+                </button>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', errorHTML);
+    }
+    
+    // Public API methods
+    getSystem() {
+        return this.taxiSystem;
+    }
+    
+    getGPS() {
+        return this.gpsTracker;
+    }
+    
+    getPayment() {
+        return this.paymentManager;
+    }
+    
+    getUI() {
+        return this.uiManager;
+    }
+    
+    isReady() {
+        return this.isInitialized;
+    }
+}
+
+// ==================== GLOBAL INITIALIZATION ====================
+let taxiApp;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        taxiApp = new TaxiProMaxApp();
+        await taxiApp.init();
+        
+        // Expose to global scope for debugging (optional)
+        window.taxiApp = taxiApp;
+        
+    } catch (error) {
+        console.error('Fatal initialization error:', error);
+        alert('Không thể khởi động ứng dụng. Vui lòng tải lại trang.');
+    }
+});
+
+// ==================== PUBLIC GLOBAL FUNCTIONS ====================
+// Các hàm này có thể được gọi từ console hoặc external scripts
+window.TaxiProMax = {
+    getApp: () => taxiApp,
+    startTrip: () => document.getElementById('mainBtn').click(),
+    stopTrip: () => {
+        if (taxiApp && taxiApp.getSystem().isRunning) {
+            document.getElementById('mainBtn').click();
+        }
+    },
+    selectPackage: (packageId) => {
+        const card = document.querySelector(`.p-card[data-id="${packageId}"]`);
+        if (card) card.click();
+    },
+    showTab: (tabName) => {
+        const tabBtn = document.querySelector(`.nav-item[data-tab="${tabName}"]`);
+        if (tabBtn) tabBtn.click();
+    },
+    exportData: () => document.getElementById('exportDataBtn').click(),
+    clearHistory: () => document.getElementById('clearHistoryBtn').click()
 };
