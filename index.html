@@ -2,125 +2,93 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax - Đồng Hồ Tính Tiền GPS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TAXI PROMAX - NGUYỄN XUÂN ĐẠT</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="css/style.css">
-    
-    <style>
-        /* CSS bổ sung để đảm bảo layout hoạt động */
-        .tab-content { display: none; flex-direction: column; height: 100%; }
-        .tab-content.active { display: flex; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                 background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; }
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); 
-                   border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
-    <div id="tab-home" class="tab-content active">
-        <header>
-            <div class="status-bar">
-                <span id="gpsStatus">📡 Đang tìm GPS...</span>
-                <span id="currentTime">00:00</span>
-            </div>
-            <div class="main-display">
-                <h1 id="totalCostDisplay">0</h1>
-                <p>VNĐ</p>
-                <div class="sub-info">
-                    <span>KM: <b id="kmDisplay">0.0</b></span>
-                    <span>GIÁ/KM: <b id="currentRateDisplay">0</b></span>
-                </div>
-            </div>
-        </header>
+    <div class="header">
+        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
+    </div>
 
-        <div id="homeControls" class="controls">
-            <div class="rate-adjuster">
-                <label>Giá cước: <span id="rateLabel">12,000</span>đ/km</label>
-                <input type="range" id="rateSlider" min="5000" max="30000" step="500" value="12000">
-            </div>
-            <button id="mainBtn" class="btn-main">🚕 BẮT ĐẦU CHUYẾN ĐI</button>
+    <div class="stats-bar" id="statsUI">
+        <div class="stat-item" style="border-right: 1px solid #eee;">
+            <div class="stat-label">CƯỚC (VNĐ)</div>
+            <div id="cost" class="stat-value">0</div>
         </div>
-        
-        <div id="map" style="flex: 1; width: 100%; min-height: 200px;"></div>
+        <div class="stat-item">
+            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
+            <div id="km" class="stat-value">0.00</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="tab-vi" class="tab-content">
+        <div class="p-header">
+            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
+            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
+        </div>
+        <div class="p-grid" id="packageGrid">
+            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)"><b>GÓI BASIC</b><span>19.000đ</span><ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul></div>
+            <div class="p-card" onclick="selectPack(29000, 'PRO', this)"><b>GÓI PRO</b><span>29.000đ</span><ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul></div>
+            <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)"><b>GÓI VIP 1TH</b><span>49.000đ</span><ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul></div>
+            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)"><b>VIP TRỌN ĐỜI</b><span>999.000đ</span><ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul></div>
+        </div>
+        <div class="payment-section" style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
+            <img id="qrImg" style="width:180px; border-radius:10px;" src="">
+            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
+            <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
+            <br><br>
+            <button class="btn-main" style="padding:10px; font-size:14px;" onclick="verifyPayment()">XÁC NHẬN ĐÃ CHUYỂN</button>
+        </div>
     </div>
 
     <div id="tab-lichsu" class="tab-content">
-        <div class="header-tab">
-            <h2>Lịch sử chuyến đi</h2>
-            <button id="clearHistoryBtn" class="btn-text">Xóa hết</button>
-        </div>
-        <div id="historyList" class="scroll-list">
-            </div>
-    </div>
-
-    <div id="tab-goi" class="tab-content">
-        <h2>Gói cước hội viên</h2>
-        <div class="package-list">
-            <div class="p-card" data-id="1day" data-price="10000" data-name="Gói 1 Ngày">
-                <h3>1 NGÀY</h3>
-                <p>10.000đ</p>
-            </div>
-            <div class="p-card highlighted" data-id="1month" data-price="150000" data-name="Gói 1 Tháng">
-                <h3>1 THÁNG</h3>
-                <p>150.000đ</p>
-            </div>
-        </div>
-        <div id="paymentArea" class="payment-box">
-            <p>Mã GD: <input type="text" id="transactionCode" placeholder="Nhập mã ngân hàng..."></p>
-            <button id="verifyPaymentBtn" class="btn-verify">XÁC THỰC THANH TOÁN</button>
-        </div>
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList" style="padding-top: 10px;"></div>
     </div>
 
     <div id="tab-toi" class="tab-content">
-        <div class="profile-header">
-            <div class="avatar">👤</div>
-            <h3 id="userStatus">Tài khoản miễn phí</h3>
-        </div>
-        <div class="stats-grid">
-            <div class="stat-item">Tổng KM: <b id="statTotalKm">0</b></div>
-            <div class="stat-item">Tổng Tiền: <b id="statTotalMoney">0</b></div>
-        </div>
-        <button id="exportDataBtn">Xuất báo cáo Excel</button>
-    </div>
-
-    <nav class="bottom-nav">
-        <div class="nav-item active" data-tab="home">🏠 Home</div>
-        <div class="nav-item" data-tab="lichsu">📜 Lịch sử</div>
-        <div class="nav-item" data-tab="goi">💎 Gói</div>
-        <div class="nav-item" data-tab="toi">👤 Tôi</div>
-    </nav>
-
-    <div id="wishModal" class="modal">
-        <div class="modal-content">
-            <h2>🚕 Khởi hành!</h2>
-            <p>Chúc bạn vạn dặm bình an.</p>
+        <div class="p-header">THIẾT LẬP</div>
+        <div style="padding:20px;">
+            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
+                <p>Mã tài xế: <b id="profileID">...</b></p>
+                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
+                <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
+                <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
+                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="clearHistory()">XÓA LỊCH SỬ</button>
+            </div>
         </div>
     </div>
 
-    <div id="endModal" class="modal">
-        <div class="modal-content">
-            <h2>🏁 Kết thúc chuyến</h2>
-            <div id="summaryContent"></div>
-            <button id="closeEndModal">Xác nhận</button>
+    <div class="footer-panel">
+        <div id="homeControls">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
+                <span>GIÁ/KM</span>
+                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
+            </div>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
         </div>
+
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+        </div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div>
 
-    <div id="successModal" class="modal">
-        <div class="modal-content">
-            <div id="successMessage"></div>
-            <button id="closeSuccessModal" class="btn-close">Đóng</button>
-        </div>
-    </div>
+    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
+    <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/GPSTracker.js"></script>
-    <script src="js/PaymentManager.js"></script>
-    <script src="js/TaxiSystem.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/script.js"></script>
 </body>
 </html>
