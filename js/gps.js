@@ -1,39 +1,38 @@
-// js/gps.js - Module GPS Tracking
+// js/gps.js - Module GPS Tracking chính xác cao
 class GPSTracker {
     constructor(taxiSystem) {
         this.taxiSystem = taxiSystem;
         this.watchId = null;
         this.wakeLock = null;
         this.isTracking = false;
+        this.lastUpdateTime = 0;
     }
     
     async startTracking() {
         if (!("geolocation" in navigator)) {
-            this.taxiSystem.showError("Trình duyệt không hỗ trợ GPS");
+            this.taxiSystem.showError("Trình duyệt của bạn không hỗ trợ GPS.");
             return false;
         }
         
         try {
-            // Request wake lock
+            // Giữ màn hình luôn sáng (Wake Lock)
             await this.requestWakeLock();
             
-            // Start GPS watch
+            // Theo dõi vị trí với cấu hình tối ưu nhất cho Mobile
             this.watchId = navigator.geolocation.watchPosition(
                 (position) => this.handlePositionUpdate(position),
                 (error) => this.handlePositionError(error),
                 {
-                    enableHighAccuracy: true,
-                    maximumAge: 1000,
-                    timeout: 10000
+                    enableHighAccuracy: true, // Bật GPS độ chính xác cao
+                    maximumAge: 0,            // Không dùng vị trí cũ trong bộ nhớ đệm
+                    timeout: 5000             // Thử lại sau mỗi 5s nếu mất tín hiệu
                 }
             );
             
             this.isTracking = true;
             return true;
-            
         } catch (error) {
-            console.error('Start tracking error:', error);
-            this.taxiSystem.showError("Lỗi khởi động GPS: " + error.message);
+            console.error('Lỗi khởi động GPS:', error);
             return false;
         }
     }
@@ -43,144 +42,95 @@ class GPSTracker {
             navigator.geolocation.clearWatch(this.watchId);
             this.watchId = null;
         }
-        
-        if (this.wakeLock !== null) {
+        this.releaseWakeLock();
+        this.isTracking = false;
+        this.updateScreenStatus("BÌNH THƯỜNG");
+    }
+
+    async requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                this.wakeLock = await navigator.wakeLock.request('screen');
+                this.updateScreenStatus("LUÔN SÁNG (ON)");
+                
+                // Tự động yêu cầu lại nếu bị mất (khi quay lại từ tab khác)
+                this.wakeLock.addEventListener('release', () => {
+                    if (this.isTracking) this.requestWakeLock();
+                });
+            } catch (err) {
+                console.warn("WakeLock thất bại:", err.message);
+            }
+        }
+    }
+
+    releaseWakeLock() {
+        if (this.wakeLock) {
             this.wakeLock.release();
             this.wakeLock = null;
         }
-        
-        this.isTracking = false;
-        
-        // Reset screen status
-        document.getElementById('screenStatus').textContent = "BÌNH THƯỜNG";
     }
-    
-    async requestWakeLock() {
-        try {
-            if ('wakeLock' in navigator) {
-                this.wakeLock = await navigator.wakeLock.request('screen');
-                document.getElementById('screenStatus').textContent = "LUÔN SÁNG (ON)";
-                return true;
-            }
-        } catch (err) {
-            console.warn("WakeLock không khả dụng:", err);
-        }
-        return false;
-    }
-    
+
     handlePositionUpdate(position) {
-        try {
-            const { latitude, longitude, speed, accuracy } = position.coords;
-            
-            // Kiểm tra độ chính xác GPS
-            if (accuracy > 50) { // Độ chính xác kém (>50m)
-                console.log("GPS độ chính xác thấp:", accuracy);
-                return;
+        const { latitude, longitude, speed, accuracy } = position.coords;
+        const now = Date.now();
+
+        // 1. LỌC NHIỄU: Nếu sai số quá lớn (> 30m) thì bỏ qua tọa độ này
+        if (accuracy > 30) return;
+
+        // 2. GIỚI HẠN TẦN SUẤT: Chỉ xử lý nếu cách lần trước ít nhất 1 giây
+        if (now - this.lastUpdateTime < 1000) return;
+        this.lastUpdateTime = now;
+
+        const newPos = L.latLng(latitude, longitude);
+
+        // Cập nhật vị trí Marker xe trên bản đồ
+        if (this.taxiSystem.marker) {
+            this.taxiSystem.marker.setLatLng(newPos);
+        }
+
+        // Nếu đang trong chuyến đi (isRunning = true)
+        if (this.taxiSystem.isRunning) {
+            // Tự động xoay bản đồ theo hướng di chuyển
+            if (this.taxiSystem.map) {
+                this.taxiSystem.map.panTo(newPos);
             }
-            
-            const newPos = L.latLng(latitude, longitude);
-            
-            // Cập nhật marker
-            if (this.taxiSystem.marker) {
-                this.taxiSystem.marker.setLatLng(newPos);
-            }
-            
-            if (this.taxiSystem.isRunning) {
-                // Pan map đến vị trí mới
-                if (this.taxiSystem.map) {
-                    this.taxiSystem.map.panTo(newPos);
-                }
+
+            if (this.taxiSystem.lastPos) {
+                // Tính khoảng cách (đơn vị: mét)
+                const distanceMeters = newPos.distanceTo(this.taxiSystem.lastPos);
                 
-                // Tính khoảng cách di chuyển
-                if (this.taxiSystem.lastPos) {
-                    // Chỉ tính nếu có tốc độ di chuyển > 0.5 km/h
-                    const minSpeed = 0.5 / 3.6; // Convert km/h to m/s
-                    if (speed === null || speed > minSpeed) {
-                        const distance = newPos.distanceTo(this.taxiSystem.lastPos) / 1000; // Convert to km
-                        
-                        // Chống nhảy số: chỉ tính nếu di chuyển > 10m
-                        if (distance > 0.01) {
-                            this.taxiSystem.totalKm += distance;
-                            this.taxiSystem.updateDisplay();
-                        }
+                /* 3. THUẬT TOÁN CHỐNG NHẢY KM: 
+                   - Chỉ cộng dồn nếu di chuyển > 5m (loại bỏ rung lắc GPS khi đứng yên)
+                   - Hoặc vận tốc đo được > 1km/h
+                */
+                const currentSpeedKmH = (speed || 0) * 3.6;
+                
+                if (distanceMeters > 5 || currentSpeedKmH > 1) {
+                    const distanceKm = distanceMeters / 1000;
+                    this.taxiSystem.totalKm += distanceKm;
+                    
+                    // Cập nhật hiển thị tiền và km ngay lập tức
+                    if (typeof this.taxiSystem.updateDisplay === 'function') {
+                        this.taxiSystem.updateDisplay();
                     }
                 }
-                
-                this.taxiSystem.lastPos = newPos;
             }
-        } catch (error) {
-            console.error('Position update error:', error);
+            this.taxiSystem.lastPos = newPos;
         }
     }
-    
+
     handlePositionError(error) {
-        console.error('GPS Error:', error);
-        let message = "Lỗi GPS: ";
-        
+        let msg = "";
         switch(error.code) {
-            case error.PERMISSION_DENIED:
-                message += "Bị từ chối quyền truy cập";
-                break;
-            case error.POSITION_UNAVAILABLE:
-                message += "Không thể lấy vị trí";
-                break;
-            case error.TIMEOUT:
-                message += "Hết thời gian chờ";
-                break;
-            default:
-                message += error.message;
+            case 1: msg = "Vui lòng cho phép quyền truy cập GPS!"; break;
+            case 2: msg = "Không tìm thấy tín hiệu GPS. Hãy ra chỗ thoáng."; break;
+            case 3: msg = "Hết thời gian chờ GPS."; break;
         }
-        
-        this.taxiSystem.showError(message);
+        if (msg) this.taxiSystem.showError(msg);
     }
-    
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        // Haversine formula để tính khoảng cách giữa 2 điểm
-        const R = 6371; // Bán kính Trái đất tính bằng km
-        const dLat = this.toRad(lat2 - lat1);
-        const dLon = this.toRad(lon2 - lon1);
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-    
-    toRad(degrees) {
-        return degrees * (Math.PI / 180);
-    }
-    
-    getCurrentLocation() {
-        return new Promise((resolve, reject) => {
-            if (!("geolocation" in navigator)) {
-                reject(new Error("Geolocation không được hỗ trợ"));
-                return;
-            }
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    resolve({
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                        accuracy: position.coords.accuracy,
-                        speed: position.coords.speed
-                    });
-                },
-                (error) => {
-                    reject(error);
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
-            );
-        });
-    }
-    
-    isLocationAccurate(accuracy) {
-        // Độ chính xác dưới 50m được coi là tốt
-        return accuracy <= 50;
+
+    updateScreenStatus(status) {
+        const el = document.getElementById('screenStatus');
+        if (el) el.textContent = status;
     }
 }
