@@ -1,4 +1,4 @@
-// js/app.js - Module chính khởi tạo ứng dụng
+// js/app.js - Bộ não điều khiển Taxi Pro Max
 class TaxiProMaxApp {
     constructor() {
         this.taxiSystem = null;
@@ -10,205 +10,122 @@ class TaxiProMaxApp {
     
     async init() {
         try {
-            console.log('🚕 Taxi Pro Max đang khởi động...');
+            console.log('🚕 Taxi Pro Max đang nổ máy...');
             
-            // 1. Khởi tạo hệ thống core
+            // 1. Kiểm tra sự tồn tại của TaxiSystem (Bắt buộc)
+            if (typeof TaxiSystem === 'undefined') {
+                throw new Error("Không tìm thấy file TaxiSystem.js. Vui lòng kiểm tra lại đường dẫn.");
+            }
+
+            // 2. Khởi tạo hệ thống core
             this.taxiSystem = new TaxiSystem();
             await this.taxiSystem.init();
             
-            // 2. Khởi tạo các module
-            this.gpsTracker = new GPSTracker(this.taxiSystem);
-            this.paymentManager = new PaymentManager(this.taxiSystem);
-            this.uiManager = new UIManager(this.taxiSystem, this.gpsTracker, this.paymentManager);
+            // 3. Khởi tạo các module (Với kiểm tra an toàn)
+            // Lưu ý: Đảm bảo các Class này đã được định nghĩa trong TaxiSystem.js hoặc Utils.js
+            this.gpsTracker = (typeof GPSTracker !== 'undefined') ? new GPSTracker(this.taxiSystem) : null;
+            this.paymentManager = (typeof PaymentManager !== 'undefined') ? new PaymentManager(this.taxiSystem) : null;
+            this.uiManager = (typeof UIManager !== 'undefined') ? new UIManager(this.taxiSystem, this.gpsTracker, this.paymentManager) : null;
             
-            // 3. Khởi tạo events
+            if (!this.uiManager) {
+                throw new Error("Không khởi tạo được giao diện (UIManager).");
+            }
+
+            // 4. Khởi chạy sự kiện
             this.uiManager.initEvents();
-            
-            // 4. Khởi tạo event listeners toàn cục
             this.initGlobalEvents();
             
-            // 5. Hiển thị welcome modal
+            // 5. Hiện lời chào sau 1.5 giây
             setTimeout(() => {
-                this.uiManager.showModal('wishModal');
-            }, 1000);
+                if(this.uiManager) this.uiManager.showModal('wishModal');
+            }, 1500);
             
             this.isInitialized = true;
-            console.log('✅ Taxi Pro Max đã sẵn sàng!');
-            
+            console.log('✅ Hệ thống đã sẵn sàng phục vụ!');
             return this;
             
         } catch (error) {
-            console.error('❌ Lỗi khởi động ứng dụng:', error);
-            this.showCriticalError('Lỗi khởi động ứng dụng: ' + error.message);
+            console.error('❌ Lỗi khởi động:', error);
+            this.showCriticalError(error.message);
             throw error;
         }
     }
     
     initGlobalEvents() {
-        // Online/Offline detection
+        // Phát hiện mạng Online/Offline
         window.addEventListener('online', () => {
-            this.uiManager.showSuccess("✅ Đã kết nối lại Internet!");
+            if(this.uiManager) this.uiManager.showSuccess("✅ Đã có mạng lại!");
         });
         
         window.addEventListener('offline', () => {
-            this.taxiSystem.showError("⚠️ Mất kết nối mạng. Ứng dụng vẫn hoạt động ở chế độ offline.");
+            alert("⚠️ Bạn đang ngoại tuyến. Một số tính năng bản đồ có thể bị chậm.");
         });
         
-        // Before unload warning
+        // Cảnh báo khi lỡ tay thoát ứng dụng lúc đang chạy chuyến
         window.addEventListener('beforeunload', (e) => {
-            if (this.taxiSystem.isRunning) {
+            if (this.taxiSystem && this.taxiSystem.isRunning) {
                 e.preventDefault();
-                e.returnValue = 'Bạn có chuyến đi đang chạy. Bạn có chắc muốn thoát?';
-                return e.returnValue;
+                e.returnValue = 'Chuyến đi đang diễn ra, bạn có chắc muốn thoát?';
             }
         });
         
-        // Fullscreen support
-        document.addEventListener('fullscreenchange', () => {
-            if (this.taxiSystem.map) {
-                this.taxiSystem.map.invalidateSize();
-            }
-        });
-        
-        // Service worker registration (PWA)
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(error => {
-                    console.log('ServiceWorker registration failed:', error);
-                });
-            });
-        }
-        
-        // Prevent context menu on some elements
+        // Chống chuột phải trên bản đồ để chuyên nghiệp hơn
         document.addEventListener('contextmenu', (e) => {
-            if (e.target.closest('#map')) {
-                e.preventDefault();
-            }
+            if (e.target.closest('#map')) e.preventDefault();
         });
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            this.handleKeyboardShortcuts(e);
-        });
+
+        // Xử lý phím tắt
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
     }
     
     handleKeyboardShortcuts(e) {
-        // Prevent F12 for dev tools (basic protection)
-        if (e.keyCode === 123) { // F12
-            e.preventDefault();
-            return false;
+        // Phím Space để Bắt đầu/Kết thúc nhanh
+        if (e.key === ' ' && (!this.uiManager || this.uiManager.currentTab === 'home')) {
+            const mainBtn = document.getElementById('mainBtn');
+            if (mainBtn) {
+                e.preventDefault();
+                mainBtn.click();
+            }
         }
-        
-        // Ctrl+Shift+I for dev tools
-        if (e.ctrlKey && e.shiftKey && e.keyCode === 73) {
-            e.preventDefault();
-            return false;
-        }
-        
-        // Ctrl+U for view source
-        if (e.ctrlKey && e.keyCode === 85) {
-            e.preventDefault();
-            return false;
-        }
-        
-        // Escape to close modals
-        if (e.key === 'Escape') {
-            this.closeAllModals();
-        }
-        
-        // Space to start/stop trip when on home tab
-        if (e.key === ' ' && this.uiManager.currentTab === 'home') {
-            e.preventDefault();
-            document.getElementById('mainBtn').click();
-        }
+        // Phím Esc để đóng các bảng thông báo
+        if (e.key === 'Escape') this.closeAllModals();
     }
     
     closeAllModals() {
         const modals = ['wishModal', 'endModal', 'zaloModal', 'successModal'];
-        modals.forEach(modalId => {
-            this.uiManager.closeModal(modalId);
+        modals.forEach(id => {
+            const m = document.getElementById(id);
+            if (m) m.style.display = 'none';
         });
     }
     
     showCriticalError(message) {
-        // Hiển thị lỗi nghiêm trọng
         const errorHTML = `
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                background: var(--danger); color: white; display: flex; 
-                flex-direction: column; align-items: center; justify-content: center; 
-                z-index: 100000; padding: 20px; text-align: center;">
-                <div style="font-size: 48px;">❌</div>
-                <h1 style="margin: 20px 0 10px 0;">LỖI NGHIÊM TRỌNG</h1>
-                <p style="margin-bottom: 20px;">${message}</p>
-                <button onclick="location.reload()" 
-                    style="background: white; color: var(--danger); border: none; 
-                    padding: 12px 24px; border-radius: 10px; font-weight: 900; 
-                    cursor: pointer;">
-                    🔄 TẢI LẠI ỨNG DỤNG
-                </button>
+            <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:#ff5252;color:white;
+                 display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px;text-align:center;">
+                <h1 style="font-size:50px">⚠️</h1>
+                <h2>LỖI KHỞI ĐỘNG</h2>
+                <p>${message}</p>
+                <button onclick="location.reload()" style="padding:15px 30px; border-radius:10px; border:none; font-weight:bold; cursor:pointer">THỬ LẠI</button>
             </div>
         `;
-        
-        document.body.insertAdjacentHTML('beforeend', errorHTML);
-    }
-    
-    // Public API methods
-    getSystem() {
-        return this.taxiSystem;
-    }
-    
-    getGPS() {
-        return this.gpsTracker;
-    }
-    
-    getPayment() {
-        return this.paymentManager;
-    }
-    
-    getUI() {
-        return this.uiManager;
-    }
-    
-    isReady() {
-        return this.isInitialized;
+        document.body.innerHTML = errorHTML;
     }
 }
 
-// ==================== GLOBAL INITIALIZATION ====================
+// Khởi tạo ứng dụng khi trang web nạp xong
 let taxiApp;
-
 document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        taxiApp = new TaxiProMaxApp();
-        await taxiApp.init();
-        
-        // Expose to global scope for debugging (optional)
-        window.taxiApp = taxiApp;
-        
-    } catch (error) {
-        console.error('Fatal initialization error:', error);
-        alert('Không thể khởi động ứng dụng. Vui lòng tải lại trang.');
-    }
+    taxiApp = new TaxiProMaxApp();
+    await taxiApp.init();
+    window.taxiApp = taxiApp; // Để anh có thể kiểm tra qua Console của trình duyệt
 });
 
-// ==================== PUBLIC GLOBAL FUNCTIONS ====================
-// Các hàm này có thể được gọi từ console hoặc external scripts
+// Cổng kết nối điều khiển từ bên ngoài (API)
 window.TaxiProMax = {
-    getApp: () => taxiApp,
-    startTrip: () => document.getElementById('mainBtn').click(),
-    stopTrip: () => {
-        if (taxiApp && taxiApp.getSystem().isRunning) {
-            document.getElementById('mainBtn').click();
-        }
-    },
-    selectPackage: (packageId) => {
-        const card = document.querySelector(`.p-card[data-id="${packageId}"]`);
-        if (card) card.click();
-    },
-    showTab: (tabName) => {
-        const tabBtn = document.querySelector(`.nav-item[data-tab="${tabName}"]`);
-        if (tabBtn) tabBtn.click();
-    },
-    exportData: () => document.getElementById('exportDataBtn').click(),
-    clearHistory: () => document.getElementById('clearHistoryBtn').click()
+    start: () => document.getElementById('mainBtn')?.click(),
+    goToTab: (name) => {
+        const btn = document.querySelector(`.nav-item[data-tab="${name}"]`);
+        if (btn) btn.click();
+    }
 };
