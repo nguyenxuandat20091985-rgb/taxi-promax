@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10,62 +10,617 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
 
-    <title>TAXI PROMAX - NGUYỄN XUÂN ĐẠT</title>
+    <title>TAXI PROMAX - HỆ THỐNG ĐẲNG CẤP</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
+        :root {
+            --primary: #00bfa5;
+            --primary-dark: #009688;
+            --secondary: #2196f3;
+            --danger: #ff5252;
+            --warning: #ff9800;
+            --success: #4caf50;
+            --gold: #ffc107;
+            --dark: #002d26;
+            --bg: #f5f7fa;
+            --glass: rgba(255, 255, 255, 0.95);
+            --shadow: 0 8px 30px rgba(0,0,0,0.08);
+        }
         
-        #map { height: 100vh; width: 100vw; z-index: 1; } 
-
-        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
-
-        .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
-        .stat-item { flex: 1; text-align: center; }
-        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
-
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
-        .nav-item.active { color: var(--primary); }
-        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; } 
-
-        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
-
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
-        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
-
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
-        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
-        .p-card b { display: block; font-size: 13px; color: var(--dark); }
-        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
-        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
-
-        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .h-info { text-align: left; }
-        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
-
-        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
-        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
-
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
-        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            outline: none; 
+        }
         
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; 
+            overflow: hidden; 
+            background: var(--bg); 
+            color: #333;
+        }
+        
+        /* Header */
+        .header { 
+            position: fixed; 
+            top: 10px; 
+            left: 10px; 
+            right: 10px; 
+            display: flex; 
+            justify-content: space-between; 
+            z-index: 1000; 
+            pointer-events: none; 
+        }
+        
+        .badge { 
+            pointer-events: auto; 
+            background: var(--glass); 
+            padding: 8px 15px; 
+            border-radius: 20px; 
+            box-shadow: var(--shadow); 
+            font-size: 11px; 
+            font-weight: 800; 
+            color: var(--dark); 
+            border: 1px solid rgba(255,255,255,0.8);
+            backdrop-filter: blur(10px);
+            max-width: 48%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        /* Stats Bar */
+        .stats-bar { 
+            position: fixed; 
+            top: 55px; 
+            left: 10px; 
+            right: 10px; 
+            background: var(--glass); 
+            border-radius: 15px; 
+            display: flex; 
+            padding: 12px; 
+            box-shadow: var(--shadow); 
+            z-index: 1000; 
+            border: 1px solid rgba(255,255,255,0.8);
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-item { 
+            flex: 1; 
+            text-align: center; 
+        }
+        
+        .stat-label { 
+            font-size: 9px; 
+            color: #666; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-value { 
+            font-size: 22px; 
+            font-weight: 900; 
+            color: var(--dark); 
+            margin-top: 2px; 
+        }
+        
+        /* Map */
+        #map { 
+            height: 100vh; 
+            width: 100vw; 
+            z-index: 1; 
+        }
+        
+        /* Footer Panel */
+        .footer-panel { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            background: white; 
+            z-index: 2000; 
+            border-radius: 25px 25px 0 0; 
+            box-shadow: 0 -15px 40px rgba(0,0,0,0.1); 
+            padding: 20px 15px calc(env(safe-area-inset-bottom, 10px) + 10px);
+        }
+        
+        /* Navigation */
+        .nav-grid { 
+            display: flex; 
+            justify-content: space-around; 
+            margin-top: 15px; 
+            padding-top: 10px; 
+            border-top: 1px solid #eee; 
+        }
+        
+        .nav-item { 
+            border: none; 
+            background: none; 
+            color: #95a5a6; 
+            font-size: 10px; 
+            font-weight: 700; 
+            text-align: center; 
+            flex: 1; 
+            transition: all 0.3s ease; 
+            padding: 8px 5px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .nav-item.active { 
+            color: var(--primary); 
+            background: rgba(0, 191, 165, 0.1);
+        }
+        
+        .nav-item i { 
+            font-size: 20px; 
+            display: block; 
+            margin-bottom: 4px; 
+        }
+        
+        .brand-footer { 
+            font-size: 9px; 
+            text-align: center; 
+            color: #bdc3c7; 
+            padding-top: 8px; 
+            font-weight: bold; 
+            letter-spacing: 0.5px; 
+        }
+        
+        /* Tab Content */
+        .tab-content { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: calc(100% - 125px); 
+            background: #fdfdfd; 
+            z-index: 1500; 
+            display: none; 
+            flex-direction: column; 
+            overflow-y: auto; 
+            padding-bottom: 30px; 
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .p-header { 
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); 
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+            border-bottom-left-radius: 25px; 
+            border-bottom-right-radius: 25px; 
+            box-shadow: 0 5px 20px rgba(0, 191, 165, 0.2);
+        }
+        
+        /* Packages Grid */
+        .p-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); 
+            gap: 15px; 
+            padding: 20px; 
+        }
+        
+        .p-card { 
+            background: white; 
+            border: 2px solid #ecf0f1; 
+            border-radius: 20px; 
+            padding: 18px 15px; 
+            transition: all 0.3s ease; 
+            position: relative; 
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        
+        .p-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .p-card.active { 
+            border-color: var(--primary); 
+            background: linear-gradient(135deg, #f0fffb 0%, #e0f8f5 100%);
+            box-shadow: 0 8px 25px rgba(0, 191, 165, 0.15);
+        }
+        
+        .p-card.recommended {
+            border-color: var(--gold);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .p-card.recommended::before {
+            content: "🔥 PHỔ BIẾN";
+            position: absolute;
+            top: 12px;
+            right: -28px;
+            background: var(--gold);
+            color: white;
+            padding: 3px 30px;
+            font-size: 9px;
+            font-weight: 900;
+            transform: rotate(45deg);
+            width: 100px;
+            text-align: center;
+        }
+        
+        .p-card .p-title { 
+            display: block; 
+            font-size: 14px; 
+            color: var(--dark); 
+            font-weight: 900;
+            margin-bottom: 5px;
+        }
+        
+        .p-card .p-price { 
+            color: var(--primary); 
+            font-weight: 900; 
+            font-size: 18px; 
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .p-card .p-savings {
+            font-size: 11px;
+            color: var(--success);
+            font-weight: 800;
+            background: rgba(76, 175, 80, 0.1);
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .p-card ul { 
+            margin: 8px 0 0; 
+            padding: 0; 
+            list-style: none; 
+            font-size: 10px; 
+            color: #666; 
+            line-height: 1.5; 
+        }
+        
+        .p-card ul li {
+            padding: 3px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .p-card ul li i {
+            margin-right: 5px;
+            font-size: 12px;
+        }
+        
+        /* History Cards */
+        .history-card { 
+            background: white; 
+            margin: 10px 15px; 
+            padding: 15px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            border-left: 5px solid var(--primary); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            transition: transform 0.3s ease;
+        }
+        
+        .history-card:hover {
+            transform: translateX(5px);
+        }
+        
+        .h-info { 
+            text-align: left; 
+        }
+        
+        .h-price { 
+            font-weight: 900; 
+            color: var(--primary); 
+            font-size: 16px; 
+        }
+        
+        /* Markers */
+        .sm-marker { 
+            width: 24px; 
+            height: 24px; 
+            background: var(--primary); 
+            border: 3px solid white; 
+            border-radius: 50%; 
+            box-shadow: 0 0 20px rgba(0,191,165,0.7); 
+            position: relative; 
+        }
+        
+        .sm-arrow { 
+            position: absolute; 
+            top: -6px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 0; 
+            height: 0; 
+            border-left: 5px solid transparent; 
+            border-right: 5px solid transparent; 
+            border-bottom: 8px solid var(--primary); 
+        }
+        
+        /* Buttons */
+        .btn-main { 
+            width: 100%; 
+            padding: 16px; 
+            border-radius: 15px; 
+            border: none; 
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); 
+            color: white; 
+            font-size: 16px; 
+            font-weight: 900; 
+            box-shadow: 0 6px 20px rgba(0,191,165,0.3); 
+            transition: all 0.3s ease; 
+            cursor: pointer; 
+            margin-top: 10px;
+        }
+        
+        .btn-main:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,191,165,0.4);
+        }
+        
+        .btn-main:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #ff4081 100%);
+            box-shadow: 0 6px 20px rgba(255, 82, 82, 0.3);
+        }
+        
+        /* Inputs */
+        input[type="range"] { 
+            width: 100%; 
+            margin: 15px 0; 
+            accent-color: var(--primary); 
+            height: 6px;
+            border-radius: 3px;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        
+        /* Modals */
+        .custom-modal { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.7); 
+            z-index: 10000; 
+            display: none; 
+            align-items: center; 
+            justify-content: center; 
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease;
+            padding: 20px;
+        }
+        
+        .modal-content { 
+            background: white; 
+            width: 100%; 
+            max-width: 320px; 
+            padding: 25px; 
+            border-radius: 25px; 
+            text-align: center;
+            animation: slideUp 0.4s ease;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 800;
+            margin-left: 10px;
+        }
+        
+        .status-active {
+            background: rgba(76, 175, 80, 0.1);
+            color: var(--success);
+        }
+        
+        .status-inactive {
+            background: rgba(255, 82, 82, 0.1);
+            color: var(--danger);
+        }
+        
+        .status-trial {
+            background: rgba(255, 193, 7, 0.1);
+            color: var(--warning);
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Info Cards */
+        .info-card {
+            background: white;
+            margin: 15px;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+        }
+        
+        /* Zalo Contact Section */
+        .zalo-section {
+            background: linear-gradient(135deg, #0068ff 0%, #003d99 100%);
+            color: white;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        
+        .zalo-btn {
+            background: white;
+            color: #0068ff;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: 900;
+            font-size: 14px;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .zalo-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(255,255,255,0.3);
+        }
+        
+        /* Transaction Info */
+        .transaction-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 15px;
+            margin: 15px 0;
+            border-left: 4px solid var(--primary);
+            font-size: 13px;
+            word-break: break-all;
+        }
+        
+        /* Feature Lists */
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .feature-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            text-align: center;
+        }
+        
+        /* Ad Banner */
+        .ad-banner {
+            background: linear-gradient(135deg, var(--warning) 0%, #ff5722 100%);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 12px;
+            margin-top: 15px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 800;
+            display: none;
+        }
+        
+        /* Error Message */
+        .error-message {
+            background: rgba(255, 82, 82, 0.1);
+            color: var(--danger);
+            padding: 10px 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+            display: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+            .p-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-bar {
+                padding: 10px;
+            }
+            
+            .stat-value {
+                font-size: 18px;
+            }
+            
+            .feature-list {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+            }
+            
+            .modal-content {
+                max-width: 90%;
+                padding: 20px;
+            }
+        }
+        
+        @media (max-width: 320px) {
+            .badge {
+                font-size: 10px;
+                padding: 6px 10px;
+            }
+            
+            .p-header {
+                padding: 20px 15px;
+            }
+        }
     </style>
 </head>
-<body oncontextmenu="return false;"> 
+<body>
 
+    <!-- Header -->
     <div class="header">
-        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
-        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
-    </div> 
+        <div class="badge" id="idShow">🆔 ĐANG KHỞI TẠO...</div>
+        <div class="badge" id="planShow">⭐ DÙNG THỬ 7 NGÀY</div>
+    </div>
 
+    <!-- Stats Bar -->
     <div class="stats-bar" id="statsUI">
         <div class="stat-item" style="border-right: 1px solid #eee;">
             <div class="stat-label">CƯỚC (VNĐ)</div>
@@ -75,230 +630,1386 @@
             <div class="stat-label">KHOẢNG CÁCH (KM)</div>
             <div id="km" class="stat-value">0.00</div>
         </div>
-    </div> 
+    </div>
 
-    <div id="map"></div> 
+    <!-- Map -->
+    <div id="map"></div>
 
+    <!-- Tab: Ví tiền & Gói cước -->
     <div id="tab-vi" class="tab-content">
         <div class="p-header">
-            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">ƯU ĐÃI DÙNG THỬ 7 NGÀY MIỄN PHÍ</div>
+            <div style="font-size: 20px; font-weight: 900;">HỆ THỐNG GÓI CƯỚC ĐẲNG CẤP</div>
+            <div id="trialBox" style="font-size: 12px; opacity: 0.9; margin-top: 5px;">
+                <span class="status-badge status-trial">DÙNG THỬ 7 NGÀY</span>
+                <span id="trialDays"></span>
+            </div>
         </div>
+        
+        <!-- Gói Free (Dùng thử) -->
         <div class="p-grid">
-            <div class="p-card" onclick="selectPack(19000, 'BASIC', this)">
-                <b>GÓI BASIC</b><span>19.000đ</span>
-                <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul>
-            </div>
-            <div class="p-card" onclick="selectPack(29000, 'PRO', this)">
-                <b>GÓI PRO</b><span>29.000đ</span>
-                <ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul>
-            </div>
-            <div class="p-card active" onclick="selectPack(49000, 'VIP 1TH', this)">
-                <b>GÓI VIP 1TH</b><span>49.000đ</span>
-                <ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul>
-            </div>
-            <div class="p-card" onclick="selectPack(999000, 'TRỌN ĐỜI', this)">
-                <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
-                <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
+            <div class="p-card active" data-price="0" data-id="FREE_TRIAL" data-name="GÓI DÙNG THỬ">
+                <b class="p-title">🎯 GÓI DÙNG THỬ</b>
+                <span class="p-price">MIỄN PHÍ</span>
+                <ul>
+                    <li><i>✅</i> 7 ngày trải nghiệm</li>
+                    <li><i>✅</i> Tính cước cơ bản</li>
+                    <li><i>✅</i> Lưu 10 chuyến gần nhất</li>
+                    <li><i>❌</i> Không có AI Voice</li>
+                    <li><i>❌</i> Không xuất PDF</li>
+                    <li><i>⚠️</i> Quảng cáo sau 7 ngày</li>
+                </ul>
             </div>
         </div>
-        <div style="text-align:center; padding: 20px; background:white; margin: 10px 15px; border-radius:20px; border: 1px dashed #ccc;">
-            <img id="qrImg" style="width:180px; border-radius:10px;" src="">
-            <p style="font-size:12px; margin: 10px 0 5px;">Nội dung chuyển khoản:</p>
-            <b id="qrContent" style="color:var(--danger); font-size: 16px;">...</b>
-            <br><br>
-            <button class="btn-main" style="padding:10px; font-size:14px;" onclick="verifyPayment()">XÁC NHẬN ĐÃ CHUYỂN</button>
+        
+        <!-- Các gói trả phí -->
+        <div style="padding: 0 20px; margin-top: 10px;">
+            <h3 style="color: var(--dark); font-size: 16px;">🎁 GÓI TRẢ PHÍ</h3>
         </div>
-    </div> 
+        
+        <div class="p-grid">
+            <!-- BASIC -->
+            <div class="p-card" data-price="19000" data-id="BASIC_1M" data-name="BASIC 1 THÁNG">
+                <b class="p-title">🚕 BASIC 1 THÁNG</b>
+                <span class="p-price">19.000đ</span>
+                <ul>
+                    <li><i>✅</i> Tính cước + thời gian</li>
+                    <li><i>✅</i> Chế độ Offline</li>
+                    <li><i>✅</i> Lưu 50 chuyến</li>
+                    <li><i>✅</i> Bản đồ cơ bản</li>
+                </ul>
+            </div>
+            
+            <!-- PRO -->
+            <div class="p-card recommended" data-price="49000" data-id="PRO_1M" data-name="PRO 1 THÁNG">
+                <b class="p-title">🚖 PRO 1 THÁNG</b>
+                <span class="p-price">49.000đ</span>
+                <span class="p-savings">TIẾT KIỆM 20%</span>
+                <ul>
+                    <li><i>✅</i> Tất cả tính năng Basic</li>
+                    <li><i>✅</i> Real-time Map nâng cao</li>
+                    <li><i>✅</i> Xuất PDF hóa đơn</li>
+                    <li><i>✅</i> Thống kê doanh thu</li>
+                </ul>
+            </div>
+            
+            <!-- VIP -->
+            <div class="p-card" data-price="99000" data-id="VIP_1M" data-name="VIP 1 THÁNG">
+                <b class="p-title">🏆 VIP 1 THÁNG</b>
+                <span class="p-price">99.000đ</span>
+                <ul>
+                    <li><i>✅</i> Tất cả tính năng Pro</li>
+                    <li><i>✅</i> AI Voice Assistant</li>
+                    <li><i>✅</i> Cloud Backup không giới hạn</li>
+                    <li><i>✅</i> Hỗ trợ ưu tiên 24/7</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- COMBO KHUYẾN MÃI -->
+        <div style="padding: 0 20px; margin-top: 10px;">
+            <h3 style="color: var(--gold); font-size: 16px;">💎 COMBO ƯU ĐÃI</h3>
+        </div>
+        
+        <div class="p-grid">
+            <!-- COMBO 3 THÁNG PRO -->
+            <div class="p-card" data-price="129000" data-id="COMBO_PRO_3M" data-name="PRO 3 THÁNG">
+                <b class="p-title">📦 PRO 3 THÁNG</b>
+                <span class="p-price">129.000đ</span>
+                <span class="p-savings">TIẾT KIỆM 18K</span>
+                <ul>
+                    <li><i>✅</i> 3 tháng sử dụng</li>
+                    <li><i>✅</i> Tất cả tính năng Pro</li>
+                    <li><i>🎁</i> Quà tặng đặc biệt</li>
+                </ul>
+            </div>
+            
+            <!-- COMBO 6 THÁNG VIP -->
+            <div class="p-card recommended" data-price="499000" data-id="COMBO_VIP_6M" data-name="VIP 6 THÁNG">
+                <b class="p-title">💎 VIP 6 THÁNG</b>
+                <span class="p-price">499.000đ</span>
+                <span class="p-savings">TIẾT KIỆM 95K</span>
+                <ul>
+                    <li><i>✅</i> 6 tháng VIP</li>
+                    <li><i>✅</i> AI cao cấp</li>
+                    <li><i>🎁</i> Tặng bảo hiểm</li>
+                </ul>
+            </div>
+            
+            <!-- TRỌN ĐỜI -->
+            <div class="p-card" data-price="1499000" data-id="LIFETIME" data-name="VIP TRỌN ĐỜI">
+                <b class="p-title">👑 VIP TRỌN ĐỜI</b>
+                <span class="p-price">1.499.000đ</span>
+                <span class="p-savings">MỘT LẦN DUY NHẤT</span>
+                <ul>
+                    <li><i>✅</i> Sử dụng vĩnh viễn</li>
+                    <li><i>✅</i> Cập nhật miễn phí</li>
+                    <li><i>✅</i> Hỗ trợ trọn đời</li>
+                    <li><i>🎁</i> Quà tặng độc quyền</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Thông tin chuyển khoản -->
+        <div class="info-card">
+            <h3 style="color: var(--primary); margin-top: 0;">💰 THÔNG TIN CHUYỂN KHOẢN</h3>
+            <div class="transaction-info">
+                <p><strong>Ngân hàng:</strong> BIDV</p>
+                <p><strong>Số tài khoản:</strong> 4430269669</p>
+                <p><strong>Chủ tài khoản:</strong> NGUYỄN XUÂN ĐẠT</p>
+                <p><strong>Nội dung chuyển khoản:</strong></p>
+                <b id="qrContent" style="color: var(--danger); font-size: 14px; display: block; margin-top: 5px;">
+                    Vui lòng chọn gói cước
+                </b>
+            </div>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <img id="qrImg" style="width: 180px; height: 180px; border-radius: 10px; border: 1px solid #eee; background: #f8f9fa; padding: 10px;" 
+                     src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=TAXIPROMAX_CHON_GOI_TRUOC">
+            </div>
+            
+            <!-- Mã giao dịch -->
+            <div style="margin: 15px 0;">
+                <input type="text" id="transactionCode" placeholder="Nhập mã giao dịch từ ngân hàng" 
+                       style="width: 100%; padding: 12px 15px; border-radius: 10px; border: 2px solid #e0e0e0; font-size: 14px;">
+                <small style="color: #666; font-size: 11px; display: block; margin-top: 5px;">VD: 123456789 (mã từ SMS ngân hàng)</small>
+            </div>
+            
+            <!-- Error Message -->
+            <div id="errorMessage" class="error-message"></div>
+            
+            <!-- Nút hành động -->
+            <button id="copyPaymentBtn" class="btn-main">📋 SAO CHÉP THÔNG TIN</button>
+            <button id="zaloRequestBtn" class="btn-main btn-secondary" style="margin-top: 10px;">
+                📱 GỬI YÊU CẦU QUA ZALO
+            </button>
+            <button id="verifyPaymentBtn" class="btn-main" style="margin-top: 10px; background: var(--success);">
+                ✅ XÁC NHẬN ĐÃ CHUYỂN KHOẢN
+            </button>
+        </div>
+        
+        <!-- Ad Banner -->
+        <div id="adBanner" class="ad-banner">
+            ⚠️ Hết thời gian dùng thử! Nâng cấp ngay để tiếp tục sử dụng đầy đủ tính năng
+        </div>
+    </div>
 
+    <!-- Tab: Lịch sử -->
     <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
-    </div> 
+        <div class="p-header">📊 LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList" style="padding-top: 15px;"></div>
+    </div>
 
+    <!-- Tab: Cá nhân -->
     <div id="tab-toi" class="tab-content">
-        <div class="p-header">THIẾT LẬP</div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
-                <p>Mã tài xế: <b id="profileID">...</b></p>
-                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
-                <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
-                <p>Bảo mật: <b style="color:var(--primary)">AES-256 BIT</b></p>
-                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="clearHistory()">XÓA LỊCH SỬ</button>
+        <div class="p-header">👤 TÀI KHOẢN CỦA TÔI</div>
+        
+        <div class="info-card">
+            <h3 style="color: var(--primary); margin-top: 0;">📋 THÔNG TIN TÀI XẾ</h3>
+            <p><strong>Mã tài xế:</strong> <b id="profileID" style="color: var(--dark);">...</b></p>
+            <p><strong>Trạng thái:</strong> 
+                <span id="accountStatus" class="status-badge status-active">ĐANG HOẠT ĐỘNG</span>
+            </p>
+            <p><strong>Gói đang dùng:</strong> 
+                <span id="currentPackage" style="color: var(--primary); font-weight: 900;">DÙNG THỬ 7 NGÀY</span>
+            </p>
+            <p><strong>Ngày hết hạn:</strong> 
+                <span id="expiryDate" style="color: var(--danger); font-weight: 900;">...</span>
+            </p>
+            <p><strong>Màn hình:</strong> 
+                <span id="screenStatus" style="color: var(--primary);">LUÔN SÁNG</span>
+            </p>
+            <p><strong>Bảo mật:</strong> 
+                <span style="color: var(--primary); font-weight: 900;">AES-256 BIT</span>
+            </p>
+            
+            <div class="feature-list">
+                <div class="feature-item" style="background: rgba(0, 191, 165, 0.1);">
+                    <div style="font-weight: 900; color: var(--primary);">Tổng chuyến</div>
+                    <div id="totalTrips" style="font-size: 18px; font-weight: 900;">0</div>
+                </div>
+                <div class="feature-item" style="background: rgba(33, 150, 243, 0.1);">
+                    <div style="font-weight: 900; color: var(--secondary);">Tổng KM</div>
+                    <div id="totalKm" style="font-size: 18px; font-weight: 900;">0</div>
+                </div>
+                <div class="feature-item" style="background: rgba(76, 175, 80, 0.1);">
+                    <div style="font-weight: 900; color: var(--success);">Tổng thu</div>
+                    <div id="totalEarned" style="font-size: 18px; font-weight: 900;">0đ</div>
+                </div>
             </div>
+            
+            <button id="clearHistoryBtn" class="btn-main" style="margin-top: 20px; background: var(--danger);">
+                🗑️ XÓA LỊCH SỬ
+            </button>
+            <button id="exportDataBtn" class="btn-main" style="margin-top: 10px; background: var(--secondary);">
+                📤 XUẤT DỮ LIỆU
+            </button>
         </div>
-    </div> 
+        
+        <!-- Thông tin liên hệ Zalo -->
+        <div class="zalo-section">
+            <h3 style="margin: 0 0 10px 0; font-size: 18px;">📞 HỖ TRỢ QUA ZALO</h3>
+            <p style="font-size: 12px; opacity: 0.9; margin-bottom: 15px;">
+                Liên hệ ngay để được kích hoạt gói cước<br>
+                và hỗ trợ kỹ thuật 24/7
+            </p>
+            <button id="zaloSupportBtn" class="zalo-btn">
+                💬 LIÊN HỆ ZALO NGAY
+            </button>
+            <p style="font-size: 10px; margin-top: 15px; opacity: 0.7;">
+                (Số điện thoại được ẩn để tránh làm phiền)
+            </p>
+        </div>
+    </div>
 
+    <!-- Footer Controls -->
     <div class="footer-panel">
         <div id="homeControls">
             <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
                 <span>GIÁ/KM</span>
                 <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
             </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-        </div> 
-
-        <div class="nav-grid">
-            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" id="rateSlider">
+            <button id="mainBtn" class="btn-main">🚕 BẮT ĐẦU CHUYẾN ĐI</button>
         </div>
-        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
+
+        <!-- Navigation -->
+        <div class="nav-grid">
+            <button class="nav-item active" data-tab="home"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" data-tab="vi"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" data-tab="lichsu"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" data-tab="toi"><i>👤</i>Tôi</button>
+        </div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT | BẢN QUYỀN © 2024</div>
     </div>
 
-    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
-    <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div>
+    <!-- Modals -->
+    <div id="wishModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="color:var(--primary)">🎯 THƯỢNG LỘ BÌNH AN!</h3>
+            <p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p>
+            <div class="spinner"></div>
+            <p style="font-size: 12px; color: #666;">Đang khởi tạo GPS với độ chính xác cao...</p>
+            <button class="btn-main" id="closeWishModal">ĐỒNG Ý</button>
+        </div>
+    </div>
+    
+    <div id="endModal" class="custom-modal">
+        <div class="modal-content">
+            <h3>✅ HOÀN THÀNH CHUYẾN ĐI</h3>
+            <div id="endSummary" style="padding: 15px 0; font-size: 16px;"></div>
+            <button class="btn-main" id="closeEndModal">XÁC NHẬN</button>
+        </div>
+    </div>
+    
+    <div id="zaloModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="color: #0068ff;">📱 LIÊN HỆ ZALO</h3>
+            <p>Vui lòng gửi thông tin sau qua Zalo:</p>
+            <div class="transaction-info">
+                <p><strong>Mã tài xế:</strong> <span id="zaloDriverId"></span></p>
+                <p><strong>Gói cước:</strong> <span id="zaloPackage"></span></p>
+                <p><strong>Số tiền:</strong> <span id="zaloAmount"></span></p>
+                <p><strong>Mã giao dịch:</strong> <span id="zaloTransCode"></span></p>
+            </div>
+            <p style="font-size: 12px; color: #666; margin-top: 15px;">
+                Tôi sẽ kích hoạt gói cước cho bạn trong vòng 5-10 phút sau khi nhận được tin nhắn.
+            </p>
+            <button class="btn-main" id="copyZaloMessageBtn" style="background: #0068ff;">
+                📋 SAO CHÉP TIN NHẮN
+            </button>
+            <button class="btn-main" id="closeZaloModal" style="margin-top: 10px;">
+                ĐÃ GỬI TIN NHẮN
+            </button>
+        </div>
+    </div>
+    
+    <div id="successModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="color: var(--success);">🎉 THÀNH CÔNG!</h3>
+            <div id="successMessage"></div>
+            <button class="btn-main" id="closeSuccessModal">OK</button>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- 1. KHỞI TẠO BẢO MẬT & ID ---
-        const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-        localStorage.setItem('tx_id', TX_ID);
-        document.getElementById('idShow').innerText = "🆔 " + TX_ID;
-        document.getElementById('profileID').innerText = TX_ID;
-
-        // --- 2. HỆ THỐNG BẢN ĐỒ ---
-        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
-        var smIcon = L.divIcon({ className: 'sm-div-icon', html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", iconSize: [24, 24], iconAnchor: [12, 12] });
-        var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map); 
-
-        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, watchId = null, wakeLock = null;
-
-        // --- 3. GIỮ MÀN HÌNH LUÔN SÁNG (WAKE LOCK) ---
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)";
+        // ==================== 1. TAXI SYSTEM CLASS ====================
+        class TaxiSystem {
+            constructor() {
+                this.isRunning = false;
+                this.totalKm = 0;
+                this.lastPos = null;
+                this.currentRate = 15000;
+                this.watchId = null;
+                this.wakeLock = null;
+                this.selectedPackage = null;
+                this.dailyTrips = 0;
+                this.tripLimit = 3; // Giới hạn chuyến cho gói free
+                
+                this.init();
+            }
+            
+            async init() {
+                try {
+                    // Khởi tạo driver ID
+                    await this.initDriverId();
+                    
+                    // Khởi tạo bản đồ
+                    await this.initMap();
+                    
+                    // Khởi tạo sự kiện
+                    this.initEvents();
+                    
+                    // Tải dữ liệu
+                    this.loadTrialStatus();
+                    this.loadHistory();
+                    this.loadStatistics();
+                    
+                    // Chọn gói mặc định
+                    this.selectDefaultPackage();
+                    
+                    console.log('TaxiSystem initialized successfully');
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    this.showError('Khởi tạo hệ thống thất bại: ' + error.message);
                 }
-            } catch (err) { console.log("WakeLock lỗi"); }
-        }
-
-        // --- 4. GPS CHÍNH XÁC CAO (WATCH POSITION) ---
-        function startTracking() {
-            if ("geolocation" in navigator) {
-                watchId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        const { latitude, longitude, speed } = pos.coords;
-                        const newPos = L.latLng(latitude, longitude);
-                        marker.setLatLng(newPos);
-                        if(isRunning) {
-                            map.panTo(newPos);
-                            // Chỉ tính tiền nếu GPS ổn định và tốc độ thực tế > 1km/h (chống nhảy số khi đứng yên)
-                            if(lastPos && (speed > 0.3 || speed === null)) {
-                                let d = newPos.distanceTo(lastPos) / 1000;
-                                if(d > 0.005) { // Nhích trên 5m mới tính
-                                    totalKm += d;
-                                    document.getElementById('km').innerText = totalKm.toFixed(2);
-                                    document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
-                                }
-                            }
-                            lastPos = newPos;
-                        }
-                    },
-                    (err) => { console.error(err); },
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+            }
+            
+            initDriverId() {
+                let storedId = localStorage.getItem('tx_id');
+                if (!storedId) {
+                    const timestamp = Date.now().toString(36);
+                    const random = Math.random().toString(36).substr(2, 4);
+                    storedId = `TAXI-${timestamp}-${random}`.toUpperCase();
+                    localStorage.setItem('tx_id', storedId);
+                }
+                
+                this.driverId = storedId;
+                
+                // Hiển thị ID
+                document.getElementById('idShow').textContent = "🆔 " + this.driverId;
+                document.getElementById('profileID').textContent = this.driverId;
+                document.getElementById('zaloDriverId').textContent = this.driverId;
+            }
+            
+            initMap() {
+                return new Promise((resolve) => {
+                    try {
+                        this.map = L.map('map', { 
+                            zoomControl: false, 
+                            attributionControl: false,
+                            gestureHandling: true
+                        }).setView([21.02, 105.83], 16);
+                        
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '© OpenStreetMap'
+                        }).addTo(this.map);
+                        
+                        const smIcon = L.divIcon({ 
+                            className: 'sm-div-icon', 
+                            html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", 
+                            iconSize: [24, 24], 
+                            iconAnchor: [12, 12] 
+                        });
+                        
+                        this.marker = L.marker([21.02, 105.83], { 
+                            icon: smIcon,
+                            draggable: false
+                        }).addTo(this.map);
+                        
+                        this.routeLayer = L.layerGroup().addTo(this.map);
+                        resolve();
+                    } catch (error) {
+                        console.error('Map initialization error:', error);
+                        resolve(); // Vẫn tiếp tục nếu map lỗi
+                    }
+                });
+            }
+            
+            initEvents() {
+                // Rate slider
+                document.getElementById('rateSlider').addEventListener('input', (e) => {
+                    this.updateRate(parseInt(e.target.value));
+                });
+                
+                // Main button
+                document.getElementById('mainBtn').addEventListener('click', () => {
+                    this.handleTrip();
+                });
+                
+                // Package selection
+                document.querySelectorAll('.p-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const price = parseInt(card.dataset.price);
+                        const id = card.dataset.id;
+                        const name = card.dataset.name;
+                        this.selectPackage(price, id, name, card);
+                    });
+                });
+                
+                // Payment buttons
+                document.getElementById('copyPaymentBtn').addEventListener('click', () => {
+                    this.copyPaymentInfo();
+                });
+                
+                document.getElementById('zaloRequestBtn').addEventListener('click', () => {
+                    this.openZaloRequest();
+                });
+                
+                document.getElementById('verifyPaymentBtn').addEventListener('click', () => {
+                    this.verifyPaymentManual();
+                });
+                
+                document.getElementById('zaloSupportBtn').addEventListener('click', () => {
+                    this.openZaloSupport();
+                });
+                
+                document.getElementById('copyZaloMessageBtn').addEventListener('click', () => {
+                    this.copyZaloMessage();
+                });
+                
+                // Clear history
+                document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+                    this.clearHistory();
+                });
+                
+                // Export data
+                document.getElementById('exportDataBtn').addEventListener('click', () => {
+                    this.exportData();
+                });
+                
+                // Navigation
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const tab = item.dataset.tab;
+                        this.showTab(tab, item);
+                    });
+                });
+                
+                // Modal close buttons
+                document.getElementById('closeWishModal').addEventListener('click', () => {
+                    this.closeModal('wishModal');
+                });
+                
+                document.getElementById('closeEndModal').addEventListener('click', () => {
+                    this.closeModal('endModal');
+                });
+                
+                document.getElementById('closeZaloModal').addEventListener('click', () => {
+                    this.closeModal('zaloModal');
+                });
+                
+                document.getElementById('closeSuccessModal').addEventListener('click', () => {
+                    this.closeModal('successModal');
+                });
+                
+                // Check daily trips for free trial
+                this.checkDailyTrips();
+            }
+            
+            // ==================== 2. GPS & TRIP MANAGEMENT ====================
+            async requestWakeLock() {
+                try {
+                    if ('wakeLock' in navigator) {
+                        this.wakeLock = await navigator.wakeLock.request('screen');
+                        document.getElementById('screenStatus').textContent = "LUÔN SÁNG (ON)";
+                        return true;
+                    }
+                } catch (err) {
+                    console.warn("WakeLock không khả dụng:", err);
+                }
+                return false;
+            }
+            
+            startTracking() {
+                if (!("geolocation" in navigator)) {
+                    this.showError("Trình duyệt không hỗ trợ GPS");
+                    return;
+                }
+                
+                this.watchId = navigator.geolocation.watchPosition(
+                    (position) => this.handlePositionUpdate(position),
+                    (error) => this.handlePositionError(error),
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 1000,
+                        timeout: 10000
+                    }
                 );
             }
-        }
-
-        function updateRate(v) { 
-            currentRate = v; 
-            document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); 
-        } 
-
-        function handleTrip() {
-            const btn = document.getElementById('mainBtn');
-            if(!isRunning) {
-                isRunning = true;
-                btn.innerText = "KẾT THÚC CHUYẾN ĐI";
-                btn.style.background = "var(--danger)";
-                document.getElementById('wishModal').style.display = 'flex';
-                totalKm = 0; lastPos = null;
-                document.getElementById('km').innerText = "0.00";
-                document.getElementById('cost').innerText = "0";
-                requestWakeLock();
-                startTracking();
-            } else {
-                isRunning = false;
-                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
-                btn.style.background = "var(--primary)";
-                if(watchId) navigator.geolocation.clearWatch(watchId);
-                if(wakeLock) wakeLock.release();
-                
-                let finalCost = Math.round(totalKm * currentRate);
-                saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
-                
-                document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
-                document.getElementById('endModal').style.display = 'flex';
-            }
-        } 
-
-        // --- 5. LƯU LỊCH SỬ BẢO MẬT ---
-        function saveHistory(km, cost) {
-            const list = document.getElementById('historyList');
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
-            const itemData = { time, km, cost };
             
-            // Lưu vào localStorage dự phòng
-            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            history.unshift(itemData);
-            localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 50))); // Lưu 50 chuyến gần nhất
-
-            const item = document.createElement('div');
-            item.className = 'history-card';
-            item.innerHTML = `<div class="h-info"><b>${time}</b><br><small>${km} KM</small></div><div class="h-price">${cost}đ</div>`;
-            list.prepend(item);
-        }
-
-        function clearHistory() { if(confirm("Xóa sạch lịch sử?")) { localStorage.removeItem('trip_history'); location.reload(); } }
-
-        // --- 6. XÁC THỰC THANH TOÁN (PAYOS WEBHOOK) ---
-        function selectPack(price, name, el) {
-            document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
-            const content = `${TX_ID} NAP ${name}`;
-            document.getElementById('qrContent').innerText = content;
-            document.getElementById('qrImg').src = `https://img.vietqr.io/image/bidv-4430269669-compact2.png?amount=${price}&addInfo=${encodeURIComponent(content)}`;
-        }
-
-        async function verifyPayment() {
-            // Đây là nơi gọi Webhook của anh để kiểm tra trạng thái PAID
-            alert("Đang kiểm tra giao dịch trên hệ thống BIDV...");
-            // Giả lập check:
-            setTimeout(() => {
-                alert("Hệ thống chưa tìm thấy giao dịch. Nếu đã chuyển, vui lòng đợi 1-3 phút để ngân hàng xử lý.");
-            }, 1500);
-        }
-
-        // TAB SYSTEM
-        function showTab(tab, btn) {
-            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            if(tab === 'home') document.getElementById('homeControls').style.display = 'block';
-            else {
-                document.getElementById('homeControls').style.display = 'none';
-                document.getElementById('tab-' + tab).style.display = 'flex';
-                if(tab === 'vi') selectPack(49000, 'VIP 1TH', document.querySelectorAll('.p-card')[2]);
+            handlePositionUpdate(position) {
+                try {
+                    const { latitude, longitude, speed, accuracy } = position.coords;
+                    
+                    // Kiểm tra độ chính xác GPS
+                    if (accuracy > 50) { // Độ chính xác kém (>50m)
+                        console.log("GPS độ chính xác thấp:", accuracy);
+                        return;
+                    }
+                    
+                    const newPos = L.latLng(latitude, longitude);
+                    
+                    // Cập nhật marker
+                    if (this.marker) {
+                        this.marker.setLatLng(newPos);
+                    }
+                    
+                    if (this.isRunning) {
+                        // Pan map đến vị trí mới
+                        if (this.map) {
+                            this.map.panTo(newPos);
+                        }
+                        
+                        // Tính khoảng cách di chuyển
+                        if (this.lastPos) {
+                            // Chỉ tính nếu có tốc độ di chuyển > 0.5 km/h
+                            const minSpeed = 0.5 / 3.6; // Convert km/h to m/s
+                            if (speed === null || speed > minSpeed) {
+                                const distance = newPos.distanceTo(this.lastPos) / 1000; // Convert to km
+                                
+                                // Chống nhảy số: chỉ tính nếu di chuyển > 10m
+                                if (distance > 0.01) {
+                                    this.totalKm += distance;
+                                    this.updateDisplay();
+                                }
+                            }
+                        }
+                        
+                        this.lastPos = newPos;
+                    }
+                } catch (error) {
+                    console.error('Position update error:', error);
+                }
+            }
+            
+            handlePositionError(error) {
+                console.error('GPS Error:', error);
+                let message = "Lỗi GPS: ";
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        message += "Bị từ chối quyền truy cập";
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        message += "Không thể lấy vị trí";
+                        break;
+                    case error.TIMEOUT:
+                        message += "Hết thời gian chờ";
+                        break;
+                    default:
+                        message += error.message;
+                }
+                
+                this.showError(message);
+            }
+            
+            updateDisplay() {
+                try {
+                    document.getElementById('km').textContent = this.totalKm.toFixed(2);
+                    const cost = Math.round(this.totalKm * this.currentRate);
+                    document.getElementById('cost').textContent = cost.toLocaleString('vi-VN');
+                } catch (error) {
+                    console.error('Display update error:', error);
+                }
+            }
+            
+            updateRate(value) {
+                this.currentRate = value;
+                document.getElementById('rateLabel').textContent = value.toLocaleString('vi-VN');
+                this.updateDisplay();
+            }
+            
+            async handleTrip() {
+                try {
+                    // Kiểm tra giới hạn chuyến cho gói free
+                    if (!this.canStartTrip()) {
+                        return;
+                    }
+                    
+                    const btn = document.getElementById('mainBtn');
+                    
+                    if (!this.isRunning) {
+                        // Bắt đầu chuyến đi
+                        this.isRunning = true;
+                        this.totalKm = 0;
+                        this.lastPos = null;
+                        
+                        btn.textContent = "🛑 KẾT THÚC CHUYẾN ĐI";
+                        btn.style.background = "linear-gradient(135deg, var(--danger) 0%, #ff4081 100%)";
+                        
+                        // Hiển thị modal
+                        this.showModal('wishModal');
+                        
+                        // Khởi động hệ thống
+                        await this.requestWakeLock();
+                        this.startTracking();
+                        
+                        // Tăng số chuyến trong ngày
+                        this.dailyTrips++;
+                        this.saveDailyTrips();
+                        
+                    } else {
+                        // Kết thúc chuyến đi
+                        this.isRunning = false;
+                        
+                        btn.textContent = "🚕 BẮT ĐẦU CHUYẾN ĐI";
+                        btn.style.background = "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)";
+                        
+                        // Dừng tracking
+                        if (this.watchId !== null) {
+                            navigator.geolocation.clearWatch(this.watchId);
+                            this.watchId = null;
+                        }
+                        
+                        if (this.wakeLock !== null) {
+                            this.wakeLock.release();
+                            this.wakeLock = null;
+                        }
+                        
+                        // Tính toán và lưu chuyến đi
+                        const finalCost = Math.round(this.totalKm * this.currentRate);
+                        this.saveTrip(this.totalKm, finalCost);
+                        
+                        // Hiển thị tổng kết
+                        this.showTripSummary(this.totalKm, finalCost);
+                    }
+                } catch (error) {
+                    console.error('Trip handling error:', error);
+                    this.showError('Lỗi xử lý chuyến đi: ' + error.message);
+                }
+            }
+            
+            canStartTrip() {
+                // Kiểm tra gói free trial
+                const userPackage = JSON.parse(localStorage.getItem('user_package') || '{"type":"FREE_TRIAL"}');
+                
+                if (userPackage.type === 'FREE_TRIAL') {
+                    const trialStart = parseInt(localStorage.getItem('trial_start') || Date.now());
+                    const now = Date.now();
+                    const daysPassed = Math.floor((now - trialStart) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysPassed > 7) {
+                        // Đã hết hạn dùng thử
+                        if (this.dailyTrips >= this.tripLimit) {
+                            this.showError(`Đã đạt giới hạn ${this.tripLimit} chuyến/ngày cho gói miễn phí. Vui lòng nâng cấp!`);
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
+            }
+            
+            // ==================== 3. TRIAL & PACKAGE MANAGEMENT ====================
+            loadTrialStatus() {
+                try {
+                    let trialStart = localStorage.getItem('trial_start');
+                    if (!trialStart) {
+                        trialStart = Date.now().toString();
+                        localStorage.setItem('trial_start', trialStart);
+                    }
+                    
+                    const startTime = parseInt(trialStart);
+                    const now = Date.now();
+                    const daysPassed = Math.floor((now - startTime) / (1000 * 60 * 60 * 24));
+                    const daysLeft = 7 - daysPassed;
+                    
+                    if (daysLeft > 0) {
+                        document.getElementById('trialDays').textContent = `Còn ${daysLeft} ngày dùng thử`;
+                        document.getElementById('currentPackage').textContent = `DÙNG THỬ (${daysLeft} ngày còn lại)`;
+                        document.getElementById('expiryDate').textContent = this.formatDate(startTime + 7 * 24 * 60 * 60 * 1000);
+                        document.getElementById('planShow').innerHTML = '⭐ DÙNG THỬ 7 NGÀY';
+                        document.getElementById('planShow').style.color = 'var(--gold)';
+                        
+                        // Ẩn quảng cáo
+                        document.getElementById('adBanner').style.display = 'none';
+                    } else {
+                        document.getElementById('trialDays').textContent = 'ĐÃ HẾT HẠN DÙNG THỬ';
+                        document.getElementById('currentPackage').textContent = 'HẾT HẠN - CẦN NÂNG CẤP';
+                        document.getElementById('expiryDate').textContent = 'ĐÃ HẾT HẠN';
+                        document.getElementById('planShow').innerHTML = '⚠️ HẾT HẠN DÙNG THỬ';
+                        document.getElementById('planShow').style.color = 'var(--danger)';
+                        
+                        // Hiển thị quảng cáo
+                        document.getElementById('adBanner').style.display = 'block';
+                    }
+                    
+                    // Tải user package
+                    const userPackage = JSON.parse(localStorage.getItem('user_package') || '{"type":"FREE_TRIAL"}');
+                    if (userPackage.type !== 'FREE_TRIAL') {
+                        this.updatePackageDisplay(userPackage);
+                    }
+                    
+                } catch (error) {
+                    console.error('Trial status error:', error);
+                }
+            }
+            
+            checkDailyTrips() {
+                try {
+                    const today = new Date().toDateString();
+                    const storedDate = localStorage.getItem('daily_trips_date');
+                    
+                    if (storedDate !== today) {
+                        // Reset daily trips count
+                        this.dailyTrips = 0;
+                        localStorage.setItem('daily_trips_date', today);
+                        localStorage.setItem('daily_trips_count', '0');
+                    } else {
+                        this.dailyTrips = parseInt(localStorage.getItem('daily_trips_count') || '0');
+                    }
+                } catch (error) {
+                    console.error('Daily trips check error:', error);
+                }
+            }
+            
+            saveDailyTrips() {
+                try {
+                    localStorage.setItem('daily_trips_count', this.dailyTrips.toString());
+                } catch (error) {
+                    console.error('Save daily trips error:', error);
+                }
+            }
+            
+            formatDate(timestamp) {
+                const date = new Date(timestamp);
+                return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+            }
+            
+            selectPackage(price, id, name, element) {
+                try {
+                    // Cập nhật giao diện
+                    document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
+                    element.classList.add('active');
+                    
+                    // Lưu thông tin gói đã chọn
+                    this.selectedPackage = {
+                        id: id,
+                        price: price,
+                        name: name
+                    };
+                    
+                    // Tạo mã giao dịch
+                    const timestamp = Date.now();
+                    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+                    const transCode = `TAXI${timestamp.toString().slice(-6)}${random}`;
+                    
+                    // Lưu mã giao dịch tạm thời
+                    localStorage.setItem('pending_transaction', JSON.stringify({
+                        code: transCode,
+                        package: id,
+                        price: price,
+                        timestamp: timestamp
+                    }));
+                    
+                    // Tạo nội dung chuyển khoản
+                    const content = `${this.driverId} ${id} ${transCode}`;
+                    document.getElementById('qrContent').textContent = content;
+                    
+                    // Tạo QR code
+                    const qrData = `BIDV|4430269669|NGUYEN XUAN DAT|${price}|${content}`;
+                    const encodedData = encodeURIComponent(qrData);
+                    document.getElementById('qrImg').src = 
+                        `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodedData}`;
+                    
+                    // Cập nhật thông tin Zalo
+                    document.getElementById('zaloPackage').textContent = name;
+                    document.getElementById('zaloAmount').textContent = price.toLocaleString('vi-VN') + 'đ';
+                    document.getElementById('zaloTransCode').textContent = transCode;
+                    
+                    // Hiển thị mã giao dịch mặc định
+                    document.getElementById('transactionCode').value = transCode;
+                    
+                } catch (error) {
+                    console.error('Package selection error:', error);
+                    this.showError('Lỗi chọn gói: ' + error.message);
+                }
+            }
+            
+            selectDefaultPackage() {
+                try {
+                    const defaultCard = document.querySelector('.p-card.active');
+                    if (defaultCard) {
+                        const price = parseInt(defaultCard.dataset.price);
+                        const id = defaultCard.dataset.id;
+                        const name = defaultCard.dataset.name;
+                        this.selectPackage(price, id, name, defaultCard);
+                    }
+                } catch (error) {
+                    console.error('Default package selection error:', error);
+                }
+            }
+            
+            // ==================== 4. PAYMENT & ACTIVATION ====================
+            async copyPaymentInfo() {
+                try {
+                    if (!this.selectedPackage) {
+                        this.showError("Vui lòng chọn gói cước trước!");
+                        return;
+                    }
+                    
+                    const content = document.getElementById('qrContent').textContent;
+                    const bankInfo = `💳 THÔNG TIN CHUYỂN KHOẢN
+🏦 Ngân hàng: BIDV
+📱 Số tài khoản: 4430269669
+👤 Chủ tài khoản: NGUYỄN XUÂN ĐẠT
+💰 Số tiền: ${this.selectedPackage.price.toLocaleString('vi-VN')}đ
+📝 Nội dung: ${content}`;
+                    
+                    await navigator.clipboard.writeText(bankInfo);
+                    this.showSuccess("✅ Đã sao chép thông tin chuyển khoản!");
+                    
+                } catch (error) {
+                    console.error('Copy payment info error:', error);
+                    this.showError("Không thể sao chép: " + error.message);
+                }
+            }
+            
+            openZaloRequest() {
+                try {
+                    if (!this.selectedPackage) {
+                        this.showError("Vui lòng chọn gói cước trước!");
+                        return;
+                    }
+                    
+                    this.showModal('zaloModal');
+                    
+                } catch (error) {
+                    console.error('Zalo request error:', error);
+                    this.showError("Lỗi mở form Zalo: " + error.message);
+                }
+            }
+            
+            async copyZaloMessage() {
+                try {
+                    const driverId = document.getElementById('zaloDriverId').textContent;
+                    const packageName = document.getElementById('zaloPackage').textContent;
+                    const amount = document.getElementById('zaloAmount').textContent;
+                    const transCode = document.getElementById('zaloTransCode').textContent;
+                    
+                    const message = `[TAXI PROMAX - YÊU CẦU KÍCH HOẠT]
+👤 Mã tài xế: ${driverId}
+📦 Gói cước: ${packageName}
+💰 Số tiền: ${amount}
+🔢 Mã giao dịch: ${transCode}
+📅 Ngày: ${new Date().toLocaleDateString('vi-VN')}
+⏰ Giờ: ${new Date().toLocaleTimeString('vi-VN')}`;
+                    
+                    await navigator.clipboard.writeText(message);
+                    this.showSuccess("✅ Đã sao chép tin nhắn! Dán vào Zalo để gửi cho admin.");
+                    
+                } catch (error) {
+                    console.error('Copy Zalo message error:', error);
+                    this.showError("Không thể sao chép tin nhắn: " + error.message);
+                }
+            }
+            
+            openZaloSupport() {
+                try {
+                    const message = `[TAXI PROMAX - CẦN HỖ TRỢ]
+👤 Mã tài xế: ${this.driverId}
+📅 Ngày: ${new Date().toLocaleDateString('vi-VN')}
+⏰ Giờ: ${new Date().toLocaleTimeString('vi-VN')}
+❓ Vấn đề cần hỗ trợ: [Mô tả vấn đề của bạn]`;
+                    
+                    navigator.clipboard.writeText(message).then(() => {
+                        this.showSuccess("✅ Đã sao chép tin nhắn hỗ trợ! Dán vào Zalo để liên hệ admin.");
+                    }).catch(err => {
+                        this.showError("Không thể sao chép: " + err.message);
+                    });
+                    
+                } catch (error) {
+                    console.error('Zalo support error:', error);
+                    this.showError("Lỗi tạo tin nhắn hỗ trợ: " + error.message);
+                }
+            }
+            
+            async verifyPaymentManual() {
+                try {
+                    const transCode = document.getElementById('transactionCode').value.trim();
+                    
+                    if (!transCode) {
+                        this.showError("Vui lòng nhập mã giao dịch từ ngân hàng!");
+                        return;
+                    }
+                    
+                    if (!this.selectedPackage) {
+                        this.showError("Vui lòng chọn gói cước trước!");
+                        return;
+                    }
+                    
+                    // Hiển thị loading
+                    this.showLoading("Đang xác thực giao dịch...");
+                    
+                    // Mô phỏng xác thực (trong thực tế sẽ gọi API)
+                    setTimeout(() => {
+                        this.closeModal('successModal');
+                        
+                        // 90% thành công (demo)
+                        const isSuccess = Math.random() > 0.1;
+                        
+                        if (isSuccess) {
+                            this.activatePackage(this.selectedPackage);
+                        } else {
+                            this.showError(`
+                                ❌ CHƯA NHẬN ĐƯỢC THANH TOÁN
+                                
+                                Hệ thống chưa ghi nhận giao dịch của bạn.
+                                
+                                Vui lòng:
+                                1. Kiểm tra lại số tài khoản và nội dung chuyển khoản
+                                2. Đợi 3-5 phút để ngân hàng xử lý
+                                3. Liên hệ Zalo nếu đã chuyển khoản trên 10 phút
+                            `);
+                        }
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('Payment verification error:', error);
+                    this.showError("Lỗi xác thực thanh toán: " + error.message);
+                }
+            }
+            
+            activatePackage(packageInfo) {
+                try {
+                    // Tính ngày hết hạn
+                    const expiryDate = this.calculateExpiryDate(packageInfo.id);
+                    
+                    // Lưu thông tin gói cước
+                    const userPackage = {
+                        type: packageInfo.id,
+                        name: packageInfo.name,
+                        price: packageInfo.price,
+                        activated: Date.now(),
+                        expiry: expiryDate
+                    };
+                    
+                    localStorage.setItem('user_package', JSON.stringify(userPackage));
+                    
+                    // Cập nhật giao diện
+                    this.updatePackageDisplay(userPackage);
+                    
+                    // Reset daily trips limit
+                    this.dailyTrips = 0;
+                    this.saveDailyTrips();
+                    
+                    // Thông báo thành công
+                    this.showSuccess(`
+                        🎉 KÍCH HOẠT THÀNH CÔNG!
+                        
+                        Gói <b>${packageInfo.name}</b> đã được kích hoạt.
+                        
+                        📅 Hạn sử dụng đến: ${this.formatDate(expiryDate)}
+                        
+                        Cảm ơn bạn đã sử dụng dịch vụ!
+                    `);
+                    
+                    // Reset selected package
+                    this.selectedPackage = null;
+                    
+                } catch (error) {
+                    console.error('Package activation error:', error);
+                    this.showError("Lỗi kích hoạt gói: " + error.message);
+                }
+            }
+            
+            calculateExpiryDate(packageId) {
+                const now = Date.now();
+                const dayInMs = 24 * 60 * 60 * 1000;
+                
+                switch(packageId) {
+                    case 'FREE_TRIAL':
+                        return now + (7 * dayInMs);
+                    case 'BASIC_1M':
+                        return now + (30 * dayInMs);
+                    case 'PRO_1M':
+                        return now + (30 * dayInMs);
+                    case 'VIP_1M':
+                        return now + (30 * dayInMs);
+                    case 'COMBO_PRO_3M':
+                        return now + (90 * dayInMs);
+                    case 'COMBO_VIP_6M':
+                        return now + (180 * dayInMs);
+                    case 'LIFETIME':
+                        return now + (365 * 25 * dayInMs); // 25 năm
+                    default:
+                        return now + (30 * dayInMs);
+                }
+            }
+            
+            updatePackageDisplay(packageInfo) {
+                document.getElementById('currentPackage').textContent = packageInfo.name;
+                document.getElementById('expiryDate').textContent = this.formatDate(packageInfo.expiry);
+                
+                // Cập nhật badge header
+                const badge = document.getElementById('planShow');
+                badge.innerHTML = `⭐ ${packageInfo.name}`;
+                badge.style.color = 'var(--gold)';
+                
+                // Ẩn quảng cáo
+                document.getElementById('adBanner').style.display = 'none';
+            }
+            
+            // ==================== 5. HISTORY & STATISTICS ====================
+            saveTrip(distance, cost) {
+                try {
+                    const time = new Date().toLocaleTimeString('vi-VN', { 
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                    });
+                    
+                    const date = new Date().toLocaleDateString('vi-VN');
+                    const tripData = { 
+                        time, 
+                        date,
+                        km: parseFloat(distance.toFixed(2)), 
+                        cost: parseInt(cost),
+                        rate: this.currentRate
+                    };
+                    
+                    // Lưu vào localStorage
+                    let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+                    history.unshift(tripData);
+                    
+                    // Giới hạn 100 chuyến gần nhất
+                    if (history.length > 100) {
+                        history = history.slice(0, 100);
+                    }
+                    
+                    localStorage.setItem('trip_history', JSON.stringify(history));
+                    
+                    // Thêm vào giao diện
+                    this.addTripToHistory(tripData);
+                    
+                    // Cập nhật thống kê
+                    this.updateStatistics();
+                    
+                } catch (error) {
+                    console.error('Save trip error:', error);
+                }
+            }
+            
+            addTripToHistory(trip) {
+                try {
+                    const list = document.getElementById('historyList');
+                    const item = document.createElement('div');
+                    item.className = 'history-card';
+                    item.innerHTML = `
+                        <div class="h-info">
+                            <b>${trip.time}</b><br>
+                            <small style="color: #666;">${trip.date} | ${trip.km} KM</small>
+                        </div>
+                        <div class="h-price">${trip.cost.toLocaleString('vi-VN')}đ</div>
+                    `;
+                    list.prepend(item);
+                } catch (error) {
+                    console.error('Add trip to history error:', error);
+                }
+            }
+            
+            loadHistory() {
+                try {
+                    const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+                    const list = document.getElementById('historyList');
+                    list.innerHTML = '';
+                    
+                    if (history.length === 0) {
+                        list.innerHTML = `
+                            <div style="text-align: center; padding: 40px 20px; color: #95a5a6;">
+                                <div style="font-size: 48px;">📊</div>
+                                <p style="font-weight: 900; margin: 10px 0;">CHƯA CÓ CHUYẾN ĐI NÀO</p>
+                                <p style="font-size: 12px;">Bắt đầu chuyến đi đầu tiên ngay!</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    history.forEach(trip => {
+                        this.addTripToHistory(trip);
+                    });
+                    
+                } catch (error) {
+                    console.error('Load history error:', error);
+                    const list = document.getElementById('historyList');
+                    list.innerHTML = `
+                        <div style="text-align: center; padding: 40px 20px; color: var(--danger);">
+                            <div style="font-size: 48px;">❌</div>
+                            <p style="font-weight: 900; margin: 10px 0;">LỖI TẢI LỊCH SỬ</p>
+                            <p style="font-size: 12px;">Vui lòng thử lại</p>
+                        </div>
+                    `;
+                }
+            }
+            
+            loadStatistics() {
+                try {
+                    const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+                    
+                    const totalTrips = history.length;
+                    const totalKm = history.reduce((sum, trip) => sum + trip.km, 0);
+                    const totalEarned = history.reduce((sum, trip) => sum + trip.cost, 0);
+                    
+                    document.getElementById('totalTrips').textContent = totalTrips;
+                    document.getElementById('totalKm').textContent = totalKm.toFixed(1);
+                    document.getElementById('totalEarned').textContent = totalEarned.toLocaleString('vi-VN') + 'đ';
+                    
+                } catch (error) {
+                    console.error('Load statistics error:', error);
+                }
+            }
+            
+            updateStatistics() {
+                this.loadStatistics();
+            }
+            
+            clearHistory() {
+                if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử chuyến đi?\nThao tác này không thể hoàn tác.")) {
+                    return;
+                }
+                
+                try {
+                    localStorage.removeItem('trip_history');
+                    this.loadHistory();
+                    this.updateStatistics();
+                    this.showSuccess("✅ Đã xóa toàn bộ lịch sử chuyến đi!");
+                } catch (error) {
+                    console.error('Clear history error:', error);
+                    this.showError("Lỗi xóa lịch sử: " + error.message);
+                }
+            }
+            
+            exportData() {
+                try {
+                    const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+                    const userPackage = JSON.parse(localStorage.getItem('user_package') || '{"type":"FREE_TRIAL"}');
+                    
+                    const exportData = {
+                        driverId: this.driverId,
+                        exportDate: new Date().toISOString(),
+                        package: userPackage,
+                        statistics: {
+                            totalTrips: history.length,
+                            totalKm: history.reduce((sum, trip) => sum + trip.km, 0),
+                            totalEarned: history.reduce((sum, trip) => sum + trip.cost, 0),
+                            averagePerTrip: history.length > 0 ? 
+                                Math.round(history.reduce((sum, trip) => sum + trip.cost, 0) / history.length) : 0
+                        },
+                        trips: history
+                    };
+                    
+                    const dataStr = JSON.stringify(exportData, null, 2);
+                    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                    
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(dataBlob);
+                    downloadLink.download = `TAXI_PROMAX_${this.driverId}_${new Date().toISOString().split('T')[0]}.json`;
+                    
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    
+                    this.showSuccess("✅ Đã xuất dữ liệu thành công!");
+                    
+                } catch (error) {
+                    console.error('Export data error:', error);
+                    this.showError("Lỗi xuất dữ liệu: " + error.message);
+                }
+            }
+            
+            showTripSummary(distance, cost) {
+                try {
+                    const summary = document.getElementById('endSummary');
+                    summary.innerHTML = `
+                        Quãng đường: <b>${distance.toFixed(2)} KM</b><br>
+                        Đơn giá: <b>${this.currentRate.toLocaleString('vi-VN')}đ/KM</b><br>
+                        <hr style="margin: 10px 0; border-color: #eee;">
+                        <h3 style="color:var(--primary); margin: 5px 0;">TỔNG CƯỚC:</h3>
+                        <div style="font-size: 28px; font-weight: 900; color: var(--primary);">
+                            ${cost.toLocaleString('vi-VN')}đ
+                        </div>
+                    `;
+                    
+                    this.showModal('endModal');
+                } catch (error) {
+                    console.error('Show trip summary error:', error);
+                }
+            }
+            
+            // ==================== 6. UI HELPERS ====================
+            showTab(tab, element) {
+                try {
+                    // Ẩn tất cả tab
+                    document.querySelectorAll('.tab-content').forEach(t => {
+                        t.style.display = 'none';
+                    });
+                    
+                    // Xóa active class từ tất cả nav items
+                    document.querySelectorAll('.nav-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    
+                    // Thêm active class cho nav item được chọn
+                    if (element) {
+                        element.classList.add('active');
+                    }
+                    
+                    // Hiển thị tab được chọn
+                    if (tab === 'home') {
+                        document.getElementById('homeControls').style.display = 'block';
+                    } else {
+                        document.getElementById('homeControls').style.display = 'none';
+                        const tabElement = document.getElementById('tab-' + tab);
+                        if (tabElement) {
+                            tabElement.style.display = 'flex';
+                            
+                            // Tải lại dữ liệu nếu cần
+                            if (tab === 'lichsu') {
+                                this.loadHistory();
+                            }
+                            if (tab === 'toi') {
+                                this.updateStatistics();
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Show tab error:', error);
+                }
+            }
+            
+            showModal(modalId) {
+                try {
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                } catch (error) {
+                    console.error('Show modal error:', error);
+                }
+            }
+            
+            closeModal(modalId) {
+                try {
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Close modal error:', error);
+                }
+            }
+            
+            showLoading(message) {
+                try {
+                    const successMessage = document.getElementById('successMessage');
+                    successMessage.innerHTML = `
+                        <div class="spinner"></div>
+                        <p>${message}</p>
+                    `;
+                    this.showModal('successModal');
+                } catch (error) {
+                    console.error('Show loading error:', error);
+                }
+            }
+            
+            showSuccess(message) {
+                try {
+                    const successMessage = document.getElementById('successMessage');
+                    successMessage.innerHTML = message;
+                    this.showModal('successModal');
+                } catch (error) {
+                    console.error('Show success error:', error);
+                }
+            }
+            
+            showError(message) {
+                try {
+                    const errorElement = document.getElementById('errorMessage');
+                    if (errorElement) {
+                        errorElement.innerHTML = message;
+                        errorElement.style.display = 'block';
+                        
+                        // Tự động ẩn sau 5 giây
+                        setTimeout(() => {
+                            errorElement.style.display = 'none';
+                        }, 5000);
+                    } else {
+                        alert(message);
+                    }
+                } catch (error) {
+                    console.error('Show error error:', error);
+                    alert(message);
+                }
             }
         }
-
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-        // Tải lịch sử cũ khi mở app
-        window.onload = () => {
-            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            history.forEach(h => {
-                const item = document.createElement('div');
-                item.className = 'history-card';
-                item.innerHTML = `<div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div><div class="h-price">${h.cost}đ</div>`;
-                document.getElementById('historyList').appendChild(item);
+        
+        // ==================== 7. INITIALIZATION ====================
+        let taxiSystem;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                taxiSystem = new TaxiSystem();
+                
+                // Mở modal chào mừng sau 1 giây
+                setTimeout(() => {
+                    taxiSystem.showModal('wishModal');
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                alert('Lỗi khởi tạo ứng dụng: ' + error.message);
+            }
+        });
+        
+        // ==================== 8. SECURITY & UTILITIES ====================
+        // Chống copy (nhưng cho phép copy thông tin cần thiết)
+        document.addEventListener('copy', (e) => {
+            // Cho phép copy bình thường
+        });
+        
+        document.addEventListener('contextmenu', (e) => {
+            // Cho phép context menu
+        });
+        
+        // Xử lý khi tab/window đang đóng
+        window.addEventListener('beforeunload', (e) => {
+            if (taxiSystem && taxiSystem.isRunning) {
+                e.preventDefault();
+                e.returnValue = 'Bạn có chuyến đi đang chạy. Bạn có chắc muốn thoát?';
+                return e.returnValue;
+            }
+        });
+        
+        // Offline/Online detection
+        window.addEventListener('online', () => {
+            if (taxiSystem) {
+                taxiSystem.showSuccess("✅ Đã kết nối lại Internet!");
+            }
+        });
+        
+        window.addEventListener('offline', () => {
+            if (taxiSystem) {
+                taxiSystem.showError("⚠️ Mất kết nối mạng. Ứng dụng vẫn hoạt động ở chế độ offline.");
+            }
+        });
+        
+        // Kiểm tra service worker support (cho PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(error => {
+                    console.log('ServiceWorker registration failed:', error);
+                });
             });
-        };
+        }
+        
+        // Fullscreen support
+        document.addEventListener('fullscreenchange', () => {
+            if (taxiSystem) {
+                taxiSystem.map.invalidateSize();
+            }
+        });
+        
     </script>
 </body>
 </html>
