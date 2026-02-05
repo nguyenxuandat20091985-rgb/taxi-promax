@@ -1,4 +1,4 @@
-// js/ui.js - Module UI & Event Handlers
+// js/ui.js - Điều khiển giao diện và tương tác người dùng
 class UIManager {
     constructor(taxiSystem, gpsTracker, paymentManager) {
         this.taxiSystem = taxiSystem;
@@ -7,7 +7,6 @@ class UIManager {
         this.currentTab = 'home';
     }
     
-    // ==================== INITIALIZE EVENTS ====================
     initEvents() {
         this.initTripEvents();
         this.initPackageEvents();
@@ -17,369 +16,201 @@ class UIManager {
         this.initUtilityEvents();
     }
     
-    initTripEvents() {
-        // Rate slider
-        document.getElementById('rateSlider').addEventListener('input', (e) => {
-            this.taxiSystem.updateRate(parseInt(e.target.value));
-        });
-        
-        // Main trip button
-        document.getElementById('mainBtn').addEventListener('click', async () => {
-            await this.handleTripAction();
-        });
-    }
-    
-    initPackageEvents() {
-        // Package selection
-        document.querySelectorAll('.p-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const price = parseInt(card.dataset.price);
-                const id = card.dataset.id;
-                const name = card.dataset.name;
-                this.taxiSystem.selectPackage(price, id, name, card);
-            });
-        });
-    }
-    
-    initPaymentEvents() {
-        // Copy payment info
-        document.getElementById('copyPaymentBtn').addEventListener('click', async () => {
-            const success = await this.paymentManager.copyPaymentInfo();
-            if (success) {
-                this.showSuccess("✅ Đã sao chép thông tin chuyển khoản!");
-            }
-        });
-        
-        // Zalo request
-        document.getElementById('zaloRequestBtn').addEventListener('click', () => {
-            this.openZaloRequest();
-        });
-        
-        // Zalo support
-        document.getElementById('zaloSupportBtn').addEventListener('click', async () => {
-            const success = await this.paymentManager.copySupportMessage();
-            if (success) {
-                this.showSuccess("✅ Đã sao chép tin nhắn hỗ trợ! Dán vào Zalo để liên hệ admin.");
-            }
-        });
-        
-        // Copy Zalo message
-        document.getElementById('copyZaloMessageBtn').addEventListener('click', async () => {
-            const success = await this.paymentManager.copyZaloMessage();
-            if (success) {
-                this.showSuccess("✅ Đã sao chép tin nhắn! Dán vào Zalo để gửi cho admin.");
-            }
-        });
-        
-        // Verify payment
-        document.getElementById('verifyPaymentBtn').addEventListener('click', async () => {
-            await this.handlePaymentVerification();
-        });
-    }
-    
-    initNavigationEvents() {
-        // Tab navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const tab = item.dataset.tab;
-                this.showTab(tab, item);
-            });
-        });
-        
-        // Clear history
-        document.getElementById('clearHistoryBtn').addEventListener('click', () => {
-            this.handleClearHistory();
-        });
-        
-        // Export data
-        document.getElementById('exportDataBtn').addEventListener('click', () => {
-            this.handleExportData();
-        });
-    }
-    
-    initModalEvents() {
-        // Modal close buttons
-        document.getElementById('closeWishModal').addEventListener('click', () => {
-            this.closeModal('wishModal');
-        });
-        
-        document.getElementById('closeEndModal').addEventListener('click', () => {
-            this.closeModal('endModal');
-        });
-        
-        document.getElementById('closeZaloModal').addEventListener('click', () => {
-            this.closeModal('zaloModal');
-        });
-        
-        document.getElementById('closeSuccessModal').addEventListener('click', () => {
-            this.closeModal('successModal');
-        });
-    }
-    
-    initUtilityEvents() {
-        // Input validation for transaction code
-        document.getElementById('transactionCode').addEventListener('input', (e) => {
-            this.validateTransactionCode(e.target.value);
-        });
-    }
-    
     // ==================== TRIP HANDLING ====================
+    initTripEvents() {
+        // Cập nhật giá tiền thời gian thực khi kéo thanh trượt
+        const rateSlider = document.getElementById('rateSlider');
+        if (rateSlider) {
+            rateSlider.addEventListener('input', (e) => {
+                this.taxiSystem.updateRate(parseInt(e.target.value));
+            });
+        }
+        
+        // Nút bấm chính: Bắt đầu / Kết thúc
+        const mainBtn = document.getElementById('mainBtn');
+        if (mainBtn) {
+            mainBtn.addEventListener('click', async () => {
+                // Rung nhẹ khi bấm (nếu thiết bị hỗ trợ)
+                if (navigator.vibrate) navigator.vibrate(50);
+                await this.handleTripAction();
+            });
+        }
+    }
+    
     async handleTripAction() {
         const btn = document.getElementById('mainBtn');
         
         if (!this.taxiSystem.isRunning) {
-            // Kiểm tra giới hạn chuyến
-            if (!this.taxiSystem.canStartTrip()) {
-                return;
-            }
+            // Kiểm tra quyền hạn (Gói cước/Giới hạn chuyến)
+            if (!this.taxiSystem.canStartTrip()) return;
             
-            // Bắt đầu chuyến đi
+            // TRẠNG THÁI: ĐANG CHẠY
             this.taxiSystem.isRunning = true;
             this.taxiSystem.totalKm = 0;
-            this.taxiSystem.lastPos = null;
             
-            btn.textContent = "🛑 KẾT THÚC CHUYẾN ĐI";
-            btn.style.background = "linear-gradient(135deg, var(--danger) 0%, #ff4081 100%)";
+            // Cập nhật UI nút bấm
+            btn.innerHTML = `<span>🛑 KẾT THÚC CHUYẾN</span>`;
+            btn.classList.add('btn-running');
             
-            // Hiển thị modal chúc mừng
+            // Hiển thị lời chúc và tự đóng sau 3s
             this.showModal('wishModal');
+            setTimeout(() => this.closeModal('wishModal'), 3000);
             
-            // Khởi động GPS tracking
-            const trackingStarted = await this.gpsTracker.startTracking();
-            
-            if (!trackingStarted) {
-                // Nếu GPS không khởi động được, reset trạng thái
-                this.taxiSystem.isRunning = false;
-                btn.textContent = "🚕 BẮT ĐẦU CHUYẾN ĐI";
-                btn.style.background = "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)";
-                return;
+            // Kích hoạt GPS
+            const success = await this.gpsTracker.startTracking();
+            if (!success) {
+                this.resetTripUI();
             }
-            
-            // Tăng số chuyến trong ngày
-            this.taxiSystem.dailyTrips++;
-            this.taxiSystem.saveDailyTrips();
-            
         } else {
-            // Kết thúc chuyến đi
+            // TRẠNG THÁI: DỪNG
             this.taxiSystem.isRunning = false;
+            this.resetTripUI();
             
-            btn.textContent = "🚕 BẮT ĐẦU CHUYẾN ĐI";
-            btn.style.background = "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)";
-            
-            // Dừng tracking
             this.gpsTracker.stopTracking();
             
-            // Tính toán và lưu chuyến đi
             const finalCost = Math.round(this.taxiSystem.totalKm * this.taxiSystem.currentRate);
             this.taxiSystem.saveTrip(this.taxiSystem.totalKm, finalCost);
             
-            // Hiển thị tổng kết
+            // Hiện tổng kết chuyến đi
             this.taxiSystem.showTripSummary(this.taxiSystem.totalKm, finalCost);
             this.showModal('endModal');
         }
     }
-    
-    // ==================== PAYMENT HANDLING ====================
+
+    resetTripUI() {
+        const btn = document.getElementById('mainBtn');
+        btn.innerHTML = `<span>🚕 BẮT ĐẦU CHUYẾN ĐI</span>`;
+        btn.classList.remove('btn-running');
+    }
+
+    // ==================== NAVIGATION & TABS ====================
+    initNavigationEvents() {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const tab = item.dataset.tab;
+                this.switchTab(tab, item);
+            });
+        });
+    }
+
+    switchTab(tabId, activeEl) {
+        // Chuyển đổi class active ở menu dưới
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        activeEl.classList.add('active');
+
+        // Chuyển đổi các màn hình nội dung
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        
+        const targetTab = document.getElementById(`tab-${tabId}`);
+        if (targetTab) targetTab.classList.add('active');
+
+        // Load lại dữ liệu theo tab
+        if (tabId === 'lichsu') this.taxiSystem.loadHistory();
+        if (tabId === 'toi') this.taxiSystem.updateStatistics();
+        
+        // Ẩn/Hiện điều khiển trang chủ
+        const homeControls = document.getElementById('homeControls');
+        if (homeControls) {
+            homeControls.style.display = (tabId === 'home') ? 'block' : 'none';
+        }
+    }
+
+    // ==================== MODAL & NOTIFICATIONS ====================
+    initModalEvents() {
+        // Đóng các modal bằng phím X hoặc bấm ra ngoài vùng xám
+        const modals = ['wishModal', 'endModal', 'zaloModal', 'successModal'];
+        modals.forEach(id => {
+            const m = document.getElementById(id);
+            if (!m) return;
+            
+            // Nút đóng
+            const closeBtn = m.querySelector('.close-modal');
+            if (closeBtn) closeBtn.onclick = () => this.closeModal(id);
+            
+            // Bấm ra ngoài để đóng
+            m.onclick = (e) => {
+                if (e.target === m) this.closeModal(id);
+            };
+        });
+    }
+
+    showModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('fade-in');
+        }
+    }
+
+    closeModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) modal.style.display = 'none';
+    }
+
+    // ==================== PAYMENT & PACKAGES ====================
+    initPackageEvents() {
+        document.querySelectorAll('.p-card').forEach(card => {
+            card.onclick = () => {
+                const { price, id, name } = card.dataset;
+                this.taxiSystem.selectPackage(parseInt(price), id, name, card);
+            };
+        });
+    }
+
+    initPaymentEvents() {
+        // Sao chép nội dung chuyển khoản
+        const copyBtn = document.getElementById('copyPaymentBtn');
+        if (copyBtn) {
+            copyBtn.onclick = async () => {
+                const content = document.getElementById('qrContent').textContent;
+                await navigator.clipboard.writeText(content);
+                this.showToast("Đã chép nội dung CK!");
+            };
+        }
+
+        // Xác thực thanh toán
+        const verifyBtn = document.getElementById('verifyPaymentBtn');
+        if (verifyBtn) {
+            verifyBtn.onclick = () => this.handlePaymentVerification();
+        }
+    }
+
     async handlePaymentVerification() {
-        const transCode = document.getElementById('transactionCode').value.trim();
+        const code = document.getElementById('transactionCode').value;
+        if (!code) return this.showToast("Vui lòng nhập mã GD!");
+
+        this.showLoading("Đang kiểm tra giao dịch...");
         
-        if (!transCode) {
-            this.taxiSystem.showError("Vui lòng nhập mã giao dịch từ ngân hàng!");
-            return;
-        }
-        
-        if (!this.taxiSystem.selectedPackage) {
-            this.taxiSystem.showError("Vui lòng chọn gói cước trước!");
-            return;
-        }
-        
-        // Hiển thị loading
-        this.showLoading("Đang xác thực giao dịch...");
-        
-        try {
-            const result = await this.paymentManager.verifyPayment(transCode);
+        // Giả lập độ trễ kiểm tra
+        setTimeout(async () => {
+            const result = await this.paymentManager.verifyPayment(code);
+            this.closeModal('successModal'); // Đóng loading
             
             if (result.success) {
-                this.showSuccess(`
-                    🎉 KÍCH HOẠT THÀNH CÔNG!
-                    
-                    Gói <b>${result.package.name}</b> đã được kích hoạt.
-                    
-                    📅 Hạn sử dụng đến: ${this.taxiSystem.formatDate(result.package.expiry)}
-                    
-                    Cảm ơn bạn đã sử dụng dịch vụ!
-                `);
+                this.showSuccessModal("Kích hoạt thành công! Chúc bạn vạn dặm bình an.");
             } else {
-                this.showError(`
-                    ❌ CHƯA NHẬN ĐƯỢC THANH TOÁN
-                    
-                    ${result.message}
-                    
-                    Vui lòng:
-                    1. Kiểm tra lại số tài khoản và nội dung chuyển khoản
-                    2. Đợi 3-5 phút để ngân hàng xử lý
-                    3. Liên hệ Zalo nếu đã chuyển khoản trên 10 phút
-                `);
+                alert("Hệ thống chưa tìm thấy giao dịch. Vui lòng thử lại sau ít phút.");
             }
-        } catch (error) {
-            this.taxiSystem.showError("Lỗi xác thực thanh toán: " + error.message);
-        }
+        }, 2000);
     }
-    
-    validateTransactionCode(code) {
-        // Basic validation for transaction code
-        const isValid = /^[A-Z0-9]{8,20}$/.test(code);
-        
-        const input = document.getElementById('transactionCode');
-        if (code && !isValid) {
-            input.style.borderColor = 'var(--danger)';
-        } else {
-            input.style.borderColor = isValid ? 'var(--success)' : '#e0e0e0';
-        }
-        
-        return isValid;
+
+    // ==================== UTILS ====================
+    showToast(msg) {
+        // Anh có thể dùng thư viện Toastify hoặc tạo một div thông báo nhỏ ở dưới
+        alert(msg); 
     }
-    
-    // ==================== UI CONTROLS ====================
-    showTab(tab, element) {
-        try {
-            // Ẩn tất cả tab
-            document.querySelectorAll('.tab-content').forEach(t => {
-                t.style.display = 'none';
-            });
-            
-            // Xóa active class từ tất cả nav items
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            // Thêm active class cho nav item được chọn
-            if (element) {
-                element.classList.add('active');
-            }
-            
-            // Hiển thị tab được chọn
-            if (tab === 'home') {
-                document.getElementById('homeControls').style.display = 'block';
-            } else {
-                document.getElementById('homeControls').style.display = 'none';
-                const tabElement = document.getElementById('tab-' + tab);
-                if (tabElement) {
-                    tabElement.style.display = 'flex';
-                    
-                    // Tải lại dữ liệu nếu cần
-                    if (tab === 'lichsu') {
-                        this.taxiSystem.loadHistory();
-                    }
-                    if (tab === 'toi') {
-                        this.taxiSystem.updateStatistics();
-                    }
-                }
-            }
-            
-            this.currentTab = tab;
-            
-        } catch (error) {
-            console.error('Show tab error:', error);
-        }
+
+    showLoading(msg) {
+        const msgEl = document.getElementById('successMessage');
+        if (msgEl) msgEl.innerHTML = `<div class="spinner"></div><p>${msg}</p>`;
+        this.showModal('successModal');
     }
-    
-    openZaloRequest() {
-        try {
-            if (!this.taxiSystem.selectedPackage) {
-                this.taxiSystem.showError("Vui lòng chọn gói cước trước!");
-                return;
-            }
-            
-            // Chuẩn bị thông tin Zalo
-            this.paymentManager.prepareZaloMessage();
-            
-            // Hiển thị modal
-            this.showModal('zaloModal');
-            
-        } catch (error) {
-            console.error('Open Zalo request error:', error);
-            this.taxiSystem.showError("Lỗi mở form Zalo: " + error.message);
-        }
-    }
-    
-    // ==================== HISTORY & DATA ====================
-    handleClearHistory() {
-        if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử chuyến đi?\nThao tác này không thể hoàn tác.")) {
-            return;
-        }
-        
-        const success = this.taxiSystem.clearHistory();
-        if (success) {
-            this.showSuccess("✅ Đã xóa toàn bộ lịch sử chuyến đi!");
-        } else {
-            this.taxiSystem.showError("Lỗi xóa lịch sử!");
-        }
-    }
-    
-    handleExportData() {
-        try {
-            const exportData = this.taxiSystem.exportData();
-            
-            const downloadLink = document.createElement('a');
-            downloadLink.href = URL.createObjectURL(exportData.blob);
-            downloadLink.download = exportData.filename;
-            
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-            
-            this.showSuccess("✅ Đã xuất dữ liệu thành công!");
-            
-        } catch (error) {
-            console.error('Export data error:', error);
-            this.taxiSystem.showError("Lỗi xuất dữ liệu: " + error.message);
-        }
-    }
-    
-    // ==================== MODAL CONTROLS ====================
-    showModal(modalId) {
-        try {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'flex';
-            }
-        } catch (error) {
-            console.error('Show modal error:', error);
-        }
-    }
-    
-    closeModal(modalId) {
-        try {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Close modal error:', error);
-        }
-    }
-    
-    showLoading(message) {
-        try {
-            const successMessage = document.getElementById('successMessage');
-            successMessage.innerHTML = `
-                <div class="spinner"></div>
-                <p>${message}</p>
-            `;
-            this.showModal('successModal');
-        } catch (error) {
-            console.error('Show loading error:', error);
-        }
-    }
-    
-    showSuccess(message) {
-        try {
-            const successMessage = document.getElementById('successMessage');
-            successMessage.innerHTML = message;
-            this.showModal('successModal');
-        } catch (error) {
-            console.error('Show success error:', error);
-        }
+
+    showSuccessModal(msg) {
+        const msgEl = document.getElementById('successMessage');
+        if (msgEl) msgEl.innerHTML = `<h3>🎉 CHÚC MỪNG</h3><p>${msg}</p>`;
+        this.showModal('successModal');
     }
 }
