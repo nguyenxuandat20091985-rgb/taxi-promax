@@ -1,163 +1,186 @@
-// Taxi Promax v5.1 - GPS Tracking
-const GPS = {
-    currentPosition: null,
-    watchId: null,
-    isTracking: false,
-    positions: [],
-    startTime: null,
-    totalDistance: 0,
+// js/gps.js - Module GPS Tracking
+class GPSTracker {
+    constructor(taxiSystem) {
+        this.taxiSystem = taxiSystem;
+        this.watchId = null;
+        this.wakeLock = null;
+        this.isTracking = false;
+    }
     
-    init: function() {
-        if (!navigator.geolocation) {
-            console.error('Geolocation không được hỗ trợ');
+    async startTracking() {
+        if (!("geolocation" in navigator)) {
+            this.taxiSystem.showError("Trình duyệt không hỗ trợ GPS");
             return false;
         }
-        return true;
-    },
+        
+        try {
+            // Request wake lock
+            await this.requestWakeLock();
+            
+            // Start GPS watch
+            this.watchId = navigator.geolocation.watchPosition(
+                (position) => this.handlePositionUpdate(position),
+                (error) => this.handlePositionError(error),
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 10000
+                }
+            );
+            
+            this.isTracking = true;
+            return true;
+            
+        } catch (error) {
+            console.error('Start tracking error:', error);
+            this.taxiSystem.showError("Lỗi khởi động GPS: " + error.message);
+            return false;
+        }
+    }
     
-    startTracking: function(onUpdate) {
-        if (this.isTracking) return false;
-        
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0
-        };
-        
-        this.positions = [];
-        this.totalDistance = 0;
-        this.startTime = new Date();
-        this.isTracking = true;
-        
-        this.watchId = navigator.geolocation.watchPosition(
-            (position) => this.handlePositionUpdate(position, onUpdate),
-            (error) => this.handlePositionError(error),
-            options
-        );
-        
-        return true;
-    },
-    
-    stopTracking: function() {
+    stopTracking() {
         if (this.watchId !== null) {
             navigator.geolocation.clearWatch(this.watchId);
             this.watchId = null;
         }
         
+        if (this.wakeLock !== null) {
+            this.wakeLock.release();
+            this.wakeLock = null;
+        }
+        
         this.isTracking = false;
-        return this.getTripSummary();
-    },
+        
+        // Reset screen status
+        document.getElementById('screenStatus').textContent = "BÌNH THƯỜNG";
+    }
     
-    handlePositionUpdate: function(position, callback) {
-        this.currentPosition = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            speed: position.coords.speed || 0,
-            timestamp: position.timestamp || Date.now()
-        };
-        
-        this.positions.push({ ...this.currentPosition });
-        
-        if (this.positions.length > 1) {
-            const prevPos = this.positions[this.positions.length - 2];
-            const distance = this.calculateDistance(
-                prevPos.latitude, prevPos.longitude,
-                this.currentPosition.latitude, this.currentPosition.longitude
-            );
-            
-            if (distance < 0.1) {
-                this.totalDistance += distance;
+    async requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                this.wakeLock = await navigator.wakeLock.request('screen');
+                document.getElementById('screenStatus').textContent = "LUÔN SÁNG (ON)";
+                return true;
             }
+        } catch (err) {
+            console.warn("WakeLock không khả dụng:", err);
         }
-        
-        if (typeof callback === 'function') {
-            callback(this.currentPosition, this.totalDistance);
-        }
-    },
+        return false;
+    }
     
-    handlePositionError: function(error) {
-        let errorMessage = 'Không thể lấy vị trí: ';
+    handlePositionUpdate(position) {
+        try {
+            const { latitude, longitude, speed, accuracy } = position.coords;
+            
+            // Kiểm tra độ chính xác GPS
+            if (accuracy > 50) { // Độ chính xác kém (>50m)
+                console.log("GPS độ chính xác thấp:", accuracy);
+                return;
+            }
+            
+            const newPos = L.latLng(latitude, longitude);
+            
+            // Cập nhật marker
+            if (this.taxiSystem.marker) {
+                this.taxiSystem.marker.setLatLng(newPos);
+            }
+            
+            if (this.taxiSystem.isRunning) {
+                // Pan map đến vị trí mới
+                if (this.taxiSystem.map) {
+                    this.taxiSystem.map.panTo(newPos);
+                }
+                
+                // Tính khoảng cách di chuyển
+                if (this.taxiSystem.lastPos) {
+                    // Chỉ tính nếu có tốc độ di chuyển > 0.5 km/h
+                    const minSpeed = 0.5 / 3.6; // Convert km/h to m/s
+                    if (speed === null || speed > minSpeed) {
+                        const distance = newPos.distanceTo(this.taxiSystem.lastPos) / 1000; // Convert to km
+                        
+                        // Chống nhảy số: chỉ tính nếu di chuyển > 10m
+                        if (distance > 0.01) {
+                            this.taxiSystem.totalKm += distance;
+                            this.taxiSystem.updateDisplay();
+                        }
+                    }
+                }
+                
+                this.taxiSystem.lastPos = newPos;
+            }
+        } catch (error) {
+            console.error('Position update error:', error);
+        }
+    }
+    
+    handlePositionError(error) {
+        console.error('GPS Error:', error);
+        let message = "Lỗi GPS: ";
+        
         switch(error.code) {
             case error.PERMISSION_DENIED:
-                errorMessage += 'Người dùng từ chối cho phép định vị.';
+                message += "Bị từ chối quyền truy cập";
                 break;
             case error.POSITION_UNAVAILABLE:
-                errorMessage += 'Thông tin vị trí không có sẵn.';
+                message += "Không thể lấy vị trí";
                 break;
             case error.TIMEOUT:
-                errorMessage += 'Hết thời gian chờ lấy vị trí.';
+                message += "Hết thời gian chờ";
                 break;
             default:
-                errorMessage += 'Lỗi không xác định.';
+                message += error.message;
         }
-        console.error('GPS Error:', errorMessage);
-    },
+        
+        this.taxiSystem.showError(message);
+    }
     
-    calculateDistance: function(lat1, lon1, lat2, lon2) {
-        const R = 6371;
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        // Haversine formula để tính khoảng cách giữa 2 điểm
+        const R = 6371; // Bán kính Trái đất tính bằng km
         const dLat = this.toRad(lat2 - lat1);
         const dLon = this.toRad(lon2 - lon1);
-        
         const a = 
             Math.sin(dLat/2) * Math.sin(dLat/2) +
             Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * 
             Math.sin(dLon/2) * Math.sin(dLon/2);
-        
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c;
-    },
-    
-    toRad: function(degrees) {
-        return degrees * (Math.PI / 180);
-    },
-    
-    getTripDuration: function() {
-        if (!this.startTime) return 0;
-        return Math.floor((new Date() - this.startTime) / 1000);
-    },
-    
-    getFormattedDuration: function() {
-        const seconds = this.getTripDuration();
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        
-        return {
-            formatted: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-        };
-    },
-    
-    getTripSummary: function() {
-        const duration = this.getTripDuration();
-        return {
-            distance: this.totalDistance,
-            duration: duration,
-            formattedDuration: this.getFormattedDuration().formatted,
-            positions: [...this.positions],
-            startTime: this.startTime,
-            endTime: new Date()
-        };
-    },
-    
-    getCurrentSpeed: function() {
-        if (!this.currentPosition) return 0;
-        return this.currentPosition.speed ? this.currentPosition.speed * 3.6 : 0;
-    },
-    
-    getAddressFromCoords: function(lat, lng, callback) {
-        const addresses = [
-            '123 Đường Lê Lợi, Quận 1, TP.HCM',
-            '456 Đường Nguyễn Huệ, Quận 1, TP.HCM',
-            '789 Đường Cách Mạng Tháng 8, Quận 3, TP.HCM'
-        ];
-        
-        const randomAddress = addresses[Math.floor(Math.random() * addresses.length)];
-        
-        if (typeof callback === 'function') {
-            setTimeout(() => callback(randomAddress), 500);
-        }
-        
-        return randomAddress;
     }
-};
+    
+    toRad(degrees) {
+        return degrees * (Math.PI / 180);
+    }
+    
+    getCurrentLocation() {
+        return new Promise((resolve, reject) => {
+            if (!("geolocation" in navigator)) {
+                reject(new Error("Geolocation không được hỗ trợ"));
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        speed: position.coords.speed
+                    });
+                },
+                (error) => {
+                    reject(error);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        });
+    }
+    
+    isLocationAccurate(accuracy) {
+        // Độ chính xác dưới 50m được coi là tốt
+        return accuracy <= 50;
+    }
+}
