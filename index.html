@@ -2,324 +2,125 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
-    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
-
-    <title>TAXI PROMAX - HỆ THỐNG ĐẲNG CẤP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Taxi ProMax - Đồng Hồ Tính Tiền GPS</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
     
-    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* CSS bổ sung để đảm bảo layout hoạt động */
+        .tab-content { display: none; flex-direction: column; height: 100%; }
+        .tab-content.active { display: flex; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                 background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); 
+                   border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="badge" id="idShow">🆔 ĐANG KHỞI TẠO...</div>
-        <div class="badge" id="planShow">⭐ DÙNG THỬ 7 NGÀY</div>
-    </div>
+    <div id="tab-home" class="tab-content active">
+        <header>
+            <div class="status-bar">
+                <span id="gpsStatus">📡 Đang tìm GPS...</span>
+                <span id="currentTime">00:00</span>
+            </div>
+            <div class="main-display">
+                <h1 id="totalCostDisplay">0</h1>
+                <p>VNĐ</p>
+                <div class="sub-info">
+                    <span>KM: <b id="kmDisplay">0.0</b></span>
+                    <span>GIÁ/KM: <b id="currentRateDisplay">0</b></span>
+                </div>
+            </div>
+        </header>
 
-    <div class="stats-bar" id="statsUI">
-        <div class="stat-item" style="border-right: 1px solid #eee;">
-            <div class="stat-label">CƯỚC (VNĐ)</div>
-            <div id="cost" class="stat-value">0</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
-            <div id="km" class="stat-value">0.00</div>
-        </div>
-    </div>
-
-    <div id="map"></div>
-
-    <div id="tab-vi" class="tab-content">
-        <div class="p-header">
-            <div style="font-size: 20px; font-weight: 900;">HỆ THỐNG GÓI CƯỚC ĐẲNG CẤP</div>
-            <div id="trialBox" style="font-size: 12px; opacity: 0.9; margin-top: 5px;">
-                <span class="status-badge status-trial">DÙNG THỬ 7 NGÀY</span>
-                <span id="trialDays"></span>
+        <div id="homeControls" class="controls">
+            <div class="rate-adjuster">
+                <label>Giá cước: <span id="rateLabel">12,000</span>đ/km</label>
+                <input type="range" id="rateSlider" min="5000" max="30000" step="500" value="12000">
             </div>
+            <button id="mainBtn" class="btn-main">🚕 BẮT ĐẦU CHUYẾN ĐI</button>
         </div>
         
-        <div class="p-grid">
-            <div class="p-card active" data-price="0" data-id="FREE_TRIAL" data-name="GÓI DÙNG THỬ">
-                <b class="p-title">🎯 GÓI DÙNG THỬ</b>
-                <span class="p-price">MIỄN PHÍ</span>
-                <ul>
-                    <li><i>✅</i> 7 ngày trải nghiệm</li>
-                    <li><i>✅</i> Tính cước cơ bản</li>
-                    <li><i>✅</i> Lưu 10 chuyến gần nhất</li>
-                    <li><i>❌</i> Không có AI Voice</li>
-                    <li><i>❌</i> Không xuất PDF</li>
-                    <li><i>⚠️</i> Quảng cáo sau 7 ngày</li>
-                </ul>
-            </div>
-        </div>
-        
-        <div style="padding: 0 20px; margin-top: 10px;">
-            <h3 style="color: var(--dark); font-size: 16px;">🎁 GÓI TRẢ PHÍ</h3>
-        </div>
-        
-        <div class="p-grid">
-            <div class="p-card" data-price="19000" data-id="BASIC_1M" data-name="BASIC 1 THÁNG">
-                <b class="p-title">🚕 BASIC 1 THÁNG</b>
-                <span class="p-price">19.000đ</span>
-                <ul>
-                    <li><i>✅</i> Tính cước + thời gian</li>
-                    <li><i>✅</i> Chế độ Offline</li>
-                    <li><i>✅</i> Lưu 50 chuyến</li>
-                    <li><i>✅</i> Bản đồ cơ bản</li>
-                </ul>
-            </div>
-            
-            <div class="p-card recommended" data-price="49000" data-id="PRO_1M" data-name="PRO 1 THÁNG">
-                <b class="p-title">🚖 PRO 1 THÁNG</b>
-                <span class="p-price">49.000đ</span>
-                <span class="p-savings">TIẾT KIỆM 20%</span>
-                <ul>
-                    <li><i>✅</i> Tất cả tính năng Basic</li>
-                    <li><i>✅</i> Real-time Map nâng cao</li>
-                    <li><i>✅</i> Xuất PDF hóa đơn</li>
-                    <li><i>✅</i> Thống kê doanh thu</li>
-                </ul>
-            </div>
-            
-            <div class="p-card" data-price="99000" data-id="VIP_1M" data-name="VIP 1 THÁNG">
-                <b class="p-title">🏆 VIP 1 THÁNG</b>
-                <span class="p-price">99.000đ</span>
-                <ul>
-                    <li><i>✅</i> Tất cả tính năng Pro</li>
-                    <li><i>✅</i> AI Voice Assistant</li>
-                    <li><i>✅</i> Cloud Backup không giới hạn</li>
-                    <li><i>✅</i> Hỗ trợ ưu tiên 24/7</li>
-                </ul>
-            </div>
-        </div>
-        
-        <div style="padding: 0 20px; margin-top: 10px;">
-            <h3 style="color: var(--gold); font-size: 16px;">💎 COMBO ƯU ĐÃI</h3>
-        </div>
-        
-        <div class="p-grid">
-            <div class="p-card" data-price="129000" data-id="COMBO_PRO_3M" data-name="PRO 3 THÁNG">
-                <b class="p-title">📦 PRO 3 THÁNG</b>
-                <span class="p-price">129.000đ</span>
-                <span class="p-savings">TIẾT KIỆM 18K</span>
-                <ul>
-                    <li><i>✅</i> 3 tháng sử dụng</li>
-                    <li><i>✅</i> Tất cả tính năng Pro</li>
-                    <li><i>🎁</i> Quà tặng đặc biệt</li>
-                </ul>
-            </div>
-            
-            <div class="p-card recommended" data-price="499000" data-id="COMBO_VIP_6M" data-name="VIP 6 THÁNG">
-                <b class="p-title">💎 VIP 6 THÁNG</b>
-                <span class="p-price">499.000đ</span>
-                <span class="p-savings">TIẾT KIỆM 95K</span>
-                <ul>
-                    <li><i>✅</i> 6 tháng VIP</li>
-                    <li><i>✅</i> AI cao cấp</li>
-                    <li><i>🎁</i> Tặng bảo hiểm</li>
-                </ul>
-            </div>
-            
-            <div class="p-card" data-price="1499000" data-id="LIFETIME" data-name="VIP TRỌN ĐỜI">
-                <b class="p-title">👑 VIP TRỌN ĐỜI</b>
-                <span class="p-price">1.499.000đ</span>
-                <span class="p-savings">MỘT LẦN DUY NHẤT</span>
-                <ul>
-                    <li><i>✅</i> Sử dụng vĩnh viễn</li>
-                    <li><i>✅</i> Cập nhật miễn phí</li>
-                    <li><i>✅</i> Hỗ trợ trọn đời</li>
-                    <li><i>🎁</i> Quà tặng độc quyền</li>
-                </ul>
-            </div>
-        </div>
-        
-        <div class="info-card">
-            <h3 style="color: var(--primary); margin-top: 0;">💰 THÔNG TIN CHUYỂN KHOẢN</h3>
-            <div class="transaction-info">
-                <p><strong>Ngân hàng:</strong> BIDV</p>
-                <p><strong>Số tài khoản:</strong> 4430269669</p>
-                <p><strong>Chủ tài khoản:</strong> NGUYỄN XUÂN ĐẠT</p>
-                <p><strong>Nội dung chuyển khoản:</strong></p>
-                <b id="qrContent" style="color: var(--danger); font-size: 14px; display: block; margin-top: 5px;">
-                    Vui lòng chọn gói cước
-                </b>
-            </div>
-            
-            <div style="text-align: center; margin: 20px 0;">
-                <img id="qrImg" style="width: 180px; height: 180px; border-radius: 10px; border: 1px solid #eee; background: #f8f9fa; padding: 10px;" 
-                     src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=TAXIPROMAX_CHON_GOI_TRUOC">
-            </div>
-            
-            <div style="margin: 15px 0;">
-                <input type="text" id="transactionCode" placeholder="Nhập mã giao dịch từ ngân hàng" 
-                       style="width: 100%; padding: 12px 15px; border-radius: 10px; border: 2px solid #e0e0e0; font-size: 14px;">
-                <small style="color: #666; font-size: 11px; display: block; margin-top: 5px;">VD: 123456789 (mã từ SMS ngân hàng)</small>
-            </div>
-            
-            <div id="errorMessage" class="error-message"></div>
-            
-            <button id="copyPaymentBtn" class="btn-main">📋 SAO CHÉP THÔNG TIN</button>
-            <button id="zaloRequestBtn" class="btn-main btn-secondary" style="margin-top: 10px;">
-                📱 GỬI YÊU CẦU QUA ZALO
-            </button>
-            <button id="verifyPaymentBtn" class="btn-main" style="margin-top: 10px; background: var(--success);">
-                ✅ XÁC NHẬN ĐÃ CHUYỂN KHOẢN
-            </button>
-        </div>
-        
-        <div id="adBanner" class="ad-banner">
-            ⚠️ Hết thời gian dùng thử! Nâng cấp ngay để tiếp tục sử dụng đầy đủ tính năng
-        </div>
+        <div id="map" style="flex: 1; width: 100%; min-height: 200px;"></div>
     </div>
 
     <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">📊 LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 15px;"></div>
+        <div class="header-tab">
+            <h2>Lịch sử chuyến đi</h2>
+            <button id="clearHistoryBtn" class="btn-text">Xóa hết</button>
+        </div>
+        <div id="historyList" class="scroll-list">
+            </div>
+    </div>
+
+    <div id="tab-goi" class="tab-content">
+        <h2>Gói cước hội viên</h2>
+        <div class="package-list">
+            <div class="p-card" data-id="1day" data-price="10000" data-name="Gói 1 Ngày">
+                <h3>1 NGÀY</h3>
+                <p>10.000đ</p>
+            </div>
+            <div class="p-card highlighted" data-id="1month" data-price="150000" data-name="Gói 1 Tháng">
+                <h3>1 THÁNG</h3>
+                <p>150.000đ</p>
+            </div>
+        </div>
+        <div id="paymentArea" class="payment-box">
+            <p>Mã GD: <input type="text" id="transactionCode" placeholder="Nhập mã ngân hàng..."></p>
+            <button id="verifyPaymentBtn" class="btn-verify">XÁC THỰC THANH TOÁN</button>
+        </div>
     </div>
 
     <div id="tab-toi" class="tab-content">
-        <div class="p-header">👤 TÀI KHOẢN CỦA TÔI</div>
-        
-        <div class="info-card">
-            <h3 style="color: var(--primary); margin-top: 0;">📋 THÔNG TIN TÀI XẾ</h3>
-            <p><strong>Mã tài xế:</strong> <b id="profileID" style="color: var(--dark);">...</b></p>
-            <p><strong>Trạng thái:</strong> 
-                <span id="accountStatus" class="status-badge status-active">ĐANG HOẠT ĐỘNG</span>
-            </p>
-            <p><strong>Gói đang dùng:</strong> 
-                <span id="currentPackage" style="color: var(--primary); font-weight: 900;">DÙNG THỬ 7 NGÀY</span>
-            </p>
-            <p><strong>Ngày hết hạn:</strong> 
-                <span id="expiryDate" style="color: var(--danger); font-weight: 900;">...</span>
-            </p>
-            <p><strong>Màn hình:</strong> 
-                <span id="screenStatus" style="color: var(--primary);">LUÔN SÁNG</span>
-            </p>
-            <p><strong>Bảo mật:</strong> 
-                <span style="color: var(--primary); font-weight: 900;">AES-256 BIT</span>
-            </p>
-            
-            <div class="feature-list">
-                <div class="feature-item" style="background: rgba(0, 191, 165, 0.1);">
-                    <div style="font-weight: 900; color: var(--primary);">Tổng chuyến</div>
-                    <div id="totalTrips" style="font-size: 18px; font-weight: 900;">0</div>
-                </div>
-                <div class="feature-item" style="background: rgba(33, 150, 243, 0.1);">
-                    <div style="font-weight: 900; color: var(--secondary);">Tổng KM</div>
-                    <div id="totalKm" style="font-size: 18px; font-weight: 900;">0</div>
-                </div>
-                <div class="feature-item" style="background: rgba(76, 175, 80, 0.1);">
-                    <div style="font-weight: 900; color: var(--success);">Tổng thu</div>
-                    <div id="totalEarned" style="font-size: 18px; font-weight: 900;">0đ</div>
-                </div>
-            </div>
-            
-            <button id="clearHistoryBtn" class="btn-main" style="margin-top: 20px; background: var(--danger);">
-                🗑️ XÓA LỊCH SỬ
-            </button>
-            <button id="exportDataBtn" class="btn-main" style="margin-top: 10px; background: var(--secondary);">
-                📤 XUẤT DỮ LIỆU
-            </button>
+        <div class="profile-header">
+            <div class="avatar">👤</div>
+            <h3 id="userStatus">Tài khoản miễn phí</h3>
         </div>
-        
-        <div class="zalo-section">
-            <h3 style="margin: 0 0 10px 0; font-size: 18px;">📞 HỐ TRỢ QUA ZALO</h3>
-            <p style="font-size: 12px; opacity: 0.9; margin-bottom: 15px;">
-                Liên hệ ngay để được kích hoạt gói cước<br>
-                và hỗ trợ kỹ thuật 24/7
-            </p>
-            <button id="zaloSupportBtn" class="zalo-btn">
-                💬 LIÊN HỆ ZALO NGAY
-            </button>
-            <p style="font-size: 10px; margin-top: 15px; opacity: 0.7;">
-                (Số điện thoại được ẩn để tránh làm phiền)
-            </p>
+        <div class="stats-grid">
+            <div class="stat-item">Tổng KM: <b id="statTotalKm">0</b></div>
+            <div class="stat-item">Tổng Tiền: <b id="statTotalMoney">0</b></div>
+        </div>
+        <button id="exportDataBtn">Xuất báo cáo Excel</button>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" data-tab="home">🏠 Home</div>
+        <div class="nav-item" data-tab="lichsu">📜 Lịch sử</div>
+        <div class="nav-item" data-tab="goi">💎 Gói</div>
+        <div class="nav-item" data-tab="toi">👤 Tôi</div>
+    </nav>
+
+    <div id="wishModal" class="modal">
+        <div class="modal-content">
+            <h2>🚕 Khởi hành!</h2>
+            <p>Chúc bạn vạn dặm bình an.</p>
         </div>
     </div>
 
-    <div class="footer-panel">
-        <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px; font-weight:800;">
-                <span>GIÁ/KM</span>
-                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
-            </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" id="rateSlider">
-            <button id="mainBtn" class="btn-main">🚕 BẮT ĐẦU CHUYẾN ĐI</button>
+    <div id="endModal" class="modal">
+        <div class="modal-content">
+            <h2>🏁 Kết thúc chuyến</h2>
+            <div id="summaryContent"></div>
+            <button id="closeEndModal">Xác nhận</button>
         </div>
-
-        <div class="nav-grid">
-            <button class="nav-item active" data-tab="home"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" data-tab="vi"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" data-tab="lichsu"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" data-tab="toi"><i>👤</i>Tôi</button>
-        </div>
-        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT | BẢN QUYỀN © 2024</div>
     </div>
 
-    <div id="wishModal" class="custom-modal">
+    <div id="successModal" class="modal">
         <div class="modal-content">
-            <h3 style="color:var(--primary)">🎯 THƯỢNG LỘ BÌNH AN!</h3>
-            <p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p>
-            <div class="spinner"></div>
-            <p style="font-size: 12px; color: #666;">Đang khởi tạo GPS với độ chính xác cao...</p>
-            <button class="btn-main" id="closeWishModal">ĐỒNG Ý</button>
-        </div>
-    </div>
-    
-    <div id="endModal" class="custom-modal">
-        <div class="modal-content">
-            <h3>✅ HOÀN THÀNH CHUYẾN ĐI</h3>
-            <div id="endSummary" style="padding: 15px 0; font-size: 16px;"></div>
-            <button class="btn-main" id="closeEndModal">XÁC NHẬN</button>
-        </div>
-    </div>
-    
-    <div id="zaloModal" class="custom-modal">
-        <div class="modal-content">
-            <h3 style="color: #0068ff;">📱 LIÊN HỆ ZALO</h3>
-            <p>Vui lòng gửi thông tin sau qua Zalo:</p>
-            <div class="transaction-info">
-                <p><strong>Mã tài xế:</strong> <span id="zaloDriverId"></span></p>
-                <p><strong>Gói cước:</strong> <span id="zaloPackage"></span></p>
-                <p><strong>Số tiền:</strong> <span id="zaloAmount"></span></p>
-                <p><strong>Mã giao dịch:</strong> <span id="zaloTransCode"></span></p>
-            </div>
-            <p style="font-size: 12px; color: #666; margin-top: 15px;">
-                Tôi sẽ kích hoạt gói cước cho bạn trong vòng 5-10 phút sau khi nhận được tin nhắn.
-            </p>
-            <button class="btn-main" id="copyZaloMessageBtn" style="background: #0068ff;">
-                📋 SAO CHÉP TIN NHẮN
-            </button>
-            <button class="btn-main" id="closeZaloModal" style="margin-top: 10px;">
-                ĐÃ GỬI TIN NHẮN
-            </button>
-        </div>
-    </div>
-    
-    <div id="successModal" class="custom-modal">
-        <div class="modal-content">
-            <h3 style="color: var(--success);">🎉 THÀNH CÔNG!</h3>
             <div id="successMessage"></div>
-            <button class="btn-main" id="closeSuccessModal">OK</button>
+            <button id="closeSuccessModal" class="btn-close">Đóng</button>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script src="js/Config.js"></script>
-    <script src="js/Data.js"></script>
-    <script src="js/Utils.js"></script>
+    <script src="js/GPSTracker.js"></script>
+    <script src="js/PaymentManager.js"></script>
     <script src="js/TaxiSystem.js"></script>
-    <script src="js/Map.js"></script>
     <script src="js/ui.js"></script>
-    <script src="js/app.js"></script>
-
+    <script src="js/main.js"></script>
 </body>
 </html>
