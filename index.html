@@ -147,7 +147,9 @@
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://open.payos.vn/payos-checkout.js"></script>
     <script src="js/payment.js"></script>
+    
     <script>
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
@@ -161,6 +163,9 @@
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, watchId = null, wakeLock = null; 
 
+        // 1. BỔ SUNG: Luôn bắt đầu quét vị trí khi mở app để hiện đúng nơi anh đang đứng
+        startTracking();
+
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; } } catch (err) {}
         } 
@@ -171,6 +176,8 @@
                     const { latitude, longitude } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     marker.setLatLng(newPos);
+                    
+                    // Nếu đang trong chuyến đi mới di chuyển bản đồ theo xe
                     if(isRunning) {
                         map.panTo(newPos);
                         if(lastPos) {
@@ -181,8 +188,11 @@
                                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
                             }
                         }
-                        lastPos = newPos;
+                    } else {
+                        // Nếu chưa đi, chỉ cập nhật tâm bản đồ lần đầu
+                        if(!lastPos) map.setView(newPos, 16);
                     }
+                    lastPos = newPos;
                 }, (err) => { console.error("Lỗi GPS:", err); }, { enableHighAccuracy: true });
             }
         } 
@@ -194,11 +204,10 @@
             if(!isRunning) {
                 isRunning = true; btn.innerText = "KẾT THÚC CHUYẾN ĐI"; btn.style.background = "var(--danger)";
                 document.getElementById('wishModal').style.display = 'flex';
-                totalKm = 0; lastPos = null; document.getElementById('km').innerText = "0.00"; document.getElementById('cost').innerText = "0";
-                requestWakeLock(); startTracking();
+                totalKm = 0; document.getElementById('km').innerText = "0.00"; document.getElementById('cost').innerText = "0";
+                requestWakeLock();
             } else {
                 isRunning = false; btn.innerText = "BẮT ĐẦU CHUYẾN ĐI"; btn.style.background = "var(--primary)";
-                if(watchId) navigator.geolocation.clearWatch(watchId);
                 let finalCost = Math.round(totalKm * currentRate);
                 saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
@@ -223,8 +232,9 @@
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            if(tab === 'home') document.getElementById('homeControls').style.display = 'block';
-            else { 
+            if(tab === 'home') {
+                document.getElementById('homeControls').style.display = 'block';
+            } else { 
                 document.getElementById('homeControls').style.display = 'none'; 
                 document.getElementById('tab-' + tab).style.display = 'flex'; 
             }
@@ -233,11 +243,13 @@
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         
         async function startPayOS(price, name) {
-            if (typeof selectPack === "function") { await selectPack(price, name); } 
-            else { alert("Đang tải module thanh toán..."); }
+            if (typeof selectPack === "function") { 
+                await selectPack(price, name); 
+            } else { 
+                alert("Đang kết nối cổng PayOS..."); 
+            }
         }
 
-        // Tự động tải lịch sử khi mở app
         window.onload = () => {
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             const list = document.getElementById('historyList');
