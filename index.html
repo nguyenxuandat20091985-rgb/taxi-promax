@@ -2,248 +2,177 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax - Hệ Sinh Thái Tài Xế</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TAXI PROMAX - VẬN HÀNH SIÊU CẤP</title>
     
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <style>
-        :root {
-            --primary: #f1c40f;
-            --dark: #2c3e50;
-            --danger: #e74c3c;
-            --success: #27ae60;
-            --pro: #9b59b6;
-            --business: #2980b9;
-        }
+        :root { --primary: #f1c40f; --dark: #1a1a1a; --danger: #ff3b30; --success: #4cd964; --blue: #007aff; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, sans-serif; background: #000; color: #fff; margin: 0; overflow-x: hidden; }
 
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0; padding: 0;
-            background: #f4f7f6;
-            overscroll-behavior: none;
-        }
+        /* Banner Đếm Ngược */
+        #trial-banner { background: var(--danger); text-align: center; padding: 10px; font-weight: bold; font-size: 14px; position: sticky; top: 0; z-index: 100; }
 
-        /* Banner Nhắc Nợ/Dùng Thử */
-        #status-banner {
-            background: var(--danger);
-            color: white;
-            text-align: center;
-            padding: 8px;
-            font-weight: bold;
-            font-size: 13px;
-            display: none;
-        }
+        /* Đồng hồ LED siêu lớn */
+        .meter-screen { height: 40vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(180deg, #222, #000); border-bottom: 2px solid var(--primary); }
+        .money-led { font-size: 80px; font-family: 'Courier New', monospace; color: var(--primary); text-shadow: 0 0 20px rgba(241, 196, 15, 0.5); }
+        .sub-stats { display: flex; width: 100%; justify-content: space-around; margin-top: 20px; font-size: 18px; }
 
-        /* Đồng hồ tính tiền chuyên nghiệp */
-        .meter-box {
-            background: var(--dark);
-            color: var(--primary);
-            text-align: center;
-            padding: 30px 10px;
-            border-bottom: 5px solid var(--primary);
-        }
-        .money { font-size: 55px; font-weight: bold; font-family: monospace; }
-        .stats { display: flex; justify-content: space-around; color: white; margin-top: 15px; }
+        /* Bảng giá 4 cột Scannable */
+        .price-section { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 15px; background: #111; }
+        .p-card { background: #222; border-radius: 12px; padding: 15px; border: 1px solid #333; position: relative; }
+        .p-card.active { border-color: var(--primary); background: #2c2c2e; }
+        .p-card h4 { margin: 0; font-size: 13px; color: var(--primary); }
+        .p-card .price { font-size: 22px; font-weight: bold; margin: 5px 0; }
+        .p-card ul { padding: 0; list-style: none; font-size: 11px; color: #aaa; margin-bottom: 10px; }
+        .btn-buy { width: 100%; border: none; padding: 8px; border-radius: 6px; font-weight: bold; background: #444; color: white; }
 
-        /* Bảng giá 4 cột mới */
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 10px;
-            padding: 15px;
-        }
+        /* Nút Start/Stop Chuyên nghiệp */
+        .control-area { padding: 20px; }
+        #main-btn { width: 100%; height: 70px; border-radius: 35px; border: none; font-size: 20px; font-weight: bold; transition: 0.3s; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .btn-ready { background: var(--success); color: #fff; }
+        .btn-running { background: var(--danger); color: #fff; animation: pulse 1.5s infinite; }
 
-        .price-card {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border: 1px solid #ddd;
-        }
-
-        .price-card h4 { margin: 0; font-size: 14px; text-transform: uppercase; }
-        .price-card .cost { font-size: 20px; font-weight: bold; margin: 10px 0; color: #333; }
-        .price-card ul { padding: 0; list-style: none; font-size: 11px; color: #666; text-align: left; }
-        .price-card li::before { content: "• "; color: var(--success); }
-
-        .btn-buy {
-            width: 100%;
-            padding: 8px;
-            border: none;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 10px;
-            font-size: 12px;
-        }
-
-        /* Nút điều khiển chính */
-        .main-controls { padding: 20px; }
-        .btn-start {
-            width: 100%;
-            padding: 15px;
-            background: var(--success);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            font-size: 18px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
-        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div id="status-banner">⚠️ GÓI TRẢI NGHIỆM: Còn <span id="days-left">7</span> ngày dùng thử!</div>
+<div id="trial-banner">🎁 VIP TRẢI NGHIỆM: Còn <span id="days">7</span> Ngày</div>
 
-    <div class="meter-box">
-        <div style="font-size: 12px; color: #aaa;">TRẠNG THÁI: <span id="trip-status">ĐANG CHỜ...</span></div>
-        <div class="money" id="display-money">0đ</div>
-        <div class="stats">
-            <div><small>KM</small><br><b id="display-km">0.0</b></div>
-            <div><small>KM/H</small><br><b id="display-speed">0</b></div>
-        </div>
+<div class="meter-screen">
+    <div id="trip-label" style="font-size: 14px; letter-spacing: 2px;">ĐANG CHỜ KHÁCH</div>
+    <div class="money-led" id="money">0đ</div>
+    <div class="sub-stats">
+        <div>KM: <b id="km">0.00</b></div>
+        <div>VẬN TỐC: <b id="speed">0</b> <small>km/h</small></div>
     </div>
+</div>
 
-    <div class="main-controls">
-        <button class="btn-start" id="btn-toggle" onclick="handleTrip()">BẮT ĐẦU CUỐC XE</button>
+<div class="control-area">
+    <button id="main-btn" class="btn-ready" onclick="toggleTrip()">BẮT ĐẦU CHUYẾN</button>
+</div>
+
+<div class="price-section">
+    <div class="p-card">
+        <h4>TRẢI NGHIỆM</h4>
+        <div class="price">0đ</div>
+        <ul><li>7 ngày dùng thử</li><li>Full tính năng</li></ul>
+        <button class="btn-buy" style="background: var(--success)">ĐANG DÙNG</button>
     </div>
-
-    <h3 style="padding-left: 15px; margin-bottom: 0;">GÓI CƯỚC PROMAX</h3>
-    <div class="pricing-grid">
-        <div class="price-card">
-            <h4>TRẢI NGHIỆM</h4>
-            <div class="cost">0đ</div>
-            <ul>
-                <li>7 ngày Full tính năng</li>
-                <li>Làm quen hệ thống</li>
-            </ul>
-            <button class="btn-buy" disabled>ĐANG DÙNG</button>
-        </div>
-
-        <div class="price-card">
-            <h4>CHUYẾN LẺ</h4>
-            <div class="cost">5.000đ</div>
-            <ul>
-                <li>Dùng trong 24h</li>
-                <li>Khách tỉnh lẻ</li>
-            </ul>
-            <button class="btn-buy" style="background: #eee;" onclick="order('5k')">MUA</button>
-        </div>
-
-        <div class="price-card" style="border-color: var(--pro);">
-            <h4 style="color: var(--pro);">TÀI XẾ PRO</h4>
-            <div class="cost">49.000đ</div>
-            <ul>
-                <li>Hóa đơn Zalo</li>
-                <li>Sổ tay kế toán</li>
-                <li>Nhắc bảo dưỡng</li>
-            </ul>
-            <button class="btn-buy" style="background: var(--pro); color: white;" onclick="order('49k')">CHỌN</button>
-        </div>
-
-        <div class="price-card" style="border-color: var(--business); background: #f0f8ff;">
-            <h4 style="color: var(--business);">DOANH NHÂN</h4>
-            <div class="cost">129.000đ</div>
-            <ul>
-                <li>Radar tìm khách</li>
-                <li>Cứu hộ SOS</li>
-                <li>Ưu tiên hỗ trợ</li>
-            </ul>
-            <button class="btn-buy" style="background: var(--business); color: white;" onclick="order('129k')">MUA</button>
-        </div>
+    <div class="p-card">
+        <h4>CHUYẾN LẺ</h4>
+        <div class="price">5.000đ</div>
+        <ul><li>Dùng trong 24h</li><li>Tiện lợi</li></ul>
+        <button class="btn-buy" onclick="alert('Nạp 5k')">MUA</button>
     </div>
+    <div class="p-card active">
+        <h4>TÀI XẾ PRO</h4>
+        <div class="price">49.000đ</div>
+        <ul><li>Hóa đơn Zalo</li><li>Nhắc bảo dưỡng</li></ul>
+        <button class="btn-buy" style="background: var(--blue)" onclick="alert('Nạp 49k')">CHỌN</button>
+    </div>
+    <div class="p-card">
+        <h4>DOANH NHÂN</h4>
+        <div class="price">129.000đ</div>
+        <ul><li>Bản đồ nhiệt</li><li>SOS cứu hộ</li></ul>
+        <button class="btn-buy" style="background: var(--primary); color: #000" onclick="alert('Nạp 129k')">MUA</button>
+    </div>
+</div>
 
-    <script>
-        let running = false;
-        let km = 0;
-        let wakeLock = null;
+<script>
+    let isRunning = false;
+    let totalDistance = 0;
+    let lastCoord = null;
+    let wakeLock = null;
 
-        // 1. Logic Wake Lock (Chống tắt màn hình)
-        async function stayAwake() {
-            if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                } catch (err) { console.log("WakeLock failed"); }
-            }
+    // THUẬT TOÁN TÍNH KHOẢNG CÁCH CHÍNH XÁC (HAVERSINE) - BÙ SÓI KHI VÀO HẦM
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Bán kính Trái Đất (km)
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // CHỐNG TẮT MÀN HÌNH (WAKE LOCK)
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
+    }
 
-        // 2. Tự động nhảy đồng hồ & Chống GPS giả
-        function initGPS() {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(p => {
-                    if (p.coords.mocked) {
-                        alert("CẢNH BÁO: Bạn đang dùng GPS giả lập!");
-                        location.reload();
+    function toggleTrip() {
+        const btn = document.getElementById('main-btn');
+        const label = document.getElementById('trip-label');
+        isRunning = !isRunning;
+
+        if (isRunning) {
+            btn.innerText = "KẾT THÚC"; btn.className = "btn-running";
+            label.innerText = "ĐANG DI CHUYỂN";
+            requestWakeLock();
+        } else {
+            btn.innerText = "BẮT ĐẦU CHUYẾN"; btn.className = "btn-ready";
+            label.innerText = "CHUYẾN ĐÃ DỪNG";
+            if(wakeLock) wakeLock.release();
+            // Voice AI kết thúc
+            const speak = new SpeechSynthesisUtterance("Cuốc xe hoàn thành. Vui lòng kiểm tra lại hành lý.");
+            window.speechSynthesis.speak(speak);
+        }
+    }
+
+    // THEO DÕI GPS VỚI CHẾ ĐỘ GIÁP BẢO VỆ
+    if ("geolocation" in navigator) {
+        navigator.geolocation.watchPosition(pos => {
+            // 1. Chống Hack GPS (Mock Location)
+            if (pos.coords.mocked) { 
+                alert("Cảnh báo: Phát hiện thiết bị hack GPS!"); 
+                location.reload(); 
+            }
+
+            const { latitude, longitude, speed } = pos.coords;
+            const currentSpeed = Math.round((speed || 0) * 3.6);
+            document.getElementById('speed').innerText = currentSpeed;
+
+            // 2. Tự động nhảy đồng hồ khi vẫy khách (>5km/h)
+            if (currentSpeed > 5 && !isRunning) { toggleTrip(); }
+
+            if (isRunning) {
+                if (lastCoord) {
+                    const dist = calculateDistance(lastCoord.lat, lastCoord.lon, latitude, longitude);
+                    // Lọc nhiễu GPS (nếu nhảy quá xa trong 1s thì bỏ qua)
+                    if (dist < 0.5) { 
+                        totalDistance += dist;
+                        document.getElementById('km').innerText = totalDistance.toFixed(2);
+                        document.getElementById('money').innerText = Math.round(totalDistance * 15000).toLocaleString() + "đ";
                     }
-                    
-                    let speed = Math.round((p.coords.speed || 0) * 3.6);
-                    document.getElementById('display-speed').innerText = speed;
-
-                    // Tự động bật nếu chạy > 5km/h mà chưa bật
-                    if (speed > 5 && !running) {
-                        handleTrip();
-                    }
-
-                    if (running) {
-                        km += 0.01; // Giả lập tăng km
-                        document.getElementById('display-km').innerText = km.toFixed(2);
-                        document.getElementById('display-money').innerText = Math.round(km * 12000) + "đ";
-                    }
-                }, null, { enableHighAccuracy: true });
+                }
+                lastCoord = { lat: latitude, lon: longitude };
             }
-        }
+        }, err => console.log(err), {
+            enableHighAccuracy: true, // Ép dùng GPS thật, không dùng Wifi
+            timeout: 5000,
+            maximumAge: 0
+        });
+    }
 
-        function handleTrip() {
-            const btn = document.getElementById('btn-toggle');
-            if (!running) {
-                running = true;
-                btn.innerText = "KẾT THÚC CUỐC";
-                btn.style.background = "var(--danger)";
-                document.getElementById('trip-status').innerText = "ĐANG TÍNH TIỀN...";
-                stayAwake();
-            } else {
-                running = false;
-                btn.innerText = "BẮT ĐẦU CUỐC XE";
-                btn.style.background = "var(--success)";
-                document.getElementById('trip-status').innerText = "ĐÃ HOÀN THÀNH";
-                if (wakeLock) wakeLock.release();
-                // Voice AI nhắc nạp tiền (giả lập)
-                const msg = new SpeechSynthesisUtterance("Cuốc xe kết thúc. Hãy nâng cấp gói cước để nhận thêm nhiều ưu đãi");
-                window.speechSynthesis.speak(msg);
-            }
-        }
+    // LOGIC DÙNG THỬ 7 NGÀY
+    function checkTrial() {
+        let install = localStorage.getItem('install_date') || Date.now();
+        localStorage.setItem('install_date', install);
+        let left = 7 - Math.floor((Date.now() - install) / 86400000);
+        document.getElementById('days').innerText = left > 0 ? left : 0;
+    }
+    
+    window.onload = checkTrial;
+</script>
 
-        // 3. Logic dùng thử 7 ngày
-        function checkTrial() {
-            let start = localStorage.getItem('taxi_start_date');
-            if (!start) {
-                start = Date.now();
-                localStorage.setItem('taxi_start_date', start);
-            }
-            let daysPast = Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
-            let daysLeft = 7 - daysPast;
-
-            if (daysLeft >= 0) {
-                document.getElementById('status-banner').style.display = 'block';
-                document.getElementById('days-left').innerText = daysLeft;
-            } else {
-                document.getElementById('status-banner').innerText = "HẾT HẠN DÙNG THỬ - VUI LÒNG NẠP TIỀN";
-                document.getElementById('status-banner').style.display = 'block';
-            }
-        }
-
-        function order(pkg) {
-            alert("Anh Đạt đang kết nối cổng thanh toán cho gói " + pkg + ". Vui lòng chờ!");
-        }
-
-        window.onload = () => {
-            checkTrial();
-            initGPS();
-        };
-    </script>
 </body>
 </html>
