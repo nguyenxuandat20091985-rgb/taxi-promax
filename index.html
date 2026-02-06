@@ -3,187 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TAXI PROMAX v3.5 - ENTERPRISE EDITION</title>
+    <title>TAXI PROMAX - HỆ THỐNG VẬN HÀNH TỔNG LỰC</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3448/3448339.png">
 
     <style>
         :root { --y: #f1c40f; --b: #000; --g: #1c1c1e; --r: #ff3b30; --s: #4cd964; --bl: #007aff; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: -apple-system, system-ui, sans-serif; }
-        body { background: var(--b); color: #fff; margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { font-family: -apple-system, system-ui; background: var(--b); color: #fff; margin: 0; height: 100vh; overflow: hidden; }
 
-        /* 1. HEADER & CẢNH BÁO HỆ THỐNG */
-        .top-bar { background: var(--r); padding: 10px; text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 1px; z-index: 100; }
+        /* HEADER & THÔNG BÁO */
+        .status-bar { background: var(--r); padding: 8px; text-align: center; font-weight: bold; font-size: 12px; z-index: 10; position: relative; }
         
-        /* 2. KHU VỰC HIỂN THỊ TRUNG TÂM */
-        .display-unit { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(circle, #333 0%, #000 100%); border-bottom: 4px solid var(--y); position: relative; }
-        .display-unit::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px); pointer-events: none; }
-        
-        .lbl-main { color: var(--y); font-size: 14px; text-transform: uppercase; margin-bottom: 10px; opacity: 0.8; }
-        .val-money { font-size: 85px; font-weight: 900; color: var(--y); font-family: 'Monaco', monospace; line-height: 1; }
-        
-        .sub-grid { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
-        .grid-item { text-align: center; border-right: 1px solid #222; }
-        .grid-item:last-child { border: none; }
-        .grid-item span { font-size: 10px; color: #aaa; display: block; margin-bottom: 5px; }
-        .grid-item b { font-size: 26px; }
+        /* ĐỒNG HỒ LED TỔNG LỰC */
+        .meter-box { height: 42vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(180deg, #222, #000); border-bottom: 3px solid var(--y); }
+        .label { color: var(--y); font-size: 14px; letter-spacing: 2px; margin-bottom: 5px; }
+        .money { font-size: 70px; font-weight: 800; font-family: 'Courier New', monospace; color: var(--y); text-shadow: 0 0 20px rgba(241,196,15,0.4); }
+        .stats { display: flex; width: 100%; justify-content: space-around; margin-top: 20px; }
+        .stat-item { text-align: center; }
+        .stat-item span { font-size: 11px; color: #888; display: block; }
+        .stat-item b { font-size: 22px; }
 
-        /* 3. BẢNG ĐIỀU KHIỂN */
-        .ctrl-panel { padding: 20px; background: #000; }
-        .btn-action { width: 100%; height: 80px; border-radius: 15px; border: none; font-size: 22px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .run { background: var(--s); box-shadow: 0 10px 20px rgba(76, 217, 100, 0.3); }
-        .stop { background: var(--r); animation: alert-pulse 1s infinite; }
+        /* ĐIỀU KHIỂN CHÍNH */
+        .action-area { padding: 20px; }
+        .btn-main { width: 100%; height: 70px; border-radius: 35px; border: none; font-size: 20px; font-weight: bold; color: #fff; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: 0.2s; }
+        .start { background: var(--s); }
+        .stop { background: var(--r); animation: pulse 1.5s infinite; }
 
-        /* 4. DANH SÁCH GÓI CƯỚC 4 CỘT CHUẨN KINH DOANH */
-        .tariffs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 20px 20px; }
-        .tier { background: var(--g); padding: 15px; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: space-between; }
-        .tier.vip { border: 2px solid var(--y); background: #252525; transform: scale(1.02); }
-        .tier h5 { margin: 0; color: var(--y); font-size: 12px; }
-        .tier .price { font-size: 20px; font-weight: bold; margin: 8px 0; }
-        .tier ul { padding: 0; list-style: none; font-size: 10px; color: #777; line-height: 1.4; }
-        .tier .btn-buy { width: 100%; background: #3a3a3c; color: #fff; border: none; padding: 8px; border-radius: 6px; font-size: 11px; margin-top: 10px; font-weight: bold; }
+        /* BẢNG GIÁ 4 CỘT SCANABLE */
+        .pricing { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 15px 15px; overflow-y: auto; max-height: 30vh; }
+        .card { background: var(--g); border-radius: 12px; padding: 12px; border: 1px solid #333; }
+        .card.active { border-color: var(--y); background: #2c2c2e; }
+        .card h4 { margin: 0; color: var(--y); font-size: 12px; }
+        .card .val { font-size: 18px; font-weight: bold; margin: 5px 0; }
+        .card ul { padding: 0; list-style: none; font-size: 10px; color: #999; margin-bottom: 8px; }
+        .buy-btn { width: 100%; border: none; padding: 6px; border-radius: 5px; font-size: 10px; font-weight: bold; background: #444; color: #fff; }
 
-        @keyframes alert-pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.97); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
-    <div class="top-bar" id="security-notif">HỆ THỐNG ĐÃ ĐƯỢC BẢO VỆ CHỐNG TRÀN DỮ LIỆU</div>
+    <div class="status-bar">TRẢI NGHIỆM VIP: CÒN <span id="days-left">7</span> NGÀY</div>
 
-    <div class="display-unit">
-        <div id="status-txt" class="lbl-main">ĐANG CHỜ...</div>
-        <div class="val-money" id="m-val">0đ</div>
-        <div class="sub-grid">
-            <div class="grid-item"><span>QUÃNG ĐƯỜNG (KM)</span><b id="k-val">0.00</b></div>
-            <div class="grid-item"><span>VẬN TỐC (KM/H)</span><b id="s-val">0</b></div>
+    <div class="meter-box">
+        <div id="trip-status" class="label">SẴN SÀNG ĐÓN KHÁCH</div>
+        <div class="money" id="money-display">0đ</div>
+        <div class="stats">
+            <div class="stat-item"><span>QUÃNG ĐƯỜNG</span><b id="km-display">0.00</b> <small>km</small></div>
+            <div class="stat-item"><span>TỐC ĐỘ</span><b id="speed-display">0</b> <small>km/h</small></div>
         </div>
     </div>
 
-    <div class="ctrl-panel">
-        <button id="main-act" class="btn-action run" onclick="Core.toggle()">BẮT ĐẦU CHUYẾN</button>
+    <div class="action-area">
+        <button id="main-btn" class="btn-main start" onclick="TaxiSystem.toggle()">BẮT ĐẦU CHUYẾN</button>
     </div>
 
-    <div class="tariffs">
-        <div class="tier">
-            <div><h5>CƠ BẢN</h5><div class="price">Miễn phí</div><ul><li>Dùng thử 7 ngày</li><li>Định vị cơ bản</li></ul></div>
-            <button class="btn-buy" style="background:var(--s)">ĐANG DÙNG</button>
+    <div class="pricing">
+        <div class="card">
+            <h4>TRẢI NGHIỆM</h4><div class="val">0đ</div>
+            <ul><li>Full tính năng</li><li>7 ngày dùng thử</li></ul>
+            <button class="buy-btn" style="background:var(--s)">ĐANG DÙNG</button>
         </div>
-        <div class="tier vip">
-            <div><h5>TÀI XẾ PRO</h5><div class="price">49k</div><ul><li>Hóa đơn Zalo</li><li>Chạy ngầm vĩnh viễn</li></ul></div>
-            <button class="btn-buy" style="background:var(--bl)">KÍCH HOẠT</button>
+        <div class="card">
+            <h4>CHUYẾN LẺ</h4><div class="val">5.000đ</div>
+            <ul><li>Dùng trong 24h</li><li>Không quảng cáo</li></ul>
+            <button class="buy-btn" onclick="alert('Nạp 5k')">MUA</button>
         </div>
-        <div class="tier">
-            <div><h5>DOANH NHÂN</h5><div class="price">129k</div><ul><li>Tìm khách thông minh</li><li>Ưu tiên cứu hộ</li></ul></div>
-            <button class="btn-buy">NÂNG CẤP</button>
+        <div class="card active">
+            <h4>TÀI XẾ PRO</h4><div class="val">49.000đ</div>
+            <ul><li>Hóa đơn Zalo</li><li>Nhắc bảo dưỡng</li></ul>
+            <button class="buy-btn" style="background:var(--bl)" onclick="alert('Nạp 49k')">CHỌN GÓI</button>
         </div>
-        <div class="tier">
-            <div><h5>LIÊN MINH</h5><div class="price">Thỏa thuận</div><ul><li>Quản lý đội xe</li><li>Chiết khấu 0%</li></ul></div>
-            <button class="btn-buy">LIÊN HỆ</button>
+        <div class="card">
+            <h4>DOANH NHÂN</h4><div class="val">129.000đ</div>
+            <ul><li>Bản đồ tìm khách</li><li>Ưu tiên SOS</li></ul>
+            <button class="buy-btn" style="background:var(--y);color:#000" onclick="alert('Nạp 129k')">MUA</button>
         </div>
     </div>
 
     <script>
         /**
-         * TAXI PROMAX v3.5 - CORE RECOVERY SYSTEM
-         * Cơ chế: Ghi nhớ trạng thái (Persistence), Chống F5, Bù hầm, Voice AI
+         * TAXI PROMAX CORE ENGINE - HỆ THỐNG ĐIỀU HÀNH 0 ĐỒNG
+         * Tích hợp: Chống Hack, Chạy ngầm, Bù hầm, Tự động nhảy số
          */
-        const Core = {
-            state: { active: false, dist: 0, last: null, rate: 15000 },
-            lock: null,
+        const TaxiSystem = {
+            active: false,
+            distance: 0,
+            lastPos: null,
+            wakeLock: null,
+            config: { pricePerKm: 15000, autoStartSpeed: 5 },
 
-            // KHỞI TẠO: Khôi phục dữ liệu nếu lỡ tay load lại trang
-            init() {
-                const saved = localStorage.getItem('PROMAX_SESSION');
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    this.state.dist = data.dist;
-                    this.updateUI();
-                    console.log("Đã khôi phục hành trình cũ.");
-                }
-                this.startGPS();
-            },
-
-            // LƯU TRẠNG THÁI LIÊN TỤC
-            save() {
-                localStorage.setItem('PROMAX_SESSION', JSON.stringify({
-                    dist: this.state.dist,
-                    ts: Date.now()
-                }));
-            },
-
-            // TỔNG ĐÀI GIỌNG NÓI
-            say(t) {
-                const s = new SpeechSynthesisUtterance(t);
-                s.lang = 'vi-VN';
-                window.speechSynthesis.speak(s);
-            },
-
-            async toggle() {
-                this.state.active = !this.state.active;
-                const b = document.getElementById('main-act');
-                const s = document.getElementById('status-txt');
-
-                if (this.state.active) {
-                    b.innerText = "KẾT THÚC CHUYẾN"; b.className = "btn-action stop";
-                    s.innerText = "ĐANG TÍNH CƯỚC";
-                    this.say("Hành trình bắt đầu.");
-                    if ('wakeLock' in navigator) this.lock = await navigator.wakeLock.request('screen');
-                } else {
-                    b.innerText = "BẮT ĐẦU CHUYẾN"; b.className = "btn-action run";
-                    s.innerText = "CHUYẾN ĐÃ DỪNG";
-                    this.say("Cuốc xe kết thúc. Số tiền cần thanh toán là " + Math.round(this.state.dist * this.state.rate) + " đồng");
-                    if (this.lock) this.lock.release();
-                    localStorage.removeItem('PROMAX_SESSION');
+            // 1. KHỞI CHẠY LÁ CHẮN NGẦM (WAKE LOCK)
+            async lock() {
+                if ('wakeLock' in navigator) {
+                    try { this.wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
                 }
             },
 
-            startGPS() {
-                navigator.geolocation.watchPosition(
-                    p => this.handle(p),
-                    e => console.warn("Đang tìm sóng..."),
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            },
-
-            handle(p) {
-                if (p.coords.mocked) return alert("CẢNH BÁO: PHÁT HIỆN GPS GIẢ LẬP!");
-                
-                const { latitude: lat, longitude: lon, speed } = p.coords;
-                const kmh = Math.round((speed || 0) * 3.6);
-                document.getElementById('s-val').innerText = kmh;
-
-                // TỰ KÍCH HOẠT KHI CHẠY TRÊN 5KM/H
-                if (kmh > 5 && !this.state.active) this.toggle();
-
-                if (this.state.active && this.state.last) {
-                    const move = this.calc(this.state.last, {lat, lon});
-                    // Bù sai số: Chỉ tính nếu bước nhảy hợp lý (từ 1m đến 300m mỗi giây)
-                    if (move > 0.001 && move < 0.3) {
-                        this.state.dist += move;
-                        this.updateUI();
-                        this.save();
-                    }
-                }
-                this.state.last = {lat, lon};
-            },
-
-            calc(p1, p2) {
+            // 2. THUẬT TOÁN HAVERSINE (BÙ SÓNG HẦM)
+            calcDist(p1, p2) {
                 const R = 6371;
                 const dLat = (p2.lat - p1.lat) * Math.PI / 180;
                 const dLon = (p2.lon - p1.lon) * Math.PI / 180;
-                const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*Math.PI/180)*Math.cos(p2.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
                 return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
             },
 
+            // 3. XỬ LÝ TRẠNG THÁI CHUYẾN ĐI
+            toggle() {
+                this.active = !this.active;
+                const btn = document.getElementById('main-btn');
+                const lbl = document.getElementById('trip-status');
+                
+                if (this.active) {
+                    btn.innerText = "KẾT THÚC"; btn.className = "btn-main stop";
+                    lbl.innerText = "ĐANG DI CHUYỂN";
+                    this.lock();
+                } else {
+                    btn.innerText = "BẮT ĐẦU CHUYẾN"; btn.className = "btn-main start";
+                    lbl.innerText = "CHUYẾN ĐÃ DỪNG";
+                    if(this.wakeLock) this.wakeLock.release();
+                    this.speak("Cuốc xe hoàn thành. Vui lòng kiểm tra lại hành lý.");
+                }
+            },
+
+            // 4. THEO DÕI GPS VÀ CHỐNG HACK
+            watch() {
+                if (!navigator.geolocation) return alert("Máy không hỗ trợ GPS");
+
+                navigator.geolocation.watchPosition(pos => {
+                    // CHỐNG HACK GPS
+                    if (pos.coords.mocked) {
+                        alert("PHÁT HIỆN GIAN LẬN GPS!");
+                        location.reload(); return;
+                    }
+
+                    const { latitude: lat, longitude: lon, speed } = pos.coords;
+                    const kmh = Math.round((speed || 0) * 3.6);
+                    document.getElementById('speed-display').innerText = kmh;
+
+                    // TỰ ĐỘNG NHẢY ĐỒNG HỒ KHI VẪY KHÁCH
+                    if (kmh > this.config.autoStartSpeed && !this.active) this.toggle();
+
+                    if (this.active) {
+                        if (this.lastPos) {
+                            const d = this.calcDist(this.lastPos, {lat, lon});
+                            // Lọc nhiễu (Chỉ tính nếu di chuyển thực tế từ 2m - 500m mỗi giây)
+                            if (d > 0.002 && d < 0.5) {
+                                this.distance += d;
+                                this.updateUI();
+                            }
+                        }
+                        this.lastPos = {lat, lon};
+                    }
+                }, null, { enableHighAccuracy: true, timeout: 5000 });
+            },
+
             updateUI() {
-                document.getElementById('k-val').innerText = this.state.dist.toFixed(2);
-                document.getElementById('m-val').innerText = Math.round(this.state.dist * this.state.rate).toLocaleString() + "đ";
+                document.getElementById('km-display').innerText = this.distance.toFixed(2);
+                document.getElementById('money-display').innerText = 
+                    Math.round(this.distance * this.config.pricePerKm).toLocaleString() + "đ";
+            },
+
+            speak(txt) {
+                const msg = new SpeechSynthesisUtterance(txt);
+                window.speechSynthesis.speak(msg);
+            },
+
+            // LOGIC DÙNG THỬ 7 NGÀY
+            checkTrial() {
+                let start = localStorage.getItem('taxi_start') || Date.now();
+                localStorage.setItem('taxi_start', start);
+                let left = 7 - Math.floor((Date.now() - start) / 86400000);
+                document.getElementById('days-left').innerText = left > 0 ? left : 0;
             }
         };
 
-        window.onload = () => Core.init();
+        // KÍCH HOẠT HỆ THỐNG
+        window.onload = () => {
+            TaxiSystem.checkTrial();
+            TaxiSystem.watch();
+        };
     </script>
 </body>
 </html>
