@@ -1,40 +1,49 @@
-const PayOS = require('@payos/node');
-
-// Khai báo PayOS
-const payos = new PayOS(
-    process.env.PAYOS_CLIENT_ID, 
-    process.env.PAYOS_API_KEY, 
-    process.env.PAYOS_CHECKSUM_KEY
-);
-
-module.exports = async (req, res) => {
-    // Cho phép gọi API từ giao diện web
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+// Hàm xử lý khi khách bấm nút "NẠP NGAY"
+async function createPayment(amount, description) {
+    // 1. Hiển thị thông báo để khách biết hệ thống đang xử lý
+    const btn = event?.target;
+    const originalText = btn ? btn.innerText : "NẠP NGAY";
+    if (btn) {
+        btn.innerText = "ĐANG TẠO MÃ QR...";
+        btn.disabled = true;
     }
 
     try {
-        // Lấy dữ liệu từ file payment.js gửi lên
-        const { amount, description, orderCode } = req.body;
+        // 2. Gửi yêu cầu lên máy chủ Vercel của anh
+        const response = await fetch('/api/create-payment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                amount: amount,
+                description: description || "Nap tien Taxi ProMax"
+            }),
+        });
 
-        const order = {
-            amount: amount || 10000,
-            description: description || 'Nap tien Taxi ProMax',
-            orderCode: orderCode || Number(String(Date.now()).slice(-6)),
-            returnUrl: `https://${req.headers.host}/`,
-            cancelUrl: `https://${req.headers.host}/`,
-        };
+        // 3. Đọc dữ liệu trả về
+        const data = await response.json();
 
-        const paymentLink = await payos.createPaymentLink(order);
-        
-        // Trả về link cho file payment.js nhận
-        res.status(200).json(paymentLink);
+        // 4. Kiểm tra xem có link thanh toán chưa
+        if (data && data.checkoutUrl) {
+            // Nếu có, đưa khách sang trang mã QR của BIDV ngay
+            window.location.href = data.checkoutUrl;
+        } else {
+            console.error("Lỗi từ máy chủ:", data);
+            alert("Anh Đạt ơi, máy chủ báo lỗi: " + (data.error || "Không lấy được link"));
+        }
+
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+        console.error("Lỗi kết nối:", error);
+        alert("Lỗi kết nối rồi anh ơi! Anh kiểm tra lại mạng hoặc Vercel nhé.");
+    } finally {
+        // Trả lại trạng thái nút bấm nếu có lỗi
+        if (btn) {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
     }
-};
+}
+
+// Lắng nghe sự kiện từ các nút bấm có class 'btn-nap' (nếu anh có đặt class)
+// Hoặc anh có thể gọi trực tiếp onclick="createPayment(19000, 'Goi Basic')" trong HTML
