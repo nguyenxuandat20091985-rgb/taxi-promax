@@ -1,18 +1,24 @@
 // File: js/payment.js
 
-// Hàm này sẽ chạy khi anh bấm vào các gói nạp tiền
 async function selectPack(price, name, el) {
-    // 1. Hiệu ứng chọn gói (đổi màu khung)
+    // 1. Hiệu ứng chọn gói
     document.querySelectorAll('.p-card').forEach(c => c.classList.remove('active'));
-    if (el) el.classList.add('active');
+    if (el) {
+        el.classList.add('active');
+    }
 
+    // 2. Chống bấm liên tiếp (Spam)
+    const originalContent = el ? el.innerHTML : "";
+    if (el) el.style.opacity = "0.5";
+    
     console.log(`Đang khởi tạo đơn hàng: ${name} - Giá: ${price} VNĐ`);
 
-    // 2. Tạo mã đơn hàng ngẫu nhiên (PayOS yêu cầu mã số)
-    const orderCode = Number(String(Date.now()).slice(-6)); 
+    // 3. Tạo mã đơn hàng (PayOS yêu cầu số nguyên, tối đa 9007199254740991)
+    // Dùng timestamp là chuẩn nhất
+    const orderCode = Number(String(Date.now()).slice(-8)); 
 
     try {
-        // 3. Gọi đến server (Vercel API) để lấy link thanh toán
+        // 4. Gọi đến server (Vercel API)
         const response = await fetch('/api/create-payment', {
             method: 'POST',
             headers: {
@@ -20,23 +26,25 @@ async function selectPack(price, name, el) {
             },
             body: JSON.stringify({
                 amount: price,
-                description: `NAP ${name}`, // Ví dụ: NAP GOI THANG
+                description: `NAP ${name}`, 
                 orderCode: orderCode
             })
         });
 
         const data = await response.json();
 
-        // 4. Xử lý kết quả trả về
+        // 5. Xử lý kết quả
         if (data.checkoutUrl) {
-            // Nếu thành công, chuyển hướng tài xế sang trang quét mã QR của PayOS
+            // Chuyển hướng sang cổng thanh toán
             window.location.href = data.checkoutUrl;
         } else {
-            console.error("Lỗi PayOS:", data);
-            alert("Không thể tạo mã QR. Anh hãy kiểm tra lại cấu hình API Key trên Vercel nhé!");
+            console.error("Lỗi từ API:", data);
+            alert("❌ Lỗi: " + (data.error || "Không thể tạo mã QR. Anh kiểm tra lại API Key trên Vercel!"));
+            if (el) el.style.opacity = "1";
         }
     } catch (error) {
         console.error("Lỗi kết nối:", error);
-        alert("Lỗi kết nối máy chủ! Anh kiểm tra xem đã tạo thư mục /api trên Vercel chưa?");
+        alert("❌ Lỗi kết nối! Anh kiểm tra xem đã Push thư mục /api lên Vercel chưa?");
+        if (el) el.style.opacity = "1";
     }
 }
