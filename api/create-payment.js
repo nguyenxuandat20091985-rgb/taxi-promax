@@ -47,4 +47,4 @@ module.exports = async (req, res) => {
         // Nếu không phải POST thì báo lỗi
         res.status(405).json({ message: 'Anh Đạt ơi, API này chỉ nhận lệnh POST thôi!' });
     }
-};
+};;
