@@ -20,7 +20,7 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        #map { height: 100vh; width: 100vw; z-index: 1; } 
+        #map { height: 100vh; width: 100vw; z-index: 1; transition: 0.3s; } 
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
         .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
@@ -38,12 +38,13 @@
 
         .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
 
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 115px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 130px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
         .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
 
         .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; cursor: pointer; }
+        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
         .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
+        .p-btn { margin-top: 10px; background: var(--primary); color: white; border: none; border-radius: 10px; padding: 5px; font-size: 10px; font-weight: bold; }
         .p-card b { display: block; font-size: 13px; color: var(--dark); }
         .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
         .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
@@ -88,21 +89,25 @@
             <div id="trialBox" style="font-size: 11px; opacity: 0.9;">TỰ ĐỘNG KÍCH HOẠT QUA PAYOS</div>
         </div>
         <div class="p-grid">
-            <div class="p-card" onclick="startPayOS(19000, 'BASIC')">
+            <div class="p-card" onclick="startPayOS(19000, 'BASIC', this)">
                 <b>GÓI BASIC</b><span>19.000đ</span>
                 <ul><li>✅ Km + Thời gian</li><li>✅ Chế độ Offline</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
             </div>
-            <div class="p-card" onclick="startPayOS(29000, 'PRO')">
+            <div class="p-card" onclick="startPayOS(29000, 'PRO', this)">
                 <b>GÓI PRO</b><span>29.000đ</span>
                 <ul><li>✅ Real-time Map</li><li>✅ Xuất PDF hóa đơn</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
             </div>
-            <div class="p-card active" onclick="startPayOS(49000, 'VIP 1TH')">
+            <div class="p-card" onclick="startPayOS(49000, 'VIP 1TH', this)">
                 <b>GÓI VIP 1TH</b><span>49.000đ</span>
                 <ul><li>✅ Trợ lý AI Voice</li><li>✅ Cloud Backup</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
             </div>
-            <div class="p-card" onclick="startPayOS(999000, 'TRỌN ĐỜI')">
+            <div class="p-card" onclick="startPayOS(999000, 'VĨNH VIỄN', this)">
                 <b>VIP TRỌN ĐỜI</b><span>999.000đ</span>
                 <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
             </div>
         </div>
     </div> 
@@ -147,15 +152,28 @@
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://open.payos.vn/payos-checkout.js"></script>
     <script src="js/payment.js"></script>
     
     <script>
+        // --- 1. QUẢN LÝ ID & TRẠNG THÁI THANH TOÁN ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
 
+        // TỰ ĐỘNG KÍCH HOẠT KHI QUAY LẠI TỪ PAYOS
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('status') === 'success') {
+                alert("🎉 CHÚC MỪNG ANH ĐẠT! Gói cước đã được kích hoạt tự động.");
+                document.getElementById('planShow').innerText = "⭐ GÓI: VIP PRO (ACTIVE)";
+                document.getElementById('planShow').style.color = "#ffc107";
+                document.getElementById('trialBox').innerText = "CẢM ƠN ANH ĐÃ ỦNG HỘ!";
+                window.history.replaceState({}, document.title, "/");
+            }
+        });
+
+        // --- 2. BẢN ĐỒ & GPS ---
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         var smIcon = L.divIcon({ className: 'sm-div-icon', html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", iconSize: [24, 24], iconAnchor: [12, 12] });
@@ -163,7 +181,6 @@
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, watchId = null, wakeLock = null; 
 
-        // 1. BỔ SUNG: Luôn bắt đầu quét vị trí khi mở app để hiện đúng nơi anh đang đứng
         startTracking();
 
         async function requestWakeLock() {
@@ -177,23 +194,21 @@
                     const newPos = L.latLng(latitude, longitude);
                     marker.setLatLng(newPos);
                     
-                    // Nếu đang trong chuyến đi mới di chuyển bản đồ theo xe
                     if(isRunning) {
                         map.panTo(newPos);
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            if(d > 0.005) { 
+                            if(d > 0.002) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
                                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
                             }
                         }
-                    } else {
-                        // Nếu chưa đi, chỉ cập nhật tâm bản đồ lần đầu
-                        if(!lastPos) map.setView(newPos, 16);
+                    } else if(!lastPos) {
+                        map.setView(newPos, 16);
                     }
                     lastPos = newPos;
-                }, (err) => { console.error("Lỗi GPS:", err); }, { enableHighAccuracy: true });
+                }, null, { enableHighAccuracy: true });
             }
         } 
 
@@ -216,24 +231,32 @@
         } 
 
         function saveHistory(km, cost) {
-            const list = document.getElementById('historyList');
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             history.unshift({ time, km, cost });
             localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 50)));
-            
-            const item = document.createElement('div');
-            item.className = 'history-card';
-            item.innerHTML = `<div class="h-info"><b>${time}</b><br><small>${km} KM</small></div><div class="h-price">${cost}đ</div>`;
-            list.prepend(item);
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            list.innerHTML = history.map(h => `
+                <div class="history-card">
+                    <div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div>
+                    <div class="h-price">${h.cost}đ</div>
+                </div>
+            `).join('');
         }
 
         function showTab(tab, btn) {
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            
             if(tab === 'home') {
                 document.getElementById('homeControls').style.display = 'block';
+                setTimeout(() => map.invalidateSize(), 300); // Fix lỗi bản đồ bị đen
             } else { 
                 document.getElementById('homeControls').style.display = 'none'; 
                 document.getElementById('tab-' + tab).style.display = 'flex'; 
@@ -242,24 +265,15 @@
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         
-        async function startPayOS(price, name) {
+        async function startPayOS(price, name, el) {
             if (typeof selectPack === "function") { 
-                await selectPack(price, name); 
+                await selectPack(price, name, el); 
             } else { 
-                alert("Đang kết nối cổng PayOS..."); 
+                alert("Đang tải dữ liệu thanh toán..."); 
             }
         }
 
-        window.onload = () => {
-            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            const list = document.getElementById('historyList');
-            history.forEach(h => {
-                const item = document.createElement('div');
-                item.className = 'history-card';
-                item.innerHTML = `<div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div><div class="h-price">${h.cost}đ</div>`;
-                list.appendChild(item);
-            });
-        };
+        window.onload = renderHistory;
     </script>
 </body>
 </html>
