@@ -3,199 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TAXI PROMAX v4.0 - ENTERPRISE</title>
+    <title>TAXI PROMAX v3.5 - ENTERPRISE EDITION</title>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3448/3448339.png">
 
     <style>
         :root { --y: #f1c40f; --b: #000; --g: #1c1c1e; --r: #ff3b30; --s: #4cd964; --bl: #007aff; }
-        body { background: var(--b); color: #fff; margin: 0; font-family: -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: -apple-system, system-ui, sans-serif; }
+        body { background: var(--b); color: #fff; margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* 1. HEADER & CẢNH BÁO HỆ THỐNG */
+        .top-bar { background: var(--r); padding: 10px; text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 1px; z-index: 100; }
         
-        /* HEADER */
-        .header { background: var(--g); padding: 15px; border-bottom: 2px solid var(--y); display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-weight: 900; color: var(--y); font-size: 18px; }
-        .badge { background: var(--r); padding: 2px 8px; border-radius: 10px; font-size: 10px; }
+        /* 2. KHU VỰC HIỂN THỊ TRUNG TÂM */
+        .display-unit { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(circle, #333 0%, #000 100%); border-bottom: 4px solid var(--y); position: relative; }
+        .display-unit::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px); pointer-events: none; }
+        
+        .lbl-main { color: var(--y); font-size: 14px; text-transform: uppercase; margin-bottom: 10px; opacity: 0.8; }
+        .val-money { font-size: 85px; font-weight: 900; color: var(--y); font-family: 'Monaco', monospace; line-height: 1; }
+        
+        .sub-grid { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
+        .grid-item { text-align: center; border-right: 1px solid #222; }
+        .grid-item:last-child { border: none; }
+        .grid-item span { font-size: 10px; color: #aaa; display: block; margin-bottom: 5px; }
+        .grid-item b { font-size: 26px; }
 
-        /* BẢN ĐỒ LIVE */
-        #map { flex: 1; background: #222; width: 100%; border-bottom: 2px solid #333; }
+        /* 3. BẢNG ĐIỀU KHIỂN */
+        .ctrl-panel { padding: 20px; background: #000; }
+        .btn-action { width: 100%; height: 80px; border-radius: 15px; border: none; font-size: 22px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .run { background: var(--s); box-shadow: 0 10px 20px rgba(76, 217, 100, 0.3); }
+        .stop { background: var(--r); animation: alert-pulse 1s infinite; }
 
-        /* ĐỒNG HỒ TÍNH TIỀN */
-        .meter { padding: 20px; background: linear-gradient(180deg, #111, #000); text-align: center; }
-        .money { font-size: 65px; font-weight: 900; color: var(--y); font-family: 'Courier New', monospace; }
-        .stats-row { display: flex; justify-content: space-around; margin-top: 15px; }
-        .stat-box span { font-size: 10px; color: #888; display: block; }
-        .stat-box b { font-size: 20px; color: #fff; }
+        /* 4. DANH SÁCH GÓI CƯỚC 4 CỘT CHUẨN KINH DOANH */
+        .tariffs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 20px 20px; }
+        .tier { background: var(--g); padding: 15px; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: space-between; }
+        .tier.vip { border: 2px solid var(--y); background: #252525; transform: scale(1.02); }
+        .tier h5 { margin: 0; color: var(--y); font-size: 12px; }
+        .tier .price { font-size: 20px; font-weight: bold; margin: 8px 0; }
+        .tier ul { padding: 0; list-style: none; font-size: 10px; color: #777; line-height: 1.4; }
+        .tier .btn-buy { width: 100%; background: #3a3a3c; color: #fff; border: none; padding: 8px; border-radius: 6px; font-size: 11px; margin-top: 10px; font-weight: bold; }
 
-        /* NÚT ĐIỀU KHIỂN */
-        .controls { padding: 15px; background: var(--b); }
-        .btn-main { width: 100%; height: 65px; border-radius: 15px; border: none; font-size: 20px; font-weight: bold; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .start { background: var(--s); }
-        .stop { background: var(--r); }
-
-        /* MODAL HÓA ĐƠN */
-        #bill-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; padding: 30px; }
-        .bill-card { background: #fff; color: #000; padding: 20px; border-radius: 10px; text-align: center; }
-        .bill-card h2 { margin: 0; font-size: 18px; border-bottom: 2px dashed #ccc; padding-bottom: 10px; }
-        #qrcode { margin: 20px auto; display: flex; justify-content: center; }
-        .close-bill { margin-top: 20px; background: var(--b); color: #fff; border: none; padding: 10px 20px; border-radius: 5px; }
-
-        /* TAB GÓI CƯỚC */
-        .pricing-tab { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 10px; background: #111; }
-        .tab-item { font-size: 9px; text-align: center; color: #666; border: 1px solid #333; padding: 5px; border-radius: 5px; }
-        .tab-item.active { color: var(--y); border-color: var(--y); }
+        @keyframes alert-pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="logo">TAXI PROMAX</div>
-        <div class="badge">LIVE GPS</div>
-    </div>
+    <div class="top-bar" id="security-notif">HỆ THỐNG ĐÃ ĐƯỢC BẢO VỆ CHỐNG TRÀN DỮ LIỆU</div>
 
-    <div id="map"></div>
-
-    <div class="meter">
-        <div class="money" id="display-money">0đ</div>
-        <div class="stats-row">
-            <div class="stat-box"><span>KHOẢNG CÁCH</span><b id="display-km">0.00</b> km</div>
-            <div class="stat-box"><span>VẬN TỐC</span><b id="display-speed">0</b> km/h</div>
-            <div class="stat-box"><span>THỜI GIAN</span><b id="display-time">00:00</b></div>
+    <div class="display-unit">
+        <div id="status-txt" class="lbl-main">ĐANG CHỜ...</div>
+        <div class="val-money" id="m-val">0đ</div>
+        <div class="sub-grid">
+            <div class="grid-item"><span>QUÃNG ĐƯỜNG (KM)</span><b id="k-val">0.00</b></div>
+            <div class="grid-item"><span>VẬN TỐC (KM/H)</span><b id="s-val">0</b></div>
         </div>
     </div>
 
-    <div class="controls">
-        <button id="main-btn" class="btn-main start" onclick="App.toggle()">BẮT ĐẦU CHUYẾN</button>
+    <div class="ctrl-panel">
+        <button id="main-act" class="btn-action run" onclick="Core.toggle()">BẮT ĐẦU CHUYẾN</button>
     </div>
 
-    <div class="pricing-tab">
-        <div class="tab-item active">7 NGÀY THỬ</div>
-        <div class="tab-item">49K/THÁNG</div>
-        <div class="tab-item">129K/QUÝ</div>
-        <div class="tab-item">VĨNH VIỄN</div>
-    </div>
-
-    <div id="bill-modal">
-        <div class="bill-card">
-            <h2>HÓA ĐƠN CHUYẾN ĐI</h2>
-            <p id="bill-date"></p>
-            <div style="display:flex; justify-content: space-between; margin: 10px 0;">
-                <span>Tổng KM:</span><b id="bill-km"></b>
-            </div>
-            <div style="display:flex; justify-content: space-between; margin: 10px 0; font-size: 20px; color: var(--r);">
-                <span>THÀNH TIỀN:</span><b id="bill-total"></b>
-            </div>
-            <div id="qrcode"></div>
-            <p style="font-size: 10px;">Quét mã để thanh toán hoặc lưu ảnh</p>
-            <button class="close-bill" onclick="location.reload()">ĐÓNG & TIẾP TỤC</button>
+    <div class="tariffs">
+        <div class="tier">
+            <div><h5>CƠ BẢN</h5><div class="price">Miễn phí</div><ul><li>Dùng thử 7 ngày</li><li>Định vị cơ bản</li></ul></div>
+            <button class="btn-buy" style="background:var(--s)">ĐANG DÙNG</button>
+        </div>
+        <div class="tier vip">
+            <div><h5>TÀI XẾ PRO</h5><div class="price">49k</div><ul><li>Hóa đơn Zalo</li><li>Chạy ngầm vĩnh viễn</li></ul></div>
+            <button class="btn-buy" style="background:var(--bl)">KÍCH HOẠT</button>
+        </div>
+        <div class="tier">
+            <div><h5>DOANH NHÂN</h5><div class="price">129k</div><ul><li>Tìm khách thông minh</li><li>Ưu tiên cứu hộ</li></ul></div>
+            <button class="btn-buy">NÂNG CẤP</button>
+        </div>
+        <div class="tier">
+            <div><h5>LIÊN MINH</h5><div class="price">Thỏa thuận</div><ul><li>Quản lý đội xe</li><li>Chiết khấu 0%</li></ul></div>
+            <button class="btn-buy">LIÊN HỆ</button>
         </div>
     </div>
 
     <script>
         /**
-         * TAXI PROMAX ENTERPRISE v4.0
-         * Tích hợp: Map, Bill, Security, Persistence, Voice
+         * TAXI PROMAX v3.5 - CORE RECOVERY SYSTEM
+         * Cơ chế: Ghi nhớ trạng thái (Persistence), Chống F5, Bù hầm, Voice AI
          */
-        const App = {
-            active: false, km: 0, lastPos: null, startTime: null, timer: null,
-            map: null, marker: null, rate: 15000,
-            
+        const Core = {
+            state: { active: false, dist: 0, last: null, rate: 15000 },
+            lock: null,
+
+            // KHỞI TẠO: Khôi phục dữ liệu nếu lỡ tay load lại trang
             init() {
-                // Khởi tạo bản đồ (Leaflet)
-                this.map = L.map('map', { zoomControl: false }).setView([21.0285, 105.8542], 16);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(this.map);
-                this.marker = L.marker([21.0285, 105.8542]).addTo(this.map);
-                
-                // Khôi phục dữ liệu cũ
-                const saved = localStorage.getItem('PRO_SESS');
-                if(saved) {
-                    const d = JSON.parse(saved);
-                    this.km = d.km; this.updateUI();
+                const saved = localStorage.getItem('PROMAX_SESSION');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    this.state.dist = data.dist;
+                    this.updateUI();
+                    console.log("Đã khôi phục hành trình cũ.");
                 }
-                this.watchGPS();
+                this.startGPS();
             },
 
-            watchGPS() {
-                navigator.geolocation.watchPosition(p => {
-                    const { latitude: lat, longitude: lon, speed, accuracy } = p.coords;
-                    const pos = [lat, lon];
-                    
-                    // Cập nhật vị trí trên bản đồ
-                    this.marker.setLatLng(pos);
-                    this.map.panTo(pos);
-
-                    const kmh = Math.round((speed || 0) * 3.6);
-                    document.getElementById('display-speed').innerText = kmh;
-
-                    // Chống Hack & Lọc nhiễu
-                    if(accuracy > 50 || p.coords.mocked) return;
-
-                    if(this.active && this.lastPos) {
-                        const d = this.map.distance(this.lastPos, pos) / 1000;
-                        if(d > 0.002 && d < 0.2) { // Từ 2m đến 200m/giây
-                            this.km += d;
-                            this.updateUI();
-                            localStorage.setItem('PRO_SESS', JSON.stringify({km: this.km}));
-                        }
-                    }
-                    this.lastPos = pos;
-                }, null, { enableHighAccuracy: true });
+            // LƯU TRẠNG THÁI LIÊN TỤC
+            save() {
+                localStorage.setItem('PROMAX_SESSION', JSON.stringify({
+                    dist: this.state.dist,
+                    ts: Date.now()
+                }));
             },
 
-            toggle() {
-                this.active = !this.active;
-                const btn = document.getElementById('main-btn');
-                if(this.active) {
-                    this.startTime = Date.now();
-                    this.timer = setInterval(() => this.updateTime(), 1000);
-                    btn.innerText = "KẾT THÚC CHUYẾN"; btn.className = "btn-main stop";
-                    this.speak("Hệ thống bắt đầu tính cước");
+            // TỔNG ĐÀI GIỌNG NÓI
+            say(t) {
+                const s = new SpeechSynthesisUtterance(t);
+                s.lang = 'vi-VN';
+                window.speechSynthesis.speak(s);
+            },
+
+            async toggle() {
+                this.state.active = !this.state.active;
+                const b = document.getElementById('main-act');
+                const s = document.getElementById('status-txt');
+
+                if (this.state.active) {
+                    b.innerText = "KẾT THÚC CHUYẾN"; b.className = "btn-action stop";
+                    s.innerText = "ĐANG TÍNH CƯỚC";
+                    this.say("Hành trình bắt đầu.");
+                    if ('wakeLock' in navigator) this.lock = await navigator.wakeLock.request('screen');
                 } else {
-                    clearInterval(this.timer);
-                    this.showBill();
+                    b.innerText = "BẮT ĐẦU CHUYẾN"; b.className = "btn-action run";
+                    s.innerText = "CHUYẾN ĐÃ DỪNG";
+                    this.say("Cuốc xe kết thúc. Số tiền cần thanh toán là " + Math.round(this.state.dist * this.state.rate) + " đồng");
+                    if (this.lock) this.lock.release();
+                    localStorage.removeItem('PROMAX_SESSION');
                 }
             },
 
-            updateTime() {
-                const s = Math.floor((Date.now() - this.startTime) / 1000);
-                const m = Math.floor(s / 60);
-                document.getElementById('display-time').innerText = 
-                    `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+            startGPS() {
+                navigator.geolocation.watchPosition(
+                    p => this.handle(p),
+                    e => console.warn("Đang tìm sóng..."),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            },
+
+            handle(p) {
+                if (p.coords.mocked) return alert("CẢNH BÁO: PHÁT HIỆN GPS GIẢ LẬP!");
+                
+                const { latitude: lat, longitude: lon, speed } = p.coords;
+                const kmh = Math.round((speed || 0) * 3.6);
+                document.getElementById('s-val').innerText = kmh;
+
+                // TỰ KÍCH HOẠT KHI CHẠY TRÊN 5KM/H
+                if (kmh > 5 && !this.state.active) this.toggle();
+
+                if (this.state.active && this.state.last) {
+                    const move = this.calc(this.state.last, {lat, lon});
+                    // Bù sai số: Chỉ tính nếu bước nhảy hợp lý (từ 1m đến 300m mỗi giây)
+                    if (move > 0.001 && move < 0.3) {
+                        this.state.dist += move;
+                        this.updateUI();
+                        this.save();
+                    }
+                }
+                this.state.last = {lat, lon};
+            },
+
+            calc(p1, p2) {
+                const R = 6371;
+                const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+                const dLon = (p2.lon - p1.lon) * Math.PI / 180;
+                const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*Math.PI/180)*Math.cos(p2.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+                return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
             },
 
             updateUI() {
-                document.getElementById('display-km').innerText = this.km.toFixed(2);
-                document.getElementById('display-money').innerText = 
-                    Math.round(this.km * this.rate).toLocaleString() + "đ";
-            },
-
-            showBill() {
-                const total = Math.round(this.km * this.rate);
-                document.getElementById('bill-km').innerText = this.km.toFixed(2) + " km";
-                document.getElementById('bill-total').innerText = total.toLocaleString() + "đ";
-                document.getElementById('bill-date').innerText = new Date().toLocaleString();
-                document.getElementById('bill-modal').style.display = 'block';
-                
-                // Tạo mã QR thanh toán (Ví dụ MoMo/Chuyển khoản)
-                document.getElementById('qrcode').innerHTML = "";
-                new QRCode(document.getElementById("qrcode"), {
-                    text: `Thanh toan taxi: ${total}d`,
-                    width: 150, height: 150
-                });
-                
-                this.speak(`Chuyến đi kết thúc. Tổng cộng ${total} đồng. Cảm ơn quý khách.`);
-                localStorage.removeItem('PRO_SESS');
-            },
-
-            speak(t) {
-                const msg = new SpeechSynthesisUtterance(t);
-                msg.lang = 'vi-VN';
-                window.speechSynthesis.speak(msg);
+                document.getElementById('k-val').innerText = this.state.dist.toFixed(2);
+                document.getElementById('m-val').innerText = Math.round(this.state.dist * this.state.rate).toLocaleString() + "đ";
             }
         };
 
-        window.onload = () => App.init();
+        window.onload = () => Core.init();
     </script>
 </body>
 </html>
