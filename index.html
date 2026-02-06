@@ -7,11 +7,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
+    
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
 
     <title>TAXI PROMAX - NGUYỄN XUÂN ĐẠT</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
         :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
@@ -29,9 +32,9 @@
 
         .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
         .nav-item.active { color: var(--primary); }
-        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; } 
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; font-style: normal; } 
 
         .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
 
@@ -39,7 +42,7 @@
         .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
 
         .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; }
+        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; cursor: pointer; }
         .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
         .p-card b { display: block; font-size: 13px; color: var(--dark); }
         .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
@@ -102,9 +105,6 @@
                 <ul><li>✅ Vĩnh viễn</li><li>✅ Hỗ trợ 24/7</li></ul>
             </div>
         </div>
-        <div style="text-align:center; padding: 20px;">
-            <p style="font-size:12px; color:#7f8c8d;">Bấm vào gói cước để tạo mã thanh toán QR PayOS tự động.</p>
-        </div>
     </div> 
 
     <div id="tab-lichsu" class="tab-content">
@@ -119,7 +119,7 @@
                 <p>Mã tài xế: <b id="profileID">...</b></p>
                 <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
                 <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
-                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="clearHistory()">XÓA LỊCH SỬ</button>
+                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="localStorage.removeItem('trip_history'); location.reload();">XÓA LỊCH SỬ</button>
             </div>
         </div>
     </div> 
@@ -149,7 +149,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="js/payment.js"></script>
     <script>
-        // --- GIỮ NGUYÊN CÁC HÀM LOGIC CỦA ANH ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
@@ -169,18 +168,22 @@
         function startTracking() {
             if ("geolocation" in navigator) {
                 watchId = navigator.geolocation.watchPosition((pos) => {
-                    const { latitude, longitude, speed } = pos.coords;
+                    const { latitude, longitude } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     marker.setLatLng(newPos);
                     if(isRunning) {
                         map.panTo(newPos);
-                        if(lastPos && (speed > 0.3 || speed === null)) {
+                        if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            if(d > 0.005) { totalKm += d; document.getElementById('km').innerText = totalKm.toFixed(2); document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); }
+                            if(d > 0.005) { 
+                                totalKm += d; 
+                                document.getElementById('km').innerText = totalKm.toFixed(2); 
+                                document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
+                            }
                         }
                         lastPos = newPos;
                     }
-                }, null, { enableHighAccuracy: true });
+                }, (err) => { console.error("Lỗi GPS:", err); }, { enableHighAccuracy: true });
             }
         } 
 
@@ -209,6 +212,7 @@
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             history.unshift({ time, km, cost });
             localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 50)));
+            
             const item = document.createElement('div');
             item.className = 'history-card';
             item.innerHTML = `<div class="h-info"><b>${time}</b><br><small>${km} KM</small></div><div class="h-price">${cost}đ</div>`;
@@ -220,19 +224,30 @@
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             if(tab === 'home') document.getElementById('homeControls').style.display = 'block';
-            else { document.getElementById('homeControls').style.display = 'none'; document.getElementById('tab-' + tab).style.display = 'flex'; }
+            else { 
+                document.getElementById('homeControls').style.display = 'none'; 
+                document.getElementById('tab-' + tab).style.display = 'flex'; 
+            }
         }
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         
-        // HÀM GỌI THANH TOÁN PAYOS (KẾT NỐI VỚI FILE JS RIÊNG)
         async function startPayOS(price, name) {
-            if (typeof selectPack === "function") {
-                await selectPack(price, name);
-            } else {
-                alert("Đang tải module thanh toán, anh đợi 3 giây rồi bấm lại nhé!");
-            }
+            if (typeof selectPack === "function") { await selectPack(price, name); } 
+            else { alert("Đang tải module thanh toán..."); }
         }
+
+        // Tự động tải lịch sử khi mở app
+        window.onload = () => {
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            const list = document.getElementById('historyList');
+            history.forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'history-card';
+                item.innerHTML = `<div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div><div class="h-price">${h.cost}đ</div>`;
+                list.appendChild(item);
+            });
+        };
     </script>
 </body>
 </html>
