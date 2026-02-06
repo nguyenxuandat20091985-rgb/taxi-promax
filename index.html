@@ -3,45 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>TAXI PROMAX - ANH ĐẠT</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --y: #f1c40f; --b: #000; --p: #1c1c1e; --g: #2ecc71; --r: #e74c3c; }
-        body { margin: 0; background: var(--b); color: #fff; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        .meter { padding: 30px 15px; text-align: center; background: #000; border-bottom: 2px solid var(--y); }
-        .money { font-size: 80px; font-weight: 900; color: var(--y); font-family: monospace; }
-        .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .box { background: var(--p); padding: 10px; border-radius: 10px; border: 1px solid #333; }
-        .box label { display: block; font-size: 10px; color: #888; }
-        #map { flex: 1; width: 100%; }
-        .btns { padding: 20px; display: flex; gap: 15px; background: var(--p); }
-        .btn { flex: 1; height: 65px; border-radius: 15px; border: none; font-size: 18px; font-weight: bold; color: #fff; }
-        .btn-start { background: var(--g); } .btn-stop { background: var(--r); }
-        .btn-tool { flex: 0 0 65px; background: #3a3a3c; font-size: 24px; }
-        #warning { position: fixed; top: 0; width: 100%; background: var(--r); text-align: center; display: none; z-index: 9999; }
+        :root { 
+            --gold: #fbc531; 
+            --dark-bg: #121212; 
+            --card-bg: #1e272e;
+            --text-gray: #a4b0be;
+            --accent-red: #eb4d4b;
+            --accent-green: #6ab04c;
+        }
+
+        body { 
+            margin: 0; 
+            background: var(--dark-bg); 
+            color: #fff; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Màn hình hiển thị tiền (Chỗ này em làm lại cực đẹp) */
+        .meter-container {
+            padding: 40px 20px 30px;
+            background: linear-gradient(180deg, #1e272e 0%, #121212 100%);
+            border-bottom-left-radius: 30px;
+            border-bottom-right-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            z-index: 10;
+        }
+
+        .fare-label { font-size: 14px; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
+        
+        .fare-amount { 
+            font-size: 90px; 
+            font-weight: 800; 
+            color: #fff; 
+            text-shadow: 0 0 15px rgba(251, 197, 49, 0.4);
+            font-family: 'Monaco', monospace;
+            line-height: 1;
+        }
+        
+        .currency { font-size: 20px; color: var(--gold); font-weight: bold; margin-bottom: 25px; }
+
+        /* Các ô thông số bo tròn */
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr; 
+            gap: 12px; 
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 5px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .stat-card span { display: block; font-size: 10px; color: var(--text-gray); margin-bottom: 5px; }
+        .stat-card b { font-size: 18px; color: #fff; }
+        .stat-card small { font-size: 10px; color: var(--text-gray); }
+
+        /* Bản đồ tràn viền */
+        #map { flex: 1; width: 100%; margin-top: -20px; z-index: 1; }
+
+        /* Nút bấm thiết kế mới */
+        .action-area {
+            padding: 20px 20px calc(25px + env(safe-area-inset-bottom));
+            background: var(--dark-bg);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .btn-main {
+            flex: 1;
+            height: 60px;
+            border-radius: 20px;
+            border: none;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+
+        .btn-main:active { transform: scale(0.95); }
+        .btn-start { background: linear-gradient(135deg, #6ab04c, #44bd32); }
+        .btn-stop { background: linear-gradient(135deg, #eb4d4b, #c23616); }
+
+        .btn-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 20px;
+            background: var(--card-bg);
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #fff;
+        }
+
+        #warning {
+            position: fixed; top: 0; width: 100%; background: var(--accent-red);
+            padding: 8px; text-align: center; font-size: 12px; z-index: 1000; display: none;
+        }
     </style>
 </head>
 <body>
-    <div id="warning">⚠️ GPS YẾU - HỆ THỐNG ĐANG TỰ BÙ QUÃNG ĐƯỜNG</div>
-    <div class="meter">
-        <div class="money" id="ui-fare">0</div>
-        <div class="stats">
-            <div class="box"><label>KILOMET</label><b id="ui-km">0.00</b></div>
-            <div class="box"><label>TỐC ĐỘ</label><b id="ui-speed">0</b></div>
-            <div class="box"><label>THỜI GIAN</label><b id="ui-time">00:00</b></div>
+
+<div id="warning">⚠️ ĐANG BÙ GPS - TÍN HIỆU YẾU</div>
+
+<div class="meter-container">
+    <div class="fare-label">Tổng cước phí</div>
+    <div class="fare-amount" id="ui-fare">0</div>
+    <div class="currency">VNĐ</div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span>QUÃNG ĐƯỜNG</span>
+            <b id="ui-km">0.00</b><small> km</small>
+        </div>
+        <div class="stat-card">
+            <span>TỐC ĐỘ</span>
+            <b id="ui-speed">0</b><small> km/h</small>
+        </div>
+        <div class="stat-card">
+            <span>THỜI GIAN</span>
+            <b id="ui-time">00:00</b>
         </div>
     </div>
-    <div id="map"></div>
-    <div class="btns">
-        <button class="btn btn-tool" onclick="App.showHistory()">📜</button>
-        <button id="main-btn" class="btn btn-start" onclick="App.toggle()">BẮT ĐẦU</button>
-        <button class="btn btn-tool" onclick="App.shareInvoice()">📤</button>
-    </div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="app-logic.js"></script>
-    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</div>
+
+<div id="map"></div>
+
+<div class="action-area">
+    <button class="btn-circle" onclick="App.showHistory()">📜</button>
+    <button id="main-btn" class="btn-main btn-start" onclick="App.toggle()">BẮT ĐẦU CHẠY</button>
+    <button class="btn-circle" onclick="App.shareInvoice()">📤</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="app-logic.js"></script>
 </body>
 </html>
