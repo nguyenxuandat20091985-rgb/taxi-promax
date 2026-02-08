@@ -1,40 +1,42 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADMIN - HỆ THỐNG TAXI</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        :root { --primary: #00bfa5; --dark: #002d26; }
-        body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
-        .nav-header { background: var(--dark); color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-        #map { height: 350px; width: 100%; }
-        .p-section { background: white; margin: 15px; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .status-btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; margin-bottom: 10px; cursor: pointer; }
-        .link-tet { color: #d32f2f; text-decoration: none; font-weight: bold; font-size: 14px; }
-    </style>
+    <title>QUẢN TRỊ TAXI PROMAX</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
-<body>
-    <div class="nav-header">
-        <span>📍 QUẢN LÝ VẬN HÀNH</span>
-        <a href="letet.html" class="link-tet">🧧 CÀI ĐẶT LỄ TẾT</a>
+<body style="background:#1a1a1a; color:white; font-family:sans-serif; padding:20px;">
+    <h2>🎛️ BẢNG ĐIỀU KHIỂN</h2>
+    <div style="background:#333; padding:15px; border-radius:10px;">
+        <p>Trạng thái hệ thống: <b id="status">Đang tải...</b></p>
+        <button onclick="toggleMaintenance()" style="padding:10px; background:red; color:white; border:none; border-radius:5px;">BẬT/TẮT BẢO TRÌ</button>
     </div>
 
-    <div id="map"></div>
-
-    <div class="p-section">
-        <h3>QUẢN LÝ APP</h3>
-        <button class="status-btn" style="background: #e74c3c; color: white;" onclick="confirmAction('Bảo trì')">⛔ BẬT CHẾ ĐỘ BẢO TRÌ</button>
-        <button class="status-btn" style="background: var(--primary); color: white;" onclick="confirmAction('Cập nhật')">🔄 GỬI THÔNG BÁO CẬP NHẬT</button>
-        <p style="font-size: 12px; color: #666;">* Trạng thái Webhook: <b id="st">ONLINE</b></p>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        var map = L.map('map').setView([21.0285, 105.8542], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        function confirmAction(act) { alert("Hệ thống: Đã kích hoạt lệnh " + act); }
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWX-YyE_1-F0yNqW9Kk8-G-Y4fG-Z-Y4f",
+            authDomain: "taxi-promax-9f79b.firebaseapp.com",
+            databaseURL: "https://taxi-promax-9f79b-default-rtdb.firebaseio.com",
+            projectId: "taxi-promax-9f79b",
+            storageBucket: "taxi-promax-9f79b.appspot.com",
+            messagingSenderId: "338804599298",
+            appId: "1:338804599298:web:12704381270438"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Lắng nghe trạng thái
+        db.ref('systemStatus').on('value', (s) => {
+            document.getElementById('status').innerText = s.val() === 'off' ? 'ĐANG BẢO TRÌ' : 'HOẠT ĐỘNG';
+        });
+
+        function toggleMaintenance() {
+            db.ref('systemStatus').once('value').then(s => {
+                db.ref('systemStatus').set(s.val() === 'on' ? 'off' : 'on');
+            });
+        }
     </script>
 </body>
 </html>
