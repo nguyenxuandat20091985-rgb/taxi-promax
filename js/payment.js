@@ -30,12 +30,12 @@ async function createPayment(amount, planName) {
     tpSpeak("Đang kết nối cổng thanh toán. Anh vui lòng chờ giây lát.");
 
     try {
+        // Lấy ID người dùng hoặc mặc định là DAT
         const txID = localStorage.getItem('tx_id') || "DAT";
-        // Chuẩn hóa Description ngắn gọn để PayOS không lỗi
         const safeDesc = `${txID} ${planName}`.substring(0, 25);
 
-        // 2. GỌI SANG VERCEL (Thay vì gọi nội bộ GitHub)
-        // Địa chỉ này lấy từ link Domain trong ảnh Vercel của anh
+        // 2. GỌI SANG VERCEL 
+        // URL này khớp với domain taxi-promax.vercel.app trong ảnh của anh
         const response = await fetch('https://taxi-promax.vercel.app/api/create-payment', {
             method: 'POST',
             headers: {
@@ -43,25 +43,25 @@ async function createPayment(amount, planName) {
             },
             body: JSON.stringify({
                 amount: amount,
-                description: safeDesc
+                description: safeDesc,
+                cancelUrl: window.location.origin + window.location.pathname,
+                returnUrl: window.location.origin + window.location.pathname
             }),
         });
 
-        // 3. Xử lý phản hồi từ máy chủ Vercel
+        // 3. Xử lý phản hồi
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Lỗi máy chủ (${response.status})`);
+            const errorText = await response.text();
+            throw new Error(`Máy chủ báo lỗi (${response.status}). Anh kiểm tra lại Vercel Logs.`);
         }
 
         const data = await response.json();
 
         if (data && data.checkoutUrl) {
             tpSpeak("Đã tạo mã thành công. Mời anh quét mã để kích hoạt.");
-            
-            // Lưu lại gói để cộng hạn dùng sau khi quay lại
             localStorage.setItem('pending_plan', planName);
             
-            // Chuyển hướng sang trang quét mã của ngân hàng
+            // Chuyển hướng sang PayOS
             setTimeout(() => {
                 window.location.href = data.checkoutUrl;
             }, 1000);
@@ -86,31 +86,29 @@ async function createPayment(amount, planName) {
  */
 function checkPaymentStatus() {
     const params = new URLSearchParams(window.location.search);
-    const status = params.get('status'); // Lấy status từ URL mà Vercel trả về
+    const status = params.get('status'); 
     const planName = localStorage.getItem('pending_plan');
 
-    if (status === 'success' || status === 'PAID') {
-        // Tính toán ngày hết hạn
+    if (status === 'PAID' || status === 'success') {
         let daysToAdd = 30;
         if(planName === 'CHUYẾN LẺ') daysToAdd = 1;
+        if(planName === 'TRẢI NGHIỆM') daysToAdd = 7;
         if(planName === 'PRO MAX') daysToAdd = 90;
-        if(planName === 'TRIAL 7D') daysToAdd = 7;
 
         const now = new Date().getTime();
-        const newExpiry = now + (daysToAdd * 24 * 60 * 60 * 1000);
+        const currentExpiry = parseInt(localStorage.getItem('tp_expiry') || now);
+        const newExpiry = Math.max(currentExpiry, now) + (daysToAdd * 24 * 60 * 60 * 1000);
         
-        // Lưu vào bộ nhớ máy để App mở khóa
         localStorage.setItem('tp_expiry', newExpiry);
         localStorage.removeItem('pending_plan');
 
         tpSpeak(`Chúc mừng anh Đạt! Đã kích hoạt thành công gói ${planName}. Chúc anh vạn dặm bình an!`);
         
-        // Dọn dẹp URL cho sạch
+        // Xóa query string trên URL
         setTimeout(() => {
-            window.location.href = window.location.pathname;
-        }, 4000);
+            window.location.href = window.location.origin + window.location.pathname;
+        }, 3000);
     }
 }
 
-// Chạy kiểm tra ngay khi load trang
 document.addEventListener('DOMContentLoaded', checkPaymentStatus);
