@@ -197,25 +197,30 @@
     <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="js/payment.js"></script>
     
     <script>
-        // 1. KHỞI TẠO & ĐỒNG BỘ TRẠNG THÁI
+        // --- 1. KHỞI TẠO & ĐỒNG BỘ TRẠNG THÁI ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
 
-        // 2. BẢN ĐỒ
+        // --- 2. BẢN ĐỒ & HIỆU ỨNG MARKER ---
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
-        var smIcon = L.divIcon({ className: 'sm-div-icon', html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", iconSize: [24, 24], iconAnchor: [12, 12] });
+        
+        var smIcon = L.divIcon({ 
+            className: 'sm-div-icon', 
+            html: "<div class='sm-marker pulsating-circle'><div class='sm-arrow'></div></div>", 
+            iconSize: [24, 24], iconAnchor: [12, 12] 
+        });
         var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map); 
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null; 
 
-        // 3. GPS & TRACKING (Tối ưu lọc nhiễu 5m)
+        // --- 3. GPS & TRACKING (Lọc nhiễu chuẩn 5m) ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
@@ -224,10 +229,12 @@
                     marker.setLatLng(newPos);
                     
                     if(isRunning) {
-                        map.panTo(newPos);
+                        // Chỉ di chuyển bản đồ nếu xe đang chạy thực sự (tránh rung lắc khi đứng yên)
+                        if (speed > 0.5) map.panTo(newPos);
+                        
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // Lọc nhiễu GPS: Chỉ tính nếu di chuyển trên 5 mét
+                            // Lọc nhiễu: Chỉ tính nếu di chuyển trên 5 mét
                             if(d > 0.005) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
@@ -236,38 +243,55 @@
                         }
                     } else {
                         if(!lastPos) map.setView(newPos, 16);
-                        // Tự động bắt đầu nếu tốc độ > 7km/h (tránh tự bật khi đi bộ)
-                        if(speed > 2.0) handleTrip(); 
+                        // Tự động bắt đầu nếu tốc độ > 8km/h
+                        if(speed > 2.2) handleTrip(); 
                     }
                     lastPos = newPos;
                 }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
             }
         }
 
-        // 4. LOGIC CHUYẾN ĐI
+        // --- 4. LOGIC CHUYẾN ĐI & GIỮ MÀN HÌNH ---
         function handleTrip() {
             const btn = document.getElementById('mainBtn');
             if(!isRunning) {
-                isRunning = true; btn.innerText = "KẾT THÚC CHUYẾN ĐI"; btn.style.background = "var(--danger)";
+                isRunning = true; 
+                btn.innerText = "KẾT THÚC CHUYẾN ĐI"; 
+                btn.style.background = "var(--danger)";
                 document.getElementById('wishModal').style.display = 'flex';
-                totalKm = 0; document.getElementById('km').innerText = "0.00"; document.getElementById('cost').innerText = "0";
+                totalKm = 0; 
+                document.getElementById('km').innerText = "0.00"; 
+                document.getElementById('cost').innerText = "0";
                 requestWakeLock();
             } else {
-                isRunning = false; btn.innerText = "BẮT ĐẦU CHUYẾN ĐI"; btn.style.background = "var(--primary)";
+                isRunning = false; 
+                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI"; 
+                btn.style.background = "var(--primary)";
                 let finalCost = Math.round(totalKm * currentRate);
                 saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
                 document.getElementById('endModal').style.display = 'flex';
-                if(wakeLock) wakeLock.release();
+                if(wakeLock) { wakeLock.release(); wakeLock = null; }
             }
         }
 
         async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; } catch (err) {}
+            if ('wakeLock' in navigator) {
+                try { 
+                    wakeLock = await navigator.wakeLock.request('screen'); 
+                    document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; 
+                } catch (err) { console.warn("WakeLock failed"); }
+            }
         }
+
+        // Tự động xin lại quyền giữ sáng nếu anh quay lại App từ Zalo/Phone
+        document.addEventListener('visibilitychange', () => {
+            if (isRunning && document.visibilityState === 'visible') requestWakeLock();
+        });
 
         function updateRate(v) { currentRate = v; document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); } 
 
+        // --- 5. LỊCH SỬ & DỮ LIỆU ---
         function saveHistory(km, cost) {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
@@ -287,22 +311,7 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        function showTab(tab, btn) {
-            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-            if(btn) btn.classList.add('active');
-            if(tab === 'home') {
-                document.getElementById('homeControls').style.display = 'block';
-                setTimeout(() => map.invalidateSize(), 300); 
-            } else { 
-                document.getElementById('homeControls').style.display = 'none'; 
-                document.getElementById('tab-' + tab).style.display = 'flex'; 
-            }
-        } 
-
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; } 
-
-        // 5. TÍNH NĂNG MỞ RỘNG
+        // --- 6. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, SPEAK) ---
         const TAXI_PROMAX_DATABASE = [
             { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
             { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#00bfa5" },
@@ -341,18 +350,14 @@
                 tpInitCountdown();
             } else if (typeof createPayment === 'function') {
                 createPayment(amount, planName);
-            } else {
-                alert("Hệ thống thanh toán đang bảo trì, anh vui lòng thử lại sau!");
-            }
+            } else { alert("Hệ thống thanh toán đang bảo trì!"); }
         }
 
         function tpInitCountdown() {
             const expiry = localStorage.getItem('tp_expiry');
             if (!expiry) return;
-            // Cập nhật lại nhãn gói cước khi mở app
             document.getElementById('planShow').innerText = "⭐ GÓI: TRIAL (7D)";
             document.getElementById('planShow').style.color = "var(--primary)";
-            
             const banner = document.getElementById('tp-mini-timer');
             banner.style.display = 'inline-flex';
             const timerFunc = () => {
@@ -366,13 +371,27 @@
             setInterval(timerFunc, 60000);
         }
 
-        function tpOpenSOS() { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí của anh đến đội cứu hộ gần nhất!"); }
-        function tpOpenMaintenance() { alert("TRỢ LÝ: Anh đã đi được 2,600km kể từ lần thay dầu cuối."); }
+        function tpOpenSOS() { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí cứu hộ!"); }
+        function tpOpenMaintenance() { alert("TRỢ LÝ: Kiểm tra áp suất lốp trước khi khởi hành anh nhé."); }
         function tpOpenProfit() { 
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             let total = history.reduce((sum, item) => sum + parseInt(item.cost.replace(/,/g, '')), 0);
-            alert(`THỐNG KÊ HÔM NAY:\n- Doanh thu: ${total.toLocaleString()}đ\n- Ước tính thực nhận: ${(total * 0.8).toLocaleString()}đ`);
+            alert(`THỐNG KÊ:\nDoanh thu: ${total.toLocaleString()}đ\nThực nhận (ước tính): ${(total * 0.8).toLocaleString()}đ`);
         }
+
+        function showTab(tab, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+            if(tab === 'home') {
+                document.getElementById('homeControls').style.display = 'block';
+                setTimeout(() => map.invalidateSize(), 300); 
+            } else { 
+                document.getElementById('homeControls').style.display = 'none'; 
+                document.getElementById('tab-' + tab).style.display = 'flex'; 
+            }
+        } 
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; } 
 
         window.onload = () => { startTracking(); renderHistory(); tpInitCountdown(); };
     </script>
