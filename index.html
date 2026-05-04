@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -63,7 +62,6 @@
         .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
         .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
 
-        /* ===== NEW FEATURE START: CSS BẢNG GIÁ & TÍNH NĂNG KHÓA CHÂN ===== */
         .tp-new-container { padding: 0 15px 20px; }
         .tp-grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
         .tp-feature-card { background: white; border-radius: 15px; padding: 12px; text-align: center; border: 1px solid #eee; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
@@ -73,7 +71,9 @@
         
         .tp-pill-timer { display: inline-flex; align-items: center; background: #ffeaa7; color: #d35400; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 900; margin-left: 10px; border: 1px solid #f39c12; }
         .tp-badge-trial { background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px; position: absolute; top: -8px; right: 10px; }
-        /* ===== NEW FEATURE END ===== */
+        
+        .pulsating-circle { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 0.3; } 100% { transform: scale(0.8); opacity: 0.8; } }
     </style>
 </head>
 <body oncontextmenu="return false;"> 
@@ -151,7 +151,7 @@
                 </div>
             </div>
         </div>
-        </div> 
+    </div> 
 
     <div id="tab-lichsu" class="tab-content">
         <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
@@ -178,7 +178,7 @@
                     <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">
                         ⏳ <span id="tp-cd-val">00:00</span>
                     </div>
-                    </div>
+                </div>
                 <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
             </div>
             <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
@@ -201,41 +201,25 @@
     <script src="js/payment.js"></script>
     
     <script>
-        // --- 1. QUẢN LÝ ID & TRẠNG THÁI THANH TOÁN ---
+        // 1. QUẢN LÝ ID & KHỞI TẠO
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
 
-        window.addEventListener('load', () => {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('status') === 'success') {
-                alert("🎉 CHÚC MỪNG ANH ĐẠT! Gói cước đã được kích hoạt tự động.");
-                document.getElementById('planShow').innerText = "⭐ GÓI: VIP PRO (ACTIVE)";
-                document.getElementById('planShow').style.color = "#ffc107";
-                document.getElementById('trialBox').innerText = "CẢM ƠN ANH ĐÃ ỦNG HỘ!";
-                window.history.replaceState({}, document.title, "/");
-            }
-        }); 
-
-        // --- 2. BẢN ĐỒ & GPS ---
+        // 2. BẢN ĐỒ
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         var smIcon = L.divIcon({ className: 'sm-div-icon', html: "<div class='sm-marker'><div class='sm-arrow'></div></div>", iconSize: [24, 24], iconAnchor: [12, 12] });
         var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map); 
 
-        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, watchId = null, wakeLock = null; 
+        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null; 
 
-        startTracking(); 
-
-        async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; } } catch (err) {}
-        } 
-
+        // 3. GPS VÀ THEO DÕI
         function startTracking() {
             if ("geolocation" in navigator) {
-                watchId = navigator.geolocation.watchPosition((pos) => {
-                    const { latitude, longitude } = pos.coords;
+                navigator.geolocation.watchPosition((pos) => {
+                    const { latitude, longitude, speed } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     marker.setLatLng(newPos);
                     
@@ -249,24 +233,17 @@
                                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
                             }
                         }
-                    } else if(!lastPos) {
-                        map.setView(newPos, 16);
+                    } else {
+                        if(!lastPos) map.setView(newPos, 16);
+                        if(speed > 1.38) handleTrip(); // Tự động bắt đầu nếu chạy > 5km/h
                     }
                     lastPos = newPos;
-
-                    // ===== NEW FEATURE START: AUTO-START & CHỐNG HACK =====
-                    if (!isRunning && pos.coords.speed > 1.38) { // > 5km/h
-                        console.log("Auto-start triggered by speed");
-                        handleTrip();
-                    }
-                    // ===== NEW FEATURE END =====
-
                 }, null, { enableHighAccuracy: true });
             }
-        } 
+        }
+        startTracking();
 
-        function updateRate(v) { currentRate = v; document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); } 
-
+        // 4. LOGIC CHUYẾN ĐI
         function handleTrip() {
             const btn = document.getElementById('mainBtn');
             if(!isRunning) {
@@ -281,7 +258,13 @@
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
                 document.getElementById('endModal').style.display = 'flex';
             }
-        } 
+        }
+
+        async function requestWakeLock() {
+            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; } catch (err) {}
+        }
+
+        function updateRate(v) { currentRate = v; document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); } 
 
         function saveHistory(km, cost) {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
@@ -306,7 +289,6 @@
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
             if(tab === 'home') {
                 document.getElementById('homeControls').style.display = 'block';
                 setTimeout(() => map.invalidateSize(), 300); 
@@ -318,36 +300,34 @@
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; } 
 
-        window.onload = renderHistory;
+        // 5. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, THANH TOÁN)
+        const TAXI_PROMAX_DATABASE = [
+            { p: "Quảng Ninh", n: "Sảnh Khách sạn Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP, đơn đi sân bay/tỉnh", color: "#ffc107" },
+            { p: "Quảng Ninh", n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ tan tầm", color: "#00bfa5" },
+            { p: "Quảng Ninh", n: "Cảng tàu khách Quốc tế", lat: 20.9520, lng: 107.0475, desc: "Khách du lịch ngoại quốc", color: "#e84393" },
+            { p: "Hà Nội", n: "Sảnh T1 Nội Bài", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe", color: "#ffc107" }
+        ];
 
-        // ===== NEW FEATURE START: LOGIC TÍNH NĂNG MỚI =====
-        
-        // 1. Logic Thanh toán mới (Wrapper gọi logic cũ)
-        function tpHandlePayment(amount, planName) {
-            if (amount === 0) {
-                const isUsed = localStorage.getItem('tp_trial_used');
-                if (isUsed) {
-                    tpSpeak("Gói dùng thử đã hết hạn.");
-                    alert("Anh đã sử dụng gói dùng thử 7 ngày rồi ạ!");
-                    return;
-                }
-                localStorage.setItem('tp_trial_used', 'true');
-                localStorage.setItem('tp_expiry', new Date().getTime() + (7 * 24 * 60 * 60 * 1000));
-                document.getElementById('planShow').innerText = "⭐ GÓI: TRIAL (7D)";
-                tpSpeak("Kích hoạt dùng thử thành công. Chúc anh vạn dặm bình an!");
-                tpInitCountdown();
-                alert("Kích hoạt 7 ngày trải nghiệm thành công!");
-            } else {
-                // Gọi function createPayment gốc của anh (đã có trong file js/payment.js hoặc script cũ)
-                if (typeof createPayment === 'function') {
-                    createPayment(amount, planName);
-                } else {
-                    alert("Đang kết nối cổng thanh toán PayOS cho gói " + planName + "...");
-                }
+        function tpOpenRadar() {
+            if (!lastPos) { tpSpeak("Đang xác định GPS..."); return; }
+            if (window.radarLayers) window.radarLayers.forEach(l => map.removeLayer(l));
+            window.radarLayers = [];
+            const localPoints = TAXI_PROMAX_DATABASE.filter(s => lastPos.distanceTo(L.latLng(s.lat, s.lng)) <= 3000);
+            if (localPoints.length === 0) {
+                tpSpeak("Khu vực này chưa có điểm nóng.");
+                alert("Hệ thống chưa ghi nhận 'Điểm Chạm' nào trong phạm vi 3km.");
+                return;
             }
+            localPoints.forEach(s => {
+                let m = L.circleMarker([s.lat, s.lng], { radius: 10, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
+                m.bindTooltip(`<b>${s.n}</b><br>📢 ${s.desc}`, { permanent: true, direction: 'top' });
+                window.radarLayers.push(m);
+            });
+            tpSpeak(`Phát hiện ${localPoints.length} điểm đón.`);
+            showTab('home', document.querySelector('.nav-item'));
+            map.flyTo(lastPos, 15);
         }
 
-        // 2. Voice AI nhắc nạp tiền
         function tpSpeak(text) {
             if ('speechSynthesis' in window) {
                 const msg = new SpeechSynthesisUtterance(text);
@@ -356,124 +336,44 @@
             }
         }
 
-        // 3. Mini Countdown Logic
+        function tpHandlePayment(amount, planName) {
+            if (amount === 0) {
+                if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
+                localStorage.setItem('tp_trial_used', 'true');
+                localStorage.setItem('tp_expiry', new Date().getTime() + (7 * 24 * 60 * 60 * 1000));
+                document.getElementById('planShow').innerText = "⭐ GÓI: TRIAL (7D)";
+                tpSpeak("Kích hoạt dùng thử thành công!");
+                tpInitCountdown();
+            } else if (typeof createPayment === 'function') {
+                createPayment(amount, planName);
+            } else {
+                alert("Đang kết nối cổng PayOS cho gói " + planName);
+            }
+        }
+
         function tpInitCountdown() {
             const expiry = localStorage.getItem('tp_expiry');
             if (!expiry) return;
-
             const banner = document.getElementById('tp-mini-timer');
             banner.style.display = 'inline-flex';
-
-            const timer = setInterval(() => {
-                const now = new Date().getTime();
-                const dist = expiry - now;
-
-                if (dist < 0) {
-                    clearInterval(timer);
-                    banner.style.display = 'none';
-                    return;
-                }
-
+            setInterval(() => {
+                const dist = expiry - new Date().getTime();
+                if (dist < 0) { banner.style.display = 'none'; return; }
                 const days = Math.floor(dist / (1000 * 60 * 60 * 24));
                 const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
             }, 10000);
         }
-        tpInitCountdown();
-        // 4. Các hàm thực thi 4 tính năng khóa chân (Hoạt động thật)
 
-        // CƠ SỞ DỮ LIỆU ĐIỂM ĐÓN CHI TIẾT
-        const TAXI_PROMAX_DATABASE = [
-            // ... (dữ liệu các điểm đón anh đã có) ...
-        ];
-
-        function tpOpenRadar() {
-            // Nội dung hàm xử lý vẽ radar lên bản đồ
-            // ...
-        }
-
-        function tpOpenSOS() { ... }
-        function tpOpenMaintenance() { ... }
-        function tpOpenProfit() { ... }
-
-        // CƠ SỞ DỮ LIỆU ĐIỂM ĐÓN CHI TIẾT
-        const TAXI_PROMAX_DATABASE = [
-            // QUẢNG NINH
-            { p: "Quảng Ninh", n: "Sảnh Khách sạn Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP, đơn đi sân bay/tỉnh", color: "#ffc107" },
-            { p: "Quảng Ninh", n: "Cổng Sun World (Bãi đậu xe đoàn)", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy, nhu cầu cao giờ tan tầm", color: "#00bfa5" },
-            { p: "Quảng Ninh", n: "Cảng tàu khách Quốc tế (Cửa ra)", lat: 20.9520, lng: 107.0475, desc: "Khách du lịch ngoại quốc, đơn dài", color: "#e84393" },
-            { p: "Quảng Ninh", n: "Vincom Hạ Long (Cổng Lê Thánh Tông)", lat: 20.9505, lng: 107.0735, desc: "Khách mua sắm, đơn ngắn liên tục", color: "#00bfa5" },
-            { p: "Quảng Ninh", n: "Bệnh viện Đa khoa tỉnh (Cổng chính)", lat: 20.9515, lng: 107.0815, desc: "Khách vẫy đi nội thành mạnh", color: "#d63031" },
-            // HÀ NỘI
-            { p: "Hà Nội", n: "Sảnh T1 Nội Bài (Tầng 2 - Ga đi)", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe, cần đón ngay", color: "#ffc107" },
-            { p: "Hà Nội", n: "Cổng Bệnh viện Bạch Mai (Giải Phóng)", lat: 20.9985, lng: 105.8425, desc: "Điểm vẫy cực mạnh, khách đi liên tỉnh", color: "#d63031" },
-            // TP.HCM
-            { p: "TP.HCM", n: "Cổng Tây Chợ Bến Thành", lat: 10.7725, lng: 106.6980, desc: "Khách du lịch ngoại bang, đơn thơm", color: "#e84393" },
-            { p: "TP.HCM", n: "Ga Quốc Nội - Tân Sơn Nhất (Làn B)", lat: 10.8185, lng: 106.6588, desc: "Đơn app nổ liên tục 24/7", color: "#ffc107" }
-        ];
-
-        function tpOpenRadar() {
-            if (!lastPos) {
-                tpSpeak("Đang xác định vị trí GPS. Anh hãy đứng ở nơi thoáng đãng.");
-                return;
-            }
-
-            // Xóa radar cũ
-            if (window.radarLayers) {
-                window.radarLayers.forEach(l => map.removeLayer(l));
-            }
-            window.radarLayers = [];
-
-            const localActivePoints = TAXI_PROMAX_DATABASE.filter(spot => {
-                const d = lastPos.distanceTo(L.latLng(spot.lat, spot.lng));
-                return d <= 3000; 
-            });
-
-            if (localActivePoints.length === 0) {
-                tpSpeak("Bán kính 3 ki lô mét chưa có điểm nóng. Anh hãy di chuyển về phía trung tâm.");
-                alert("Hệ thống chưa ghi nhận 'Điểm Chạm' nào trong phạm vi 3km quanh anh.");
-                return;
-            }
-
-            localActivePoints.forEach((spot) => {
-                let marker = L.circleMarker([spot.lat, spot.lng], {
-                    radius: 10, fillColor: spot.color, color: "#fff", weight: 2, fillOpacity: 0.9
-                }).addTo(map);
-
-                let wave = L.circle([spot.lat, spot.lng], {
-                    radius: 150, color: spot.color, fill: false, weight: 1, className: 'pulsating-circle'
-                }).addTo(map);
-
-                marker.bindTooltip(`<b>${spot.n}</b><br>📢 ${spot.desc}`, {
-                    permanent: true, direction: 'top', offset: [0, -10], className: 'promax-label'
-                });
-
-                window.radarLayers.push(marker, wave);
-            });
-
-            tpSpeak(`Phát hiện ${localActivePoints.length} điểm đón khách tiềm năng.`);
-            showTab('home', document.querySelector('.nav-item'));
-            map.flyTo(lastPos, 15);
-        }
-
-        function tpOpenSOS() {
-            tpSpeak("Đang gửi tín hiệu cứu hộ đến các tài xế xung quanh.");
-            alert("Tín hiệu SOS đã được gửi! Đang tìm kiếm sự trợ giúp trong bán kính 2km.");
-        }
-
-        function tpOpenMaintenance() {
-            alert("TRỢ LÝ BẢO DƯỠNG:\n- Thay dầu: Còn 2,400km\n- Kiểm tra lốp: Tốt\n- Đã ghi nhận tổng quãng đường.");
-        }
-
-        function tpOpenProfit() {
+        function tpOpenSOS() { tpSpeak("Đang gửi SOS."); alert("Tín hiệu SOS đã phát đi!"); }
+        function tpOpenMaintenance() { alert("BẢO DƯỠNG: Thay dầu sau 2,400km."); }
+        function tpOpenProfit() { 
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            let total = 0;
-            history.forEach(item => {
-                total += parseInt(item.cost.replace(/,/g, ''));
-            });
-            alert("BÁO CÁO LỢI NHUẬN:\n- Tổng thu: " + total.toLocaleString() + "đ\n- Ước tính xăng dầu (30%): -" + (total * 0.3).toLocaleString() + "đ\n- Lợi nhuận thực: " + (total * 0.7).toLocaleString() + "đ");
+            let total = history.reduce((sum, item) => sum + parseInt(item.cost.replace(/,/g, '')), 0);
+            alert(`DOANH THU:\nTổng: ${total.toLocaleString()}đ\nThực thu (70%): ${(total * 0.7).toLocaleString()}đ`);
         }
-        // ===== NEW FEATURE END =====
+
+        window.onload = () => { renderHistory(); tpInitCountdown(); };
     </script>
 </body>
 </html>
