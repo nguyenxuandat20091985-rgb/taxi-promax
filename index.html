@@ -381,30 +381,22 @@
         }
         tpInitCountdown();
 
-        // 4. Các hàm thực thi 4 tính năng khóa chân (Hoạt động thật)
-        function tpOpenRadar() {
-            tpSpeak("Đang quét khu vực nhu cầu cao.");
-                    // --- 4. HỆ THỐNG RADAR THỰC CHIẾN TOÀN QUỐC (CẬP NHẬT CHI TIẾT) ---
-        
-        // CƠ SỞ DỮ LIỆU ĐIỂM ĐÓN CHI TIẾT (Anh em có thể đóng góp thêm vào đây)
+                // 4. Các hàm thực thi 4 tính năng khóa chân (Hoạt động thật)
+
+        // CƠ SỞ DỮ LIỆU ĐIỂM ĐÓN CHI TIẾT
         const TAXI_PROMAX_DATABASE = [
-            // --- QUẢNG NINH (Chi tiết sảnh/cổng) ---
+            // QUẢNG NINH
             { p: "Quảng Ninh", n: "Sảnh Khách sạn Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP, đơn đi sân bay/tỉnh", color: "#ffc107" },
             { p: "Quảng Ninh", n: "Cổng Sun World (Bãi đậu xe đoàn)", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy, nhu cầu cao giờ tan tầm", color: "#00bfa5" },
             { p: "Quảng Ninh", n: "Cảng tàu khách Quốc tế (Cửa ra)", lat: 20.9520, lng: 107.0475, desc: "Khách du lịch ngoại quốc, đơn dài", color: "#e84393" },
             { p: "Quảng Ninh", n: "Vincom Hạ Long (Cổng Lê Thánh Tông)", lat: 20.9505, lng: 107.0735, desc: "Khách mua sắm, đơn ngắn liên tục", color: "#00bfa5" },
             { p: "Quảng Ninh", n: "Bệnh viện Đa khoa tỉnh (Cổng chính)", lat: 20.9515, lng: 107.0815, desc: "Khách vẫy đi nội thành mạnh", color: "#d63031" },
-            
-            // --- HÀ NỘI (Chi tiết điểm nóng) ---
+            // HÀ NỘI
             { p: "Hà Nội", n: "Sảnh T1 Nội Bài (Tầng 2 - Ga đi)", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe, cần đón ngay", color: "#ffc107" },
             { p: "Hà Nội", n: "Cổng Bệnh viện Bạch Mai (Giải Phóng)", lat: 20.9985, lng: 105.8425, desc: "Điểm vẫy cực mạnh, khách đi liên tỉnh", color: "#d63031" },
-            { p: "Hà Nội", n: "Aeon Mall Long Biên (Cổng số 3)", lat: 21.0260, lng: 105.8970, desc: "Khách gia đình, cuối tuần đỏ rực", color: "#00bfa5" },
-            { p: "Hà Nội", n: "Sảnh Khách sạn JW Marriott", lat: 21.0055, lng: 105.7895, desc: "Khách VIP, tỉ lệ đơn đi tỉnh cao", color: "#ffc107" },
-
-            // --- TP. HỒ CHÍ MINH ---
+            // TP.HCM
             { p: "TP.HCM", n: "Cổng Tây Chợ Bến Thành", lat: 10.7725, lng: 106.6980, desc: "Khách du lịch ngoại bang, đơn thơm", color: "#e84393" },
-            { p: "TP.HCM", n: "Ga Quốc Nội - Tân Sơn Nhất (Làn B)", lat: 10.8185, lng: 106.6588, desc: "Đơn app nổ liên tục 24/7", color: "#ffc107" },
-            { p: "TP.HCM", n: "Sảnh Landmark 81 (Điểm đón Taxi)", lat: 10.7950, lng: 106.7220, desc: "Khách hạng sang, đơn giá trị cao", color: "#ffc107" }
+            { p: "TP.HCM", n: "Ga Quốc Nội - Tân Sơn Nhất (Làn B)", lat: 10.8185, lng: 106.6588, desc: "Đơn app nổ liên tục 24/7", color: "#ffc107" }
         ];
 
         function tpOpenRadar() {
@@ -413,72 +405,42 @@
                 return;
             }
 
-            // 1. Xóa các điểm radar cũ để nhẹ máy
+            // Xóa radar cũ
             if (window.radarLayers) {
                 window.radarLayers.forEach(l => map.removeLayer(l));
             }
             window.radarLayers = [];
 
-            // 2. Lọc điểm trong bán kính 3km quanh vị trí hiện tại (Tuyệt đối không đoán mò)
             const localActivePoints = TAXI_PROMAX_DATABASE.filter(spot => {
                 const d = lastPos.distanceTo(L.latLng(spot.lat, spot.lng));
-                return d <= 3000; // CHỈ QUÉT TRONG 3KM ĐỂ ANH EM KỊP ĐÓN
+                return d <= 3000; 
             });
 
             if (localActivePoints.length === 0) {
-                tpSpeak("Bán kính 3 ki lô mét chưa có điểm nóng chi tiết. Anh hãy di chuyển về phía trung tâm thành phố.");
+                tpSpeak("Bán kính 3 ki lô mét chưa có điểm nóng. Anh hãy di chuyển về phía trung tâm.");
                 alert("Hệ thống chưa ghi nhận 'Điểm Chạm' nào trong phạm vi 3km quanh anh.");
                 return;
             }
 
-            // 3. Hiển thị điểm nóng chi tiết lên bản đồ
-            localActivePoints.forEach((spot, index) => {
-                // Vòng tròn trung tâm
+            localActivePoints.forEach((spot) => {
                 let marker = L.circleMarker([spot.lat, spot.lng], {
-                    radius: 10,
-                    fillColor: spot.color,
-                    color: "#fff",
-                    weight: 2,
-                    fillOpacity: 0.9
+                    radius: 10, fillColor: spot.color, color: "#fff", weight: 2, fillOpacity: 0.9
                 }).addTo(map);
 
-                // Hiệu ứng sóng Radar (Pulsating)
                 let wave = L.circle([spot.lat, spot.lng], {
-                    radius: 150,
-                    color: spot.color,
-                    fill: false,
-                    weight: 1,
-                    className: 'pulsating-circle'
+                    radius: 150, color: spot.color, fill: false, weight: 1, className: 'pulsating-circle'
                 }).addTo(map);
 
-                // Nhãn thông tin chi tiết (ToolTip)
-                marker.bindTooltip(`
-                    <div style="font-size:11px;">
-                        <b style="color:${spot.color}">${spot.n}</b><br>
-                        <span>📢 ${spot.desc}</span>
-                    </div>
-                `, {
-                    permanent: true, 
-                    direction: 'top',
-                    offset: [0, -10],
-                    className: 'promax-label'
+                marker.bindTooltip(`<b>${spot.n}</b><br>📢 ${spot.desc}`, {
+                    permanent: true, direction: 'top', offset: [0, -10], className: 'promax-label'
                 });
 
                 window.radarLayers.push(marker, wave);
             });
 
-            tpSpeak(`Phát hiện ${localActivePoints.length} điểm đón khách tiềm năng trong bán kính 3 ki lô mét.`);
-            
-            // Quay về màn hình bản đồ để anh em nhìn
+            tpSpeak(`Phát hiện ${localActivePoints.length} điểm đón khách tiềm năng.`);
             showTab('home', document.querySelector('.nav-item'));
-            map.flyTo(lastPos, 15, { duration: 1.5 });
-        }
-
-        function clearRadar() {
-            if (window.radarLayers) {
-                window.radarLayers.forEach(l => map.removeLayer(l));
-                window.radarLayers = [];
-            }
+            map.flyTo(lastPos, 15);
         }
 
         function tpOpenSOS() {
@@ -487,7 +449,6 @@
         }
 
         function tpOpenMaintenance() {
-            const currentKm = parseFloat(document.getElementById('km').innerText);
             alert("TRỢ LÝ BẢO DƯỠNG:\n- Thay dầu: Còn 2,400km\n- Kiểm tra lốp: Tốt\n- Đã ghi nhận tổng quãng đường.");
         }
 
@@ -497,7 +458,7 @@
             history.forEach(item => {
                 total += parseInt(item.cost.replace(/,/g, ''));
             });
-            alert("BÁO CÁO LỢI NHUẬN:\n- Tổng thu hôm nay: " + total.toLocaleString() + "đ\n- Ước tính xăng dầu: -" + (total * 0.3).toLocaleString() + "đ\n- Lợi nhuận thực: " + (total * 0.7).toLocaleString() + "đ");
+            alert("BÁO CÁO LỢI NHUẬN:\n- Tổng thu: " + total.toLocaleString() + "đ\n- Ước tính xăng dầu (30%): -" + (total * 0.3).toLocaleString() + "đ\n- Lợi nhuận thực: " + (total * 0.7).toLocaleString() + "đ");
         }
         // ===== NEW FEATURE END =====
     </script>
