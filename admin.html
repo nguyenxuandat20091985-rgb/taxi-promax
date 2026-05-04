@@ -1,20 +1,92 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
-    <title>QUẢN TRỊ TAXI PROMAX</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>QUẢN TRỊ TAXI PROMAX</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --card: #2d2d2d;
+            --primary: #00bfa5;
+            --danger: #ff5252;
+            --text: #ffffff;
+        }
+        body { 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: 'Segoe UI', sans-serif; 
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .admin-card {
+            background: var(--card);
+            width: 100%;
+            max-width: 400px;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        h2 { margin-top: 0; color: var(--primary); font-size: 20px; }
+        .status-box {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 18px;
+            transition: 0.3s;
+        }
+        .status-on { background: rgba(0, 191, 165, 0.2); color: var(--primary); border: 1px solid var(--primary); }
+        .status-off { background: rgba(255, 82, 82, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: 0.2s;
+        }
+        .btn-toggle { background: var(--danger); }
+        .btn-reset { background: #455a64; margin-top: 10px; }
+        .btn:active { transform: scale(0.98); opacity: 0.8; }
+        
+        .info { font-size: 12px; color: #888; margin-top: 15px; }
+    </style>
 </head>
-<body style="background:#1a1a1a; color:white; font-family:sans-serif; padding:20px;">
-    <h2>🎛️ BẢNG ĐIỀU KHIỂN</h2>
-    <div style="background:#333; padding:15px; border-radius:10px;">
-        <p>Trạng thái hệ thống: <b id="status">Đang tải...</b></p>
-        <button onclick="toggleMaintenance()" style="padding:10px; background:red; color:white; border:none; border-radius:5px;">BẬT/TẮT BẢO TRÌ</button>
+<body>
+
+    <div class="admin-card">
+        <h2>🎛️ QUẢN TRỊ HỆ THỐNG</h2>
+        
+        <div id="status-container" class="status-box">
+            TRẠNG THÁI: <span id="status">ĐANG TẢI...</span>
+        </div>
+
+        <button class="btn btn-toggle" onclick="toggleMaintenance()">
+            BẬT / TẮT BẢO TRÌ
+        </button>
+
+        <button class="btn btn-reset" onclick="resetGlobalSettings()">
+            CÀI LẠI GIÁ CƯỚC CHUẨN
+        </button>
+
+        <p class="info">Dành riêng cho: <b>Nguyễn Xuân Đạt</b></p>
     </div>
 
     <script>
+        // Cấu hình Firebase chuẩn của anh
         const firebaseConfig = {
             apiKey: "AIzaSyDWX-YyE_1-F0yNqW9Kk8-G-Y4fG-Z-Y4f",
             authDomain: "taxi-promax-9f79b.firebaseapp.com",
@@ -24,18 +96,44 @@
             messagingSenderId: "338804599298",
             appId: "1:338804599298:web:12704381270438"
         };
-        firebase.initializeApp(firebaseConfig);
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        
         const db = firebase.database();
+        const statusEl = document.getElementById('status');
+        const containerEl = document.getElementById('status-container');
 
-        // Lắng nghe trạng thái
-        db.ref('systemStatus').on('value', (s) => {
-            document.getElementById('status').innerText = s.val() === 'off' ? 'ĐANG BẢO TRÌ' : 'HOẠT ĐỘNG';
+        // Lắng nghe trạng thái hệ thống theo thời gian thực
+        db.ref('systemStatus').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val === 'off') {
+                statusEl.innerText = 'ĐANG BẢO TRÌ';
+                containerEl.className = 'status-box status-off';
+            } else {
+                statusEl.innerText = 'ĐANG HOẠT ĐỘNG';
+                containerEl.className = 'status-box status-on';
+            }
         });
 
+        // Hàm đảo ngược trạng thái Bảo trì
         function toggleMaintenance() {
-            db.ref('systemStatus').once('value').then(s => {
-                db.ref('systemStatus').set(s.val() === 'on' ? 'off' : 'on');
+            db.ref('systemStatus').once('value').then(snapshot => {
+                const current = snapshot.val();
+                const next = (current === 'on' ? 'off' : 'on');
+                db.ref('systemStatus').set(next).then(() => {
+                    alert("Đã chuyển hệ thống sang: " + (next === 'on' ? "Hoạt động" : "Bảo trì"));
+                });
             });
+        }
+
+        // Hàm reset giá cước chuẩn cho toàn bộ App khách (Ví dụ 15.000đ)
+        function resetGlobalSettings() {
+            if(confirm("Anh Đạt muốn cài lại giá cước 15.000đ cho toàn hệ thống?")) {
+                db.ref('globalConfig/price').set(15000)
+                .then(() => alert("✅ Đã cập nhật giá cước mới!"));
+            }
         }
     </script>
 </body>
