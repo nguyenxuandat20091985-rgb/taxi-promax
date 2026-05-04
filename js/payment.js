@@ -3,107 +3,95 @@
  * Phát triển bởi: Nguyễn Xuân Đạt
  */
 
-// 1. Hàm phát thông báo bằng giọng nói (Voice AI trợ lý)
 function tpSpeak(text) {
     if ('speechSynthesis' in window) {
-        // Hủy các câu nói đang chờ để ưu tiên câu mới nhất
         window.speechSynthesis.cancel();
         const msg = new SpeechSynthesisUtterance(text);
         msg.lang = 'vi-VN';
-        msg.rate = 1.0; // Tốc độ nói
-        msg.pitch = 1.0; // Độ cao giọng
+        msg.rate = 1.0;
         window.speechSynthesis.speak(msg);
     }
 }
 
-// 2. Hàm xử lý khi khách bấm nút "NẠP NGAY" hoặc "KÍCH HOẠT"
-async function createPayment(amount, description) {
-    console.log(`[PayOS] Đang khởi tạo đơn hàng: ${amount}đ - Nội dung: ${description}`);
+async function createPayment(amount, planName) {
+    console.log(`[PayOS] Khởi tạo: ${amount}đ - Gói: ${planName}`);
     
-    // Tìm nút bấm vừa nhấn để hiển thị trạng thái chờ
-    const activeBtn = event?.target || document.querySelector('.p-btn');
-    const originalText = activeBtn ? activeBtn.innerText : "NẠP NGAY";
+    // Lấy nút bấm từ sự kiện (fix lỗi event target)
+    const activeBtn = window.event ? window.event.target : null;
+    let originalText = "NẠP NGAY";
 
-    if (activeBtn) {
-        activeBtn.innerText = "ĐANG TẠO MÃ QR...";
+    if (activeBtn && activeBtn.classList.contains('p-btn')) {
+        originalText = activeBtn.innerText;
+        activeBtn.innerText = "ĐANG TẠO QR...";
         activeBtn.disabled = true;
-        activeBtn.style.opacity = "0.7";
     }
 
-    // Thông báo bằng giọng nói để anh biết hệ thống đang chạy
-    tpSpeak("Đang kết nối cổng thanh toán. Anh vui lòng chờ trong giây lát.");
+    tpSpeak("Đang kết nối cổng thanh toán. Anh vui lòng chờ giây lát.");
 
     try {
-        // Gửi yêu cầu đến API Vercel của anh
-        const response = await fetch('/api/create-payment', {
+        const txID = localStorage.getItem('tx_id') || "DAT-PRO";
+        // Cắt chuỗi Description ngắn gọn để không lỗi PayOS (Max 25 ký tự)
+        const safeDesc = `${txID} ${planName}`.substring(0, 25);
+
+        const response = await fetch('/api/payos', { // Đảm bảo file trong api/ tên là payos.js
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 amount: amount,
-                description: description || `Taxi ProMax ID ${localStorage.getItem('tx_id')}`
+                description: safeDesc
             }),
         });
 
-        // Nếu API trả về lỗi kỹ thuật (404, 500...)
-        if (!response.ok) {
-            throw new Error(`Lỗi máy chủ (${response.status})`);
-        }
+        if (!response.ok) throw new Error(`Lỗi máy chủ (${response.status})`);
 
         const data = await response.json();
 
-        // Kiểm tra link thanh toán từ PayOS trả về
         if (data && data.checkoutUrl) {
-            tpSpeak("Đã tạo mã thanh toán thành công. Mời anh quét mã để tiếp tục.");
+            tpSpeak("Đã tạo mã thành công. Mời anh quét mã để kích hoạt.");
+            // Lưu lại gói đang mua để sau khi quay lại mình cộng hạn dùng
+            localStorage.setItem('pending_plan', planName);
             
-            // Chuyển hướng sang trang mã QR của BIDV/PayOS
             setTimeout(() => {
                 window.location.href = data.checkoutUrl;
-            }, 1500);
-            
+            }, 1000);
         } else {
-            throw new Error(data.error || "Không nhận được phản hồi từ cổng PayOS");
+            throw new Error("Không nhận được link thanh toán");
         }
 
     } catch (error) {
-        console.error("[PayOS Error]:", error);
-        
-        // Thông báo lỗi bằng giọng nói và hộp thoại
-        tpSpeak("Cổng thanh toán đang bận hoặc lỗi kết nối. Anh vui lòng thử lại sau.");
-        alert(`Lỗi hệ thống: ${error.message}\nAnh Đạt kiểm tra lại API trên Vercel nhé!`);
-
+        tpSpeak("Lỗi kết nối. Anh vui lòng thử lại sau.");
+        alert(`Lỗi: ${error.message}`);
     } finally {
-        // Trả lại trạng thái ban đầu cho nút bấm nếu gặp lỗi
-        if (activeBtn) {
+        if (activeBtn && activeBtn.classList.contains('p-btn')) {
             activeBtn.innerText = originalText;
             activeBtn.disabled = false;
-            activeBtn.style.opacity = "1";
         }
     }
 }
 
-// 3. Hàm kiểm tra trạng thái gói sau khi quay lại từ trang thanh toán
+// Hàm kiểm tra khi anh quay lại từ ngân hàng
 function checkPaymentStatus() {
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
+    const planName = localStorage.getItem('pending_plan');
 
     if (status === 'success') {
-        tpSpeak("Chúc mừng anh Đạt! Gói cước Taxi ProMax đã được kích hoạt thành công. Chúc anh vạn dặm bình an!");
+        // LOGIC CỘNG HẠN DÙNG (Giả lập)
+        let daysToAdd = 30;
+        if(planName === 'CHUYẾN LẺ') daysToAdd = 1;
+        if(planName === 'PRO MAX') daysToAdd = 90;
+        if(planName === 'TRIAL 7D') daysToAdd = 7;
+
+        const newExpiry = new Date().getTime() + (daysToAdd * 24 * 60 * 60 * 1000);
+        localStorage.setItem('tp_expiry', newExpiry);
+        localStorage.removeItem('pending_plan');
+
+        tpSpeak(`Chúc mừng anh Đạt! Đã kích hoạt gói ${planName} thành công. Chúc anh vạn dặm bình an!`);
         
-        // Cập nhật giao diện (Giả định anh dùng các ID này trong index.html)
-        const planBadge = document.getElementById('planShow');
-        if (planBadge) {
-            planBadge.innerText = "⭐ GÓI: VIP PRO (ACTIVE)";
-            planBadge.style.color = "#ffc107";
-        }
-        
-        // Xóa các tham số trên URL để tránh hiện lại thông báo khi load lại trang
-        window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (status === 'cancel') {
-        tpSpeak("Giao dịch đã được hủy bỏ.");
+        setTimeout(() => {
+            window.location.href = window.location.pathname; // Xóa sạch rác trên URL
+        }, 3000);
     }
 }
 
-// Tự động chạy kiểm tra trạng thái khi file JS này được load
 document.addEventListener('DOMContentLoaded', checkPaymentStatus);
