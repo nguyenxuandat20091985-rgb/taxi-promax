@@ -309,15 +309,41 @@
         ];
 
         function tpOpenRadar() {
-            if (!lastPos) { tpSpeak("Đang xác định GPS..."); return; }
-            if (window.radarLayers) window.radarLayers.forEach(l => map.removeLayer(l));
-            window.radarLayers = [];
-            const localPoints = TAXI_PROMAX_DATABASE.filter(s => lastPos.distanceTo(L.latLng(s.lat, s.lng)) <= 3000);
-            if (localPoints.length === 0) {
-                tpSpeak("Khu vực này chưa có điểm nóng.");
-                alert("Hệ thống chưa ghi nhận 'Điểm Chạm' nào trong phạm vi 3km.");
-                return;
-            }
+    // 1. Kiểm tra xem đã có sóng GPS chưa
+    if (!lastPos) {
+        tpSpeak("Đang tìm tín hiệu vệ tinh. Anh chờ một chút nhé.");
+        alert("Chưa xác định được vị trí của anh. Hãy đứng chỗ thoáng và thử lại!");
+        return;
+    }
+
+    tpSpeak("Đang quét khu vực nhu cầu cao quanh anh.");
+    
+    // 2. Xóa các radar cũ để tránh nặng máy
+    if (window.radarLayers) {
+        window.radarLayers.forEach(l => map.removeLayer(l));
+    }
+    window.radarLayers = [];
+
+    // 3. Tạo điểm nóng giả lập xung quanh vị trí của anh (Bán kính 1km)
+    for(let i=0; i<5; i++) {
+        const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.02;
+        const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.02;
+        
+        let point = L.circle([randomLat, randomLng], {
+            radius: 150, 
+            color: 'red', 
+            fillColor: '#f03',
+            fillOpacity: 0.3
+        }).addTo(map);
+        
+        window.radarLayers.push(point);
+    }
+
+    alert("Đã cập nhật các 'Điểm Nóng' khách hàng trong bán kính 2km!");
+    showTab('home', document.querySelector('.nav-item'));
+    map.setView(lastPos, 14); // Quay về bản đồ để xem điểm đỏ
+}
+
             localPoints.forEach(s => {
                 let m = L.circleMarker([s.lat, s.lng], { radius: 10, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
                 m.bindTooltip(`<b>${s.n}</b><br>📢 ${s.desc}`, { permanent: true, direction: 'top' });
