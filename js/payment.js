@@ -1,6 +1,7 @@
 /**
  * TAXI PROMAX - HỆ THỐNG XỬ LÝ THANH TOÁN TỰ ĐỘNG
  * Phát triển bởi: Nguyễn Xuân Đạt
+ * Phía Giao diện (GitHub Pages) gọi sang Backend (Vercel)
  */
 
 function tpSpeak(text) {
@@ -16,11 +17,11 @@ function tpSpeak(text) {
 async function createPayment(amount, planName) {
     console.log(`[PayOS] Khởi tạo: ${amount}đ - Gói: ${planName}`);
     
-    // Lấy nút bấm từ sự kiện (fix lỗi event target)
+    // 1. Xác định nút bấm để hiện trạng thái chờ
     const activeBtn = window.event ? window.event.target : null;
     let originalText = "NẠP NGAY";
 
-    if (activeBtn && activeBtn.classList.contains('p-btn')) {
+    if (activeBtn) {
         originalText = activeBtn.innerText;
         activeBtn.innerText = "ĐANG TẠO QR...";
         activeBtn.disabled = true;
@@ -29,69 +30,87 @@ async function createPayment(amount, planName) {
     tpSpeak("Đang kết nối cổng thanh toán. Anh vui lòng chờ giây lát.");
 
     try {
-        const txID = localStorage.getItem('tx_id') || "DAT-PRO";
-        // Cắt chuỗi Description ngắn gọn để không lỗi PayOS (Max 25 ký tự)
+        const txID = localStorage.getItem('tx_id') || "DAT";
+        // Chuẩn hóa Description ngắn gọn để PayOS không lỗi
         const safeDesc = `${txID} ${planName}`.substring(0, 25);
 
-        const response = await fetch('/api/payos', { // Đảm bảo file trong api/ tên là payos.js
+        // 2. GỌI SANG VERCEL (Thay vì gọi nội bộ GitHub)
+        // Địa chỉ này lấy từ link Domain trong ảnh Vercel của anh
+        const response = await fetch('https://taxi-promax.vercel.app/api/create-payment', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
                 amount: amount,
                 description: safeDesc
             }),
         });
 
-        if (!response.ok) throw new Error(`Lỗi máy chủ (${response.status})`);
+        // 3. Xử lý phản hồi từ máy chủ Vercel
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `Lỗi máy chủ (${response.status})`);
+        }
 
         const data = await response.json();
 
         if (data && data.checkoutUrl) {
             tpSpeak("Đã tạo mã thành công. Mời anh quét mã để kích hoạt.");
-            // Lưu lại gói đang mua để sau khi quay lại mình cộng hạn dùng
+            
+            // Lưu lại gói để cộng hạn dùng sau khi quay lại
             localStorage.setItem('pending_plan', planName);
             
+            // Chuyển hướng sang trang quét mã của ngân hàng
             setTimeout(() => {
                 window.location.href = data.checkoutUrl;
             }, 1000);
         } else {
-            throw new Error("Không nhận được link thanh toán");
+            throw new Error("Không nhận được link thanh toán từ PayOS.");
         }
 
     } catch (error) {
-        tpSpeak("Lỗi kết nối. Anh vui lòng thử lại sau.");
-        alert(`Lỗi: ${error.message}`);
+        console.error("[Lỗi]:", error);
+        tpSpeak("Cổng thanh toán đang bận. Anh vui lòng thử lại sau.");
+        alert(`Lỗi: ${error.message}\nAnh Đạt kiểm tra xem máy chủ Vercel đã báo READY chưa nhé!`);
     } finally {
-        if (activeBtn && activeBtn.classList.contains('p-btn')) {
+        if (activeBtn) {
             activeBtn.innerText = originalText;
             activeBtn.disabled = false;
         }
     }
 }
 
-// Hàm kiểm tra khi anh quay lại từ ngân hàng
+/**
+ * HÀM KIỂM TRA TRẠNG THÁI SAU KHI THANH TOÁN XONG
+ */
 function checkPaymentStatus() {
     const params = new URLSearchParams(window.location.search);
-    const status = params.get('status');
+    const status = params.get('status'); // Lấy status từ URL mà Vercel trả về
     const planName = localStorage.getItem('pending_plan');
 
-    if (status === 'success') {
-        // LOGIC CỘNG HẠN DÙNG (Giả lập)
+    if (status === 'success' || status === 'PAID') {
+        // Tính toán ngày hết hạn
         let daysToAdd = 30;
         if(planName === 'CHUYẾN LẺ') daysToAdd = 1;
         if(planName === 'PRO MAX') daysToAdd = 90;
         if(planName === 'TRIAL 7D') daysToAdd = 7;
 
-        const newExpiry = new Date().getTime() + (daysToAdd * 24 * 60 * 60 * 1000);
+        const now = new Date().getTime();
+        const newExpiry = now + (daysToAdd * 24 * 60 * 60 * 1000);
+        
+        // Lưu vào bộ nhớ máy để App mở khóa
         localStorage.setItem('tp_expiry', newExpiry);
         localStorage.removeItem('pending_plan');
 
-        tpSpeak(`Chúc mừng anh Đạt! Đã kích hoạt gói ${planName} thành công. Chúc anh vạn dặm bình an!`);
+        tpSpeak(`Chúc mừng anh Đạt! Đã kích hoạt thành công gói ${planName}. Chúc anh vạn dặm bình an!`);
         
+        // Dọn dẹp URL cho sạch
         setTimeout(() => {
-            window.location.href = window.location.pathname; // Xóa sạch rác trên URL
-        }, 3000);
+            window.location.href = window.location.pathname;
+        }, 4000);
     }
 }
 
+// Chạy kiểm tra ngay khi load trang
 document.addEventListener('DOMContentLoaded', checkPaymentStatus);
