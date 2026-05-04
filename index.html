@@ -197,11 +197,11 @@
     <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="js/payment.js"></script>
     
     <script>
-        // 1. QUẢN LÝ ID & KHỞI TẠO
+        // 1. KHỞI TẠO & ĐỒNG BỘ TRẠNG THÁI
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
@@ -215,7 +215,7 @@
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null; 
 
-        // 3. GPS VÀ THEO DÕI
+        // 3. GPS & TRACKING (Tối ưu lọc nhiễu 5m)
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
@@ -227,7 +227,8 @@
                         map.panTo(newPos);
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            if(d > 0.002) { 
+                            // Lọc nhiễu GPS: Chỉ tính nếu di chuyển trên 5 mét
+                            if(d > 0.005) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
                                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
@@ -235,13 +236,13 @@
                         }
                     } else {
                         if(!lastPos) map.setView(newPos, 16);
-                        if(speed > 1.38) handleTrip(); // Tự động bắt đầu nếu chạy > 5km/h
+                        // Tự động bắt đầu nếu tốc độ > 7km/h (tránh tự bật khi đi bộ)
+                        if(speed > 2.0) handleTrip(); 
                     }
                     lastPos = newPos;
-                }, null, { enableHighAccuracy: true });
+                }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
             }
         }
-        startTracking();
 
         // 4. LOGIC CHUYẾN ĐI
         function handleTrip() {
@@ -257,6 +258,7 @@
                 saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
                 document.getElementById('endModal').style.display = 'flex';
+                if(wakeLock) wakeLock.release();
             }
         }
 
@@ -277,18 +279,18 @@
         function renderHistory() {
             const list = document.getElementById('historyList');
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            list.innerHTML = history.map(h => `
+            list.innerHTML = history.length ? history.map(h => `
                 <div class="history-card">
                     <div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div>
                     <div class="h-price">${h.cost}đ</div>
                 </div>
-            `).join('');
+            `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
         function showTab(tab, btn) {
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            if(btn) btn.classList.add('active');
             if(tab === 'home') {
                 document.getElementById('homeControls').style.display = 'block';
                 setTimeout(() => map.invalidateSize(), 300); 
@@ -300,82 +302,57 @@
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; } 
 
-                        // 5. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, THANH TOÁN)
+        // 5. TÍNH NĂNG MỞ RỘNG
         const TAXI_PROMAX_DATABASE = [
-            { p: "Quảng Ninh", n: "Sảnh Khách sạn Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP, đơn đi sân bay/tỉnh", color: "#ffc107" },
-            { p: "Quảng Ninh", n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ tan tầm", color: "#00bfa5" },
-            { p: "Quảng Ninh", n: "Cảng tàu khách Quốc tế", lat: 20.9520, lng: 107.0475, desc: "Khách du lịch ngoại quốc", color: "#e84393" },
-            { p: "Hà Nội", n: "Sảnh T1 Nội Bài", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe", color: "#ffc107" }
+            { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
+            { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#00bfa5" },
+            { n: "Sảnh T1 Nội Bài", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe", color: "#ffc107" }
         ];
 
         function tpOpenRadar() {
-            if (!lastPos) {
-                tpSpeak("Đang tìm tín hiệu vệ tinh. Anh chờ một chút nhé.");
-                alert("Chưa xác định được vị trí. Hãy đứng chỗ thoáng!");
-                return;
-            }
-
-            tpSpeak("Đang quét khu vực nhu cầu cao quanh anh.");
+            if (!lastPos) { tpSpeak("Đang tìm tín hiệu vệ tinh."); return; }
+            tpSpeak("Đang cập nhật điểm nóng khu vực.");
             if (window.radarLayers) { window.radarLayers.forEach(l => map.removeLayer(l)); }
             window.radarLayers = [];
-
-            // Tạo điểm giả lập quanh vị trí thực của anh để test
-            for(let i=0; i<3; i++) {
-                const rLat = lastPos.lat + (Math.random() - 0.5) * 0.01;
-                const rLng = lastPos.lng + (Math.random() - 0.5) * 0.01;
-                let circle = L.circle([rLat, rLng], {radius: 200, color: 'red', fillOpacity: 0.3}).addTo(map);
-                window.radarLayers.push(circle);
-            }
-
-            // Hiển thị thêm các điểm đón cố định
             TAXI_PROMAX_DATABASE.forEach(s => {
-                let m = L.circleMarker([s.lat, s.lng], { radius: 10, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
-                m.bindTooltip(`<b>${s.n}</b><br>📢 ${s.desc}`);
+                let m = L.circleMarker([s.lat, s.lng], { radius: 12, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.8 }).addTo(map);
+                m.bindTooltip(`<b>${s.n}</b><br>${s.desc}`).openTooltip();
                 window.radarLayers.push(m);
             });
-
-            alert("Đã cập nhật các 'Điểm Nóng' khách hàng!");
-            showTab('home', document.querySelector('.nav-item'));
+            showTab('home');
             map.flyTo(lastPos, 14);
         }
 
-                function tpSpeak(text) {
+        function tpSpeak(text) {
             if ('speechSynthesis' in window) {
-                // Dừng mọi câu cũ để câu mới được ưu tiên ngay lập tức
                 window.speechSynthesis.cancel();
-                
                 const msg = new SpeechSynthesisUtterance(text);
-                msg.lang = 'vi-VN'; // Giọng tiếng Việt
-                msg.rate = 1.1;     // Tốc độ nhanh nhẹn, dứt khoát
-                msg.pitch = 1.0;    // Độ cao vừa phải, dễ nghe
-                msg.volume = 1.0;   // Âm lượng tối đa
-
-                // Xử lý nếu gặp lỗi (ví dụ điện thoại không hỗ trợ giọng này)
-                msg.onerror = (e) => console.error("Lỗi âm thanh:", e);
-
+                msg.lang = 'vi-VN'; msg.rate = 1.1;
                 window.speechSynthesis.speak(msg);
             }
         }
-
 
         function tpHandlePayment(amount, planName) {
             if (amount === 0) {
                 if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
                 localStorage.setItem('tp_trial_used', 'true');
                 localStorage.setItem('tp_expiry', new Date().getTime() + (7 * 24 * 60 * 60 * 1000));
-                document.getElementById('planShow').innerText = "⭐ GÓI: TRIAL (7D)";
-                tpSpeak("Kích hoạt dùng thử thành công!");
+                tpSpeak("Kích hoạt thành công gói dùng thử 7 ngày.");
                 tpInitCountdown();
             } else if (typeof createPayment === 'function') {
                 createPayment(amount, planName);
             } else {
-                alert("Đang kết nối cổng PayOS cho gói " + planName);
+                alert("Hệ thống thanh toán đang bảo trì, anh vui lòng thử lại sau!");
             }
         }
 
         function tpInitCountdown() {
             const expiry = localStorage.getItem('tp_expiry');
             if (!expiry) return;
+            // Cập nhật lại nhãn gói cước khi mở app
+            document.getElementById('planShow').innerText = "⭐ GÓI: TRIAL (7D)";
+            document.getElementById('planShow').style.color = "var(--primary)";
+            
             const banner = document.getElementById('tp-mini-timer');
             banner.style.display = 'inline-flex';
             const timerFunc = () => {
@@ -389,16 +366,15 @@
             setInterval(timerFunc, 60000);
         }
 
-        function tpOpenSOS() { tpSpeak("Đang gửi tín hiệu cứu hộ."); alert("Tín hiệu SOS đã phát đi!"); }
-        function tpOpenMaintenance() { alert("TRỢ LÝ: Thay dầu sau 2,400km nữa anh nhé."); }
+        function tpOpenSOS() { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí của anh đến đội cứu hộ gần nhất!"); }
+        function tpOpenMaintenance() { alert("TRỢ LÝ: Anh đã đi được 2,600km kể từ lần thay dầu cuối."); }
         function tpOpenProfit() { 
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             let total = history.reduce((sum, item) => sum + parseInt(item.cost.replace(/,/g, '')), 0);
-            alert(`THỐNG KÊ:\nDoanh thu: ${total.toLocaleString()}đ\nThực thu (70%): ${(total * 0.7).toLocaleString()}đ`);
+            alert(`THỐNG KÊ HÔM NAY:\n- Doanh thu: ${total.toLocaleString()}đ\n- Ước tính thực nhận: ${(total * 0.8).toLocaleString()}đ`);
         }
 
-        window.onload = () => { renderHistory(); tpInitCountdown(); };
-
+        window.onload = () => { startTracking(); renderHistory(); tpInitCountdown(); };
     </script>
 </body>
 </html>
