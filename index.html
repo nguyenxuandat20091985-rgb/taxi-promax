@@ -300,7 +300,7 @@
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; } 
 
-        // 5. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, THANH TOÁN)
+                // 5. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, THANH TOÁN)
         const TAXI_PROMAX_DATABASE = [
             { p: "Quảng Ninh", n: "Sảnh Khách sạn Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP, đơn đi sân bay/tỉnh", color: "#ffc107" },
             { p: "Quảng Ninh", n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ tan tầm", color: "#00bfa5" },
@@ -309,53 +309,39 @@
         ];
 
         function tpOpenRadar() {
-    // 1. Kiểm tra xem đã có sóng GPS chưa
-    if (!lastPos) {
-        tpSpeak("Đang tìm tín hiệu vệ tinh. Anh chờ một chút nhé.");
-        alert("Chưa xác định được vị trí của anh. Hãy đứng chỗ thoáng và thử lại!");
-        return;
-    }
+            if (!lastPos) {
+                tpSpeak("Đang tìm tín hiệu vệ tinh. Anh chờ một chút nhé.");
+                alert("Chưa xác định được vị trí. Hãy đứng chỗ thoáng!");
+                return;
+            }
 
-    tpSpeak("Đang quét khu vực nhu cầu cao quanh anh.");
-    
-    // 2. Xóa các radar cũ để tránh nặng máy
-    if (window.radarLayers) {
-        window.radarLayers.forEach(l => map.removeLayer(l));
-    }
-    window.radarLayers = [];
+            tpSpeak("Đang quét khu vực nhu cầu cao quanh anh.");
+            if (window.radarLayers) { window.radarLayers.forEach(l => map.removeLayer(l)); }
+            window.radarLayers = [];
 
-    // 3. Tạo điểm nóng giả lập xung quanh vị trí của anh (Bán kính 1km)
-    for(let i=0; i<5; i++) {
-        const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.02;
-        const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.02;
-        
-        let point = L.circle([randomLat, randomLng], {
-            radius: 150, 
-            color: 'red', 
-            fillColor: '#f03',
-            fillOpacity: 0.3
-        }).addTo(map);
-        
-        window.radarLayers.push(point);
-    }
+            // Tạo điểm giả lập quanh vị trí thực của anh để test
+            for(let i=0; i<3; i++) {
+                const rLat = lastPos.lat + (Math.random() - 0.5) * 0.01;
+                const rLng = lastPos.lng + (Math.random() - 0.5) * 0.01;
+                let circle = L.circle([rLat, rLng], {radius: 200, color: 'red', fillOpacity: 0.3}).addTo(map);
+                window.radarLayers.push(circle);
+            }
 
-    alert("Đã cập nhật các 'Điểm Nóng' khách hàng trong bán kính 2km!");
-    showTab('home', document.querySelector('.nav-item'));
-    map.setView(lastPos, 14); // Quay về bản đồ để xem điểm đỏ
-}
-
-            localPoints.forEach(s => {
+            // Hiển thị thêm các điểm đón cố định nếu ở gần
+            TAXI_PROMAX_DATABASE.forEach(s => {
                 let m = L.circleMarker([s.lat, s.lng], { radius: 10, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
-                m.bindTooltip(`<b>${s.n}</b><br>📢 ${s.desc}`, { permanent: true, direction: 'top' });
+                m.bindTooltip(`<b>${s.n}</b><br>📢 ${s.desc}`);
                 window.radarLayers.push(m);
             });
-            tpSpeak(`Phát hiện ${localPoints.length} điểm đón.`);
+
+            alert("Đã cập nhật các 'Điểm Nóng' khách hàng!");
             showTab('home', document.querySelector('.nav-item'));
-            map.flyTo(lastPos, 15);
+            map.flyTo(lastPos, 14);
         }
 
         function tpSpeak(text) {
             if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
                 const msg = new SpeechSynthesisUtterance(text);
                 msg.lang = 'vi-VN';
                 window.speechSynthesis.speak(msg);
@@ -373,7 +359,7 @@
             } else if (typeof createPayment === 'function') {
                 createPayment(amount, planName);
             } else {
-                alert("Đang kết nối cổng PayOS cho gói " + planName);
+                alert("Đang kết nối cổng PayOS...");
             }
         }
 
@@ -382,21 +368,23 @@
             if (!expiry) return;
             const banner = document.getElementById('tp-mini-timer');
             banner.style.display = 'inline-flex';
-            setInterval(() => {
+            const timerFunc = () => {
                 const dist = expiry - new Date().getTime();
                 if (dist < 0) { banner.style.display = 'none'; return; }
                 const days = Math.floor(dist / (1000 * 60 * 60 * 24));
                 const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
-            }, 10000);
+            };
+            timerFunc();
+            setInterval(timerFunc, 60000);
         }
 
-        function tpOpenSOS() { tpSpeak("Đang gửi SOS."); alert("Tín hiệu SOS đã phát đi!"); }
-        function tpOpenMaintenance() { alert("BẢO DƯỠNG: Thay dầu sau 2,400km."); }
+        function tpOpenSOS() { tpSpeak("Đang gửi tín hiệu cứu hộ."); alert("Tín hiệu SOS đã phát đi!"); }
+        function tpOpenMaintenance() { alert("TRỢ LÝ: Thay dầu sau 2,400km nữa anh nhé."); }
         function tpOpenProfit() { 
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             let total = history.reduce((sum, item) => sum + parseInt(item.cost.replace(/,/g, '')), 0);
-            alert(`DOANH THU:\nTổng: ${total.toLocaleString()}đ\nThực thu (70%): ${(total * 0.7).toLocaleString()}đ`);
+            alert(`THỐNG KÊ:\nDoanh thu: ${total.toLocaleString()}đ\nThực thu (70%): ${(total * 0.7).toLocaleString()}đ`);
         }
 
         window.onload = () => { renderHistory(); tpInitCountdown(); };
