@@ -6,18 +6,23 @@ const payos = new PayOS(
 );
 
 export default async function handler(req, res) {
-    try {
-        const { amount, description, orderCode } = req.body;
-        const paymentData = {
-            orderCode: orderCode,
-            amount: amount,
-            description: description,
-            cancelUrl: `https://${req.headers.host}/`,
-            returnUrl: `https://${req.headers.host}/?status=success`,
-        };
-        const checkoutLink = await payos.createPaymentLink(paymentData);
-        res.status(200).json({ checkoutUrl: checkoutLink.checkoutUrl });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
+    const webhookData = req.body;
+    
+    // 1. Xác thực dữ liệu từ PayOS (Tránh bị hack nạp khống)
+    const verifiedData = payos.verifyPaymentWebhookData(webhookData);
+
+    if (verifiedData) {
+        const description = verifiedData.description; // Ví dụ: "0912345678 nap GOI PRO"
+        const phone = description.split(' ')[0]; // Tách lấy SĐT
+        
+        // 2. Logic tự động cộng hạn dùng trên Firebase
+        // Anh có thể dùng Fetch hoặc Admin SDK ở đây để update users/{phone}/tp_expiry
+        console.log(`Thanh toán thành công cho tài xế: ${phone}`);
+        
+        return res.status(200).json({ success: true });
     }
+
+    return res.status(400).json({ success: false });
 }
