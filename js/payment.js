@@ -1,10 +1,10 @@
 /**
  * TAXI PROMAX - QUẢN LÝ GÓI CƯỚC & THANH TOÁN
  * Chủ tài khoản: NGUYỄN XUÂN ĐẠT - 4430269669
- * Cơ chế: Khóa Bản đồ nhiệt/Tìm khách khi hết hạn. Tính tiền chuyến vẫy vẫn mở.
+ * Cơ chế: Khóa tính năng cao cấp khi hết hạn.
  */
 
-// 1. Hàm phát âm thanh thông báo
+// 1. PHÁT ÂM THANH THÔNG BÁO
 function tpSpeak(text) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -14,7 +14,7 @@ function tpSpeak(text) {
     }
 }
 
-// 2. KIỂM TRA TRẠNG THÁI GÓI CƯỚC (Hàm này dùng để đóng/mở tính năng)
+// 2. KIỂM TRA TRẠNG THÁI GÓI CƯỚC
 function isSubscribed() {
     const expiry = localStorage.getItem('tp_expiry');
     if (!expiry) return false;
@@ -22,30 +22,81 @@ function isSubscribed() {
     return (parseInt(expiry) - now) > 0;
 }
 
-// 3. HÀM DÙNG ĐỂ KHÓA TÍNH NĂNG CAO CẤP
-// Anh dùng hàm này bọc quanh các tính năng Tìm khách và Bản đồ nhiệt
+// 3. KHÓA TÍNH NĂNG CAO CẤP (Dùng cho Radar/Bản đồ nhiệt)
 function accessPremiumFeature(featureName, callback) {
     if (isSubscribed()) {
-        callback(); // Còn hạn thì cho chạy
+        callback();
     } else {
-        tpSpeak(`Gói dùng thử của anh Đạt đã hết hạn. Anh nạp thêm để dùng tính năng ${featureName} nhé.`);
-        alert(`Tính năng ${featureName} đã bị khóa. Vui lòng nạp gói cước để mở lại!`);
-        // Tự động cuộn đến phần chọn gói cước
-        const pricing = document.getElementById('pricing-section');
-        if (pricing) pricing.scrollIntoView({behavior: "smooth"});
+        tpSpeak(`Gói dịch vụ đã hết hạn. Anh Đạt nạp thêm để dùng tính năng ${featureName} nhé.`);
+        alert(`Tính năng ${featureName} yêu cầu gói cước còn hạn!`);
+        showTab('vi'); // Chuyển sang tab Ví tiền để nạp
     }
 }
 
-// 4. Hiển thị thông tin gói cước lên giao diện
+// 4. CẦU NỐI THANH TOÁN (Gọi từ các nút bấm ở index.html)
+function tpHandlePayment(amount, planName) {
+    if (amount === 0) {
+        // Xử lý gói dùng thử 7 ngày (Chỉ dùng 1 lần)
+        if (!localStorage.getItem('tp_trial_activated')) {
+            localStorage.setItem('pending_plan', planName);
+            localStorage.setItem('tp_trial_activated', 'true');
+            // Kích hoạt ngay bằng cách giả lập status success
+            window.location.href = window.location.pathname + "?status=success";
+        } else {
+            tpSpeak("Gói dùng thử này anh đã sử dụng rồi ạ.");
+            alert("Anh đã dùng gói dùng thử trước đó!");
+        }
+    } else {
+        // Gọi hàm tạo QR BIDV
+        createPayment(amount, planName);
+    }
+}
+
+// 5. KHỞI TẠO THANH TOÁN QR BIDV
+async function createPayment(amount, planName) {
+    const BANK_ID = "bidv"; 
+    const ACCOUNT_NO = "4430269669"; 
+    const ACCOUNT_NAME = "NGUYEN XUAN DAT"; 
+
+    // Nội dung: PROMAX + SĐT + Tên Gói
+    const phone = localStorage.getItem('user_phone') || "0000000000";
+    const description = `PROMAX ${phone} ${planName.replace(/\s/g, '')}`;
+
+    // Link ảnh QR từ VietQR (Tự động điền số tiền và nội dung)
+    const qrImageUrl = `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-qr_only.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(ACCOUNT_NAME)}`;
+
+    localStorage.setItem('pending_plan', planName);
+
+    // Phát âm thanh
+    tpSpeak(`Đang tạo mã QR BIDV nạp gói ${planName}. Anh quét mã để kích hoạt nhé.`);
+
+    // Hiển thị Modal QR đã có sẵn trong file index.html của anh
+    const qrModal = document.getElementById('tp-qr-overlay');
+    const qrImg = document.getElementById('qrImageDisplay');
+    const qrAmt = document.getElementById('qrAmountShow');
+    const qrCnt = document.getElementById('qrContentShow');
+
+    if (qrModal && qrImg) {
+        qrImg.src = qrImageUrl;
+        qrAmt.innerText = amount.toLocaleString() + "đ";
+        qrCnt.innerText = description;
+        qrModal.style.display = 'flex';
+    } else {
+        // Nếu file index chưa cập nhật Modal mới, dùng hàm dự phòng
+        showQRModalFallback(qrImageUrl, amount, planName, description);
+    }
+}
+
+// 6. TỰ ĐỘNG CẬP NHẬT GIAO DIỆN GÓI CƯỚC
 function updateSubscriptionUI() {
     const expiry = localStorage.getItem('tp_expiry');
     const planName = localStorage.getItem('active_plan_name') || "CHƯA ĐĂNG KÝ";
-    const statusContainer = document.getElementById('subscription-status');
+    const planShow = document.getElementById('planShow');
 
-    if (!statusContainer) return;
+    if (!planShow) return;
 
     if (!expiry) {
-        statusContainer.innerHTML = `<div style="color: #888; font-size: 14px;">Trạng thái: <b>${planName}</b></div>`;
+        planShow.innerText = "⭐ GÓI: " + planName;
         return;
     }
 
@@ -54,113 +105,56 @@ function updateSubscriptionUI() {
     const daysLeft = Math.ceil(timeLeft / (24 * 60 * 60 * 1000));
 
     if (timeLeft <= 0) {
-        statusContainer.innerHTML = `<div style="color: #d32f2f; font-weight: bold; background: #fff1f0; padding: 10px; border-radius: 12px; border: 1px solid #ffa39e;">Gói đã hết hạn - Vui lòng nạp thêm</div>`;
-        localStorage.removeItem('tp_expiry');
-        localStorage.removeItem('active_plan_name');
+        planShow.innerText = "❌ HẾT HẠN";
+        planShow.style.color = "red";
     } else {
-        let isExpiringSoon = daysLeft <= 2;
-        statusContainer.innerHTML = `
-            <div style="background: white; padding: 12px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eee;">
-                <div style="font-size: 12px; color: #888; text-transform: uppercase;">Gói dịch vụ</div>
-                <div style="font-size: 16px; color: #333; font-weight: bold; margin: 4px 0;">${planName}</div>
-                <div style="font-size: 14px; color: ${isExpiringSoon ? '#ff4d4f' : '#52c41a'}; font-weight: 500;">
-                    ${isExpiringSoon ? '⚠️ Sắp hết hạn: ' : '✅ Còn lại: '} ${daysLeft} ngày
-                </div>
-            </div>
-        `;
-
-        if (isExpiringSoon && !sessionStorage.getItem('notified_expiry')) {
-            tpSpeak(`Anh Đạt ơi, gói cước sắp hết hạn rồi. Anh nhớ gia hạn để không bị khóa tính năng tìm khách nhé.`);
+        planShow.innerText = `⭐ ${planName} (${daysLeft}D)`;
+        planShow.style.color = "var(--gold)";
+        
+        // Nhắc gia hạn nếu còn dưới 2 ngày
+        if (daysLeft <= 2 && !sessionStorage.getItem('notified_expiry')) {
+            tpSpeak(`Anh ơi, gói cước còn ${daysLeft} ngày là hết hạn. Anh nhớ nạp thêm nhé.`);
             sessionStorage.setItem('notified_expiry', 'true');
         }
     }
 }
 
-// 5. Hàm khởi tạo thanh toán QR
-async function createPayment(amount, planName) {
-    tpSpeak(`Đang tạo mã QR BIDV nạp gói ${planName}.`);
-
-    const BANK_ID = "bidv"; 
-    const ACCOUNT_NO = "4430269669"; 
-    const ACCOUNT_NAME = "NGUYEN XUAN DAT"; 
-
-    const txID = localStorage.getItem('tx_id') || "DAT";
-    const description = `${txID} ${planName}`;
-
-    const qrImageUrl = `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-qr_only.png?amount=${amount}&addInfo=${description}&accountName=${ACCOUNT_NAME}`;
-
-    localStorage.setItem('pending_plan', planName);
-
-    try {
-        fetch('https://taxi-promax.vercel.app/api/create-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: amount, description: description }),
-        });
-    } catch (e) { console.log("Silent registration..."); }
-
-    showQRModal(qrImageUrl, amount, planName, description);
-}
-
-// 6. Giao diện Modal QR chuyên nghiệp
-function showQRModal(qrImageUrl, amount, planName, description) {
-    const existModal = document.getElementById('tp-qr-overlay');
-    if (existModal) existModal.remove();
-
-    const modalHtml = `
-        <div id="tp-qr-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(8px);">
-            <div style="background:white; width:90%; max-width:350px; border-radius:25px; overflow:hidden; text-align:center; box-shadow: 0 25px 50px rgba(0,0,0,0.5);">
-                <div style="background:linear-gradient(135deg, #0054a3 0%, #002d5a 100%); color:white; padding:18px; font-weight:bold; font-size:17px;">THANH TOÁN BIDV</div>
-                <div style="padding:25px;">
-                    <div style="margin-bottom:15px; color:#666; font-size:14px;">Gói cước: <b>${planName}</b></div>
-                    <div style="border:1px solid #f0f0f0; padding:8px; border-radius:16px; background:#fff;">
-                        <img src="${qrImageUrl}" style="width:100%; display:block; border-radius:10px;">
-                    </div>
-                    <div style="margin-top:20px; background:#f8f9fa; padding:15px; border-radius:15px;">
-                        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:8px;">
-                            <span style="color:#888;">Số tiền:</span>
-                            <span style="color:#d32f2f; font-weight:bold; font-size:16px;">${amount.toLocaleString()}đ</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; font-size:13px;">
-                            <span style="color:#888;">Nội dung:</span>
-                            <span style="color:#0054a3; font-weight:bold;">${description}</span>
-                        </div>
-                    </div>
-                </div>
-                <div style="display:flex; border-top:1px solid #eee;">
-                    <button onclick="document.getElementById('tp-qr-overlay').remove()" style="flex:1; padding:18px; border:none; background:none; color:#999; font-weight:bold; cursor:pointer;">HỦY BỎ</button>
-                    <button onclick="location.reload()" style="flex:1; padding:18px; border:none; background:none; color:#0054a3; font-weight:bold; cursor:pointer;">XÁC NHẬN</button>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-}
-
-// 7. Tự động kiểm tra và cộng hạn dùng
+// 7. KIỂM TRA TRẠNG THÁI SAU KHI QUAY LẠI TỪ THANH TOÁN
 function checkPaymentStatus() {
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
     const planName = localStorage.getItem('pending_plan');
 
     if (status === 'success' || status === 'PAID') {
-        let days = 30;
+        let days = 0;
         if(planName?.includes("LẺ")) days = 1;
         else if(planName?.includes("MAX")) days = 90;
+        else if(planName?.includes("PRO")) days = 30;
         else if(planName?.includes("7") || planName?.includes("THỬ")) days = 7;
 
-        const now = new Date().getTime();
-        const current = parseInt(localStorage.getItem('tp_expiry') || now);
-        const newExp = Math.max(current, now) + (days * 24 * 60 * 60 * 1000);
-        
-        localStorage.setItem('tp_expiry', newExp);
-        localStorage.setItem('active_plan_name', planName);
-        localStorage.removeItem('pending_plan');
+        if (days > 0) {
+            const now = new Date().getTime();
+            const current = parseInt(localStorage.getItem('tp_expiry') || now);
+            const newExp = Math.max(current, now) + (days * 24 * 60 * 60 * 1000);
+            
+            localStorage.setItem('tp_expiry', newExp);
+            localStorage.setItem('active_plan_name', planName);
+            localStorage.removeItem('pending_plan');
 
-        tpSpeak(`Tuyệt vời! Đã kích hoạt thành công gói ${planName}. Cảm ơn anh ạ.`);
-        window.history.replaceState({}, '', window.location.pathname);
+            tpSpeak(`Tuyệt vời! Đã kích hoạt thành công gói ${planName}. Chúc anh nổ cuốc liên tục.`);
+            
+            // Xóa tham số status trên URL cho sạch
+            window.history.replaceState({}, '', window.location.pathname);
+        }
     }
     updateSubscriptionUI();
 }
 
+// Hàm dự phòng nếu Modal trong index.html bị lỗi
+function showQRModalFallback(url, amt, plan, desc) {
+    alert(`THÔNG TIN THANH TOÁN BIDV:\n- Gói: ${plan}\n- Số tiền: ${amt.toLocaleString()}đ\n- Nội dung: ${desc}\n\n(Vui lòng quét mã QR trên màn hình tiếp theo)`);
+    window.open(url, '_blank');
+}
+
+// Khởi chạy khi tải trang
 document.addEventListener('DOMContentLoaded', checkPaymentStatus);
