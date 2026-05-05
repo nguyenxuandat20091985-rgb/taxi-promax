@@ -1,223 +1,193 @@
 /**
- * TAXI PROMAX - CORE LOGIC 2026
- * Phát triển bởi: Nguyễn Xuân Đạt
- * Hệ thống tính cước thông minh & Chống sai số GPS
+ * TAXI PROMAX - CORE LOGIC 2026 (FINAL SYNC)
+ * Phát triển bởi: NGUYỄN XUÂN ĐẠT
+ * Tính năng: Chống sai số GPS, Auto-Start, Voice Assistant, Admin Sync.
  */
 
 const App = {
     config: { 
-        price: 15000,     // Giá cước mỗi KM
-        autoStart: 5,     // Vận tốc tự khởi động (km/h)
-        minAcc: 50,       // Độ sai số GPS tối đa (mét)
-        trialDays: 7      // Ngày dùng thử mặc định
+        price: 15000,     
+        autoStart: 5,     // Tốc độ (km/h) để tự kích hoạt chuyến
+        minAcc: 50,       // Mét sai số tối đa
+        trialDays: 7      
     },
     state: { 
         active: false, 
         km: 0, 
         lastPos: null, 
         startTime: null, 
-        history: JSON.parse(localStorage.getItem('TX_H') || '[]') 
+        history: JSON.parse(localStorage.getItem('trip_history') || '[]') 
     },
 
     init() {
-        // 1. Kiểm tra bản quyền/Hạn dùng trước khi chạy
+        console.log("Hệ thống Taxi ProMax đang khởi động...");
+        
+        // 1. Kiểm tra đăng ký (Đồng bộ với UI của anh)
+        const phone = localStorage.getItem('userPhone');
+        if (!phone) {
+            document.getElementById('regModal').style.display = 'flex';
+            return;
+        }
+
+        // 2. Kiểm tra hạn dùng
         if (!this.checkLicense()) return;
 
-        // 2. Khởi tạo bản đồ (Dark Mode chuyên nghiệp)
-        this.map = L.map('map', {zoomControl: false, attributionControl: false}).setView([21.02, 105.83], 15);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(this.map);
-        
-        // Marker xe di chuyển
-        this.marker = L.circleMarker([0,0], {
-            color: '#00bfa5', 
-            fillColor: '#f1c40f', 
-            fillOpacity: 1, 
-            radius: 8, 
-            weight: 3
-        }).addTo(this.map);
+        // 3. Khởi tạo bản đồ chuyên nghiệp
+        this.initMap();
 
+        // 4. Các tính năng hệ thống
         this.watchGPS();
-        this.restore();
-        this.initFirebase(); // Kết nối bộ điều khiển Tết
-
-        // Giữ màn hình luôn sáng khi lái xe
-        if('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').catch(() => console.log("WakeLock chưa bật"));
-        }
+        this.restoreSession();
+        this.initAdminSync(); // Kết nối với letet.html qua Firebase
+        this.keepScreenAlive();
+        
+        // Cập nhật giao diện ID
+        this.updateHeaderUI(phone);
     },
 
-    // KIỂM TRA HẠN DÙNG (Kết nối với dữ liệu nạp tiền từ payment.js)
+    initMap() {
+        this.map = L.map('map', {zoomControl: false, attributionControl: false}).setView([16.047, 108.206], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+        
+        // Marker tùy chỉnh kiểu Xanh SM/Grab
+        const carIcon = L.divIcon({ 
+            className: 'pulsating-circle',
+            html: '<div style="width:18px;height:18px;background:#0054a3;border-radius:50%;border:3px solid white;box-shadow: 0 0 15px rgba(0,0,0,0.4);"></div>' 
+        });
+        this.marker = L.marker([0,0], { icon: carIcon }).addTo(this.map);
+    },
+
     checkLicense() {
         const expiry = localStorage.getItem('tp_expiry');
-        const now = new Date().getTime();
-
-        if (!expiry) {
-            // Nếu là lần đầu, tặng 7 ngày dùng thử
-            const trial = now + (this.config.trialDays * 24 * 60 * 60 * 1000);
-            localStorage.setItem('tp_expiry', trial);
-            return true;
-        }
-
-        if (now > parseInt(expiry)) {
-            this.speak("Ứng dụng đã hết hạn. Anh Đạt vui lòng nạp thêm để tiếp tục sử dụng.");
-            alert("Hết hạn sử dụng! Mời anh sang tab Ví Tiền để gia hạn.");
-            // Chuyển sang Tab ví tiền (nếu có id tab)
+        const now = Date.now();
+        if (!expiry || now > parseInt(expiry)) {
+            this.speak("Ứng dụng hết hạn, anh vui lòng nạp thêm gói cước.");
+            showTab('vi'); // Tự động chuyển sang tab ví để tài xế nạp tiền
             return false;
         }
         return true;
     },
 
-    // THUẬT TOÁN HAVERSINE - TÍNH QUÃNG ĐƯỜNG CHUẨN MÉT
-    dist(l1, n1, l2, n2) {
-        const R = 6371000; // Bán kính trái đất (mét)
-        const dL = (l2-l1)*Math.PI/180;
-        const dN = (n2-n1)*Math.PI/180;
-        const a = Math.sin(dL/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(dN/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    },
-
     watchGPS() {
         navigator.geolocation.watchPosition(p => {
             const {latitude: lat, longitude: lon, speed, accuracy: acc} = p.coords;
-            const s = Math.round((speed || 0) * 3.6); // Chuyển sang km/h
+            const currentSpeed = Math.round((speed || 0) * 3.6); 
             
-            // Cập nhật UI tốc độ
-            const speedEl = document.getElementById('ui-speed');
-            if(speedEl) speedEl.innerText = s;
+            // Cập nhật vị trí marker
+            const newPos = L.latLng(lat, lon);
+            this.marker.setLatLng(newPos);
+            if (!this.state.lastPos) this.map.setView(newPos, 16);
 
-            this.marker.setLatLng([lat, lon]);
-            this.map.panTo([lat, lon]);
-
-            // CHỐNG NHIỄU KHI DỪNG ĐÈN ĐỎ & TỰ ĐỘNG BÙ KHI MẤT SÓNG
-            if (acc > this.config.minAcc) {
-                const warn = document.getElementById('warning');
-                if(warn) warn.style.display = 'block';
-            } else {
-                const warn = document.getElementById('warning');
-                if(warn) warn.style.display = 'none';
-
+            // THUẬT TOÁN CHỐNG NHIỄU GPS ĐẶC QUYỀN CỦA ANH ĐẠT
+            if (acc <= this.config.minAcc) {
                 if (this.state.active && this.state.lastPos) {
-                    const d = this.dist(this.state.lastPos[0], this.state.lastPos[1], lat, lon);
-                    // Chỉ tính khi di chuyển > 2m và < 500m (loại bỏ nhảy vọt GPS ảo)
-                    if (d > 2 && d < 500) { 
+                    const d = this.map.distance(this.state.lastPos, newPos);
+                    // Lọc nhiễu: Chỉ tính khi di chuyển từ 3m - 300m giữa 2 lần quét
+                    if (d > 3 && d < 300) { 
                         this.state.km += (d / 1000);
-                        this.updateUI();
-                        // Lưu trạng thái chuyến đi liên tục (phòng khi App bị tắt đột ngột)
-                        localStorage.setItem('TX_S', JSON.stringify(this.state));
+                        this.updateStats();
+                        // Lưu trạng thái liên tục phòng khi sập nguồn
+                        localStorage.setItem('TX_CURRENT_SESSION', JSON.stringify(this.state));
                     }
                 }
-                this.state.lastPos = [lat, lon];
+                this.state.lastPos = newPos;
             }
 
-            // AUTO-START: XE LĂN BÁNH TRÊN 5KM/H LÀ TỰ BẬT CƯỚC
-            if (!this.state.active && s > this.config.autoStart) {
-                this.toggle();
+            // TÍNH NĂNG AUTO-START
+            if (!this.state.active && currentSpeed > this.config.autoStart) {
+                this.handleTripToggle();
             }
 
-        }, (err) => console.error("GPS Error:", err), {
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 5000
-        });
+        }, err => console.error(err), { enableHighAccuracy: true });
     },
 
-    updateUI() {
-        // Tính tiền theo KM, làm tròn lên nghìn đồng
-        const fare = Math.ceil((this.state.km * this.config.price)/1000)*1000;
-        const fareEl = document.getElementById('ui-fare');
-        const kmEl = document.getElementById('ui-km');
-        
-        if(fareEl) fareEl.innerText = fare.toLocaleString();
-        if(kmEl) kmEl.innerText = this.state.km.toFixed(2);
+    updateStats() {
+        const fare = Math.round(this.state.km * this.config.price);
+        document.getElementById('km').innerText = this.state.km.toFixed(2);
+        document.getElementById('cost').innerText = fare.toLocaleString();
     },
 
-    toggle() {
-        const b = document.getElementById('main-btn');
+    handleTripToggle() {
+        const btn = document.getElementById('mainBtn');
         if (!this.state.active) {
-            // BẮT ĐẦU CHUYẾN
-            this.state.active = true; 
-            this.state.km = 0; 
+            // BẮT ĐẦU
+            this.state.active = true;
+            this.state.km = 0;
             this.state.startTime = Date.now();
-            if(b) {
-                b.innerText = "KẾT THÚC";
-                b.style.background = "#ff5252"; // Đổi sang màu đỏ
-            }
-            this.timer = setInterval(() => this.upTime(), 1000);
-            this.speak("Chúc anh Đạt vạn dặm bình an");
+            btn.innerText = "KẾT THÚC CHUYẾN ĐI";
+            btn.style.background = "#d32f2f";
+            this.speak("Bắt đầu tính cước. Chúc anh Đạt lái xe an toàn.");
         } else {
-            // KẾT THÚC CHUYẾN
-            this.state.active = false; 
-            clearInterval(this.timer);
-            const totalFare = document.getElementById('ui-fare').innerText;
+            // KẾT THÚC
+            this.state.active = false;
+            const finalFare = Math.round(this.state.km * this.config.price);
+            this.saveToHistory(this.state.km, finalFare);
             
-            // Lưu lịch sử
-            this.state.history.unshift({
-                t: new Date().toLocaleString('vi-VN'), 
-                k: this.state.km.toFixed(2), 
-                m: totalFare
-            });
-            localStorage.setItem('TX_H', JSON.stringify(this.state.history.slice(0,20)));
-            localStorage.removeItem('TX_S'); // Xóa trạng thái chuyến cũ
-
-            this.speak(`Kết thúc hành trình. Tổng cước ${totalFare} đồng.`);
-            
-            if(b) {
-                b.innerText = "BẮT ĐẦU";
-                b.style.background = "#00bfa5"; // Về màu xanh
-            }
+            btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
+            btn.style.background = "#00bfa5";
+            this.speak(`Kết thúc chuyến đi. Tổng cộng ${finalFare.toLocaleString()} đồng.`);
+            localStorage.removeItem('TX_CURRENT_SESSION');
         }
     },
 
-    upTime() {
-        const d = Math.floor((Date.now() - this.state.startTime)/1000);
-        const timeEl = document.getElementById('ui-time');
-        if(timeEl) {
-            timeEl.innerText = `${Math.floor(d/60).toString().padStart(2,'0')}:${(d%60).toString().padStart(2,'0')}`;
-        }
+    saveToHistory(km, cost) {
+        const trip = {
+            time: new Date().toLocaleTimeString('vi-VN') + " " + new Date().toLocaleDateString('vi-VN'),
+            km: km.toFixed(2),
+            cost: cost.toLocaleString()
+        };
+        this.state.history.unshift(trip);
+        localStorage.setItem('trip_history', JSON.stringify(this.state.history.slice(0, 20)));
+        if (typeof renderHistory === "function") renderHistory(); 
     },
 
-    // KẾT NỐI BỘ ĐIỀU KHIỂN TẾT (Từ letet.html)
-    initFirebase() {
-        // Kiểm tra xem Firebase đã được load ở index chưa
+    initAdminSync() {
         if (typeof firebase !== 'undefined') {
             firebase.database().ref('currentEvent').on('value', (snapshot) => {
                 const mode = snapshot.val();
-                const body = document.body;
                 if (mode === 'tet') {
-                    body.style.border = "5px solid red"; // Hiện viền đỏ Chế độ Tết
-                    console.log("Đã bật chế độ Tết");
+                    document.body.classList.add('tet-mode');
+                    this.speak("Hệ thống đã chuyển sang chế độ Tết.");
                 } else {
-                    body.style.border = "none";
+                    document.body.classList.remove('tet-mode');
                 }
             });
         }
     },
 
-    restore() {
-        const s = JSON.parse(localStorage.getItem('TX_S'));
-        if(s && s.active) { 
-            this.state = s; 
-            this.updateUI(); 
-            // Khôi phục đồng hồ thời gian
-            this.timer = setInterval(() => this.upTime(), 1000);
-            const b = document.getElementById('main-btn');
-            if(b) {
-                b.innerText = "KẾT THÚC";
-                b.style.background = "#ff5252";
-            }
+    restoreSession() {
+        const saved = JSON.parse(localStorage.getItem('TX_CURRENT_SESSION'));
+        if (saved && saved.active) {
+            this.state = saved;
+            this.state.active = true;
+            this.updateStats();
+            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "#d32f2f";
         }
     },
 
-    speak(t) { 
+    updateHeaderUI(phone) {
+        document.getElementById('idShow').innerText = "🆔 " + phone;
+        document.getElementById('profilePhone').innerText = phone;
+        const plan = localStorage.getItem('current_plan') || 'DÙNG THỬ';
+        document.getElementById('planShow').innerText = "⭐ GÓI: " + plan;
+    },
+
+    keepScreenAlive() {
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').catch(() => {});
+        }
+    },
+
+    speak(text) {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(t); 
-            u.lang='vi-VN'; 
-            u.rate = 1.1;
-            window.speechSynthesis.speak(u); 
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'vi-VN';
+            window.speechSynthesis.speak(msg);
         }
     }
 };
 
-// Khởi chạy khi tải xong trang
+// Khởi chạy đồng bộ
 window.onload = () => App.init();
