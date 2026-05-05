@@ -1,5 +1,5 @@
 /**
- * TAXI PROMAX - HỆ THỐNG QR BIDV TỰ ĐỘNG
+ * TAXI PROMAX - HỆ THỐNG THANH TOÁN QR CAO CẤP
  * Chủ tài khoản: NGUYỄN XUÂN ĐẠT - 4430269669
  */
 
@@ -12,66 +12,72 @@ function tpSpeak(text) {
     }
 }
 
-// 1. Hàm chính khi ấn "NẠP NGAY"
 async function createPayment(amount, planName) {
-    tpSpeak(`Đang tạo mã QR BIDV nạp gói ${planName}.`);
+    tpSpeak(`Đang khởi tạo mã thanh toán cho gói ${planName}.`);
 
-    // --- THÔNG TIN CHUẨN CỦA ANH ĐẠT ---
     const BANK_ID = "bidv"; 
     const ACCOUNT_NO = "4430269669"; 
     const ACCOUNT_NAME = "NGUYEN XUAN DAT"; 
-    // ----------------------------------
 
     const txID = localStorage.getItem('tx_id') || "DAT";
     const description = `${txID} ${planName}`;
 
-    // Link tạo QR chuẩn VietQR (Hiện QR tĩnh nhưng có sẵn tiền và nội dung)
+    // Link QR chuẩn VietQR
     const qrImageUrl = `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-qr_only.png?amount=${amount}&addInfo=${description}&accountName=${ACCOUNT_NAME}`;
 
     localStorage.setItem('pending_plan', planName);
 
-    // Đăng ký đơn hàng ngầm với PayOS/Vercel để hệ thống tự động kích hoạt
+    // Đăng ký đơn hàng ngầm để kích hoạt tự động
     try {
         fetch('https://taxi-promax.vercel.app/api/create-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount: amount, description: description }),
         });
-    } catch (e) { console.error("Lỗi đăng ký đơn hàng ngầm"); }
+    } catch (e) { console.error("API Error"); }
 
     showQRModal(qrImageUrl, amount, planName, description);
 }
 
-// 2. Giao diện bảng QR
 function showQRModal(qrImageUrl, amount, planName, description) {
     const existModal = document.getElementById('tp-qr-overlay');
     if (existModal) existModal.remove();
 
     const modalHtml = `
-        <div id="tp-qr-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; display:flex; align-items:center; justify-content:center; padding:15px;">
-            <div style="background:white; width:100%; max-width:360px; border-radius:20px; overflow:hidden; text-align:center; box-shadow: 0 0 30px rgba(255,255,255,0.3);">
+        <div id="tp-qr-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
+            <div style="background:white; width:90%; max-width:360px; border-radius:24px; overflow:hidden; text-align:center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
                 
-                <div style="background:#0054a3; color:white; padding:15px; font-weight:bold;">THANH TOÁN QR BIDV</div>
-
-                <div style="padding:20px;">
-                    <p style="margin:0 0 10px 0; color:#333;">Gói cước: <b>${planName}</b></p>
-                    
-                    <div style="padding:5px; border:2px solid #0054a3; border-radius:15px; background:white;">
-                        <img src="${qrImageUrl}" style="width:100%; display:block; border-radius:10px;" alt="QR BIDV">
-                    </div>
-
-                    <div style="margin-top:15px; background:#f8f9fa; padding:10px; border-radius:10px; border:1px dashed #0054a3;">
-                        <p style="margin:0; font-size:12px; color:#666;">Nội dung chuyển khoản (Giữ nguyên):</p>
-                        <p style="margin:5px 0 0 0; font-size:18px; color:#d32f2f; font-weight:bold;">${description}</p>
-                    </div>
-
-                    <h2 style="margin:15px 0 5px 0; color:#333;">${amount.toLocaleString()}đ</h2>
-                    <p style="font-size:11px; color:red;">* Hệ thống tự động kích hoạt sau khi nhận tiền.</p>
+                <div style="background:linear-gradient(135deg, #0054a3 0%, #003366 100%); color:white; padding:20px;">
+                    <div style="font-size:12px; opacity:0.8; text-transform:uppercase; letter-spacing:1px;">Cổng thanh toán an toàn</div>
+                    <div style="font-size:18px; font-weight:bold; margin-top:5px;">BIDV SmartBanking</div>
                 </div>
 
-                <div style="display:flex; border-top:1px solid #eee;">
-                    <button onclick="document.getElementById('tp-qr-overlay').remove()" style="flex:1; padding:15px; border:none; background:#f8f9fa; color:#333; font-weight:bold; cursor:pointer;">ĐÓNG</button>
-                    <button onclick="location.reload()" style="flex:1; padding:15px; border:none; background:#0054a3; color:white; font-weight:bold; cursor:pointer;">XÁC NHẬN</button>
+                <div style="padding:25px;">
+                    <p style="margin:0; color:#666; font-size:14px;">Bạn đang đăng ký <b>${planName}</b></p>
+                    
+                    <div style="margin:20px 0; padding:10px; border:1px solid #f0f0f0; border-radius:20px; background:#fff;">
+                        <img src="${qrImageUrl}" style="width:100%; display:block; border-radius:12px;" alt="QR Payment">
+                    </div>
+
+                    <div style="background:#f4f7fa; padding:15px; border-radius:16px; margin-bottom:20px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; color:#666;">
+                            <span>Số tiền:</span>
+                            <span style="color:#d32f2f; font-weight:bold; font-size:16px;">${amount.toLocaleString()}đ</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px; color:#666;">
+                            <span>Nội dung:</span>
+                            <span style="color:#0054a3; font-weight:bold;">${description}</span>
+                        </div>
+                    </div>
+
+                    <p style="font-size:12px; color:#888; line-height:1.5;">
+                        <i class="fas fa-info-circle"></i> Hệ thống sẽ tự động kích hoạt dịch vụ ngay sau khi nhận được thanh toán.
+                    </p>
+                </div>
+
+                <div style="display:flex; border-top:1px solid #eee; background:#fafafa;">
+                    <button onclick="document.getElementById('tp-qr-overlay').remove()" style="flex:1; padding:18px; border:none; background:none; color:#888; font-weight:600; cursor:pointer;">Hủy bỏ</button>
+                    <button onclick="location.reload()" style="flex:1; padding:18px; border:none; background:none; color:#0054a3; font-weight:bold; cursor:pointer;">Tôi đã thanh toán</button>
                 </div>
             </div>
         </div>
@@ -79,7 +85,6 @@ function showQRModal(qrImageUrl, amount, planName, description) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-// 3. Tự động cộng ngày khi Webhook báo về
 function checkPaymentStatus() {
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
@@ -99,8 +104,6 @@ function checkPaymentStatus() {
         localStorage.removeItem('pending_plan');
 
         tpSpeak(`Kích hoạt thành công gói ${planName}. Cảm ơn anh Đạt!`);
-        alert(`Chúc mừng anh Đạt! Gói ${planName} đã được kích hoạt thành công.`);
-        
         window.history.replaceState({}, '', window.location.pathname);
     }
 }
