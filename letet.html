@@ -2,84 +2,114 @@
 <html lang="vi">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADMIN - TAXI PROMAX</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ADMIN CONTROL - TAXI PROMAX</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <style>
+        :root {
+            --primary: #0054a3;
+            --danger: #d32f2f;
+            --success: #2ecc71;
+            --bg: #f4f7f6;
+        }
         body { 
-            text-align: center; 
-            padding: 20px; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #f4f7f6;
+            margin: 0;
+            padding: env(safe-area-inset-top, 20px) 15px;
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background: var(--bg);
             color: #333;
         }
         .container {
-            max-width: 400px;
+            max-width: 450px;
             margin: 0 auto;
-            background: white;
-            padding: 30px 20px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
-        h2 { color: #002d26; margin-bottom: 30px; }
+        .admin-card {
+            background: white;
+            padding: 25px;
+            border-radius: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h2 { color: var(--primary); margin: 0 0 20px; font-size: 1.5rem; }
         
-        .btn {
-            width: 100%;
-            padding: 18px;
-            margin-bottom: 15px;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
-
-        .btn-tet { 
-            background: #d32f2f; 
-            color: white; 
-            box-shadow: 0 4px 15px rgba(211, 47, 47, 0.3);
-        }
-        .btn-tet:active { transform: scale(0.95); background: #b71c1c; }
-
-        .btn-normal { 
-            background: #455a64; 
+        .btn {
+            padding: 15px;
+            border: none;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
             color: white;
-            box-shadow: 0 4px 15px rgba(69, 90, 100, 0.3);
         }
-        .btn-normal:active { transform: scale(0.95); background: #37474f; }
+        .btn-tet { background: var(--danger); box-shadow: 0 4px 10px rgba(211,47,47,0.3); }
+        .btn-normal { background: #455a64; }
+        .btn:active { transform: scale(0.95); }
 
-        .status-tag {
+        /* Danh sách chờ duyệt */
+        .order-list {
+            text-align: left;
             margin-top: 20px;
+        }
+        .order-item {
+            background: #f8f9fa;
+            border-left: 4px solid var(--primary);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
             font-size: 13px;
-            color: #7f8c8d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn-approve {
+            background: var(--success);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+        .status-tag {
+            font-size: 12px;
+            color: #888;
+            background: #fff;
+            padding: 5px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>🧧 ĐIỀU KHIỂN APP</h2>
+        <div class="admin-card">
+            <h2>🧧 ĐIỀU KHIỂN SỰ KIỆN</h2>
+            <div class="btn-grid">
+                <button class="btn btn-tet" onclick="updateFirebase('currentEvent', 'tet')">🧧 CHẾ ĐỘ TẾT</button>
+                <button class="btn btn-normal" onclick="updateFirebase('currentEvent', 'normal')">⚙️ BÌNH THƯỜNG</button>
+            </div>
+            <div class="status-tag" id="eventStatus">Sự kiện: Đang tải...</div>
+        </div>
+
+        <div class="admin-card">
+            <h2>🔔 DUYỆT GÓI CƯỚC</h2>
+            <div class="order-list" id="orderList">
+                <p style="color:#999; text-align:center;">Đang theo dõi yêu cầu nạp tiền...</p>
+            </div>
+        </div>
         
-        <button class="btn btn-tet" onclick="changeMode('tet')">
-            🧧 BẬT CHẾ ĐỘ TẾT
-        </button>
-
-        <button class="btn btn-normal" onclick="changeMode('normal')">
-            ⚙️ VỀ BÌNH THƯỜNG
-        </button>
-
-        <div class="status-tag" id="statusText">Đang sẵn sàng...</div>
+        <div style="font-size: 10px; color: #bdc3c7;">HỆ THỐNG QUẢN TRỊ TAXI PROMAX v2.0</div>
     </div>
 
     <script>
-        // Cấu hình Firebase của anh Đạt
+        // Cấu hình Firebase đồng bộ của anh Đạt
         const firebaseConfig = {
             apiKey: "AIzaSyDWX-YyE_1-F0yNqW9Kk8-G-Y4fG-Z-Y4f",
             authDomain: "taxi-promax-9f79b.firebaseapp.com",
@@ -90,31 +120,68 @@
             appId: "1:338804599298:web:b1d70a31270438"
         };
         
-        // Khởi tạo Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        
-        const database = firebase.database();
-        const statusText = document.getElementById('statusText');
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-        function changeMode(type) {
-            statusText.innerText = "Đang gửi lệnh...";
-            
-            database.ref('currentEvent').set(type)
-            .then(() => {
-                statusText.innerText = "✅ Đã chuyển sang: " + (type === 'tet' ? 'Chế độ Tết' : 'Bình thường');
-                // Phát giọng nói thông báo nếu anh đang mở trang này
-                if ('speechSynthesis' in window) {
-                    const msg = new SpeechSynthesisUtterance("Đã đổi chế độ hệ thống");
-                    msg.lang = 'vi-VN';
-                    window.speechSynthesis.speak(msg);
-                }
-            })
-            .catch((e) => {
-                statusText.innerText = "❌ Lỗi: " + e.message;
-                alert("Lỗi kết nối Firebase!");
+        // 1. Cập nhật trạng thái sự kiện
+        function updateFirebase(node, value) {
+            db.ref(node).set(value).then(() => {
+                speakNotification("Đã cập nhật hệ thống");
             });
+        }
+
+        // 2. Lắng nghe thay đổi sự kiện để hiển thị giao diện Admin
+        db.ref('currentEvent').on('value', (s) => {
+            document.getElementById('eventStatus').innerText = "Sự kiện: " + (s.val() === 'tet' ? "🧧 TẾT" : "⚙️ BÌNH THƯỜNG");
+        });
+
+        // 3. Lắng nghe danh sách nạp tiền (Đồng bộ với pending_plan từ app chính)
+        db.ref('paymentRequests').on('value', (snapshot) => {
+            const list = document.getElementById('orderList');
+            list.innerHTML = "";
+            const data = snapshot.val();
+            
+            if (!data) {
+                list.innerHTML = "<p style='color:#999; text-align:center;'>Chưa có yêu cầu mới</p>";
+                return;
+            }
+
+            for (let id in data) {
+                const req = data[id];
+                const div = document.createElement('div');
+                div.className = 'order-item';
+                div.innerHTML = `
+                    <div>
+                        <b>${req.phone}</b><br>
+                        <span>Gói: ${req.plan}</span>
+                    </div>
+                    <button class="btn btn-approve" onclick="approvePayment('${id}', '${req.phone}', '${req.plan}')">DUYỆT</button>
+                `;
+                list.appendChild(div);
+            }
+        });
+
+        // 4. Hàm duyệt nạp tiền
+        function approvePayment(orderId, phone, plan) {
+            // Gửi tín hiệu thành công về máy tài xế
+            db.ref('users/' + phone + '/subscription').set({
+                status: 'PAID',
+                plan: plan,
+                timestamp: Date.now()
+            }).then(() => {
+                // Xóa yêu cầu sau khi duyệt xong
+                db.ref('paymentRequests/' + orderId).remove();
+                speakNotification("Đã duyệt gói cho tài xế " + phone);
+            });
+        }
+
+        function speakNotification(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'vi-VN';
+                window.speechSynthesis.speak(msg);
+            }
         }
     </script>
 </body>
