@@ -1,13 +1,24 @@
 /**
- * TAXI PROMAX - CORE LOGIC 2026 (FINAL SYNC)
+ * TAXI PROMAX - CORE LOGIC 2026 (DEVICE SECURITY VERSION)
  * Phát triển bởi: NGUYỄN XUÂN ĐẠT
  */
 
 const App = {
     config: { price: 15000, autoStart: 5, minAcc: 50 },
-    state: { active: false, km: 0, lastPos: null, history: JSON.parse(localStorage.getItem('trip_history') || '[]') },
+    state: { 
+        active: false, 
+        km: 0, 
+        lastPos: null, 
+        history: JSON.parse(localStorage.getItem('trip_history') || '[]') 
+    },
 
     init() {
+        // 1. Tạo hoặc lấy Mã ID thiết bị (Chống dùng chung tài khoản)
+        if (!localStorage.getItem('deviceId')) {
+            const newId = 'PRO-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+            localStorage.setItem('deviceId', newId);
+        }
+
         const phone = localStorage.getItem('userPhone');
         if (!phone) {
             document.getElementById('regModal').style.display = 'flex';
@@ -18,21 +29,24 @@ const App = {
         this.initMap();
         this.watchGPS();
         this.updateHeaderUI(phone);
-        this.bindEvents(); // Quan trọng: Kết nối các nút bấm
+        this.bindEvents();
+        
+        console.log("Hệ thống sẵn sàng. Thiết bị: " + localStorage.getItem('deviceId'));
     },
 
     initMap() {
+        // Tọa độ Hạ Long của anh Đạt
         this.map = L.map('map', {zoomControl: false, attributionControl: false}).setView([20.95, 107.05], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+        
         const carIcon = L.divIcon({ 
             className: 'pulsating-circle',
-            html: '<div style="width:18px;height:18px;background:#0054a3;border-radius:50%;border:3px solid white;box-shadow: 0 0 15px rgba(0,0,0,0.4);"></div>' 
+            html: `<div style="width:18px;height:18px;background:#0054a3;border-radius:50%;border:3px solid white;box-shadow: 0 0 15px rgba(0,0,0,0.4);"></div>` 
         });
         this.marker = L.marker([20.95, 107.05], { icon: carIcon }).addTo(this.map);
     },
 
     bindEvents() {
-        // Xử lý các nút Menu dưới đáy
         const navItems = document.querySelectorAll('.nav-item');
         navItems.forEach(btn => {
             btn.onclick = () => {
@@ -50,6 +64,7 @@ const App = {
             const {latitude: lat, longitude: lon, accuracy: acc} = p.coords;
             const newPos = L.latLng(lat, lon);
             this.marker.setLatLng(newPos);
+            
             if (!this.state.lastPos) this.map.setView(newPos, 16);
 
             if (acc <= this.config.minAcc && this.state.active && this.state.lastPos) {
@@ -70,9 +85,11 @@ const App = {
     },
 
     updateHeaderUI(phone) {
+        const dId = localStorage.getItem('deviceId');
+        // Hiển thị SĐT và Mã thiết bị để anh dễ quản lý
         document.getElementById('idShow').innerText = "🆔 " + phone;
-        document.getElementById('profilePhone').innerText = phone;
-        document.getElementById('profileID').innerText = "TX-" + phone.slice(-4);
+        if(document.getElementById('profilePhone')) document.getElementById('profilePhone').innerText = phone;
+        if(document.getElementById('profileID')) document.getElementById('profileID').innerText = dId;
     }
 };
 
@@ -92,7 +109,11 @@ window.processRegistration = () => {
     const phone = document.getElementById('regPhone').value;
     if (phone.length >= 10) {
         localStorage.setItem('userPhone', phone);
+        // Khi đăng ký, gán luôn mã máy hiện tại
+        console.log("Đã kích hoạt cho máy: " + localStorage.getItem('deviceId'));
         location.reload();
+    } else {
+        alert("Anh nhập thiếu số điện thoại rồi!");
     }
 };
 
