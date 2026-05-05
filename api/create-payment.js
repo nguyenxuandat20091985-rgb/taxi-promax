@@ -1,5 +1,4 @@
-import PayOS from '@payos/node';
-
+const PayOS = require('@payos/node');
 const payos = new PayOS(
     process.env.PAYOS_CLIENT_ID, 
     process.env.PAYOS_API_KEY, 
@@ -7,29 +6,24 @@ const payos = new PayOS(
 );
 
 export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // Chỉ cho phép phương thức POST
+    if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
-    if (req.method === 'OPTIONS') return res.status(200).end();
+    try {
+        const { amount, description, orderCode, phone } = req.body;
+        
+        const paymentData = {
+            orderCode: orderCode,
+            amount: amount,
+            description: `${phone} nap ${description}`, // Lưu SĐT vào mô tả để đối soát
+            cancelUrl: `https://${req.headers.host}/`,
+            returnUrl: `https://${req.headers.host}/?status=success`,
+        };
 
-    if (req.method === 'POST') {
-        try {
-            const { amount, description } = req.body;
-            
-            const order = {
-                amount: Number(amount),
-                // Khử dấu tiếng Việt nhanh để PayOS không lỗi
-                description: description.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25),
-                orderCode: Number(Math.floor(Date.now() / 1000)),
-                returnUrl: `https://nguyenxuandat20091985-rgb.github.io/taxi-promax/`, 
-                cancelUrl: `https://nguyenxuandat20091985-rgb.github.io/taxi-promax/`,
-            };
-
-            const paymentLink = await payos.createPaymentLink(order);
-            return res.status(200).json(paymentLink);
-        } catch (error) {
-            return res.status(500).json({ error: error.message });
-        }
+        const checkoutLink = await payos.createPaymentLink(paymentData);
+        res.status(200).json({ checkoutUrl: checkoutLink.checkoutUrl });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
 }
