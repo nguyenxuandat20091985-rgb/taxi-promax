@@ -1,5 +1,5 @@
 /**
- * TAXI PROMAX - HỆ THỐNG THANH TOÁN QR TỰ ĐỘNG
+ * TAXI PROMAX - THANH TOÁN QR TỰ ĐỘNG
  * Phát triển bởi: Nguyễn Xuân Đạt
  */
 
@@ -22,7 +22,7 @@ async function createPayment(amount, planName) {
         const txID = localStorage.getItem('tx_id') || "DAT";
         const desc = `${txID} ${planName}`;
 
-        // Gọi sang backend Vercel để đăng ký giao dịch với PayOS (Để tự động kích hoạt)
+        // BƯỚC 1: Gọi backend để báo cho PayOS biết có đơn hàng mới
         const response = await fetch('https://taxi-promax.vercel.app/api/create-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -31,35 +31,40 @@ async function createPayment(amount, planName) {
 
         const data = await response.json();
 
+        // BƯỚC 2: Nếu backend trả về qrCode thành công
         if (data && data.qrCode) {
             localStorage.setItem('pending_plan', planName);
-            // Hiển thị mã QR lên màn hình cho khách quét
-            showQRModal(data.qrCode, amount, planName);
-            tpSpeak("Mã QR đã sẵn sàng. Anh vui lòng quét mã, hệ thống sẽ tự động kích hoạt sau khi nhận được tiền.");
+            
+            // Hiện Modal chứa mã QR chuẩn BIDV từ PayOS
+            showQRModal(data.qrCode, amount, planName, desc);
+            
+            tpSpeak("Mã QR đã sẵn sàng. Hệ thống sẽ tự động kích hoạt sau khi anh chuyển khoản thành công.");
         } else {
-            throw new Error("Không lấy được mã QR từ hệ thống.");
+            throw new Error("Không thể tạo mã QR lúc này.");
         }
     } catch (error) {
-        alert("Lỗi: " + error.message);
-        tpSpeak("Cổng thanh toán gặp sự cố, anh vui lòng thử lại.");
+        alert("Lỗi kết nối: " + error.message);
     } finally {
         if (activeBtn) activeBtn.disabled = false;
     }
 }
 
-function showQRModal(qrImageUrl, amount, planName) {
+function showQRModal(qrImageUrl, amount, planName, desc) {
     const oldModal = document.getElementById('tp-qr-modal');
     if (oldModal) oldModal.remove();
 
     const modalHtml = `
         <div id="tp-qr-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
-            <div style="background:white; width:100%; max-width:360px; border-radius:20px; overflow:hidden; text-align:center; box-shadow: 0 0 20px rgba(255,255,255,0.2);">
-                <div style="background:#0054a3; color:white; padding:15px; font-weight:bold;">THANH TOÁN QR BIDV</div>
+            <div style="background:white; width:100%; max-width:360px; border-radius:20px; overflow:hidden; text-align:center;">
+                <div style="background:#0054a3; color:white; padding:15px; font-weight:bold;">THANH TOÁN BIDV</div>
                 <div style="padding:20px;">
-                    <p style="margin-bottom:10px;">Gói cước: <b>${planName}</b></p>
-                    <img src="${qrImageUrl}" style="width:100%; border-radius:10px; border:1px solid #eee;">
+                    <p style="margin-bottom:10px;">Gói: <b>${planName}</b></p>
+                    <div style="border:1px solid #eee; padding:10px; border-radius:10px;">
+                        <img src="${qrImageUrl}" style="width:100%; border-radius:5px;">
+                    </div>
                     <h2 style="color:#d32f2f; margin:15px 0;">${amount.toLocaleString()}đ</h2>
-                    <p style="font-size:12px; color:red;">* Hệ thống tự động kích hoạt sau 1-3 phút thanh toán thành công.</p>
+                    <p style="font-size:13px; color:#666;">Nội dung: <b>${desc}</b></p>
+                    <p style="font-size:11px; color:red; margin-top:10px;">* Hệ thống tự động mở khóa sau khi nhận tiền.</p>
                 </div>
                 <button onclick="document.getElementById('tp-qr-modal').remove()" style="width:100%; padding:15px; border:none; background:#f1f1f1; font-weight:bold; cursor:pointer;">ĐÓNG</button>
             </div>
@@ -68,32 +73,27 @@ function showQRModal(qrImageUrl, amount, planName) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-// HÀM TỰ ĐỘNG KÍCH HOẠT KHI QUAY LẠI TRANG
+// BƯỚC 3: TỰ ĐỘNG KIỂM TRA (Webhook xử lý)
 function checkPaymentStatus() {
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
     const planName = localStorage.getItem('pending_plan');
 
-    // Nếu PayOS báo PAID hoặc success thì cộng ngày
     if (status === 'PAID' || status === 'success') {
-        let daysToAdd = 30; // Mặc định 30 ngày
-        if (planName.includes("LẺ")) daysToAdd = 1;
-        if (planName.includes("MAX")) daysToAdd = 90;
-        if (planName.includes("7") || planName.includes("THỬ")) daysToAdd = 7;
+        let days = 30;
+        if (planName.includes("LẺ")) days = 1;
+        if (planName.includes("MAX")) days = 90;
+        if (planName.includes("7")) days = 7;
 
         const now = new Date().getTime();
-        const currentExpiry = parseInt(localStorage.getItem('tp_expiry') || now);
-        const newExpiry = Math.max(currentExpiry, now) + (daysToAdd * 24 * 60 * 60 * 1000);
+        const current = parseInt(localStorage.getItem('tp_expiry') || now);
+        const newExp = Math.max(current, now) + (days * 24 * 60 * 60 * 1000);
         
-        localStorage.setItem('tp_expiry', newExpiry);
+        localStorage.setItem('tp_expiry', newExp);
         localStorage.removeItem('pending_plan');
 
-        tpSpeak(`Kích hoạt thành công gói ${planName}. Cảm ơn anh Đạt!`);
-        alert(`Chúc mừng! Gói ${planName} đã được kích hoạt.`);
-        
-        // Làm sạch URL
-        window.history.replaceState({}, document.title, window.location.pathname);
+        tpSpeak(`Kích hoạt thành công gói ${planName}. Chúc anh vạn dặm bình an!`);
+        window.history.replaceState({}, '', window.location.pathname);
     }
 }
-
 document.addEventListener('DOMContentLoaded', checkPaymentStatus);
