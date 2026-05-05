@@ -1,7 +1,7 @@
 /**
  * TAXI PROMAX - CORE LOGIC 2026 (FINAL SYNC)
  * Phát triển bởi: NGUYỄN XUÂN ĐẠT
- * Tính năng: Chống sai số GPS, Auto-Start, Voice Assistant, Admin Sync.
+ * Trạng thái: Đã đồng bộ với hệ thống đăng ký và thanh toán mới.
  */
 
 const App = {
@@ -22,50 +22,37 @@ const App = {
     init() {
         console.log("Hệ thống Taxi ProMax đang khởi động...");
         
-        // 1. Kiểm tra đăng ký (Đồng bộ với UI của anh)
+        // 1. Kiểm tra đăng ký
         const phone = localStorage.getItem('userPhone');
         if (!phone) {
             document.getElementById('regModal').style.display = 'flex';
             return;
+        } else {
+            document.getElementById('regModal').style.display = 'none';
         }
 
-        // 2. Kiểm tra hạn dùng
-        if (!this.checkLicense()) return;
-
-        // 3. Khởi tạo bản đồ chuyên nghiệp
+        // 2. Khởi tạo bản đồ
         this.initMap();
 
-        // 4. Các tính năng hệ thống
+        // 3. Các tính năng hệ thống
         this.watchGPS();
         this.restoreSession();
-        this.initAdminSync(); // Kết nối với letet.html qua Firebase
         this.keepScreenAlive();
         
-        // Cập nhật giao diện ID
+        // Cập nhật giao diện ID và gói cước
         this.updateHeaderUI(phone);
     },
 
     initMap() {
+        // Khởi tạo tại vị trí mặc định nếu chưa có GPS
         this.map = L.map('map', {zoomControl: false, attributionControl: false}).setView([16.047, 108.206], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
         
-        // Marker tùy chỉnh kiểu Xanh SM/Grab
         const carIcon = L.divIcon({ 
             className: 'pulsating-circle',
             html: '<div style="width:18px;height:18px;background:#0054a3;border-radius:50%;border:3px solid white;box-shadow: 0 0 15px rgba(0,0,0,0.4);"></div>' 
         });
-        this.marker = L.marker([0,0], { icon: carIcon }).addTo(this.map);
-    },
-
-    checkLicense() {
-        const expiry = localStorage.getItem('tp_expiry');
-        const now = Date.now();
-        if (!expiry || now > parseInt(expiry)) {
-            this.speak("Ứng dụng hết hạn, anh vui lòng nạp thêm gói cước.");
-            showTab('vi'); // Tự động chuyển sang tab ví để tài xế nạp tiền
-            return false;
-        }
-        return true;
+        this.marker = L.marker([16.047, 108.206], { icon: carIcon }).addTo(this.map);
     },
 
     watchGPS() {
@@ -73,27 +60,29 @@ const App = {
             const {latitude: lat, longitude: lon, speed, accuracy: acc} = p.coords;
             const currentSpeed = Math.round((speed || 0) * 3.6); 
             
-            // Cập nhật vị trí marker
             const newPos = L.latLng(lat, lon);
             this.marker.setLatLng(newPos);
-            if (!this.state.lastPos) this.map.setView(newPos, 16);
+            
+            // Nếu là lần quét đầu tiên, đưa bản đồ về vị trí tài xế
+            if (!this.state.lastPos) {
+                this.map.setView(newPos, 16);
+                this.state.lastPos = newPos;
+            }
 
-            // THUẬT TOÁN CHỐNG NHIỄU GPS ĐẶC QUYỀN CỦA ANH ĐẠT
+            // Thuật toán chống nhiễu
             if (acc <= this.config.minAcc) {
                 if (this.state.active && this.state.lastPos) {
                     const d = this.map.distance(this.state.lastPos, newPos);
-                    // Lọc nhiễu: Chỉ tính khi di chuyển từ 3m - 300m giữa 2 lần quét
                     if (d > 3 && d < 300) { 
                         this.state.km += (d / 1000);
                         this.updateStats();
-                        // Lưu trạng thái liên tục phòng khi sập nguồn
                         localStorage.setItem('TX_CURRENT_SESSION', JSON.stringify(this.state));
                     }
                 }
                 this.state.lastPos = newPos;
             }
 
-            // TÍNH NĂNG AUTO-START
+            // Tự động bắt đầu nếu chạy nhanh
             if (!this.state.active && currentSpeed > this.config.autoStart) {
                 this.handleTripToggle();
             }
@@ -110,15 +99,13 @@ const App = {
     handleTripToggle() {
         const btn = document.getElementById('mainBtn');
         if (!this.state.active) {
-            // BẮT ĐẦU
             this.state.active = true;
             this.state.km = 0;
             this.state.startTime = Date.now();
             btn.innerText = "KẾT THÚC CHUYẾN ĐI";
             btn.style.background = "#d32f2f";
-            this.speak("Bắt đầu tính cước. Chúc anh Đạt lái xe an toàn.");
+            this.speak("Bắt đầu tính cước. Chúc anh lái xe an toàn.");
         } else {
-            // KẾT THÚC
             this.state.active = false;
             const finalFare = Math.round(this.state.km * this.config.price);
             this.saveToHistory(this.state.km, finalFare);
@@ -138,39 +125,38 @@ const App = {
         };
         this.state.history.unshift(trip);
         localStorage.setItem('trip_history', JSON.stringify(this.state.history.slice(0, 20)));
-        if (typeof renderHistory === "function") renderHistory(); 
+        this.renderHistory();
     },
 
-    initAdminSync() {
-        if (typeof firebase !== 'undefined') {
-            firebase.database().ref('currentEvent').on('value', (snapshot) => {
-                const mode = snapshot.val();
-                if (mode === 'tet') {
-                    document.body.classList.add('tet-mode');
-                    this.speak("Hệ thống đã chuyển sang chế độ Tết.");
-                } else {
-                    document.body.classList.remove('tet-mode');
-                }
-            });
-        }
+    renderHistory() {
+        const historyDiv = document.getElementById('historyList');
+        if (!historyDiv) return;
+        historyDiv.innerHTML = this.state.history.map(t => `
+            <div class="p-card" style="background:white; color:#333; margin-bottom:10px; padding:10px;">
+                <small>${t.time}</small>
+                <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                    <span>${t.km} km</span>
+                    <span style="color:#e74c3c;">${t.cost}đ</span>
+                </div>
+            </div>
+        `).join('');
     },
 
     restoreSession() {
         const saved = JSON.parse(localStorage.getItem('TX_CURRENT_SESSION'));
         if (saved && saved.active) {
             this.state = saved;
-            this.state.active = true;
             this.updateStats();
-            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
-            document.getElementById('mainBtn').style.background = "#d32f2f";
+            const btn = document.getElementById('mainBtn');
+            btn.innerText = "KẾT THÚC CHUYẾN ĐI";
+            btn.style.background = "#d32f2f";
         }
     },
 
     updateHeaderUI(phone) {
-        document.getElementById('idShow').innerText = "🆔 " + phone;
-        document.getElementById('profilePhone').innerText = phone;
-        const plan = localStorage.getItem('current_plan') || 'DÙNG THỬ';
-        document.getElementById('planShow').innerText = "⭐ GÓI: " + plan;
+        if(document.getElementById('idShow')) document.getElementById('idShow').innerText = "🆔 " + phone;
+        if(document.getElementById('profilePhone')) document.getElementById('profilePhone').innerText = phone;
+        if(document.getElementById('profileID')) document.getElementById('profileID').innerText = "TX-" + phone.slice(-4);
     },
 
     keepScreenAlive() {
@@ -189,5 +175,51 @@ const App = {
     }
 };
 
-// Khởi chạy đồng bộ
+/** * CÁC HÀM TOÀN CỤC ĐỂ INDEX.HTML GỌI ĐƯỢC
+ */
+window.processRegistration = function() {
+    const phone = document.getElementById('regPhone').value;
+    if (phone.length >= 10) {
+        localStorage.setItem('userPhone', phone);
+        // Tặng gói dùng thử 7 ngày cho lần đầu đăng ký
+        if (!localStorage.getItem('tp_expiry')) {
+            const sevenDays = 7 * 24 * 60 * 60 * 1000;
+            localStorage.setItem('tp_expiry', Date.now() + sevenDays);
+            localStorage.setItem('active_plan_name', "DÙNG THỬ (7D)");
+        }
+        location.reload(); 
+    } else {
+        alert("Anh vui lòng nhập đúng số điện thoại!");
+    }
+};
+
+window.clearRegistration = function() {
+    if (confirm("Anh có chắc muốn đăng xuất và xóa dữ liệu không?")) {
+        localStorage.clear();
+        location.reload();
+    }
+};
+
+window.showTab = function(tabId, btn) {
+    // Ẩn tất cả tab
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    // Hiện tab được chọn (Trang chủ thì không có tab-content riêng vì nó là bản đồ)
+    if (tabId !== 'home') {
+        const target = document.getElementById('tab-' + tabId);
+        if (target) target.classList.add('active');
+    }
+    // Đổi màu nút menu
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    
+    if (tabId === 'lichsu') App.renderHistory();
+};
+
+window.handleTrip = () => App.handleTripToggle();
+window.updateRate = (val) => {
+    App.config.price = parseInt(val);
+    document.getElementById('rateVal').innerText = App.config.price.toLocaleString() + "đ";
+};
+
+// Khởi chạy
 window.onload = () => App.init();
