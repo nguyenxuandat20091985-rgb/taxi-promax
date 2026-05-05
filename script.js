@@ -1,35 +1,42 @@
+/**
+ * TAXI PROMAX - BỘ NÃO ĐIỀU KHIỂN (CORE LOGIC)
+ * Phát triển bởi: NGUYỄN XUÂN ĐẠT
+ */
+
 // --- 1. KHỞI TẠO BIẾN TOÀN CỤC ---
 let map, marker, lastPos;
 let isRunning = false;
 let totalKm = 0;
 let currentRate = 15000; 
 
-// --- 2. QUẢN LÝ ĐĂNG KÝ & ĐĂNG XUẤT ---
+// --- 2. QUẢN LÝ ĐĂNG KÝ & ĐỊNH DANH ---
 function checkRegistration() {
-    const phone = localStorage.getItem('user_phone');
+    const phone = localStorage.getItem('userPhone'); // Đồng nhất biến với payment.js
     if (!phone) {
         document.getElementById('regModal').style.display = 'flex';
     } else {
         updateUI(phone);
-        syncLicense(phone); // Đồng bộ gói cước từ hệ thống
+        if (typeof updateSubscriptionUI === "function") updateSubscriptionUI();
     }
 }
 
 function processRegistration() {
     const phoneInput = document.getElementById('regPhone');
-    const phone = phoneInput.value.replace(/\D/g, ''); // Loại bỏ ký tự lạ
+    const phone = phoneInput.value.replace(/\D/g, ''); 
     
     if (phone.length >= 10) {
-        localStorage.setItem('user_phone', phone);
+        localStorage.setItem('userPhone', phone);
+        
+        // Tạo ID thiết bị duy nhất
+        const deviceID = "PMX-" + Math.random().toString(36).toUpperCase().slice(2, 7);
+        localStorage.setItem('deviceID', deviceID);
+        
         updateUI(phone);
         document.getElementById('regModal').style.display = 'none';
         
-        // Kích hoạt dùng thử lần đầu duy nhất
-        if (!localStorage.getItem('tp_trial_activated')) {
-            localStorage.setItem('tp_trial_activated', 'true');
-            localStorage.setItem('current_plan', 'TRIAL (7D)');
-            alert("Chào mừng anh em tài xế! Gói dùng thử 7 ngày đã được kích hoạt.");
-            location.reload();
+        // Tự động tặng 7 ngày dùng thử cho tài xế mới
+        if (!localStorage.getItem('tp_trial_used')) {
+            tpHandlePayment(0, "GÓI THỬ 7D"); 
         }
     } else {
         alert("Anh vui lòng nhập đúng số điện thoại!");
@@ -37,89 +44,96 @@ function processRegistration() {
 }
 
 function updateUI(phone) {
-    document.getElementById('idShow').innerText = "🆔 " + phone;
-    document.getElementById('profilePhone').innerText = phone;
-    
-    // Định danh ID chuyên nghiệp dựa trên SĐT để tránh trùng lặp toàn quốc
-    const txId = "PRO-" + phone.slice(-4) + Math.random().toString(36).toUpperCase().slice(2, 4);
-    if (!localStorage.getItem('tx_id')) {
-        localStorage.setItem('tx_id', txId);
-    }
-    document.getElementById('profileID').innerText = localStorage.getItem('tx_id');
-}
-
-function syncLicense(phone) {
-    // Sau này anh kết nối API tại đây. Hiện tại dùng tạm dữ liệu Local.
-    const plan = localStorage.getItem('current_plan') || 'KIỂM TRA...';
-    document.getElementById('planShow').innerText = "⭐ GÓI: " + plan;
+    if(document.getElementById('idShow')) document.getElementById('idShow').innerText = "🆔 " + phone;
+    if(document.getElementById('profilePhone')) document.getElementById('profilePhone').innerText = phone;
+    if(document.getElementById('profileID')) document.getElementById('profileID').innerText = localStorage.getItem('deviceID') || "ĐANG CẤP...";
 }
 
 function clearRegistration() {
-    if (confirm("Anh có chắc chắn muốn đăng xuất? Mọi dữ liệu chuyến đi sẽ bị xóa.")) {
+    if (confirm("Anh có chắc chắn muốn đăng xuất? Mọi dữ liệu gói cước và lịch sử sẽ bị xóa khỏi máy này.")) {
         localStorage.clear();
         location.reload();
     }
 }
 
-// --- 3. GPS & BẢN ĐỒ ---
+// --- 3. HỆ THỐNG GPS & ĐO QUÃNG ĐƯỜNG CHUẨN ---
 function initMap() {
-    // Khởi tạo bản đồ (Mặc định toàn quốc, sau đó GPS sẽ tự định vị về đúng chỗ anh đứng)
-    map = L.map('map', { 
-        zoomControl: false,
-        attributionControl: false 
-    }).setView([16.047, 108.206], 6); 
-
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([16.047, 108.206], 6); 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     
     const icon = L.divIcon({ 
         className: 'pulsating-circle',
-        html: '<div style="width:20px;height:20px;background:#00bfa5;border-radius:50%;border:2px solid white;box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>' 
+        html: '<div style="width:18px;height:18px;background:#0054a3;border-radius:50%;border:3px solid white;box-shadow: 0 0 15px rgba(0,0,0,0.4);"></div>' 
     });
     
     marker = L.marker([16.047, 108.206], { icon }).addTo(map);
 
     navigator.geolocation.watchPosition(pos => {
-        const { latitude, longitude, heading } = pos.coords;
+        const { latitude, longitude, accuracy } = pos.coords;
         const newPos = L.latLng(latitude, longitude);
+        
+        // Chỉ cập nhật nếu độ chính xác GPS tốt (dưới 50m)
+        if (accuracy > 50) return;
+
         marker.setLatLng(newPos);
         
         if (isRunning && lastPos) {
-            const dist = newPos.distanceTo(lastPos) / 1000;
-            // Thuật toán lọc GPS ảo: Chỉ tính khi di chuyển trên 5m và dưới 120km/h
-            if (dist > 0.005 && dist < 0.5) { 
+            const dist = newPos.distanceTo(lastPos) / 1000; // Đổi sang KM
+            
+            /** * THUẬT TOÁN LỌC NHIỄU GPS CỦA ĐẠT PROMAX:
+             * 1. Phải di chuyển trên 10m mới tính (tránh nhảy số khi đứng yên)
+             * 2. Tốc độ không được quá 150km/h (tránh lỗi nhảy vọt tọa độ)
+             */
+            if (dist > 0.01 && dist < 0.3) { 
                 totalKm += dist;
-                document.getElementById('km').innerText = totalKm.toFixed(2);
-                document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
+                updateStatsDisplay();
             }
         }
         
         if (!lastPos) map.setView(newPos, 16);
         lastPos = newPos;
     }, err => {
-        console.warn("Lỗi GPS: ", err.message);
-    }, { 
-        enableHighAccuracy: true, 
-        maximumAge: 1000 
-    });
+        console.error("Lỗi định vị:", err);
+    }, { enableHighAccuracy: true, maximumAge: 1000 });
 }
 
-// --- 4. ĐIỀU KHIỂN CHUYẾN ĐI & THANH TOÁN ---
+function updateStatsDisplay() {
+    document.getElementById('km').innerText = totalKm.toFixed(2);
+    const cost = Math.round(totalKm * currentRate);
+    document.getElementById('cost').innerText = cost.toLocaleString();
+}
+
+// --- 4. ĐIỀU KHIỂN CHUYẾN ĐI ---
 function handleTrip() {
     const btn = document.getElementById('mainBtn');
+    
+    // Kiểm tra hạn dùng trước khi cho bắt đầu (Chỉ tài khoản còn hạn mới được chạy)
+    if (!isRunning && typeof isSubscribed === "function" && !isSubscribed()) {
+        if(typeof tpSpeak === "function") tpSpeak("Anh ơi, gói cước hết hạn rồi. Nạp thêm để bắt đầu chuyến đi nhé.");
+        alert("Gói cước của anh đã hết hạn!");
+        showTab('vi');
+        return;
+    }
+
     if (!isRunning) {
+        // Bắt đầu
         isRunning = true;
         totalKm = 0;
-        document.getElementById('km').innerText = "0.00";
-        document.getElementById('cost').innerText = "0";
+        updateStatsDisplay();
         btn.innerText = "KẾT THÚC CHUYẾN ĐI";
-        btn.style.background = "#ff5252";
+        btn.style.background = "#d32f2f"; // Đỏ
+        if(typeof tpSpeak === "function") tpSpeak("Bắt đầu tính cước. Chúc anh thượng lộ bình an.");
     } else {
+        // Kết thúc
         isRunning = false;
         const finalCost = Math.round(totalKm * currentRate);
-        alert(`Kết thúc chuyến! \nTổng: ${totalKm.toFixed(2)}km - ${finalCost.toLocaleString()}đ`);
         btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
-        btn.style.background = "#00bfa5";
-        saveHistory(totalKm, finalCost);
+        btn.style.background = "#00bfa5"; // Xanh
+        
+        if (totalKm > 0.05) {
+            saveHistory(totalKm, finalCost);
+            if(typeof tpSpeak === "function") tpSpeak(`Kết thúc chuyến đi. Tổng cộng ${totalKm.toFixed(1)} km. Số tiền ${finalCost.toLocaleString()} đồng.`);
+        }
     }
 }
 
@@ -128,66 +142,71 @@ function updateRate(value) {
     document.getElementById('rateVal').innerText = currentRate.toLocaleString() + "đ";
 }
 
-// Hàm xử lý thanh toán (Tích hợp PayOS/BIDV tự động)
-function tpHandlePayment(amount, planName) {
-    const phone = localStorage.getItem('user_phone');
-    if (!phone) return alert("Vui lòng đăng ký SĐT trước!");
-
-    if (amount === 0) {
-        alert("Gói dùng thử đang được kích hoạt...");
-        return;
-    }
-
-    // Nội dung chuyển khoản duy nhất cho từng tài xế để anh dễ quản lý
-    const content = `PROMAX ${phone} ${planName.replace(/\s/g, '')}`;
-    
-    // Tạo link QR BIDV/PayOS nhanh
-    const qrUrl = `https://img.vietqr.io/image/BIDV-123456789-qr_only.png?amount=${amount}&addInfo=${encodeURIComponent(content)}`;
-    
-    // Hiển thị Modal nạp tiền (giả định anh có Modal này trong index)
-    alert(`Anh vui lòng chuyển khoản gói ${planName}\nSố tiền: ${amount.toLocaleString()}đ\nNội dung: ${content}\n(Hệ thống sẽ tự động kích hoạt sau khi nhận tiền)`);
-    window.open(qrUrl, '_blank');
-}
-
-// --- 5. ĐIỀU HƯỚNG TAB ---
+// --- 5. ĐIỀU HƯỚNG TAB MƯỢT MÀ ---
 function showTab(tabName, btn) {
+    // Ẩn tất cả tab
     document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    // Bỏ active tất cả nút
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     
-    if (tabName !== 'home') {
-        const target = document.getElementById('tab-' + tabName);
-        if (target) target.style.display = 'flex';
+    // Hiện tab được chọn
+    const target = document.getElementById('tab-' + tabName);
+    if (target) {
+        target.style.display = 'flex';
+        target.style.flexDirection = 'column';
     }
     
+    // Active nút bấm
     if (btn) btn.classList.add('active');
-    setTimeout(() => { if(map) map.invalidateSize(); }, 300);
+    else {
+        // Nếu chuyển tab bằng code (không bấm nút)
+        const navItems = document.querySelectorAll('.nav-item');
+        if(tabName === 'vi') navItems[1].classList.add('active');
+    }
+    
+    // Fix lỗi bản đồ bị đen khi chuyển tab
+    if (tabName === 'home' || !tabName) {
+        setTimeout(() => { if(map) map.invalidateSize(); }, 300);
+    }
 }
 
-// --- 6. LỊCH SỬ ---
+// --- 6. QUẢN LÝ LỊCH SỬ (LƯU BỀN VỮNG) ---
 function saveHistory(km, cost) {
-    const historyList = document.getElementById('historyList');
-    if (!historyList) return;
-    
     const now = new Date();
-    const time = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+    const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate()}/${now.getMonth()+1}`;
     
-    const item = document.createElement('div');
-    item.className = 'history-item';
-    item.innerHTML = `
-        <div style="display:flex; justify-content:space-between;">
-            <span><b>${time}</b> Chuyến đi</span>
-            <span style="color:var(--primary); font-weight:800;">+${cost.toLocaleString()}đ</span>
-        </div>
-        <small style="color:#7f8c8d;">Quãng đường: ${km.toFixed(2)} km</small>
-    `;
-    historyList.prepend(item);
+    const newTrip = { time: timeStr, km: km.toFixed(2), cost: cost.toLocaleString() };
     
-    // Chỉ giữ lại 20 chuyến gần nhất cho nhẹ máy
-    if (historyList.children.length > 20) historyList.lastChild.remove();
+    // Lưu vào LocalStorage để không bị mất khi load lại trang
+    let history = JSON.parse(localStorage.getItem('trip_history') || "[]");
+    history.unshift(newTrip);
+    history = history.slice(0, 50); // Giữ tối đa 50 chuyến
+    localStorage.setItem('trip_history', JSON.stringify(history));
+    
+    renderHistory();
 }
 
-// --- KHỞI CHẠY ---
+function renderHistory() {
+    const container = document.getElementById('historyList');
+    if (!container) return;
+    
+    const history = JSON.parse(localStorage.getItem('trip_history') || "[]");
+    container.innerHTML = history.map(trip => `
+        <div class="p-card" style="margin-bottom:10px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px; color:#666;">${trip.time}</span>
+                <b style="color:#0054a3;">+${trip.cost}đ</b>
+            </div>
+            <div style="font-size:14px; font-weight:bold; margin-top:5px;">🏁 Quãng đường: ${trip.km} km</div>
+        </div>
+    `).join('');
+}
+
+// --- KHỞI CHẠY HỆ THỐNG ---
 window.onload = () => {
     checkRegistration();
     initMap();
+    renderHistory();
+    // Tự động cập nhật giao diện gói cước từ payment.js
+    if (typeof updateSubscriptionUI === "function") updateSubscriptionUI();
 };
