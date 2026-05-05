@@ -2,91 +2,93 @@
 <html lang="vi">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <title>QUẢN TRỊ TAXI PROMAX</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <title>HỆ THỐNG QUẢN TRỊ - TAXI PROMAX</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <style>
         :root {
-            --bg: #1a1a1a;
-            --card: #2d2d2d;
+            --bg: #0f172a;
+            --card: #1e293b;
             --primary: #00bfa5;
-            --danger: #ff5252;
-            --text: #ffffff;
+            --danger: #ef4444;
+            --warning: #f1c40f;
+            --text: #f8fafc;
         }
         body { 
             background: var(--bg); 
             color: var(--text); 
-            font-family: 'Segoe UI', sans-serif; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
             padding: 20px;
             margin: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
+        .container { width: 100%; max-width: 450px; }
         .admin-card {
             background: var(--card);
-            width: 100%;
-            max-width: 400px;
             padding: 25px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
             text-align: center;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        h2 { margin-top: 0; color: var(--primary); font-size: 20px; }
-        .status-box {
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 12px;
-            font-weight: 900;
-            font-size: 18px;
-            transition: 0.3s;
-        }
-        .status-on { background: rgba(0, 191, 165, 0.2); color: var(--primary); border: 1px solid var(--primary); }
-        .status-off { background: rgba(255, 82, 82, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        h2 { margin: 0 0 20px; color: var(--primary); font-size: 22px; letter-spacing: 1px; }
         
+        /* Trạng thái */
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .status-item { padding: 15px; border-radius: 15px; background: rgba(255,255,255,0.05); font-size: 12px; }
+        .status-item b { display: block; font-size: 16px; margin-top: 5px; }
+
         .btn {
-            width: 100%;
-            padding: 15px;
-            border: none;
-            border-radius: 10px;
-            color: white;
-            font-weight: bold;
-            font-size: 15px;
-            cursor: pointer;
-            margin-bottom: 10px;
-            transition: 0.2s;
+            width: 100%; padding: 16px; border: none; border-radius: 14px;
+            color: white; font-weight: 800; font-size: 14px;
+            cursor: pointer; margin-bottom: 12px; transition: 0.2s;
         }
-        .btn-toggle { background: var(--danger); }
-        .btn-reset { background: #455a64; margin-top: 10px; }
-        .btn:active { transform: scale(0.98); opacity: 0.8; }
-        
-        .info { font-size: 12px; color: #888; margin-top: 15px; }
+        .btn-maintenance { background: var(--danger); }
+        .btn-event { background: var(--warning); color: #000; }
+        .btn-reset { background: #64748b; }
+        .btn:active { transform: scale(0.96); }
+
+        /* Danh sách nạp tiền */
+        .order-box { text-align: left; background: rgba(0,0,0,0.2); border-radius: 15px; padding: 15px; }
+        .order-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .btn-approve { background: var(--primary); padding: 8px 15px; border-radius: 8px; font-size: 12px; }
     </style>
 </head>
 <body>
 
-    <div class="admin-card">
-        <h2>🎛️ QUẢN TRỊ HỆ THỐNG</h2>
-        
-        <div id="status-container" class="status-box">
-            TRẠNG THÁI: <span id="status">ĐANG TẢI...</span>
+    <div class="container">
+        <div class="admin-card">
+            <h2>🎛️ BẢNG ĐIỀU KHIỂN</h2>
+            
+            <div class="status-grid">
+                <div class="status-item">HỆ THỐNG<b id="sysStat">ĐANG TẢI...</b></div>
+                <div class="status-item">SỰ KIỆN<b id="evtStat">ĐANG TẢI...</b></div>
+            </div>
+
+            <button class="btn btn-maintenance" onclick="toggleStatus('systemStatus')">BẬT/TẮT BẢO TRÌ</button>
+            <button class="btn btn-event" onclick="toggleStatus('currentEvent', 'tet', 'normal')">🧧 CHẾ ĐỘ TẾT / THƯỜNG</button>
+            <button class="btn btn-reset" onclick="resetPrice()">CÀI GIÁ CƯỚC CHUẨN (15K)</button>
         </div>
 
-        <button class="btn btn-toggle" onclick="toggleMaintenance()">
-            BẬT / TẮT BẢO TRÌ
-        </button>
+        <div class="admin-card">
+            <h2 style="color: var(--warning)">💰 DUYỆT NẠP TIỀN</h2>
+            <div id="paymentList" class="order-box">
+                <p style="text-align:center; color:#64748b;">Đang theo dõi giao dịch...</p>
+            </div>
+        </div>
 
-        <button class="btn btn-reset" onclick="resetGlobalSettings()">
-            CÀI LẠI GIÁ CƯỚC CHUẨN
-        </button>
-
-        <p class="info">Dành riêng cho: <b>Nguyễn Xuân Đạt</b></p>
+        <p style="font-size: 11px; color: #64748b; text-align: center;">Quản trị viên: <b>Nguyễn Xuân Đạt</b></p>
     </div>
 
     <script>
-        // Cấu hình Firebase chuẩn của anh
         const firebaseConfig = {
             apiKey: "AIzaSyDWX-YyE_1-F0yNqW9Kk8-G-Y4fG-Z-Y4f",
             authDomain: "taxi-promax-9f79b.firebaseapp.com",
@@ -97,42 +99,65 @@
             appId: "1:338804599298:web:12704381270438"
         };
         
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        
+        firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const statusEl = document.getElementById('status');
-        const containerEl = document.getElementById('status-container');
 
-        // Lắng nghe trạng thái hệ thống theo thời gian thực
-        db.ref('systemStatus').on('value', (snapshot) => {
-            const val = snapshot.val();
-            if (val === 'off') {
-                statusEl.innerText = 'ĐANG BẢO TRÌ';
-                containerEl.className = 'status-box status-off';
-            } else {
-                statusEl.innerText = 'ĐANG HOẠT ĐỘNG';
-                containerEl.className = 'status-box status-on';
+        // 1. Lắng nghe trạng thái
+        db.ref('systemStatus').on('value', s => {
+            const val = s.val() || 'on';
+            document.getElementById('sysStat').innerText = val === 'on' ? 'ONLINE' : 'BẢO TRÌ';
+            document.getElementById('sysStat').style.color = val === 'on' ? 'var(--primary)' : 'var(--danger)';
+        });
+
+        db.ref('currentEvent').on('value', s => {
+            const val = s.val() || 'normal';
+            document.getElementById('evtStat').innerText = val === 'tet' ? '🧧 TẾT' : 'THƯỜNG';
+            document.getElementById('evtStat').style.color = val === 'tet' ? 'var(--danger)' : 'white';
+        });
+
+        // 2. Lắng nghe yêu cầu nạp tiền (Đồng bộ với app-logic.js)
+        db.ref('paymentRequests').on('value', snapshot => {
+            const list = document.getElementById('paymentList');
+            list.innerHTML = "";
+            const data = snapshot.val();
+            if(!data) { list.innerHTML = "<p style='text-align:center; color:#64748b;'>Chưa có yêu cầu mới</p>"; return; }
+
+            for(let id in data) {
+                const item = data[id];
+                list.innerHTML += `
+                    <div class="order-item">
+                        <div><b>${item.phone}</b><br><small>${item.plan}</small></div>
+                        <button class="btn-approve" onclick="approve('${id}', '${item.phone}', '${item.plan}')">DUYỆT</button>
+                    </div>
+                `;
             }
         });
 
-        // Hàm đảo ngược trạng thái Bảo trì
-        function toggleMaintenance() {
-            db.ref('systemStatus').once('value').then(snapshot => {
-                const current = snapshot.val();
-                const next = (current === 'on' ? 'off' : 'on');
-                db.ref('systemStatus').set(next).then(() => {
-                    alert("Đã chuyển hệ thống sang: " + (next === 'on' ? "Hoạt động" : "Bảo trì"));
-                });
+        // 3. Hàm xử lý
+        function toggleStatus(path, val1 = 'on', val2 = 'off') {
+            db.ref(path).once('value').then(s => {
+                const next = s.val() === val1 ? val2 : val1;
+                db.ref(path).set(next);
             });
         }
 
-        // Hàm reset giá cước chuẩn cho toàn bộ App khách (Ví dụ 15.000đ)
-        function resetGlobalSettings() {
-            if(confirm("Anh Đạt muốn cài lại giá cước 15.000đ cho toàn hệ thống?")) {
-                db.ref('globalConfig/price').set(15000)
-                .then(() => alert("✅ Đã cập nhật giá cước mới!"));
+        function approve(orderId, phone, plan) {
+            const days = plan.includes('7D') ? 7 : (plan.includes('30') ? 30 : 90);
+            const expiry = Date.now() + (days * 24 * 60 * 60 * 1000);
+            
+            // Cập nhật hạn dùng cho tài xế
+            db.ref('users/' + phone).update({
+                tp_expiry: expiry,
+                current_plan: plan
+            }).then(() => {
+                db.ref('paymentRequests/' + orderId).remove();
+                alert("Đã kích hoạt gói " + plan + " cho số " + phone);
+            });
+        }
+
+        function resetPrice() {
+            if(confirm("Cài lại giá 15.000đ cho toàn hệ thống?")) {
+                db.ref('globalConfig/price').set(15000);
             }
         }
     </script>
