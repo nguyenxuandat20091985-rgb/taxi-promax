@@ -162,7 +162,6 @@
             font-size: 13.5px; font-weight: 500; box-sizing: border-box;
         }
 
-        /* GỢI Ý ĐỊA DANH THẢ XUỐNG */
         .suggestions-list {
             position: absolute; top: 100%; left: 0; right: 0; background: #121f1b;
             border: 1px solid rgba(0, 255, 170, 0.3); border-radius: 12px; max-height: 180px;
@@ -176,7 +175,6 @@
         .suggestion-item:hover { background: rgba(0, 255, 170, 0.1); }
         .suggestion-item i { color: var(--primary); font-size: 12px; }
 
-        /* VỊ TRÍ QUEN THUỘC */
         .favorites-section { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
         .favorites-title { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
         .favorites-container { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -335,7 +333,7 @@
             </div>
 
             <button class="btn-send" id="btnSubmit" onclick="submitBooking()">
-                <i class="fa-solid fa-paper-plane"></i> ĐẶT XE NGAY
+                <i class="fa-solid fa-paper-plane"></i> ĐẶT XE CÔNG NGHỆ NGAY
             </button>
         </div>
 
@@ -359,7 +357,6 @@
     </div>
 
     <script>
-        // === KHAI BÁO BIẾN TOÀN CỤC CHUẨN XÁC ===
         let currentUser = null; 
         let selectedCarType = "4_seats";
         let map, userMarker, driverMarker, routingControl;
@@ -390,13 +387,12 @@
             });
         };
 
-        // HÀM XỬ LÝ ĐĂNG KÝ / ĐĂNG NHẬP KHÔNG LỖI
         function handleRegister() {
             const name = document.getElementById('reg_name').value.trim();
             const phone = document.getElementById('reg_phone').value.trim();
 
             if (!name || !phone) {
-                alert("Vui lòng điền đầy đủ Họ tên và Số điện thoại để hệ thống phục vụ tốt nhất!");
+                alert("Vui lòng điền đầy đủ Họ tên và Số điện thoại!");
                 return;
             }
 
@@ -484,13 +480,11 @@
                         }
                     }).catch(e => console.log("Lỗi lấy địa chỉ ngược:", e));
                 }, function(err) {
-                    console.log("Không thể truy cập GPS tự động:", err);
                     document.getElementById('p_from').value = "Vị trí hiện tại của bạn";
                 }, { enableHighAccuracy: true });
             }
         }
 
-        // CHỨC NĂNG GỢI Ý ĐIỂM ĐẾN TỰ ĐỘNG
         function suggestDestination(val) {
             clearTimeout(searchTimeout);
             const box = document.getElementById('suggestionsBox');
@@ -547,7 +541,6 @@
             });
         }
 
-        // LƯU ĐỊA ĐIỂM QUEN THUỘC VÀO LOCALSTORAGE
         function saveToFavorites(name, lat, lng) {
             let favs = localStorage.getItem('taxi_promax_favs');
             favs = favs ? JSON.parse(favs) : [];
@@ -598,6 +591,7 @@
             }
         }
 
+        // CHỈNH SỬA ĐỂ BẢO VỆ VÒNG LẶP THEO DÕI, TRÁNH LỖI 404 CHƯA CÓ ID
         function submitBooking() {
             const from = document.getElementById('p_from').value.trim();
             const to = document.getElementById('p_to').value.trim();
@@ -638,8 +632,11 @@
                 return res.json();
             })
             .then(data => {
-                currentBookingId = data.name;
+                // ĐÂY LÀ NƠI FIREBASE CẤP MÃ ID DUY NHẤT:
+                currentBookingId = data.name; 
                 showAppModal("Hệ thống đang điều phối tài xế gần nhất đến đón bạn.");
+                
+                // KÍCH HOẠT THEO DÕI CHỈ KHI ĐÃ CÓ ID HỢP LỆ
                 startTrackingTrip();
             })
             .catch(err => {
@@ -657,7 +654,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: "canceled" })
                 }).then(() => {
-                    clearInterval(trackInterval);
+                    if (trackInterval) clearInterval(trackInterval);
                     document.getElementById('trackerBox').style.display = "none";
                     if (driverMarker) map.removeLayer(driverMarker);
                     showAppModal("Đơn hàng đã được hủy thành công.", false);
@@ -667,12 +664,16 @@
         }
 
         function startTrackingTrip() {
-            if (!currentBookingId) return;
+            // Khóa bảo vệ: Nếu chưa nhận diện được ID từ Firebase, không chạy để tránh lỗi 404
+            if (!currentBookingId) return; 
             if (trackInterval) clearInterval(trackInterval);
 
             trackInterval = setInterval(() => {
                 fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`)
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) return null;
+                    return res.json();
+                })
                 .then(trip => {
                     if (!trip) return;
 
@@ -700,8 +701,8 @@
                         setStar(5);
                         showAppModal("TAXI PROMAX cảm ơn bạn! Vui lòng đánh giá tài xế nhé:", true, true);
                     }
-                });
-            }, 4000);
+                }).catch(e => console.log("Đang đồng bộ dữ liệu mạng...", e));
+            }, 4000); // 4 giây quét cập nhật một lần
         }
     </script>
 </body>
