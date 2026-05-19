@@ -56,11 +56,15 @@
         .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
         .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
 
+        /* Thiết kế marker khách hàng thời gian thực */
+        .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
+        @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
+
         .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
         input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
         
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal-content { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 25px; text-align: center; }
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-content { background: white; width: 88%; max-width: 340px; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 
         .tp-new-container { padding: 0 15px 20px; }
         .tp-grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
@@ -194,10 +198,26 @@
         <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div> 
 
+    <div id="orderModal" class="custom-modal">
+        <div class="modal-content">
+            <h2 style="color:var(--danger); margin:0 0 10px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
+            <div style="text-align:left; background:#f5f6fa; padding:15px; border-radius:15px; margin-bottom:15px; font-size:13px; color:#333; line-height:1.5;">
+                <p style="margin:4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color:var(--primary); font-weight:900;">...</span></p>
+                <p style="margin:4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
+                <p style="margin:4px 0;">🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
+                <p style="margin:4px 0;">👥 <b>Số người:</b> <span id="modalCount">1</span> người</p>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button class="btn-main" style="background:#7f8c8d; font-size:14px; padding:12px;" onclick="closeModal('orderModal')">BỎ QUA</button>
+                <button class="btn-main" style="font-size:14px; padding:12px;" onclick="acceptCustomer()">ĐÓN KHÁCH</button>
+            </div>
+        </div>
+    </div>
+
     <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="js/payment.js"></script>
     
     <script>
@@ -218,7 +238,8 @@
         });
         var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map); 
 
-        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null; 
+        let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
+        let customerMarker = null, activeCustomerData = null; 
 
         // --- 3. GPS & TRACKING (Lọc nhiễu chuẩn 5m) ---
         function startTracking() {
@@ -229,12 +250,9 @@
                     marker.setLatLng(newPos);
                     
                     if(isRunning) {
-                        // Chỉ di chuyển bản đồ nếu xe đang chạy thực sự (tránh rung lắc khi đứng yên)
                         if (speed > 0.5) map.panTo(newPos);
-                        
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // Lọc nhiễu: Chỉ tính nếu di chuyển trên 5 mét
                             if(d > 0.005) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
@@ -243,7 +261,6 @@
                         }
                     } else {
                         if(!lastPos) map.setView(newPos, 16);
-                        // Tự động bắt đầu nếu tốc độ > 8km/h
                         if(speed > 2.2) handleTrip(); 
                     }
                     lastPos = newPos;
@@ -272,6 +289,9 @@
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
                 document.getElementById('endModal').style.display = 'flex';
                 if(wakeLock) { wakeLock.release(); wakeLock = null; }
+                
+                // Giải phóng marker khách hàng cũ khi xong việc
+                if(customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
             }
         }
 
@@ -284,7 +304,6 @@
             }
         }
 
-        // Tự động xin lại quyền giữ sáng nếu anh quay lại App từ Zalo/Phone
         document.addEventListener('visibilitychange', () => {
             if (isRunning && document.visibilityState === 'visible') requestWakeLock();
         });
@@ -311,7 +330,85 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, SPEAK) ---
+        // --- 6. AI TỰ ĐỘNG ĐIỀU PHỐI & QUÉT ĐƠN THỜI GIAN THỰC ---
+        let lastCheckedOrderId = null;
+
+        function checkNewBookings() {
+            fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json')
+            .then(res => res.json())
+            .then(data => {
+                if (!data) return;
+
+                // Lấy ra ID đơn đặt hàng mới nhất xếp cuối cùng trong Database
+                const keys = Object.keys(data);
+                const newestId = keys[keys.length - 1];
+                const order = data[newestId];
+
+                // Nếu là đơn hoàn toàn mới và trạng thái đang là "waiting" công khai
+                if (newestId !== lastCheckedOrderId && order.status === "waiting") {
+                    lastCheckedOrderId = newestId;
+                    activeCustomerData = { id: newestId, ...order };
+
+                    // 1. Kích hoạt Trợ lý ảo AI phát tiếng kêu bằng giọng nói tiếng Việt
+                    tpSpeak("Báo cáo anh Đạt, phát hiện có đơn đặt xe ghép mới. Vui lòng kiểm tra màn hình điện thoại.");
+
+                    // 2. Điền thông tin vào bảng pop-up nổ đơn lập tức
+                    document.getElementById('modalPhone').innerText = order.phone;
+                    document.getElementById('modalFrom').innerText = order.pickup;
+                    document.getElementById('modalTo').innerText = order.dropoff;
+                    document.getElementById('modalCount').innerText = order.passengers || 1;
+
+                    // 3. Hiển thị bảng Modal đè lên bản đồ bắt tài xế xác nhận bấm đón
+                    document.getElementById('orderModal').style.display = 'flex';
+                }
+            })
+            .catch(err => console.error("Lỗi đồng bộ tổng đài AI:", err));
+        }
+
+        function acceptCustomer() {
+            if (!activeCustomerData) return;
+
+            // Chuyển sang chế độ màn hình chính lái xe
+            closeModal('orderModal');
+            showTab('home');
+
+            tpSpeak("Đã nhận đơn hàng. Đang định vị vị trí điểm đón của khách trên bản đồ.");
+
+            // Giả lập thuật toán AI: Tự tạo tọa độ ngẫu nhiên xung quanh tài xế trong bán kính 400 mét để test
+            // Sau này nếu nâng cấp, tọa độ thật của khách sẽ được truyền thẳng từ GPS của khachhang.html
+            if (lastPos) {
+                const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.006;
+                const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.006;
+                
+                // Xóa chấm đỏ khách cũ nếu có trước đó
+                if(customerMarker) map.removeLayer(customerMarker);
+
+                // Tạo marker chấm đỏ nhấp nháy đại diện cho vị trí khách chờ
+                var custIcon = L.divIcon({
+                    className: 'cust-div-icon',
+                    html: "<div class='customer-marker'>🧍</div>",
+                    iconSize: [26, 26], iconAnchor: [13, 13]
+                });
+
+                customerMarker = L.marker([randomLat, randomLng], { icon: custIcon }).addTo(map);
+                customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.phone}</b><br>Đón: ${activeCustomerData.pickup}`).openTooltip();
+
+                // Phóng bản đồ bao quát cả xe của anh và vị trí khách đứng để dễ nhìn đường chạy tới
+                var group = new L.featureGroup([marker, customerMarker]);
+                map.fitBounds(group.getBounds().pad(0.3));
+            }
+
+            // Cập nhật trạng thái đơn này lên Firebase thành "accepted" để các tài xế khác không bắt trùng đơn này nữa
+            fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${activeCustomerData.id}.json`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: "accepted", driver: TX_ID })
+            });
+        }
+
+        // Kích hoạt đồng hồ quét ngầm liên tục 4 giây một lần (Không tốn pin, không tốn dung lượng)
+        setInterval(checkNewBookings, 4000);
+
+        // --- 7. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, SPEAK) ---
         const TAXI_PROMAX_DATABASE = [
             { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
             { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#00bfa5" },
@@ -336,7 +433,7 @@
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const msg = new SpeechSynthesisUtterance(text);
-                msg.lang = 'vi-VN'; msg.rate = 1.1;
+                msg.lang = 'vi-VN'; msg.rate = 1.05;
                 window.speechSynthesis.speak(msg);
             }
         }
