@@ -52,7 +52,7 @@
             gap: 14px;
         }
 
-        /* MÀN HÌNH ĐĂNG KÝ / ĐĂNG NHẬP (MẶC ĐỊNH HIỂN THỊ TRƯỚC) */
+        /* MÀN HÌNH ĐĂNG KÝ / ĐĂNG NHẬP */
         #authScreen {
             display: flex;
             flex-direction: column;
@@ -82,7 +82,7 @@
             margin-top: 5px;
         }
 
-        /* MÀN HÌNH CHÍNH ĐẶT XE (MẶC ĐỊNH ẨN) */
+        /* MÀN HÌNH CHÍNH ĐẶT XE */
         #mainAppScreen {
             display: none;
             flex-direction: column;
@@ -343,7 +343,7 @@
         let currentBookingId = null;
         let selectedRating = 5;
         let trackInterval = null;
-        let currentUser = null; // Lưu trữ thông tin khách hàng đăng nhập
+        let currentUser = null;
 
         const friendlyQuotes = [
             "✨ Cảm ơn anh chị đã lựa chọn Taxi ProMax. Sự an toàn của quý khách là niềm tự hào của chúng tôi!",
@@ -353,7 +353,6 @@
         ];
 
         window.onload = function() {
-            // KIỂM TRA TRẠNG THÁI ĐĂNG NHẬP TRONG BỘ NHỚ LƯU TRỮ TRÌNH DUYỆT
             const savedUser = localStorage.getItem('taxi_promax_user');
             if (savedUser) {
                 currentUser = JSON.parse(savedUser);
@@ -361,7 +360,6 @@
             }
         };
 
-        // XỬ LÝ ĐĂNG KÝ THÀNH VIÊN
         function handleRegister() {
             const name = document.getElementById('reg_name').value.trim();
             const phone = document.getElementById('reg_phone').value.trim();
@@ -376,13 +374,11 @@
             showMainApp();
         }
 
-        // CHUYỂN ĐỔI GIAO DIỆN SANG MÀN HÌNH CHÍNH
         function showMainApp() {
             document.getElementById('authScreen').style.display = 'none';
             document.getElementById('mainAppScreen').style.display = 'flex';
             document.getElementById('lblWelcomeUser').innerText = `👤 Khách: ${currentUser.name} (${currentUser.phone})`;
 
-            // Khởi tạo bản đồ sau khi phần tử hiển thị hoàn toàn
             setTimeout(() => {
                 if (!map) {
                     map = L.map('map', { zoomControl: false }).setView([clientLat, clientLng], 14);
@@ -394,7 +390,6 @@
             }, 200);
         }
 
-        // ĐĂNG XUẤT ỨNG DỤNG
         function handleLogout() {
             localStorage.removeItem('taxi_promax_user');
             location.reload();
@@ -483,6 +478,7 @@
             });
         }
 
+        // ĐÃ XÓA THỪA THÃI P_COUNT Ở ĐÂY
         function selectCar(type) {
             selectedCarType = type;
             document.getElementById('car4').classList.remove('active');
@@ -492,7 +488,6 @@
             searchDestination();
         }
 
-        // KHẮC PHỤC LỖI KHÔNG ẤN ĐẶT XE ĐƯỢC
         function submitBooking() {
             const from = document.getElementById('p_from').value.trim();
             const to = document.getElementById('p_to').value.trim();
@@ -503,7 +498,6 @@
             btn.disabled = true;
             document.getElementById('trackerBox').style.display = "flex";
 
-            // Lấy trực tiếp thông tin từ User đã đăng nhập hệ thống
             const bookingData = {
                 clientName: currentUser.name,
                 phone: currentUser.phone,
@@ -518,7 +512,6 @@
                 timestamp: Date.now()
             };
 
-            // Sử dụng định dạng URL chuẩn không cần xác thực nâng cao để tránh lỗi chặn kết nối
             fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -530,12 +523,11 @@
             })
             .then(data => {
                 currentBookingId = data.name;
-                // Thay thế dòng chữ thô lỗ bằng câu văn chuẩn thương hiệu của anh Đạt
                 showAppModal("Cảm ơn anh chị đã đặt xe tại TAXI PROMAX. Hệ thống đang tiến hành điều phối tài xế gần nhất đến đón anh chị.");
                 startTrackingTrip();
             })
             .catch(err => {
-                alert("Lỗi kết nối mạng: " + err.message + ". Anh Đạt hãy kiểm tra lại cấu hình Database Firebase nhé!");
+                alert("Lỗi kết nối mạng: " + err.message);
                 document.getElementById('trackerBox').style.display = "none";
             })
             .finally(() => { btn.disabled = false; });
@@ -590,7 +582,6 @@
                         document.getElementById('trackerBox').style.display = "none";
                         if (driverMarker) map.removeLayer(driverMarker);
                         setStar(5);
-                        // Cập nhật câu chúc vạn sự như ý độc quyền của anh Đạt
                         showAppModal("TAXI PROMAX cảm ơn anh chị, chúc anh chị vạn sự như ý! Vui lòng dành chút thời gian đánh giá độ thân thiện của tài xế nhé:", true, true);
                     }
                 });
