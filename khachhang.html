@@ -7,18 +7,20 @@
     <style>
         :root { --primary: #00bfa5; --dark: #002d26; }
         body { font-family: 'Segoe UI', sans-serif; background: #001a16; color: white; margin: 0; padding: 20px; }
-        .card { background: rgba(255,255,255,0.05); border: 1px solid var(--primary); padding: 20px; border-radius: 20px; box-shadow: 0 0 20px rgba(0, 191, 165, 0.2); }
-        h2 { color: var(--primary); text-align: center; font-size: 24px; }
+        .card { background: rgba(255,255,255,0.05); border: 1px solid var(--primary); padding: 20px; border-radius: 20px; box-shadow: 0 0 20px rgba(0, 191, 165, 0.2); max-width: 500px; margin: 0 auto; }
+        h2 { color: var(--primary); text-align: center; font-size: 24px; margin-top: 5px; }
         .input-box { margin-bottom: 15px; }
         label { display: block; font-size: 11px; color: var(--primary); margin-bottom: 5px; font-weight: bold; }
-        input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #333; background: #002d26; color: white; box-sizing: border-box; }
-        .btn-send { width: 100%; padding: 15px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 900; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #333; background: #002d26; color: white; box-sizing: border-box; font-size: 14px; }
+        input:focus { border-color: var(--primary); outline: none; }
+        .btn-send { width: 100%; padding: 15px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 900; font-size: 16px; cursor: pointer; margin-top: 10px; transition: background 0.2s; }
+        .btn-send:active { background: #008b78; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>🚕 TAXI PROMAX</h2>
-        <p style="text-align: center; font-size: 12px; color: #888;">Hệ thống đặt xe ghép của Nguyễn Xuân Đạt</p>
+        <p style="text-align: center; font-size: 12px; color: #888; margin-bottom: 20px;">Hệ thống đặt xe ghép của Nguyễn Xuân Đạt</p>
         
         <div class="input-box">
             <label>📍 ĐIỂM ĐÓN</label>
@@ -34,20 +36,71 @@
         </div>
         <div class="input-box">
             <label>👥 SỐ NGƯỜI</label>
-            <input type="number" id="p_count" value="1">
+            <input type="number" id="p_count" value="1" min="1">
         </div>
 
-        <button class="btn-send" onclick="submitBooking()">YÊU CẦU XE NGAY</button>
+        <button class="btn-send" id="btnSubmit" onclick="submitBooking()">YÊU CẦU XE NGAY</button>
     </div>
 
     <script>
         function submitBooking() {
-            const phone = document.getElementById('p_phone').value;
-            if(!phone) { alert("Anh cho em xin số điện thoại nhé!"); return; }
-            
-            // Thông báo giả lập - Ở đây anh có thể nối với Bot Telegram hoặc Google Sheets
-            alert("✅ Đã gửi yêu cầu! Tài xế Taxi ProMax sẽ gọi cho anh ngay.");
-            console.log("Dữ liệu khách:", phone);
+            const from = document.getElementById('p_from').value.trim();
+            const to = document.getElementById('p_to').value.trim();
+            const phone = document.getElementById('p_phone').value.trim();
+            const count = document.getElementById('p_count').value;
+            const btn = document.getElementById('btnSubmit');
+
+            // Kiểm tra thông tin đầu vào giống app thật
+            if (!from) { alert("Anh cho em xin địa chỉ Điểm Đón nhé!"); return; }
+            if (!to) { alert("Anh cho em xin địa chỉ Điểm Đến nhé!"); return; }
+            if (!phone) { alert("Anh cho em xin số điện thoại để liên hệ nhé!"); return; }
+
+            // Đổi trạng thái nút để tránh khách bấm liên tiếp
+            btn.disabled = true;
+            btn.innerText = "ĐANG GỬI YÊU CẦU...";
+
+            // Gom dữ liệu chuyến đi thành cục dữ liệu cấu trúc
+            const bookingData = {
+                pickup: from,
+                dropoff: to,
+                phone: phone,
+                passengers: count,
+                status: "waiting",
+                timestamp: Date.now()
+            };
+
+            // Bắn dữ liệu lên trục Realtime Database trung tâm của anh Đạt
+            // Điểm cuối '.json' bắt buộc phải giữ nguyên để Firebase nhận lệnh trực tiếp qua HTTP
+            fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(bookingData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Kết nối mạng có vấn đề');
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert("✅ Đã gửi yêu cầu! Hệ thống tự động điều phối đang tìm tài xế gần nhất cho anh.");
+                // Reset form sau khi gửi đơn thành công
+                document.getElementById('p_from').value = '';
+                document.getElementById('p_to').value = '';
+                document.getElementById('p_phone').value = '';
+                document.getElementById('p_count').value = '1';
+            })
+            .catch(error => {
+                console.error('Lỗi gửi đơn:', error);
+                alert("❌ Gửi yêu cầu thất bại, anh kiểm tra lại kết nối mạng giúp em.");
+            })
+            .finally(() => {
+                // Mở lại trạng thái nút bấm
+                btn.disabled = false;
+                btn.innerText = "YÊU CẦU XE NGAY";
+            });
         }
     </script>
 </body>
