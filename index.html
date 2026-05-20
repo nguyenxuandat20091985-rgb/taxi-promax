@@ -56,7 +56,6 @@
         .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
         .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
 
-        /* Thiết kế marker khách hàng thời gian thực */
         .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
         @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
 
@@ -79,7 +78,6 @@
         .pulsating-circle { animation: pulse 2s infinite; }
         @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 0.3; } 100% { transform: scale(0.8); opacity: 0.8; } }
 
-        /* Bổ sung css vòng đếm ngược thời gian nhận đơn */
         .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
     </style>
 </head>
@@ -213,7 +211,7 @@
                 <p style="margin:4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color:var(--primary); font-weight:900;">...</span></p>
                 <p style="margin:4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
                 <p style="margin:4px 0;">🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
-                <p style="margin:4px 0;">👥 <b>Số người:</b> <span id="modalCount">1</span> người</p>
+                <p style="margin:4px 0;">👥 <b>Khách hàng:</b> <span id="modalClientName">...</span></p>
                 <p style="margin:4px 0;">🚗 <b>Loại xe:</b> <span id="modalCarType" style="color:var(--gold); font-weight:bold;">4 Chỗ</span></p>
             </div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
@@ -250,13 +248,12 @@
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
         let customerMarker = null, activeCustomerData = null; 
         
-        // Khai báo thêm các biến điều khiển âm thanh chuông và đếm ngược thời gian dập đơn
         let countdownValue = 15;
         let countdownInterval = null;
         let audioCtx = null;
         let audioInterval = null;
 
-        // --- 3. GPS & TRACKING (Lọc nhiễu chuẩn 5m và đẩy vị trí lên Firebase) ---
+        // --- 3. GPS & TRACKING ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
@@ -280,21 +277,19 @@
                     }
                     lastPos = newPos;
 
-                    // ĐỒNG BỘ VỊ TRÍ GPS TÀI XẾ LÊN FIREBASE REALTIME
                     syncDriverLocationToFirebase(latitude, longitude);
 
                 }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
             }
         }
 
-        // Hàm cập nhật kinh độ, vĩ độ lên nhánh tai_xe_online để khách biết tài xế nào ở gần
         function syncDriverLocationToFirebase(lat, lng) {
             const driverData = {
                 lat: lat,
                 lng: lng,
                 lastUpdated: Date.now(),
                 status: isRunning ? "busy" : "ready",
-                carType: "4_seats" // Mặc định xe anh là 4 chỗ, có thể sửa thành "7_seats" nếu cần
+                carType: "4_seats"
             };
             
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
@@ -366,12 +361,12 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. AI TỰ ĐỘNG ĐIỀU PHỐI & QUÉT ĐƠN THỜI GIAN THỰC ---
+        // --- 6. SỬA ĐỔI: QUÉT ĐƠN THỜI GIAN THỰC THEO MÃ NGẪU NHIÊN ---
         let lastCheckedOrderId = null;
-        let isModalOpening = false; // Khóa chống nổ chuông lặp khi đang mở bảng nhận lịch
+        let isModalOpening = false; 
 
         function checkNewBookings() {
-            if (isModalOpening || isRunning) return; // Nếu đang mở bảng nổ đơn hoặc đang chở khách thì dừng quét đơn mới
+            if (isModalOpening || isRunning) return; 
 
             fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json')
             .then(res => res.json())
@@ -379,11 +374,10 @@
                 if (!data) return;
 
                 const keys = Object.keys(data);
-                
-                // Duyệt tìm đơn hàng có trạng thái "waiting" mới nhất công khai trên Firebase
                 let targetOrderKey = null;
                 let order = null;
 
+                // Duyệt ngược từ đơn mới nhất để tìm đơn đang "waiting"
                 for (let i = keys.length - 1; i >= 0; i--) {
                     if (data[keys[i]].status === "waiting") {
                         targetOrderKey = keys[i];
@@ -397,20 +391,16 @@
                     activeCustomerData = { id: targetOrderKey, ...order };
                     isModalOpening = true;
 
-                    // 1. Kích hoạt trợ lý AI phát giọng nói thông báo
                     tpSpeak("Báo cáo anh Đạt, phát hiện có đơn đặt xe mới. Vui lòng kiểm tra màn hình.");
-
-                    // 2. Kích hoạt hiệu ứng đổ chuông bíp bíp liên tục và rung thiết bị di động
                     startNotificationEffects();
 
-                    // 3. Đổ dữ liệu thông tin khách vào form Modal
-                    document.getElementById('modalPhone').innerText = order.phone;
-                    document.getElementById('modalFrom').innerText = order.pickup;
-                    document.getElementById('modalTo').innerText = order.dropoff;
-                    document.getElementById('modalCount').innerText = order.passengers || 1;
+                    // Đổ dữ liệu vào Modal thông báo
+                    document.getElementById('modalPhone').innerText = order.phone || 'Không có';
+                    document.getElementById('modalFrom').innerText = order.pickup || 'Chưa định vị';
+                    document.getElementById('modalTo').innerText = order.dropoff || 'Chưa định vị';
+                    document.getElementById('modalClientName').innerText = order.clientName || 'Khách vãng lai';
                     document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
 
-                    // 4. Reset và mở bộ đếm ngược thời gian 15 giây
                     countdownValue = 15;
                     document.getElementById('tp-modal-timer-val').innerText = countdownValue;
                     document.getElementById('orderModal').style.display = 'flex';
@@ -420,19 +410,18 @@
                         document.getElementById('tp-modal-timer-val').innerText = countdownValue;
                         if (countdownValue <= 0) {
                             clearInterval(countdownInterval);
-                            declineCustomer(); // Tự động bỏ qua đơn khi hết 15 giây chờ phản hồi
+                            declineCustomer(); 
                         }
                     }, 1000);
                 }
             })
-            .catch(err => console.error("Lỗi đồng bộ tổng đài AI:", err));
+            .catch(err => console.error("Lỗi đồng bộ dữ liệu tổng đài:", err));
         }
 
-        // HÀM CHỨC NĂNG KHI ẤN NÚT: ĐÓN KHÁCH (NHẬN ĐƠN)
+        // SỬA ĐỔI: HÀM ĐÓN KHÁCH (CẬP NHẬT CHÍNH XÁC LÊN MÃ ĐƠN KHÁCH HÀNG)
         function acceptCustomer() {
             if (!activeCustomerData) return;
 
-            // Dừng ngay các hiệu ứng chuông reng và bộ đếm thời gian
             stopNotificationEffects();
             closeModal('orderModal');
             isModalOpening = false;
@@ -440,76 +429,84 @@
 
             tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
 
-            // Giải lập cắm chốt định vị khách hàng xung quanh xe tài xế trong bán kính 400m
-            if (lastPos) {
+            // Định vị GPS khách hàng lên bản đồ
+            if (activeCustomerData.pickupLat && activeCustomerData.pickupLng) {
+                // Nếu app khách có gửi tọa độ thực
+                setupCustomerMarker(activeCustomerData.pickupLat, activeCustomerData.pickupLng);
+            } else if (lastPos) {
+                // Nếu không có, giả lập cắm chốt gần tài xế 400m
                 const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.005;
                 const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.005;
-                
-                if(customerMarker) map.removeLayer(customerMarker);
-
-                var custIcon = L.divIcon({
-                    className: 'cust-div-icon',
-                    html: "<div class='customer-marker'>🧍</div>",
-                    iconSize: [26, 26], iconAnchor: [13, 13]
-                });
-
-                customerMarker = L.marker([randomLat, randomLng], { icon: custIcon }).addTo(map);
-                customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.phone}</b><br>Đón: ${activeCustomerData.pickup}`).openTooltip();
-
-                var group = new L.featureGroup([marker, customerMarker]);
-                map.fitBounds(group.getBounds().pad(0.3));
+                setupCustomerMarker(randomLat, randomLng);
             }
 
-            // Cập nhật trạng thái đổi từ "waiting" thành đơn đã được xí chỗ "accepted" lên Firebase Realtime
+            // Gửi lệnh vá dữ liệu (PATCH) đồng bộ trực tiếp lên mã đơn ngẫu nhiên của khách
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${activeCustomerData.id}.json`, {
                 method: 'PATCH',
-                body: JSON.stringify({ status: "accepted", driver: TX_ID, driverPhone: "09 Nguyen Xuan Dat" })
-            });
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    status: "driving", // Chuyển trạng thái đơn thành đang chạy
+                    driverId: TX_ID,    // Gắn ID tài xế của anh vào đơn khách
+                    driverPhone: "09 Nguyen Xuan Dat" 
+                })
+            }).catch(err => console.error("Lỗi cập nhật nhận đơn lên Firebase:", err));
         }
 
-        // HÀM CHỨC NĂNG KHI ẤN NÚT: BỎ QUA ĐƠN HÀNG
+        function setupCustomerMarker(lat, lng) {
+            if(customerMarker) map.removeLayer(customerMarker);
+
+            var custIcon = L.divIcon({
+                className: 'cust-div-icon',
+                html: "<div class='customer-marker'>🧍</div>",
+                iconSize: [26, 26], iconAnchor: [13, 13]
+            });
+
+            customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
+            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName}</b><br>SĐT: ${activeCustomerData.phone}`).openTooltip();
+
+            var group = new L.featureGroup([marker, customerMarker]);
+            map.fitBounds(group.getBounds().pad(0.3));
+        }
+
         function declineCustomer() {
             stopNotificationEffects();
             closeModal('orderModal');
             isModalOpening = false;
             activeCustomerData = null;
             tpSpeak("Đã bỏ qua đơn hàng.");
-            // Đơn hàng giữ nguyên trạng thái waiting trên database để tổng đài chia cho các tài xế khác xung quanh đón khách
         }
 
-        // --- CÁC HÀM TIỆN ÍCH PHÁT ÂM THANH BÍP BÍP LIÊN TỤC KHÔNG DÙNG FILE NGOÀI ---
+        // --- CÁC HÀM TIỆN ÍCH CHUÔNG BÁO ---
         function startNotificationEffects() {
             if (navigator.vibrate) {
-                navigator.vibrate([1000, 500, 1000, 500, 1000]); // Kích rung điện thoại theo nhịp
+                navigator.vibrate([1000, 500, 1000, 500, 1000]); 
             }
             try {
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                // Chu kỳ phát tiếng kêu bíp bíp dồn dập mỗi 0.8 giây
                 audioInterval = setInterval(() => {
                     let osc = audioCtx.createOscillator();
                     let gain = audioCtx.createGain();
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tần số âm cao
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
                     gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
                     osc.connect(gain);
                     gain.connect(audioCtx.destination);
                     osc.start();
-                    osc.stop(audioCtx.currentTime + 0.15); // Kéo dài tiếng bíp 0.15s
+                    osc.stop(audioCtx.currentTime + 0.15); 
                 }, 800);
             } catch(e) {
-                console.log("Audio bíp báo lỗi hoặc chưa tương tác: ", e);
+                console.log("Audio báo lỗi: ", e);
             }
         }
 
         function stopNotificationEffects() {
             if (countdownInterval) clearInterval(countdownInterval);
             if (audioInterval) clearInterval(audioInterval);
-            if (navigator.vibrate) navigator.vibrate(0); // Ngắt lệnh rung máy
+            if (navigator.vibrate) navigator.vibrate(0); 
         }
 
-        // Kích hoạt đồng hồ quét kiểm tra đơn hàng tự động chạy ngầm liên tục 4 giây một lần
         setInterval(checkNewBookings, 4000);
 
         // --- 7. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, SPEAK) ---
