@@ -8,10 +8,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png">
-    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/744/744465.png"> 
+    <link rel="apple-touch-icon" href="assets/logo.png">
+    <link rel="icon" type="image/png" href="assets/logo.png">
 
-    <title>TAXI PROMAX</title>
+    <link rel="manifest" href="manifest.json">
+
+    <title>TAXI PROMAX TÀI XẾ</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -50,6 +52,7 @@
         .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
 
         .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .history-card b { text-align: left; }
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
@@ -322,6 +325,15 @@
                 if(wakeLock) { wakeLock.release(); wakeLock = null; }
                 
                 if(customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
+                
+                if (activeCustomerData && activeCustomerData.id) {
+                    fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${activeCustomerData.id}.json`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: "completed" })
+                    }).catch(err => console.error("Lỗi cập nhật hoàn thành lên Firebase:", err));
+                }
+                
                 if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
             }
         }
@@ -361,7 +373,7 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. SỬA ĐỔI: QUÉT ĐƠN THỜI GIAN THỰC THEO MÃ NGẪU NHIÊN ---
+        // --- 6. QUÉT ĐƠN THỜI GIAN THỰC THEO MÃ ---
         let lastCheckedOrderId = null;
         let isModalOpening = false; 
 
@@ -377,9 +389,8 @@
                 let targetOrderKey = null;
                 let order = null;
 
-                // Duyệt ngược từ đơn mới nhất để tìm đơn đang "waiting"
                 for (let i = keys.length - 1; i >= 0; i--) {
-                    if (data[keys[i]].status === "waiting") {
+                    if (data[keys[i]] && data[keys[i]].status === "waiting") {
                         targetOrderKey = keys[i];
                         order = data[keys[i]];
                         break;
@@ -394,7 +405,6 @@
                     tpSpeak("Báo cáo anh Đạt, phát hiện có đơn đặt xe mới. Vui lòng kiểm tra màn hình.");
                     startNotificationEffects();
 
-                    // Đổ dữ liệu vào Modal thông báo
                     document.getElementById('modalPhone').innerText = order.phone || 'Không có';
                     document.getElementById('modalFrom').innerText = order.pickup || 'Chưa định vị';
                     document.getElementById('modalTo').innerText = order.dropoff || 'Chưa định vị';
@@ -405,6 +415,7 @@
                     document.getElementById('tp-modal-timer-val').innerText = countdownValue;
                     document.getElementById('orderModal').style.display = 'flex';
 
+                    if (countdownInterval) clearInterval(countdownInterval);
                     countdownInterval = setInterval(() => {
                         countdownValue--;
                         document.getElementById('tp-modal-timer-val').innerText = countdownValue;
@@ -418,7 +429,6 @@
             .catch(err => console.error("Lỗi đồng bộ dữ liệu tổng đài:", err));
         }
 
-        // SỬA ĐỔI: HÀM ĐÓN KHÁCH (CẬP NHẬT CHÍNH XÁC LÊN MÃ ĐƠN KHÁCH HÀNG)
         function acceptCustomer() {
             if (!activeCustomerData) return;
 
@@ -429,25 +439,21 @@
 
             tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
 
-            // Định vị GPS khách hàng lên bản đồ
             if (activeCustomerData.pickupLat && activeCustomerData.pickupLng) {
-                // Nếu app khách có gửi tọa độ thực
                 setupCustomerMarker(activeCustomerData.pickupLat, activeCustomerData.pickupLng);
             } else if (lastPos) {
-                // Nếu không có, giả lập cắm chốt gần tài xế 400m
                 const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.005;
                 const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.005;
                 setupCustomerMarker(randomLat, randomLng);
             }
 
-            // Gửi lệnh vá dữ liệu (PATCH) đồng bộ trực tiếp lên mã đơn ngẫu nhiên của khách
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${activeCustomerData.id}.json`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    status: "driving", // Chuyển trạng thái đơn thành đang chạy
-                    driverId: TX_ID,    // Gắn ID tài xế của anh vào đơn khách
-                    driverPhone: "09 Nguyen Xuan Dat" 
+                    status: "driving", 
+                    driverId: TX_ID,    
+                    driverPhone: "0985190985" 
                 })
             }).catch(err => console.error("Lỗi cập nhật nhận đơn lên Firebase:", err));
         }
@@ -462,7 +468,7 @@
             });
 
             customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
-            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName}</b><br>SĐT: ${activeCustomerData.phone}`).openTooltip();
+            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b><br>SĐT: ${activeCustomerData.phone || ''}`).openTooltip();
 
             var group = new L.featureGroup([marker, customerMarker]);
             map.fitBounds(group.getBounds().pad(0.3));
@@ -485,6 +491,7 @@
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
+                if (audioInterval) clearInterval(audioInterval);
                 audioInterval = setInterval(() => {
                     let osc = audioCtx.createOscillator();
                     let gain = audioCtx.createGain();
