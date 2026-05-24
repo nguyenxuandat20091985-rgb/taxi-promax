@@ -224,7 +224,7 @@
         </div>
     </div>
 
-    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
+    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="initAudioAndCloseModal()">ĐỒNG Ý</button></div></div>
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -255,6 +255,22 @@
         let countdownInterval = null;
         let audioCtx = null;
         let audioInterval = null;
+
+        // Mẹo mở khóa âm thanh trình duyệt khi click nút Đồng ý chào mừng
+        function initAudioAndCloseModal() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                // Kích hoạt chạy thử một âm thanh câm để trình duyệt lưu quyền tự động phát
+                let buffer = audioCtx.createBuffer(1, 1, 22050);
+                let source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioCtx.destination);
+                source.start(0);
+            } catch (e) {
+                console.log("Không thể khởi tạo AudioContext sớm:", e);
+            }
+            closeModal('wishModal');
+        }
 
         // --- 3. GPS & TRACKING ---
         function startTracking() {
@@ -439,8 +455,12 @@
 
             tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
 
-            if (activeCustomerData.pickupLat && activeCustomerData.pickupLng) {
-                setupCustomerMarker(activeCustomerData.pickupLat, activeCustomerData.pickupLng);
+            // ĐÃ SỬA: Sửa lại logic lấy tọa độ chính xác của Firebase (pickupLat hoặc lat)
+            const customerLat = activeCustomerData.pickupLat || activeCustomerData.lat;
+            const customerLng = activeCustomerData.pickupLng || activeCustomerData.lng;
+
+            if (customerLat && customerLng) {
+                setupCustomerMarker(customerLat, customerLng);
             } else if (lastPos) {
                 const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.005;
                 const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.005;
@@ -544,6 +564,18 @@
                 msg.lang = 'vi-VN'; msg.rate = 1.05;
                 window.speechSynthesis.speak(msg);
             }
+        }
+
+        function tpHandlePayment(amount, planName) {
+            if (amount === 0) {
+                if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
+                localStorage.setItem('tp_trial_used', 'true');
+                localStorage.setItem('tp_expiry', new Date().getTime() + (7 * 24 * 60 * 60 * 1000));
+                tpSpeak("Kích hoạt thành công gói dùng thử 7 ngày.");
+                tpInitCountdown();
+            } else if (typeof createPayment === 'function') {
+                createPayment(amount, planName);
+            } else { alert("Hệ thống thanh toán đang bảo trì!"); }
         }
 
         function tpHandlePayment(amount, planName) {
