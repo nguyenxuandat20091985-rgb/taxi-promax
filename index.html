@@ -19,8 +19,8 @@
     
     <style>
         :root { 
-            --primary: #0054a3; /* Đồng bộ sang màu xanh BIDV uy tín */
-            --accent: #00bfa5;  /* Màu xanh ngọc cho các nút kích hoạt hành trình */
+            --primary: #0054a3; 
+            --accent: #00bfa5;  
             --dark: #1c1e21; 
             --gold: #f1c40f; 
             --danger: #d32f2f; 
@@ -30,7 +30,7 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        /* CỐ ĐỊNH BẢN ĐỒ KHÔNG BỊ TRÀN HOẶC DI CHUYỂN SAI LỆCH */
+        /* BẢN ĐỒ NỀN ĐƯỢC GHIM TUYỆT ĐỐI */
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
@@ -41,7 +41,7 @@
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: 900; color: var(--primary); margin-top: 2px; } 
 
-        /* FIX KHUNG FOOTER CỐ ĐỊNH CHẶT CHẼ DƯỚI ĐÁY MÀN HÌNH NHƯ XANH SM */
+        /* FOOTER ĐƯỢC NEO CỐ ĐỊNH CHẶT CHẼ DƯỚI ĐÁY MÀN HÌNH THEO VIDEO GỐC */
         .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
         .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
@@ -66,6 +66,7 @@
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
+        /* ĐỊNH DẠNG XE DI CHUYỂN CHUẨN XANH SM */
         .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,84,163,0.5); position: relative; }
         .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
 
@@ -241,13 +242,13 @@
     <script src="js/payment.js"></script>
     
     <script>
-        // --- 1. KHỞI TẠO & ĐỒNG BỘ TRẠNG THÁI ---
+        // --- 1. KHỞI TẠO ĐỒNG BỘ MÃ TÀI XẾ ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
 
-        // --- 2. BẢN ĐỒ & HIỆU ỨNG MARKER ---
+        // --- 2. BẢN ĐỒ & THIẾT LẬP MARKER XE CHẠY ---
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         
@@ -257,7 +258,6 @@
             iconSize: [24, 24], iconAnchor: [12, 12] 
         });
         
-        // Cố định marker rỗng ban đầu, sẽ kích hoạt chính xác khi nhận tọa độ đầu tiên
         var marker = null; 
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
@@ -277,19 +277,18 @@
                 source.connect(audioCtx.destination);
                 source.start(0);
             } catch (e) {
-                console.log("Không thể khởi tạo AudioContext sớm:", e);
+                console.log("AudioContext init error:", e);
             }
             closeModal('wishModal');
         }
 
-        // --- 3. GPS & TRACKING CHUẨN XANH SM ---
+        // --- 3. THEO DÕI GPS LIÊN TỤC - HOÀN TOÀN KHÔNG LÀM NHẢY KHUNG GIAO DIỆN ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
                     const { latitude, longitude, speed } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     
-                    // Khởi tạo marker tại điểm GPS đầu tiên được trả về
                     if (!marker) {
                         marker = L.marker(newPos, { icon: smIcon }).addTo(map);
                         map.setView(newPos, 16);
@@ -297,19 +296,18 @@
                         marker.setLatLng(newPos);
                     }
                     
-                    // Đọc chuẩn xác vận tốc thực tế từ chip GPS điện thoại (Đơn vị: m/s)
+                    // Đo chuẩn vận tốc thực tế (m/s) từ chip định vị vệ tinh
                     const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
 
                     if(isRunning) {
-                        // CHUẨN XANH SM: Khi xe di chuyển thực sự (> 1.8 km/h), camera map mới di chuyển theo xe
+                        // CHUẨN XANH SM: Chỉ di chuyển tiêu điểm camera khi xe thực sự chạy ngoài đường (> 1.8 km/h)
                         if (currentSpeed > 0.5) {
                             map.panTo(newPos);
                         }
                         
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // ĐỒNG BỘ LOGIC: Chỉ cộng dồn khoảng cách và nhảy tiền cước khi xe có tốc độ lăn bánh thực tế (>1km/h)
-                            // Tránh tình trạng đứng yên một chỗ nhiễu sóng nhảy tiền cước bậy
+                            // Chỉ tính cước khi xe dịch chuyển thực tế, đứng im do nhiễu sóng sẽ không nhảy cước bậy
                             if(d > 0.005 && currentSpeed > 0.28) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
@@ -340,10 +338,10 @@
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
                 method: 'PATCH',
                 body: JSON.stringify(driverData)
-            }).catch(err => console.error("Lỗi đồng bộ vị trí xe lên Firebase:", err));
+            }).catch(err => console.error("Firebase Sync Error:", err));
         }
 
-        // --- 4. LOGIC CHUYẾN ĐI & GIỮ MÀN HÌNH ---
+        // --- 4. HÀNH TRÌNH CHUYẾN ĐI ---
         function handleTrip() {
             const btn = document.getElementById('mainBtn');
             if(!isRunning) {
@@ -373,7 +371,7 @@
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: "completed" })
-                    }).catch(err => console.error("Lỗi cập nhật hoàn thành lên Firebase:", err));
+                    }).catch(err => console.error("Firebase Complete Order Error:", err));
                 }
                 
                 if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
@@ -395,7 +393,7 @@
 
         function updateRate(v) { currentRate = v; document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); } 
 
-        // --- 5. LỊCH SỬ & DỮ LIỆU ---
+        // --- 5. LỊCH SỬ CHUYẾN ĐI ---
         function saveHistory(km, cost) {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
@@ -415,7 +413,7 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. QUÉT ĐƠN THỜI GIAN THỰC THEO MẠNG ---
+        // --- 6. QUÉT ĐƠN THỜI GIAN THỰC TỪ TỔNG ĐÀI FIREBASE ---
         let lastCheckedOrderId = null;
         let isModalOpening = false; 
 
@@ -468,7 +466,7 @@
                     }, 1000);
                 }
             })
-            .catch(err => console.error("Lỗi đồng bộ dữ liệu tổng đài:", err));
+            .catch(err => console.error("Đồng bộ tổng đài lỗi:", err));
         }
 
         function acceptCustomer() {
@@ -500,7 +498,7 @@
                     driverId: TX_ID,    
                     driverPhone: "0985190985" 
                 })
-            }).catch(err => console.error("Lỗi cập nhật nhận đơn lên Firebase:", err));
+            }).catch(err => console.error("Firebase Accept Order Error:", err));
         }
 
         function setupCustomerMarker(lat, lng) {
@@ -552,15 +550,14 @@
                     osc.stop(audioCtx.currentTime + 0.15); 
                 }, 800);
             } catch(e) {
-                console.log("Audio báo lỗi: ", e);
+                console.log("Audio bíp lỗi: ", e);
             }
         }
 
-        // --- 7. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, SPEAK) ---
+        // --- 7. RADAR VÀ GIỌNG NÓI ---
         const TAXI_PROMAX_DATABASE = [
             { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
-            { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#0054a3" },
-            { n: "Sảnh T1 Nội Bài", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe", color: "#ffc107" }
+            { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#0054a3" }
         ];
 
         function tpOpenRadar() {
