@@ -7,23 +7,30 @@ import {
   TouchableOpacity, 
   FlatList, 
   ActivityIndicator,
-  Alert
+  Alert,
+  Dimensions
 } from 'react-native';
 import * as Location from 'expo-location';
 import { db } from '../config/firebase'; 
 import { ref, push, set, onValue, off } from 'firebase/database';
 
+const { width } = Dimensions.get('window');
+
+// DANH SÁCH ĐỊA ĐIỂM GỢI Ý PHỔ BIẾN
 const SUGGESTED_PLACES = [
   { id: '1', title: 'Bến xe Bãi Cháy', address: 'Giếng Đáy, Hạ Long', icon: '🚌', distance_km: 5 },
   { id: '2', title: 'Sun World Ha Long', address: 'Bãi Cháy, Hạ Long', icon: '🎡', distance_km: 8 },
-  { id: '3', title: 'Sân bay Quốc tế Vân Đồn', address: 'Vân Đồn, Quảng Ninh', icon: '✈️', distance_km: 50 }, // Cuốc đi xa giá cao
+  { id: '3', title: 'Sân bay Quốc tế Vân Đồn', address: 'Vân Đồn, Quảng Ninh', icon: '✈️', distance_km: 50 }, // Cuốc đi xa > 40km để test AI ra đúng giá 600k
+  { id: '4', title: 'Go! Hạ Long (BigC cũ)', address: 'Cột 5, Hồng Hà, Hạ Long', icon: '🛒', distance_km: 12 },
+  { id: '5', title: 'Bệnh viện Đa khoa Quảng Ninh', address: 'Tuệ Tĩnh, Bạch Đằng', icon: '🏥', distance_km: 10 },
 ];
 
 export default function CustomerHomeScreen() {
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
-  const [carType, setCarType] = useState('4_seats');
-  const [price, setPrice] = useState(0); // Số tiền cuốc xe
+  const [carType, setCarType] = useState('4_seats'); // Mặc định là xe 4 chỗ
+  const [price, setPrice] = useState(0); // Số tiền cuốc xe sau khi tính toán
+  const [selectedDistance, setSelectedDistance] = useState(0); // Lưu trữ khoảng cách để cập nhật lại giá khi đổi loại xe
   
   const [isSearchingDropoff, setIsSearchingDropoff] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState([]);
@@ -31,18 +38,25 @@ export default function CustomerHomeScreen() {
   const [currentTripKey, setCurrentTripKey] = useState(null);
   const [tripStatus, setTripStatus] = useState('');
 
-  // 1. Lấy vị trí hiện tại
+  // 1. TỰ ĐỘNG ĐỊNH VỊ GPS VỊ TRÍ HIỆN TẠI LÀM ĐIỂM ĐÓN
   useEffect(() => {
     async function getCurrentLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      let location = await Location.getCurrentPositionAsync({});
-      setPickup(`Vị trí của tôi (${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)})`);
+      if (status !== 'granted') {
+        setPickup('Vị trí của tôi (Chưa bật GPS)');
+        return;
+      }
+      try {
+        let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setPickup(`Vị trí của tôi (${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)})`);
+      } catch (error) {
+        setPickup('Vị trí hiện tại của tôi');
+      }
     }
     getCurrentLocation();
   }, []);
 
-  // 2. Lắng nghe trạng thái chuyến đi sau khi đặt (Xem tài xế đã nhận chưa)
+  // 2. LẮNG NGHE ĐỒNG BỘ TRẠNG THÁI CUỐC XE TỪ APP TÀI XẾ (REALTIME)
   useEffect(() => {
     if (!currentTripKey) return;
 
@@ -51,12 +65,20 @@ export default function CustomerHomeScreen() {
       if (snapshot.exists()) {
         const data = snapshot.val();
         setTripStatus(data.status);
+        
         if (data.status === 'driving') {
-          Alert.alert("🚖 THÔNG BÁO", `Tài xế đã nhận chuyến 600k của anh! Xe đang đến đón.`);
+          Alert.alert(
+            "🚖 TAXI PROMAX THÔNG BÁO", 
+            `Tài xế đã nhận chuyến xe trị giá ${data.price.toLocaleString('vi-VN')}đ của bạn! Xe đang trên đường đến đón.`
+          );
         } else if (data.status === 'completed') {
-          Alert.alert("✅ HOÀN THÀNH", "Chúc mừng anh đã hoàn thành chuyến đi cùng Taxi ProMax!");
+          Alert.alert("✅ HOÀN THÀNH CHUYẾN ĐI", "Cảm ơn bạn đã tin tưởng dịch vụ Taxi ProMax! Chúc bạn một ngày tốt lành.");
+          // Reset lại trạng thái để khách sẵn sàng đặt cuốc tiếp theo
           setCurrentTripKey(null);
           setTripStatus('');
+          setDropoff('');
+          setPrice(0);
+          setSelectedDistance(0);
         }
       }
     });
@@ -64,37 +86,60 @@ export default function CustomerHomeScreen() {
     return () => off(tripRef);
   }, [currentTripKey]);
 
-  // 3. Giả lập AI tự động tính tiền dựa trên khoảng cách và loại xe
+  // 3. THUẬT TOÁN AI GIẢ LẬP - TỰ ĐỘNG ĐỊNH GIÁ ĐỘNG THEO KHOẢNG CÁCH VÀ DÒNG XE
   const calculateAIPrice = (distanceKm, type) => {
-    const basePrice = type === '4_seats' ? 12000 : 15000; // Giá mỗi km
-    let total = distanceKm * basePrice;
+    if (distanceKm === 0) return 0;
     
-    // Giả lập AI: Nếu là cuốc đi tỉnh xa (trên 40km), tự động tính giá trọn gói ưu đãi cố định 600.000đ
+    // Nếu đi tỉnh xa hoặc quãng đường dài trên 40km -> AI tự động khóa giá trọn gói 600,000đ như anh yêu cầu
     if (distanceKm >= 40) {
-      total = 600000; 
+      return 600000; 
     }
-    return total;
+
+    // Giá thông thường nếu đi gần dưới 40km
+    const pricePerKm = type === '4_seats' ? 12000 : 15000; 
+    return distanceKm * pricePerKm;
   };
 
+  // Tự động tính lại giá khi khách đổi tab xe 4 chỗ hoặc 7 chỗ
+  useEffect(() => {
+    if (selectedDistance > 0) {
+      const updatedPrice = calculateAIPrice(selectedDistance, carType);
+      setPrice(updatedPrice);
+    }
+  }, [carType]);
+
+  // Xử lý khi khách gõ tìm kiếm điểm đến
   const handleDropoffChange = (text) => {
     setDropoff(text);
     setIsSearchingDropoff(true);
-    const filtered = SUGGESTED_PLACES.filter(place => place.title.toLowerCase().includes(text.toLowerCase()));
-    setFilteredSuggestions(filtered);
+    if (text.trim().length > 0) {
+      const filtered = SUGGESTED_PLACES.filter(place => 
+        place.title.toLowerCase().includes(text.toLowerCase()) ||
+        place.address.toLowerCase().includes(text.toLowerCase())
+      );
+      setFilteredSuggestions(filtered);
+    } else {
+      setFilteredSuggestions(SUGGESTED_PLACES);
+    }
   };
 
+  // Khi khách bấm chọn 1 điểm đến từ gợi ý thông minh
   const selectSuggestion = (place) => {
-    setDropoff(place.title);
+    setDropoff(`${place.title} (${place.address})`);
     setIsSearchingDropoff(false);
+    setSelectedDistance(place.distance_km);
     
-    // Chạy AI tính tiền tự động
+    // Tính tiền tự động bằng AI luôn
     const estimatedPrice = calculateAIPrice(place.distance_km, carType);
     setPrice(estimatedPrice);
   };
 
-  // 4. Bấm đặt xe - Đẩy dữ liệu (bao gồm cả số tiền) lên hệ thống
+  // 4. PHÁT LỆNH ĐẶT XE ĐẨY LÊN HỆ THỐNG FIREBASE REALTIME
   const handleBookCar = async () => {
-    if (!pickup || !dropoff) return;
+    if (!pickup || !dropoff) {
+      Alert.alert("Lỗi", "Vui lòng chọn đầy đủ điểm đón và điểm đến!");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -105,78 +150,304 @@ export default function CustomerHomeScreen() {
         pickup: pickup,
         dropoff: dropoff,
         carType: carType,
-        price: price, // Số tiền hiển thị (Ví dụ: 600000)
-        status: "waiting", // Đang chờ tài xế bấm nhận
-        phone: "0987654321",
+        price: price, // Số tiền gửi đi (Ví dụ cuốc xa sẽ là 600000)
+        status: "waiting", // Đang treo ở trạng thái chờ tài xế bấm nhận
+        phone: "0961234567", // Số điện thoại của khách hàng đặt xe
         createdAt: Date.now()
       };
 
       await set(newTripRef, tripData);
-      setCurrentTripKey(newTripRef.key); // Lưu lại key để theo dõi trạng thái
-      Alert.alert("Thành công", `Đã phát lệnh tìm xe. Giá chuyến đi: ${price.toLocaleString('vi-VN')}đ`);
+      setCurrentTripKey(newTripRef.key); // Lưu key để theo dõi tiến độ chuyến đi liên tục
+      Alert.alert("Đặt xe thành công", `Đang tìm xe ở gần bạn. Giá chuyến đi: ${price.toLocaleString('vi-VN')}đ`);
     } catch (error) {
-      alert("Lỗi: " + error.message);
+      Alert.alert("Lỗi kết nối", "Không thể gửi yêu cầu đặt xe: " + error.message);
     }
     setLoading(false);
   };
 
   return (
     <View style={styles.container}>
+      {/* LOGO THƯƠNG HIỆU */}
       <Text style={styles.logo}>TAXI PROMAX AI</Text>
 
+      {/* KHUNG ĐỊA CHỈ ĐÓN/ĐẾN */}
       <View style={styles.box}>
-        <TextInput style={styles.input} value={pickup} onChangeText={setPickup} placeholder="Điểm đón" placeholderTextColor="#aaa"/>
-        <View style={{height: 1, backgroundColor: '#222', my: 10}} />
-        <TextInput style={[styles.input, {color: '#00ffaa'}]} value={dropoff} onChangeText={handleDropoffChange} placeholder="Anh muốn đi đâu?" placeholderTextColor="#aaa"/>
+        <View style={styles.inputRow}>
+          <Text style={{ marginRight: 10 }}>🟢</Text>
+          <TextInput 
+            style={styles.input} 
+            value={pickup} 
+            onChangeText={setPickup} 
+            placeholder="Nhập địa điểm đón..." 
+            placeholderTextColor="#666"
+          />
+        </View>
+        
+        <View style={styles.divider} />
+        
+        <View style={styles.inputRow}>
+          <Text style={{ marginRight: 10 }}>🔴</Text>
+          <TextInput 
+            style={[styles.input, { color: '#00ffaa', fontWeight: 'bold' }]} 
+            value={dropoff} 
+            onFocus={() => {
+              if (dropoff === '') setFilteredSuggestions(SUGGESTED_PLACES);
+              setIsSearchingDropoff(true);
+            }}
+            onChangeText={handleDropoffChange} 
+            placeholder="Anh muốn đi đâu?" 
+            placeholderTextColor="#666"
+          />
+        </View>
       </View>
 
-      {/* Hiển thị danh sách gợi ý */}
+      {/* BẢNG HIỂN THỊ ĐỊA ĐIỂM GỢI Ý KHI ĐANG TÌM KIẾM */}
       {isSearchingDropoff && (
-        <FlatList 
-          data={filteredSuggestions}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.item} onPress={() => selectSuggestion(item)}>
-              <Text style={{fontSize: 16}}>{item.icon} {item.title}</Text>
-              <Text style={{color: '#aaa', fontSize: 12}}>{item.address}</Text>
-            </TouchableOpacity>
-          )}
-        />
-      )}
-
-      {/* Hiển thị giá tiền thông minh bằng AI */}
-      {!isSearchingDropoff && price > 0 && (
-        <View style={styles.priceCard}>
-          <Text style={styles.priceLabel}>💰 GIÁ CƯỚC AI ĐỀ XUẤT TRỌN GÓI:</Text>
-          <Text style={styles.priceValue}>{price.toLocaleString('vi-VN')} đ</Text>
+        <View style={styles.suggestionBox}>
+          <Text style={styles.suggestionTitle}>📍 ĐỊA ĐIỂM GỢI Ý CHUYÊN BIỆT</Text>
+          <FlatList 
+            data={filteredSuggestions}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.item} onPress={() => selectSuggestion(item)}>
+                <Text style={styles.itemIcon}>{item.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitle}>{item.title}</Text>
+                  <Text style={styles.itemAddress}>{item.address} (Cách ~{item.distance_km}km)</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>Không tìm thấy địa điểm phù hợp dữ liệu</Text>
+            }
+          />
         </View>
       )}
 
-      {/* Nút đặt xe */}
+      {/* KHU VỰC CHỌN XE & GIÁ TIỀN AI (ẨN ĐI KHI ĐANG GÕ PHÍM ĐỂ TRÁNH CHE MÀN HÌNH) */}
       {!isSearchingDropoff && (
-        <TouchableOpacity style={styles.btn} onPress={handleBookCar}>
-          {loading ? <ActivityIndicator color="#000"/> : <Text style={styles.btnText}>ĐẶT XE NGAY</Text>}
-        </TouchableOpacity>
+        <View style={{ width: '100%' }}>
+          {/* TÙY CHỌN DÒNG XE */}
+          <View style={styles.carTypeContainer}>
+            <TouchableOpacity 
+              style={[styles.carBtn, carType === '4_seats' && styles.carBtnActive]} 
+              onPress={() => setCarType('4_seats')}
+            >
+              <Text style={[styles.carText, carType === '4_seats' && styles.carTextActive]}>🚗 Xe 4 Chỗ</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.carBtn, carType === '7_seats' && styles.carBtnActive]} 
+              onPress={() => setCarType('7_seats')}
+            >
+              <Text style={[styles.carText, carType === '7_seats' && styles.carTextActive]}>🚐 Xe 7 Chỗ</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* HIỂN THỊ GIÁ TIỀN AI TÍNH TOÁN */}
+          {price > 0 && (
+            <View style={styles.priceCard}>
+              <Text style={styles.priceLabel}>💰 GIÁ CƯỚC AI TỰ ĐỘNG ĐỀ XUẤT:</Text>
+              <Text style={styles.priceValue}>{price.toLocaleString('vi-VN')} đ</Text>
+              {selectedDistance >= 40 && (
+                <Text style={styles.aiTag}>⚡ AI: Đã áp dụng giá trọn gói ưu đãi đường dài</Text>
+              )}
+            </View>
+          )}
+
+          {/* NÚT ĐẶT XE CHÍNH */}
+          <TouchableOpacity style={styles.btnBook} onPress={handleBookCar} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#030712" />
+            ) : (
+              <Text style={styles.btnBookText}>ĐẶT XE TAXI PROMAX</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       )}
 
-      {/* Hiển thị trạng thái kết nối thời gian thực */}
+      {/* BANNER HIỂN THỊ TRẠNG THÁI CHUYẾN ĐI REALTIME PHÍA DƯỚI CÙNG */}
       {tripStatus !== '' && (
-        <Text style={styles.statusText}>Trạng thái đơn hàng: {tripStatus.toUpperCase()}</Text>
+        <View style={styles.statusBanner}>
+          <Text style={styles.statusBannerText}>
+            Trạng thái đơn: <Text style={{ color: '#00ffaa', fontWeight: '800' }}>{tripStatus.toUpperCase()}</Text>
+          </Text>
+        </View>
       )}
     </View>
   );
 }
 
+// --- HỆ THỐNG STYLES SẮC MÀU ĐẲNG CẤP ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050505', padding: 20 },
-  logo: { color: '#00ffaa', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginTop: 20, marginBottom: 20 },
-  box: { backgroundColor: '#111', borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#333' },
-  input: { color: '#fff', fontSize: 16, height: 40 },
-  item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#222', backgroundColor: '#111', borderRadius: 10, marginTop: 5 },
-  priceCard: { backgroundColor: 'rgba(0,255,170,0.1)', padding: 15, borderRadius: 15, marginTop: 20, borderWidth: 1, borderColor: '#00ffaa', alignItems: 'center' },
-  priceLabel: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  priceValue: { color: '#00ffaa', fontSize: 26, fontWeight: 'bold', marginTop: 5 },
-  btn: { backgroundColor: '#00ffaa', padding: 16, borderRadius: 30, alignItems: 'center', marginTop: 20 },
-  btnText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
-  statusText: { color: '#fff', textAlign: 'center', marginTop: 20, fontStyle: 'italic' }
+  container: { 
+    flex: 1, 
+    backgroundColor: '#040a08', 
+    padding: 20 
+  },
+  logo: { 
+    color: '#00ffaa', 
+    fontSize: 24, 
+    fontWeight: '900', 
+    textAlign: 'center', 
+    marginTop: 25, 
+    marginBottom: 20,
+    letterSpacing: 1.5,
+    textShadowColor: 'rgba(0, 255, 170, 0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  box: { 
+    backgroundColor: '#0d1613', 
+    borderRadius: 20, 
+    padding: 16, 
+    borderWidth: 1, 
+    borderColor: 'rgba(0, 255, 170, 0.2)',
+    boxShadow: '0 8px 20px rgba(0,0,0,0.4)'
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 40
+  },
+  input: { 
+    flex: 1,
+    color: '#ffffff', 
+    fontSize: 15,
+  },
+  divider: { 
+    height: 1, 
+    backgroundColor: 'rgba(255, 255, 255, 0.08)', 
+    marginVertical: 10,
+    marginLeft: 28
+  },
+  /* GỢI Ý ĐIỂM ĐẾN */
+  suggestionBox: {
+    flex: 1,
+    backgroundColor: '#0d1613',
+    borderRadius: 20,
+    marginTop: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 170, 0.15)'
+  },
+  suggestionTitle: {
+    fontSize: 12,
+    color: '#00ffaa',
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  item: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12, 
+    borderBottomWidth: 1, 
+    borderBottomColor: 'rgba(255, 255, 255, 0.04)', 
+  },
+  itemIcon: {
+    fontSize: 18,
+    marginRight: 12
+  },
+  itemTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  itemAddress: {
+    color: '#a3b8b3',
+    fontSize: 12,
+    marginTop: 2
+  },
+  emptyText: {
+    color: '#a3b8b3',
+    textAlign: 'center',
+    marginTop: 20
+  },
+  /* CHỌN LOẠI XE */
+  carTypeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16
+  },
+  carBtn: {
+    flex: 1,
+    backgroundColor: '#111e1a',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  carBtnActive: {
+    borderColor: '#00ffaa',
+    backgroundColor: 'rgba(0, 255, 170, 0.05)'
+  },
+  carText: {
+    color: '#a3b8b3',
+    fontWeight: '600',
+    fontSize: 14
+  },
+  carTextActive: {
+    color: '#00ffaa',
+    fontWeight: '800'
+  },
+  /* THẺ GIÁ TIỀN */
+  priceCard: { 
+    backgroundColor: 'rgba(0, 255, 170, 0.08)', 
+    padding: 16, 
+    borderRadius: 20, 
+    marginTop: 16, 
+    borderWidth: 1, 
+    borderColor: '#00ffaa', 
+    alignItems: 'center' 
+  },
+  priceLabel: { 
+    color: '#ffffff', 
+    fontSize: 11, 
+    fontWeight: '700',
+    letterSpacing: 0.5
+  },
+  priceValue: { 
+    color: '#00ffaa', 
+    fontSize: 28, 
+    fontWeight: '900', 
+    marginTop: 4,
+    textShadowColor: 'rgba(0, 255, 170, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+  aiTag: {
+    color: '#eeff00',
+    fontSize: 11,
+    marginTop: 6,
+    fontWeight: '600'
+  },
+  /* NÚT ĐẶT XE */
+  btnBook: { 
+    backgroundColor: '#00ffaa', 
+    padding: 16, 
+    borderRadius: 50, 
+    alignItems: 'center', 
+    marginTop: 16,
+    boxShadow: '0 4px 15px rgba(0, 255, 170, 0.3)'
+  },
+  btnBookText: { 
+    color: '#030712', 
+    fontWeight: '900', 
+    fontSize: 16,
+    letterSpacing: 0.5
+  },
+  /* TRẠNG THÁI REALTIME BANNER */
+  statusBanner: {
+    backgroundColor: '#1f2937',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 16,
+    alignItems: 'center'
+  },
+  statusBannerText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600'
+  }
 });
