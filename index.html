@@ -30,7 +30,6 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        /* BẢN ĐỒ NỀN ĐƯỢC GHIM TUYỆT ĐỐI */
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
@@ -41,7 +40,6 @@
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: 900; color: var(--primary); margin-top: 2px; } 
 
-        /* FOOTER ĐƯỢC NEO CỐ ĐỊNH CHẶT CHẼ DƯỚI ĐÁY MÀN HÌNH THEO VIDEO GỐC */
         .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
         .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
@@ -62,13 +60,43 @@
         .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
 
         .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .history-card b { text-align: left; }
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
-        /* ĐỊNH DẠNG XE DI CHUYỂN CHUẨN XANH SM */
-        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,84,163,0.5); position: relative; }
-        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
+        /* CSS PHỤ TRÁCH ĐỊNH VỊ ĐA HƯỚNG XOAY TRÒN NHƯ VIDEO XANH SM */
+        .sm-direction-wrapper {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease-out; /* Tạo hiệu ứng xoay mượt mà khi đổi hướng la bàn */
+            will-change: transform;
+        }
+        
+        /* Hình tròn xanh lá mạ đặc trưng của Xanh SM */
+        .sm-marker-circle { 
+            width: 24px; 
+            height: 24px; 
+            background: #27ae60; 
+            border: 3px solid white; 
+            border-radius: 50%; 
+            box-shadow: 0 0 15px rgba(39, 174, 96, 0.6); 
+            position: relative; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Mũi tên định vị nhọn nằm chính giữa vòng tròn để chỉ hướng xe chạy */
+        .sm-marker-arrow { 
+            width: 0; 
+            height: 0; 
+            border-left: 5px solid transparent; 
+            border-right: 5px solid transparent; 
+            border-bottom: 9px solid white; 
+            margin-top: -3px; /* Đẩy tâm mũi tên cân đối */
+        } 
 
         .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
         @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
@@ -242,31 +270,28 @@
     <script src="js/payment.js"></script>
     
     <script>
-        // --- 1. KHỞI TẠO ĐỒNG BỘ MÃ TÀI XẾ ---
+        // --- 1. KHỞI TẠO BIẾN ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
 
-        // --- 2. BẢN ĐỒ & THIẾT LẬP MARKER XE CHẠY ---
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         
+        // Tạo cấu trúc HTML cho Marker đa hướng có ID cụ thể để tác động góc xoay sau này
         var smIcon = L.divIcon({ 
             className: 'sm-div-icon', 
-            html: "<div class='sm-marker pulsating-circle'><div class='sm-arrow'></div></div>", 
-            iconSize: [24, 24], iconAnchor: [12, 12] 
+            html: "<div id='tp-driver-compass' class='sm-direction-wrapper'><div class='sm-marker-circle'><div class='sm-marker-arrow'></div></div></div>", 
+            iconSize: [30, 30], iconAnchor: [15, 15] 
         });
         
         var marker = null; 
-
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
         let customerMarker = null, activeCustomerData = null; 
-        
-        let countdownValue = 15;
-        let countdownInterval = null;
-        let audioCtx = null;
-        let audioInterval = null;
+        let countdownValue = 15, countdownInterval = null;
+        let audioCtx = null, audioInterval = null;
+        let currentHeading = 0; // Lưu góc xoay la bàn hiện tại
 
         function initAudioAndCloseModal() {
             try {
@@ -276,19 +301,43 @@
                 source.buffer = buffer;
                 source.connect(audioCtx.destination);
                 source.start(0);
-            } catch (e) {
-                console.log("AudioContext init error:", e);
-            }
+            } catch (e) { console.log(e); }
             closeModal('wishModal');
         }
 
-        // --- 3. THEO DÕI GPS LIÊN TỤC - HOÀN TOÀN KHÔNG LÀM NHẢY KHUNG GIAO DIỆN ---
+        // --- 2. THEO DÕI HƯỚNG XOAY LA BÀN THỰC TẾ ---
+        // Lắng nghe cảm biến con quay hồi chuyển của điện thoại để xoay vòng tròn đa hướng
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', function(event) {
+                // Trên iOS dùng webkitCompassHeading, Android dùng alpha
+                let heading = event.webkitCompassHeading || (360 - event.alpha);
+                if (heading) {
+                    currentHeading = Math.round(heading);
+                    updateMarkerRotation();
+                }
+            }, true);
+        }
+
+        function updateMarkerRotation() {
+            const compassEl = document.getElementById('tp-driver-compass');
+            if (compassEl) {
+                // Xoay chuẩn góc mũi tên theo hướng đầu điện thoại hướng tới
+                compassEl.style.transform = `rotate(${currentHeading}deg)`;
+            }
+        }
+
+        // --- 3. ĐỊNH VỊ GPS LIÊN TỤC ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
-                    const { latitude, longitude, speed } = pos.coords;
+                    const { latitude, longitude, speed, heading } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     
+                    // Nếu chip GPS trả về hướng di chuyển (heading), ưu tiên sử dụng thay cảm biến la bàn cơ học
+                    if (heading !== null && heading !== undefined && !isNaN(heading)) {
+                        currentHeading = Math.round(heading);
+                    }
+
                     if (!marker) {
                         marker = L.marker(newPos, { icon: smIcon }).addTo(map);
                         map.setView(newPos, 16);
@@ -296,18 +345,20 @@
                         marker.setLatLng(newPos);
                     }
                     
-                    // Đo chuẩn vận tốc thực tế (m/s) từ chip định vị vệ tinh
+                    // Cập nhật ngay góc xoay sau khi marker được nạp lại vào bản đồ
+                    updateMarkerRotation();
+                    
                     const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
 
                     if(isRunning) {
-                        // CHUẨN XANH SM: Chỉ di chuyển tiêu điểm camera khi xe thực sự chạy ngoài đường (> 1.8 km/h)
+                        // CHUẨN XANH SM: Khi xe di chuyển thực sự (> 1.8 km/h), camera map mới di chuyển theo xe
                         if (currentSpeed > 0.5) {
                             map.panTo(newPos);
                         }
                         
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // Chỉ tính cước khi xe dịch chuyển thực tế, đứng im do nhiễu sóng sẽ không nhảy cước bậy
+                            // Tránh nhảy cước ảo khi đứng yên một chỗ nhiễu sóng
                             if(d > 0.005 && currentSpeed > 0.28) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
@@ -316,7 +367,6 @@
                         }
                     } else {
                         if(!lastPos) map.setView(newPos, 16);
-                        if(currentSpeed > 2.2) handleTrip(); 
                     }
                     lastPos = newPos;
 
@@ -330,6 +380,7 @@
             const driverData = {
                 lat: lat,
                 lng: lng,
+                heading: currentHeading, // Đẩy cả góc xoay lên tổng đài Realtime
                 lastUpdated: Date.now(),
                 status: isRunning ? "busy" : "ready",
                 carType: "4_seats"
@@ -338,10 +389,10 @@
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
                 method: 'PATCH',
                 body: JSON.stringify(driverData)
-            }).catch(err => console.error("Firebase Sync Error:", err));
+            }).catch(err => console.error(err));
         }
 
-        // --- 4. HÀNH TRÌNH CHUYẾN ĐI ---
+        // --- 4. ĐIỀU KHIỂN HÀNH TRÌNH CHUYẾN ĐI ---
         function handleTrip() {
             const btn = document.getElementById('mainBtn');
             if(!isRunning) {
@@ -371,7 +422,7 @@
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: "completed" })
-                    }).catch(err => console.error("Firebase Complete Order Error:", err));
+                    }).catch(err => console.error(err));
                 }
                 
                 if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
@@ -413,7 +464,7 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. QUÉT ĐƠN THỜI GIAN THỰC TỪ TỔNG ĐÀI FIREBASE ---
+        // --- 6. QUÉT VÀ HIỂN THỊ ĐƠN HÀNG TỪ TỔNG ĐÀI REALTME ---
         let lastCheckedOrderId = null;
         let isModalOpening = false; 
 
@@ -466,7 +517,7 @@
                     }, 1000);
                 }
             })
-            .catch(err => console.error("Đồng bộ tổng đài lỗi:", err));
+            .catch(err => console.error(err));
         }
 
         function acceptCustomer() {
@@ -498,7 +549,7 @@
                     driverId: TX_ID,    
                     driverPhone: "0985190985" 
                 })
-            }).catch(err => console.error("Firebase Accept Order Error:", err));
+            }).catch(err => console.error(err));
         }
 
         function setupCustomerMarker(lat, lng) {
@@ -511,7 +562,7 @@
             });
 
             customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
-            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b><br>SĐT: ${activeCustomerData.phone || ''}`).openTooltip();
+            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b>`).openTooltip();
 
             if (marker) {
                 var group = new L.featureGroup([marker, customerMarker]);
@@ -530,13 +581,9 @@
         }
 
         function startNotificationEffects() {
-            if (navigator.vibrate) {
-                navigator.vibrate([1000, 500, 1000, 500, 1000]); 
-            }
+            if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]); 
             try {
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioInterval) clearInterval(audioInterval);
                 audioInterval = setInterval(() => {
                     let osc = audioCtx.createOscillator();
@@ -544,17 +591,19 @@
                     osc.type = 'sine';
                     osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
                     gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.15); 
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.15); 
                 }, 800);
-            } catch(e) {
-                console.log("Audio bíp lỗi: ", e);
-            }
+            } catch(e) {}
         }
 
-        // --- 7. RADAR VÀ GIỌNG NÓI ---
+        function stopNotificationEffects() {
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (audioInterval) clearInterval(audioInterval);
+            if (navigator.vibrate) navigator.vibrate(0); 
+        }
+
+        // --- 7. QUẢN LÝ GÓI CƯỚC & TIỆN ÍCH ---
         const TAXI_PROMAX_DATABASE = [
             { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
             { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#0054a3" }
@@ -567,7 +616,7 @@
             window.radarLayers = [];
             TAXI_PROMAX_DATABASE.forEach(s => {
                 let m = L.circleMarker([s.lat, s.lng], { radius: 12, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.8 }).addTo(map);
-                m.bindTooltip(`<b>${s.n}</b><br>${s.desc}`).openTooltip();
+                m.bindTooltip(`<b>${s.n}</b>`).openTooltip();
                 window.radarLayers.push(m);
             });
             showTab('home');
@@ -594,12 +643,11 @@
                     method: 'PATCH',
                     body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' })
                 });
-
-                tpSpeak("Kích hoạt thành công gói dùng thử 7 ngày.");
+                tpSpeak("Kích hoạt gói dùng thử 7 ngày thành công.");
                 tpInitCountdown();
             } else if (typeof createPayment === 'function') {
                 createPayment(amount, planName);
-            } else { alert("Hệ thống thanh toán đang bảo trì!"); }
+            } else { alert("Hệ thống thanh toán bảo trì!"); }
         }
 
         function tpInitCountdown() {
@@ -613,49 +661,31 @@
 
                     if (driverData && driverData.tp_expiry && parseInt(driverData.tp_expiry) > now) {
                         const expiry = parseInt(driverData.tp_expiry);
-                        const planName = driverData.active_plan_name || "PROMAX";
-                        
-                        planShow.innerText = `⭐ GÓI: ${planName.toUpperCase()}`;
+                        planShow.innerText = `⭐ GÓI: ${driverData.active_plan_name || "PROMAX"}`;
                         planShow.style.color = "#0054a3";
-                        
                         banner.style.display = 'inline-flex';
                         const dist = expiry - now;
                         const days = Math.floor(dist / (1000 * 60 * 60 * 24));
                         const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                         document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
                     } else {
-                        planShow.innerText = "⭐ GÓI: HẾT HẠN (FREE)";
+                        planShow.innerText = "⭐ GÓI: MIỄN PHÍ";
                         planShow.style.color = "var(--danger)";
                         banner.style.display = 'none';
                     }
-                }).catch(() => {
-                    const localExpiry = localStorage.getItem('tp_expiry');
-                    if (localExpiry && parseInt(localExpiry) > Date.now()) {
-                        document.getElementById('planShow').innerText = "⭐ GÓI: ĐANG DÙNG";
-                    } else {
-                        document.getElementById('planShow').innerText = "⭐ GÓI: MIỄN PHÍ";
-                    }
-                });
+                }).catch(() => {});
             };
-            
             checkExpiryFromFirebase();
             setInterval(checkExpiryFromFirebase, 30000); 
         }
 
-        function stopNotificationEffects() {
-            if (countdownInterval) clearInterval(countdownInterval);
-            if (audioInterval) clearInterval(audioInterval);
-            if (navigator.vibrate) navigator.vibrate(0); 
-        }
-
         setInterval(checkNewBookings, 4000);
-
         function tpOpenSOS() { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí cứu hộ!"); }
-        function tpOpenMaintenance() { alert("TRỢ LÝ: Kiểm tra áp suất lốp trước khi khởi hành anh nhé."); }
+        function tpOpenMaintenance() { alert("Kiểm tra áp suất lốp trước khi khởi hành."); }
         function tpOpenProfit() { 
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             let total = history.reduce((sum, item) => sum + parseInt(item.cost.replace(/,/g, '')), 0);
-            alert(`THỐNG KÊ:\nDoanh thu: ${total.toLocaleString()}đ\nThực nhận (ước tính): ${(total * 0.8).toLocaleString()}đ`);
+            alert(`Doanh thu: ${total.toLocaleString()}đ`);
         }
 
         function showTab(tab, btn) {
