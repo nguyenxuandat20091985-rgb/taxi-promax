@@ -30,7 +30,8 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        #map { height: 100vh; width: 100vw; z-index: 1; transition: 0.3s; } 
+        /* CỐ ĐỊNH BẢN ĐỒ KHÔNG BỊ TRÀN HOẶC DI CHUYỂN SAI LỆCH */
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
         .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); } 
@@ -40,6 +41,7 @@
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
         .stat-value { font-size: 22px; font-weight: 900; color: var(--primary); margin-top: 2px; } 
 
+        /* FIX KHUNG FOOTER CỐ ĐỊNH CHẶT CHẼ DƯỚI ĐÁY MÀN HÌNH NHƯ XANH SM */
         .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
         .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
@@ -64,17 +66,8 @@
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
-        /* ĐÃ CHỈNH SỬA: Mũi tên định vị xoay mượt mà bao quanh bởi vòng tròn xanh định vị giống Xanh SM */
-        .sm-marker-wrapper {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.25s ease-out; /* Tạo hiệu ứng xoay đầu xe mượt mà */
-        }
-        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,84,163,0.6); position: relative; }
-        .sm-arrow { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--primary); } 
+        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,84,163,0.5); position: relative; }
+        .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
 
         .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
         @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
@@ -255,28 +248,16 @@
         document.getElementById('profileID').innerText = TX_ID; 
 
         // --- 2. BẢN ĐỒ & HIỆU ỨNG MARKER ---
-        // ĐÃ CHỈNH SỬA: Khóa hẳn tính năng tự kích hoạt cuộn chuột phóng to/thu nhỏ (scrollWheelZoom) để tài xế không mỏi mắt
-        var map = L.map('map', { 
-            zoomControl: false, 
-            attributionControl: false,
-            scrollWheelZoom: false,
-            doubleClickZoom: false,
-            touchZoom: true
-        }).setView([21.02, 105.83], 16);
-        
+        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         
-        // ĐÃ CHỈNH SỬA: Thiết lập cấu trúc cụm ID định vị có khả năng xoay mượt mà góc 360 độ
-        function createDriverIcon(headingDegrees) {
-            let angle = headingDegrees || 0;
-            return L.divIcon({ 
-                className: 'sm-div-icon', 
-                html: `<div class="sm-marker-wrapper" style="transform: rotate(${angle}deg);"><div class="sm-marker"><div class="sm-arrow"></div></div></div>`, 
-                iconSize: [32, 32], 
-                iconAnchor: [16, 16] 
-            });
-        }
+        var smIcon = L.divIcon({ 
+            className: 'sm-div-icon', 
+            html: "<div class='sm-marker pulsating-circle'><div class='sm-arrow'></div></div>", 
+            iconSize: [24, 24], iconAnchor: [12, 12] 
+        });
         
+        // Cố định marker rỗng ban đầu, sẽ kích hoạt chính xác khi nhận tọa độ đầu tiên
         var marker = null; 
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
@@ -301,34 +282,34 @@
             closeModal('wishModal');
         }
 
-        // --- 3. GPS & TRACKING ---
+        // --- 3. GPS & TRACKING CHUẨN XANH SM ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
-                    const { latitude, longitude, speed, heading } = pos.coords;
+                    const { latitude, longitude, speed } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     
-                    // Lấy góc quay thực tế từ thiết bị di chuyển, mặc định là 0 nếu đứng im
-                    let currentHeading = (heading !== null && heading !== undefined) ? heading : 0;
-                    const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
-                    
-                    // ĐÃ CHỈNH SỬA: Tạo mới hoặc cập nhật vị trí kèm theo góc xoay hướng đi của mũi tên
+                    // Khởi tạo marker tại điểm GPS đầu tiên được trả về
                     if (!marker) {
-                        marker = L.marker(newPos, { icon: createDriverIcon(currentHeading) }).addTo(map);
-                        map.setView(newPos, 16); // Chỉ tự động chuyển camera về tâm lần đầu tiên khởi động app
+                        marker = L.marker(newPos, { icon: smIcon }).addTo(map);
+                        map.setView(newPos, 16);
                     } else {
                         marker.setLatLng(newPos);
-                        marker.setIcon(createDriverIcon(currentHeading)); // Xoay mũi tên theo hướng xe chạy thực tế giống Xanh SM
                     }
                     
+                    // Đọc chuẩn xác vận tốc thực tế từ chip GPS điện thoại (Đơn vị: m/s)
+                    const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
+
                     if(isRunning) {
-                        // ĐÃ CHỈNH SỬA: Chỉ trượt đều bản đồ khi xe di chuyển thực tế, KHÔNG tự động Zoom lên Zoom xuống
+                        // CHUẨN XANH SM: Khi xe di chuyển thực sự (> 1.8 km/h), camera map mới di chuyển theo xe
                         if (currentSpeed > 0.5) {
                             map.panTo(newPos);
                         }
+                        
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // Chỉ tính thêm tiền khi xe di chuyển thực tế (Tốc độ > 1km/h), đứng yên dừng đèn đỏ cước đứng im
+                            // ĐỒNG BỘ LOGIC: Chỉ cộng dồn khoảng cách và nhảy tiền cước khi xe có tốc độ lăn bánh thực tế (>1km/h)
+                            // Tránh tình trạng đứng yên một chỗ nhiễu sóng nhảy tiền cước bậy
                             if(d > 0.005 && currentSpeed > 0.28) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
@@ -343,7 +324,7 @@
 
                     syncDriverLocationToFirebase(latitude, longitude);
 
-                }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+                }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
             }
         }
 
@@ -534,10 +515,9 @@
             customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
             customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b><br>SĐT: ${activeCustomerData.phone || ''}`).openTooltip();
 
-            // ĐÃ CHỈNH SỬA: Vẫn bao quát tầm nhìn điểm đón nhưng không ép buộc màn hình phóng to bất thường gây giật lag
             if (marker) {
                 var group = new L.featureGroup([marker, customerMarker]);
-                map.fitBounds(group.getBounds().pad(0.4));
+                map.fitBounds(group.getBounds().pad(0.3));
             } else {
                 map.setView([lat, lng], 16);
             }
