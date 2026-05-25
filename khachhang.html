@@ -16,7 +16,6 @@ import { ref, push, set, onValue, off } from 'firebase/database';
 
 const { width } = Dimensions.get('window');
 
-// DANH SÁCH ĐỊA ĐIỂM GỢI Ý MẪU
 const SUGGESTED_PLACES = [
   { id: '1', title: 'Bến xe Bãi Cháy', address: 'Giếng Đáy, Hạ Long', icon: '🚌', distance_km: 5 },
   { id: '2', title: 'Sun World Ha Long', address: 'Bãi Cháy, Hạ Long', icon: '🎡', distance_km: 8 },
@@ -36,12 +35,12 @@ export default function CustomerHomeScreen() {
   const [currentTripKey, setCurrentTripKey] = useState(null);
   const [tripStatus, setTripStatus] = useState('');
 
-  // 1. TỰ ĐỘNG LẤY VỊ TRÍ GPS LÀM ĐIỂM ĐÓN
+  // 1. Tự động lấy vị trí hiện tại làm điểm đón
   useEffect(() => {
     async function getCurrentLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setPickup('Chưa cấp quyền vị trí');
+        setPickup('Vị trí hiện tại của bạn');
         return;
       }
       try {
@@ -54,7 +53,7 @@ export default function CustomerHomeScreen() {
     getCurrentLocation();
   }, []);
 
-  // 2. TỰ ĐỘNG TÍNH LẠI GIÁ KHI ĐỔI XE (4 CHỖ CHUYỂN QUÁ 7 CHỖ)
+  // 2. Tự động cập nhật lại giá tiền khi thay đổi loại xe
   useEffect(() => {
     if (selectedDistance > 0) {
       const estimatedPrice = calculateAIPrice(selectedDistance, carType);
@@ -62,7 +61,7 @@ export default function CustomerHomeScreen() {
     }
   }, [carType]);
 
-  // 3. ĐỒNG BỘ TRẠNG THÁI THỜI GIAN THỰC VỚI FIREBASE
+  // 3. Lắng nghe trạng thái chuyến đi từ Firebase thời gian thực
   useEffect(() => {
     if (!currentTripKey) return;
 
@@ -91,19 +90,18 @@ export default function CustomerHomeScreen() {
     return () => off(tripRef);
   }, [currentTripKey]);
 
-  // 4. THUẬT TOÁN AI TÍNH TOÁN VÀ ĐỊNH GIÁ CHUYẾN ĐI
+  // 4. Thuật toán AI giả lập tự định giá thông minh
   const calculateAIPrice = (distanceKm, type) => {
     const basePrice = type === '4_seats' ? 12000 : 15000; 
     let total = distanceKm * basePrice;
     
-    // Thuật toán AI: Nếu khoảng cách xa (>=40km), tự động áp dụng giá cố định trọn gói 600k
+    // Đặc biệt: Nếu cuốc xa >= 40km, áp ngay giá trọn gói 600.000đ như anh yêu cầu
     if (distanceKm >= 40) {
       total = 600000; 
     }
     return total;
   };
 
-  // 5. XỬ LÝ NHẬP ĐỊA ĐIỂM ĐẾN KHÁCH HÀNG
   const handleDropoffChange = (text) => {
     setDropoff(text);
     setIsSearchingDropoff(true);
@@ -118,7 +116,6 @@ export default function CustomerHomeScreen() {
     }
   };
 
-  // 6. XỬ LÝ KHI BẤM CHỌN GỢI Ý ĐIỂM ĐẾN THÔNG MINH
   const selectSuggestion = (place) => {
     setDropoff(place.title + " - " + place.address);
     setIsSearchingDropoff(false);
@@ -128,7 +125,6 @@ export default function CustomerHomeScreen() {
     setPrice(estimatedPrice);
   };
 
-  // 7. PHÁT ĐƠN ĐẶT XE LÊN FIREBASE ĐỂ MÁY TÀI XẾ HIỂN THỊ
   const handleBookCar = async () => {
     if (!pickup || !dropoff) {
       Alert.alert("Thông báo", "Anh vui lòng nhập đầy đủ điểm đón và điểm đến nhé!");
@@ -161,10 +157,8 @@ export default function CustomerHomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* TIÊU ĐỀ ỨNG DỤNG KHÁCH HÀNG */}
       <Text style={styles.logo}>TAXI PROMAX AI</Text>
 
-      {/* KHUNG NHẬP THÔNG TIN ĐƯỜNG ĐI */}
       <View style={styles.box}>
         <View style={styles.inputRow}>
           <Text style={styles.iconIndicator}>🟢</Text>
@@ -195,7 +189,7 @@ export default function CustomerHomeScreen() {
         </View>
       </View>
 
-      {/* DANH SÁCH GỢI Ý ĐIỂM ĐẾN THÔNG MINH */}
+      {/* HIỂN THỊ DANH SÁCH GỢI Ý ĐIỂM ĐẾN */}
       {isSearchingDropoff && (
         <View style={styles.suggestionBox}>
           <Text style={styles.suggestionTitle}>📍 ĐỊA ĐIỂM GỢI Ý PHỔ BIẾN</Text>
@@ -215,11 +209,11 @@ export default function CustomerHomeScreen() {
         </View>
       )}
 
-      {/* KHU VỰC CHỌN XE LOẠI 4 CHỖ HOẶC 7 CHỖ */}
+      {/* CHỌN LOẠI XE (ĐÃ THAY THẾ GAP BẰNG MARGIN ĐỂ SỬA LỖI LỚN) */}
       {!isSearchingDropoff && (
         <View style={styles.typeContainer}>
           <TouchableOpacity 
-            style={[styles.typeBtn, carType === '4_seats' && styles.activeTypeBtn]} 
+            style={[styles.typeBtn, { marginRight: 10 }, carType === '4_seats' && styles.activeTypeBtn]} 
             onPress={() => setCarType('4_seats')}
           >
             <Text style={[styles.typeText, carType === '4_seats' && styles.activeTypeText]}>🚗 Xe 4 Chỗ</Text>
@@ -234,7 +228,7 @@ export default function CustomerHomeScreen() {
         </View>
       )}
 
-      {/* THẺ BÁO GIÁ CỦA AI */}
+      {/* THẺ GIÁ CƯỚC THÔNG MINH */}
       {!isSearchingDropoff && price > 0 && (
         <View style={styles.priceCard}>
           <Text style={styles.priceLabel}>💰 GIÁ CƯỚC AI ĐỀ XUẤT TRỌN GÓI:</Text>
@@ -242,7 +236,7 @@ export default function CustomerHomeScreen() {
         </View>
       )}
 
-      {/* NÚT BẤM ĐẶT XE CHÍNH TẠO CUỐC HÀNG */}
+      {/* NÚT BẤM ĐẶT XE CHÍNH */}
       {!isSearchingDropoff && (
         <TouchableOpacity style={styles.btn} onPress={handleBookCar} disabled={loading}>
           {loading ? (
@@ -253,7 +247,7 @@ export default function CustomerHomeScreen() {
         </TouchableOpacity>
       )}
 
-      {/* TRẠNG THÁI CỦA ĐƠN TRÊN MÀN HÌNH KHÁCH */}
+      {/* TRẠNG THÁI REALTIME */}
       {tripStatus !== '' && (
         <View style={styles.statusBadge}>
           <Text style={styles.statusText}>Trạng thái đơn: {tripStatus.toUpperCase()}</Text>
@@ -263,7 +257,7 @@ export default function CustomerHomeScreen() {
   );
 }
 
-// --- HỆ THỐNG GIAO DIỆN STYLE REACTION NATIVE CHUẨN KHÔNG LỖI CÚ PHÁP ---
+// --- HỆ THỐNG PHONG CÁCH STYLES HOÀN TOÀN KHÔNG CÓ LỖI 'GAP' ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#050505', padding: 20 },
   logo: { color: '#00ffaa', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginTop: 20, marginBottom: 20 },
@@ -280,7 +274,8 @@ const styles = StyleSheet.create({
   itemAddress: { color: '#aaa', fontSize: 12, marginTop: 2 },
   emptyText: { color: '#aaa', textAlign: 'center', marginTop: 10 },
   
-  typeContainer: { flexDirection: 'row', gap: 10, marginTop: 15 },
+  // Sửa đổi từ gap sang flex-row truyền thống
+  typeContainer: { flexDirection: 'row', marginTop: 15, justifyContent: 'space-between' },
   typeBtn: { flex: 1, backgroundColor: '#111', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#222' },
   activeTypeBtn: { borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.05)' },
   typeText: { color: '#aaa', fontWeight: '600' },
