@@ -64,36 +64,17 @@
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
-        /* ĐÃ NÂNG CẤP: Thiết kế kiểu mũi tên điều hướng chuẩn Xanh SM, xoay mượt mà */
-        .sm-div-icon { background: none; border: none; }
-        .sm-marker-wrapper { 
-            width: 32px; 
-            height: 32px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            transition: transform 0.2s linear; /* Xoay mũi tên mượt mà khi đổi hướng */
+        /* ĐÃ CHỈNH SỬA: Mũi tên định vị xoay mượt mà bao quanh bởi vòng tròn xanh định vị giống Xanh SM */
+        .sm-marker-wrapper {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.25s ease-out; /* Tạo hiệu ứng xoay đầu xe mượt mà */
         }
-        .sm-arrow-navigation {
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 24px solid #0054a3; /* Màu xanh chủ đạo của app anh Đạt */
-            filter: drop-shadow(0px 4px 5px rgba(0,0,0,0.4));
-            position: relative;
-        }
-        /* Tâm điểm tròn nhỏ màu trắng định vị chính giữa mũi tên */
-        .sm-arrow-navigation::after {
-            content: '';
-            position: absolute;
-            top: 10px;
-            left: -4px;
-            width: 8px;
-            height: 8px;
-            background: white;
-            border-radius: 50%;
-        }
+        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,84,163,0.6); position: relative; }
+        .sm-arrow { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--primary); } 
 
         .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
         @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
@@ -114,6 +95,9 @@
         .tp-pill-timer { display: inline-flex; align-items: center; background: #ffeaa7; color: #d35400; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 900; margin-left: 10px; border: 1px solid #f39c12; }
         .tp-badge-trial { background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px; position: absolute; top: -8px; right: 10px; }
         
+        .pulsating-circle { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 0.3; } 100% { transform: scale(0.8); opacity: 0.8; } }
+
         .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
     </style>
 </head>
@@ -270,12 +254,30 @@
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
 
-        // --- 2. BẢN ĐỒ KHỞI TẠO ---
-        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
+        // --- 2. BẢN ĐỒ & HIỆU ỨNG MARKER ---
+        // ĐÃ CHỈNH SỬA: Khóa hẳn tính năng tự kích hoạt cuộn chuột phóng to/thu nhỏ (scrollWheelZoom) để tài xế không mỏi mắt
+        var map = L.map('map', { 
+            zoomControl: false, 
+            attributionControl: false,
+            scrollWheelZoom: false,
+            doubleClickZoom: false,
+            touchZoom: true
+        }).setView([21.02, 105.83], 16);
+        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         
+        // ĐÃ CHỈNH SỬA: Thiết lập cấu trúc cụm ID định vị có khả năng xoay mượt mà góc 360 độ
+        function createDriverIcon(headingDegrees) {
+            let angle = headingDegrees || 0;
+            return L.divIcon({ 
+                className: 'sm-div-icon', 
+                html: `<div class="sm-marker-wrapper" style="transform: rotate(${angle}deg);"><div class="sm-marker"><div class="sm-arrow"></div></div></div>`, 
+                iconSize: [32, 32], 
+                iconAnchor: [16, 16] 
+            });
+        }
+        
         var marker = null; 
-        let currentHeading = 0; // Lưu góc quay hiện tại của xe
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
         let customerMarker = null, activeCustomerData = null; 
@@ -299,55 +301,34 @@
             closeModal('wishModal');
         }
 
-        // Hàm tính toán góc quay của xe dựa vào điểm cũ và điểm mới nếu điện thoại không có cảm biến la bàn cụ thể
-        function calculateHeading(lat1, lon1, lat2, lon2) {
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const lat1Rad = lat1 * Math.PI / 180;
-            const lat2Rad = lat2 * Math.PI / 180;
-            const y = Math.sin(dLon) * Math.cos(lat2Rad);
-            const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-            const brng = Math.atan2(y, x) * 180 / Math.PI;
-            return (brng + 360) % 360;
-        }
-
-        // --- 3. GPS & TRACKING THEO CHUẨN XANH SM ---
+        // --- 3. GPS & TRACKING ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
                     const { latitude, longitude, speed, heading } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
+                    
+                    // Lấy góc quay thực tế từ thiết bị di chuyển, mặc định là 0 nếu đứng im
+                    let currentHeading = (heading !== null && heading !== undefined) ? heading : 0;
                     const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
-
-                    // Tính góc quay mũi tên xe
-                    if (heading !== null && heading !== undefined) {
-                        currentHeading = heading;
-                    } else if (lastPos && currentSpeed > 0.5) {
-                        currentHeading = calculateHeading(lastPos.lat, lastPos.lng, latitude, longitude);
-                    }
-
-                    // ĐÃ SỬA: Giao diện mũi tên nhọn xoay góc chuẩn xác, không dùng hình tròn tĩnh cũ
-                    const customHtml = `<div class="sm-marker-wrapper" style="transform: rotate(${currentHeading}deg);"><div class="sm-arrow-navigation"></div></div>`;
-                    var smIcon = L.divIcon({ 
-                        className: 'sm-div-icon', 
-                        html: customHtml, 
-                        iconSize: [32, 32], iconAnchor: [16, 16] 
-                    });
-
+                    
+                    // ĐÃ CHỈNH SỬA: Tạo mới hoặc cập nhật vị trí kèm theo góc xoay hướng đi của mũi tên
                     if (!marker) {
-                        marker = L.marker(newPos, { icon: smIcon }).addTo(map);
-                        map.setView(newPos, 16); // Khóa cứng độ phóng nền 16 cho dễ quan sát
+                        marker = L.marker(newPos, { icon: createDriverIcon(currentHeading) }).addTo(map);
+                        map.setView(newPos, 16); // Chỉ tự động chuyển camera về tâm lần đầu tiên khởi động app
                     } else {
                         marker.setLatLng(newPos);
-                        marker.setIcon(smIcon); // Cập nhật lại góc xoay mũi tên liên tục
+                        marker.setIcon(createDriverIcon(currentHeading)); // Xoay mũi tên theo hướng xe chạy thực tế giống Xanh SM
                     }
                     
                     if(isRunning) {
-                        // ĐÃ SỬA: Chỉ trượt tâm bản đồ đi theo xe (panTo), KHÔNG co giãn zoom tự động làm mất định vị tầm nhìn
-                        map.panTo(newPos);
-                        
+                        // ĐÃ CHỈNH SỬA: Chỉ trượt đều bản đồ khi xe di chuyển thực tế, KHÔNG tự động Zoom lên Zoom xuống
+                        if (currentSpeed > 0.5) {
+                            map.panTo(newPos);
+                        }
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // Chỉ cộng tiền và tính khoảng cách khi tốc độ thực tế lớn hơn 1km/h
+                            // Chỉ tính thêm tiền khi xe di chuyển thực tế (Tốc độ > 1km/h), đứng yên dừng đèn đỏ cước đứng im
                             if(d > 0.005 && currentSpeed > 0.28) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
@@ -362,7 +343,7 @@
 
                     syncDriverLocationToFirebase(latitude, longitude);
 
-                }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
+                }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             }
         }
 
@@ -553,8 +534,13 @@
             customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
             customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b><br>SĐT: ${activeCustomerData.phone || ''}`).openTooltip();
 
-            // Đã tối ưu: Không dùng fitBounds làm giật thu nhỏ bản đồ tầm nhìn rộng, chỉ chuyển hướng mượt mà
-            map.setView([lat, lng], 16);
+            // ĐÃ CHỈNH SỬA: Vẫn bao quát tầm nhìn điểm đón nhưng không ép buộc màn hình phóng to bất thường gây giật lag
+            if (marker) {
+                var group = new L.featureGroup([marker, customerMarker]);
+                map.fitBounds(group.getBounds().pad(0.4));
+            } else {
+                map.setView([lat, lng], 16);
+            }
         }
 
         function declineCustomer() {
@@ -608,7 +594,7 @@
                 window.radarLayers.push(m);
             });
             showTab('home');
-            map.flyTo(lastPos, 16);
+            map.flyTo(lastPos, 14);
         }
 
         function tpSpeak(text) {
