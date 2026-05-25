@@ -1,723 +1,182 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TAXI PROMAX - ĐẶT XE CÔNG NGHỆ</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+import React, { useState, useEffect } from 'react';
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  TextInput, 
+  TouchableOpacity, 
+  FlatList, 
+  ActivityIndicator,
+  Alert
+} from 'react-native';
+import * as Location from 'expo-location';
+import { db } from '../config/firebase'; 
+import { ref, push, set, onValue, off } from 'firebase/database';
+
+const SUGGESTED_PLACES = [
+  { id: '1', title: 'Bến xe Bãi Cháy', address: 'Giếng Đáy, Hạ Long', icon: '🚌', distance_km: 5 },
+  { id: '2', title: 'Sun World Ha Long', address: 'Bãi Cháy, Hạ Long', icon: '🎡', distance_km: 8 },
+  { id: '3', title: 'Sân bay Quốc tế Vân Đồn', address: 'Vân Đồn, Quảng Ninh', icon: '✈️', distance_km: 50 }, // Cuốc đi xa giá cao
+];
+
+export default function CustomerHomeScreen() {
+  const [pickup, setPickup] = useState('');
+  const [dropoff, setDropoff] = useState('');
+  const [carType, setCarType] = useState('4_seats');
+  const [price, setPrice] = useState(0); // Số tiền cuốc xe
+  
+  const [isSearchingDropoff, setIsSearchingDropoff] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentTripKey, setCurrentTripKey] = useState(null);
+  const [tripStatus, setTripStatus] = useState('');
+
+  // 1. Lấy vị trí hiện tại
+  useEffect(() => {
+    async function getCurrentLocation() {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      let location = await Location.getCurrentPositionAsync({});
+      setPickup(`Vị trí của tôi (${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)})`);
+    }
+    getCurrentLocation();
+  }, []);
+
+  // 2. Lắng nghe trạng thái chuyến đi sau khi đặt (Xem tài xế đã nhận chưa)
+  useEffect(() => {
+    if (!currentTripKey) return;
+
+    const tripRef = ref(db, `datxe/${currentTripKey}`);
+    onValue(tripRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        setTripStatus(data.status);
+        if (data.status === 'driving') {
+          Alert.alert("🚖 THÔNG BÁO", `Tài xế đã nhận chuyến 600k của anh! Xe đang đến đón.`);
+        } else if (data.status === 'completed') {
+          Alert.alert("✅ HOÀN THÀNH", "Chúc mừng anh đã hoàn thành chuyến đi cùng Taxi ProMax!");
+          setCurrentTripKey(null);
+          setTripStatus('');
+        }
+      }
+    });
+
+    return () => off(tripRef);
+  }, [currentTripKey]);
+
+  // 3. Giả lập AI tự động tính tiền dựa trên khoảng cách và loại xe
+  const calculateAIPrice = (distanceKm, type) => {
+    const basePrice = type === '4_seats' ? 12000 : 15000; // Giá mỗi km
+    let total = distanceKm * basePrice;
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script> 
-
-    <style>
-        :root { 
-            --primary: #00ffaa; 
-            --primary-hover: #00cc88; 
-            --bg-main: #040a08; 
-            --bg-card: #0d1613; 
-            --bg-input: #162420; 
-            --text-main: #ffffff;
-            --text-muted: #a3b8b3;
-        } 
-
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background: var(--bg-main); 
-            color: var(--text-main); 
-            margin: 0; 
-            padding: 10px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-            box-sizing: border-box;
-        } 
-
-        .app-container { 
-            background: var(--bg-card); 
-            border: 1px solid rgba(0, 255, 170, 0.2); 
-            padding: 20px; 
-            border-radius: 28px; 
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 255, 170, 0.05); 
-            width: 100%;
-            max-width: 460px; 
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        } 
-
-        /* GIAO DIỆN FORM ĐĂNG KÝ */
-        #authScreen {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            padding: 10px 5px;
-        }
-        .auth-logo {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .auth-logo i {
-            font-size: 50px;
-            color: var(--primary);
-            text-shadow: 0 0 20px rgba(0, 255, 170, 0.4);
-            margin-bottom: 10px;
-        }
-        .auth-logo h1 {
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--primary);
-            margin: 0;
-            letter-spacing: 1px;
-        }
-        .auth-logo p {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 5px;
-        } 
-
-        /* GIAO DIỆN CHÍNH APP */
-        #mainAppScreen {
-            display: none;
-            flex-direction: column;
-            gap: 14px;
-        } 
-
-        .header { text-align: center; margin-bottom: 2px; }
-        .header h2 { 
-            color: var(--primary); font-size: 26px; font-weight: 800; margin: 0 0 4px 0; 
-            letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 10px;
-            text-shadow: 0 0 15px rgba(0, 255, 170, 0.3);
-        }
-        
-        .quote-banner {
-            background: rgba(0, 255, 170, 0.04);
-            border-left: 3px solid var(--primary);
-            padding: 10px 12px;
-            border-radius: 0 12px 12px 0;
-            font-size: 12px;
-            color: #d1ebd6;
-            font-style: italic;
-            line-height: 1.5;
-        } 
-
-        .user-welcome-bar {
-            background: #111a17;
-            border: 1px solid rgba(0, 255, 170, 0.15);
-            padding: 10px 16px;
-            border-radius: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 13px;
-        }
-        .user-welcome-bar .welcome-text { font-weight: 600; color: #ffffff; }
-        .user-welcome-bar .btn-logout { color: #ff4a4a; cursor: pointer; font-weight: 700; font-size: 12px; } 
-
-        .map-wrapper {
-            position: relative; width: 100%; height: 220px; border-radius: 20px; overflow: hidden;
-            border: 1.5px solid rgba(0, 255, 170, 0.25);
-        }
-        #map { width: 100%; height: 100%; background: #111; z-index: 1; }
-        
-        .btn-locate {
-            position: absolute; bottom: 12px; right: 12px; z-index: 999;
-            background: var(--bg-card); border: 1.5px solid var(--primary); color: var(--primary);
-            width: 38px; height: 38px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        } 
-
-        .price-banner {
-            background: #11221a; border: 1px dashed var(--primary); border-radius: 16px; padding: 12px 16px;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .price-info { display: flex; flex-direction: column; }
-        .price-info .label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
-        .price-info .value { font-size: 20px; color: var(--primary); font-weight: 800; }
-        .distance-info { text-align: right; font-size: 13px; color: #ffffff; font-weight: 700; } 
-
-        .service-selection { display: flex; gap: 12px; }
-        .service-card {
-            flex: 1; background: var(--bg-input); border: 2px solid transparent; padding: 12px;
-            border-radius: 18px; text-align: center; cursor: pointer; transition: all 0.2s ease;
-        }
-        .service-card i { font-size: 22px; color: var(--text-muted); margin-bottom: 6px; }
-        .service-card .title { font-size: 13px; font-weight: 700; color: var(--text-muted); }
-        .service-card.active { border-color: var(--primary); background: rgba(0, 255, 170, 0.05); }
-        .service-card.active i, .service-card.active .title { color: var(--primary); } 
-
-        .form-grid { display: flex; flex-direction: column; gap: 12px; position: relative; }
-        .input-box { display: flex; flex-direction: column; gap: 6px; position: relative; }
-        .input-box label { font-size: 11px; color: var(--primary); font-weight: 700; }
-        .input-wrapper { position: relative; display: flex; align-items: center; }
-        .input-wrapper i { position: absolute; left: 14px; color: var(--text-muted); font-size: 14px; }
-        .input-wrapper input { 
-            width: 100%; padding: 12px 12px 12px 42px; border-radius: 14px; 
-            border: 1px solid rgba(255, 255, 255, 0.08); background: var(--bg-input); color: var(--text-main); 
-            font-size: 13.5px; font-weight: 500; box-sizing: border-box;
-        } 
-
-        .suggestions-list {
-            position: absolute; top: 100%; left: 0; right: 0; background: #121f1b;
-            border: 1px solid rgba(0, 255, 170, 0.3); border-radius: 12px; max-height: 180px;
-            overflow-y: auto; z-index: 2000; display: none; margin-top: 4px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-        }
-        .suggestion-item {
-            padding: 10px 14px; font-size: 13px; color: #ffffff; cursor: pointer;
-            border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; align-items: center; gap: 8px;
-        }
-        .suggestion-item:hover { background: rgba(0, 255, 170, 0.1); }
-        .suggestion-item i { color: var(--primary); font-size: 12px; } 
-
-        .favorites-section { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
-        .favorites-title { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
-        .favorites-container { display: flex; gap: 8px; flex-wrap: wrap; }
-        .fav-badge {
-            background: rgba(0, 255, 170, 0.06); border: 1px solid rgba(0, 255, 170, 0.15);
-            padding: 6px 12px; border-radius: 50px; font-size: 12px; color: #ffffff;
-            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
-        }
-        .fav-badge:hover { background: rgba(0, 255, 170, 0.15); border-color: var(--primary); }
-        .fav-badge i { color: var(--primary); font-size: 11px; } 
-
-        .status-tracker {
-            background: #161f24; border: 1px solid #00bcff; border-radius: 16px; padding: 14px;
-            font-size: 13px; font-weight: 600; text-align: center; color: #00bcff; display: none;
-            flex-direction: column; gap: 10px;
-        }
-        .btn-cancel {
-            background: #ff4a4a; color: white; border: none; padding: 8px 16px; border-radius: 50px;
-            font-weight: 700; font-size: 12px; cursor: pointer; align-self: center;
-        } 
-
-        .btn-send { 
-            width: 100%; padding: 16px; border-radius: 50px; border: none; 
-            background: linear-gradient(135deg, var(--primary), #00aa77); color: #030712; 
-            font-weight: 800; font-size: 16px; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 255, 170, 0.3);
-            display: flex; justify-content: center; align-items: center; gap: 10px;
-        } 
-
-        .custom-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(3, 7, 18, 0.85); z-index: 9999; display: none;
-            justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
-        }
-        .modal-content {
-            background: var(--bg-card); border: 2px solid var(--primary); border-radius: 24px;
-            padding: 24px; width: 100%; max-width: 380px; text-align: center;
-            box-shadow: 0 0 30px rgba(0, 255, 170, 0.25);
-        }
-        .modal-icon { font-size: 40px; color: var(--primary); margin-bottom: 14px; }
-        .modal-text { font-size: 15px; font-weight: 600; color: #ffffff; line-height: 1.6; margin-bottom: 20px; }
-        
-        .star-rating { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        .star-rating i { font-size: 28px; color: #374151; cursor: pointer; transition: color 0.1s; }
-        .star-rating i.active { color: #ffca28; text-shadow: 0 0 10px rgba(255,202,40,0.3); } 
-
-        .btn-modal-close {
-            background: linear-gradient(135deg, var(--primary), #00aa77); color: #030712;
-            border: none; padding: 12px 30px; border-radius: 50px; font-weight: 800; font-size: 14px; cursor: pointer;
-        } 
-
-        .leaflet-routing-container { display: none !important; }
-        .leaflet-layer { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
-    </style>
-</head>
-<body> 
-
-    <div class="app-container">
-        
-        <div id="authScreen">
-            <div class="auth-logo">
-                <i class="fa-solid fa-taxi"></i>
-                <h1>TAXI PROMAX</h1>
-                <p>Vui lòng điền thông tin để trải nghiệm đặt xe</p>
-            </div>
-            
-            <div class="form-grid">
-                <div class="input-box">
-                    <label>HỌ VÀ TÊN HÀNH KHÁCH</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-user"></i>
-                        <input type="text" id="reg_name" placeholder="Ví dụ: Nguyễn Văn A">
-                    </div>
-                </div>
-                
-                <div class="input-box">
-                    <label>SỐ ĐIỆN THOẠI ĐĂNG KÝ</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-phone"></i>
-                        <input type="tel" id="reg_phone" placeholder="Nhập số điện thoại đón xe">
-                    </div>
-                </div>
-            </div> 
-
-            <button class="btn-send" onclick="handleRegister()">
-                <i class="fa-solid fa-right-to-bracket"></i> ĐĂNG KÝ & VÀO APP
-            </button>
-        </div> 
-
-        <div id="mainAppScreen">
-            <div class="header">
-                <h2><i class="fa-solid fa-taxi"></i> TAXI PROMAX</h2>
-            </div> 
-
-            <div class="user-welcome-bar">
-                <span class="welcome-text" id="lblWelcomeUser">Chào hành khách, ...</span>
-                <span class="btn-logout" onclick="handleLogout()"><i class="fa-solid fa-power-off"></i> Đăng xuất</span>
-            </div> 
-
-            <div class="quote-banner" id="lbQuote">
-                "Chào mừng hành khách! Chúc bạn có một hành trình êm ái cùng Taxi ProMax."
-            </div> 
-
-            <div class="map-wrapper">
-                <div id="map"></div>
-                <div class="btn-locate" onclick="getCurrentLocation()">
-                    <i class="fa-solid fa-crosshairs"></i>
-                </div>
-            </div> 
-
-            <div class="price-banner">
-                <div class="price-info">
-                    <div class="label">CHI PHÍ DỰ KIẾN</div>
-                    <div class="value" id="txtPrice">0 đ</div>
-                </div>
-                <div class="distance-info" id="txtDistance">Quãng đường: 0 km</div>
-            </div> 
-
-            <div class="service-selection">
-                <div class="service-card active" id="car4" onclick="selectCar('4_seats')">
-                    <i class="fa-solid fa-car-side"></i>
-                    <div class="title">Xe 4 Chỗ (12k/km)</div>
-                </div>
-                <div class="service-card" id="car7" onclick="selectCar('7_seats')">
-                    <i class="fa-solid fa-van-shuttle"></i>
-                    <div class="title">Xe 7 Chỗ (15k/km)</div>
-                </div>
-            </div>
-            
-            <div class="form-grid">
-                <div class="input-box">
-                    <label>ĐIỂM ĐÓN (TỰ ĐỘNG ĐỊNH VỊ)</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-location-dot" style="color: var(--primary);"></i>
-                        <input type="text" id="p_from" placeholder="Đang xác định vị trí GPS...">
-                    </div>
-                </div> 
-
-                <div class="input-box">
-                    <label>ĐIỂM ĐẾN</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-flag-checkered" style="color: #ff4a4a;"></i>
-                        <input type="text" id="p_to" placeholder="Nhập điểm đến để chọn nhanh..." oninput="suggestDestination(this.value)">
-                    </div>
-                    <div class="suggestions-list" id="suggestionsBox"></div>
-                </div>
-            </div> 
-
-            <div class="favorites-section" id="favSection" style="display: none;">
-                <div class="favorites-title">📍 ĐỊA ĐIỂM HAY ĐI QUEN THUỘC:</div>
-                <div class="favorites-container" id="favContainer"></div>
-            </div> 
-
-            <div class="status-tracker" id="trackerBox">
-                <span id="trackerText"><i class="fa-solid fa-spinner fa-spin"></i> Hệ thống đang điều phối tài xế gần nhất...</span>
-                <button class="btn-cancel" onclick="cancelBooking()">HỦY CHUYẾN ĐI</button>
-            </div> 
-
-            <button class="btn-send" id="btnSubmit" onclick="submitBooking()">
-                <i class="fa-solid fa-paper-plane"></i> ĐẶT XE CÔNG NGHỆ NGAY
-            </button>
-        </div> 
-
-    </div> 
-
-    <div class="custom-modal" id="appModal">
-        <div class="modal-content">
-            <div class="modal-icon" id="modalIcon"><i class="fa-solid fa-circle-check"></i></div>
-            <div class="modal-text" id="modalText">Nội dung thông báo</div>
-            
-            <div class="star-rating" id="ratingContainer" style="display: none;">
-                <i class="fa-solid fa-star" data-star="1" onclick="setStar(1)"></i>
-                <i class="fa-solid fa-star" data-star="2" onclick="setStar(2)"></i>
-                <i class="fa-solid fa-star" data-star="3" onclick="setStar(3)"></i>
-                <i class="fa-solid fa-star" data-star="4" onclick="setStar(4)"></i>
-                <i class="fa-solid fa-star" data-star="5" onclick="setStar(5)"></i>
-            </div> 
-
-            <button class="btn-modal-close" id="btnModalClose" onclick="closeAppModal()">XÁC NHẬN</button>
-        </div>
-    </div> 
-
-    <script>
-        let currentUser = null; 
-        let selectedCarType = "4_seats";
-        let map, userMarker, driverMarker, routingControl;
-        let clientLat = 21.0285, clientLng = 105.8542;
-        let destLat = null, destLng = null;
-        let currentBookingId = null;
-        let selectedRating = 5;
-        let trackInterval = null;
-        let searchTimeout = null; 
-
-        // FIX LỖI ICON KHÔNG TẢI ĐƯỢC CỦA LEAFLET TRÊN TRÌNH DUYỆT MOBILE
-        const defaultIcon = L.icon({
-            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34]
-        });
-        L.Marker.prototype.options.icon = defaultIcon;
-
-        const friendlyQuotes = [
-            "✨ Cảm ơn bạn đã lựa chọn Taxi ProMax. Sự an toàn của quý khách là niềm tự hào của chúng tôi!",
-            "🌸 Mỗi chuyến đi là một niềm vui. Chúc quý khách vạn sự hanh thông, lộ trình suôn sẻ!",
-            "🚖 Taxi ProMax cam kết đem tới trải nghiệm di chuyển xanh, êm ái và chuẩn 5 sao.",
-            "🌟 Thời tiết hôm nay thật đẹp, hãy cùng hành trình với Taxi ProMax đến những nơi tuyệt vời nhé!"
-        ]; 
-
-        window.onload = function() {
-            const savedUser = localStorage.getItem('taxi_promax_user');
-            if (savedUser) {
-                currentUser = JSON.parse(savedUser);
-                showMainApp();
-            }
-            document.addEventListener('click', function(e) {
-                if (e.target.id !== 'p_to') {
-                    document.getElementById('suggestionsBox').style.display = 'none';
-                }
-            });
-        }; 
-
-        function handleRegister() {
-            const name = document.getElementById('reg_name').value.trim();
-            const phone = document.getElementById('reg_phone').value.trim(); 
-
-            if (!name || !phone) {
-                alert("Vui lòng điền đầy đủ Họ tên và Số điện thoại!");
-                return;
-            } 
-
-            currentUser = { name: name, phone: phone };
-            localStorage.setItem('taxi_promax_user', JSON.stringify(currentUser));
-            showMainApp();
-        } 
-
-        function showMainApp() {
-            document.getElementById('authScreen').style.display = 'none';
-            document.getElementById('mainAppScreen').style.display = 'flex';
-            document.getElementById('lblWelcomeUser').innerText = `👤 Khách: ${currentUser.name} (${currentUser.phone})`; 
-
-            setTimeout(() => {
-                if (!map) {
-                    map = L.map('map', { zoomControl: false }).setView([clientLat, clientLng], 14);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                    getCurrentLocation();
-                } else {
-                    map.invalidateSize();
-                }
-                let randomQuote = friendlyQuotes[Math.floor(Math.random() * friendlyQuotes.length)];
-                document.getElementById('lbQuote').innerText = randomQuote;
-                loadFavoritePlaces();
-            }, 300);
-        } 
-
-        function handleLogout() {
-            localStorage.removeItem('taxi_promax_user');
-            location.reload();
-        } 
-
-        function showAppModal(text, isSuccess = true, showStars = false) {
-            document.getElementById('modalText').innerText = text;
-            document.getElementById('modalIcon').innerHTML = isSuccess ? `<i class="fa-solid fa-circle-check" style="color: #00ffaa;"></i>` : `<i class="fa-solid fa-circle-exclamation" style="color: #ff4a4a;"></i>`;
-            document.getElementById('ratingContainer').style.display = showStars ? 'flex' : 'none';
-            document.getElementById('appModal').style.display = 'flex';
-        } 
-
-        function closeAppModal() {
-            document.getElementById('appModal').style.display = 'none';
-            if(document.getElementById('ratingContainer').style.display === 'flex' && currentBookingId) {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rating: selectedRating })
-                }).then(() => {
-                    currentBookingId = null;
-                    document.getElementById('p_to').value = '';
-                    document.getElementById('txtPrice').innerHTML = "0 đ";
-                    document.getElementById('txtDistance').innerHTML = "Quãng đường: 0 km";
-                    if (routingControl) map.removeControl(routingControl);
-                    loadFavoritePlaces();
-                });
-            }
-        } 
-
-        function setStar(starCount) {
-            selectedRating = starCount;
-            let stars = document.querySelectorAll('.star-rating i');
-            stars.forEach(star => {
-                let currentStarIdx = parseInt(star.getAttribute('data-star'));
-                if(currentStarIdx <= starCount) star.classList.add('active');
-                else star.classList.remove('active');
-            });
-        } 
-
-        function getCurrentLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    clientLat = position.coords.latitude;
-                    clientLng = position.coords.longitude;
-                    if(map) {
-                        map.setView([clientLat, clientLng], 15);
-                        map.invalidateSize();
-                    }
-                    
-                    if (userMarker) {
-                        userMarker.setLatLng([clientLat, clientLng]);
-                    } else if (map) {
-                        userMarker = L.marker([clientLat, clientLng]).addTo(map).bindPopup('Vị trí của bạn').openPopup();
-                    } 
-
-                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${clientLat}&lon=${clientLng}&accept-language=vi`)
-                    .then(res => res.json()).then(data => {
-                        if(data && data.display_name) {
-                            let parts = data.display_name.split(',');
-                            if(parts && parts.length > 0) {
-                                document.getElementById('p_from').value = parts.slice(0, Math.min(3, parts.length)).join(',').trim();
-                            } else {
-                                document.getElementById('p_from').value = data.display_name;
-                            }
-                        }
-                    }).catch(e => console.log("Lỗi lấy địa chỉ ngược:", e));
-                }, function(err) {
-                    document.getElementById('p_from').value = "Vị trí hiện tại của bạn";
-                }, { enableHighAccuracy: true });
-            }
-        } 
-
-        function suggestDestination(val) {
-            clearTimeout(searchTimeout);
-            const box = document.getElementById('suggestionsBox');
-            let query = val.trim();
-            
-            if (query.length < 2) {
-                box.style.display = 'none';
-                return;
-            } 
-
-            searchTimeout = setTimeout(() => {
-                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=vn&accept-language=vi`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.length > 0) {
-                        box.innerHTML = '';
-                        data.forEach(item => {
-                            let cleanName = item.display_name.split(',').slice(0, 3).join(',').trim();
-                            let div = document.createElement('div');
-                            div.className = 'suggestion-item';
-                            div.innerHTML = `<i class="fa-solid fa-location-arrow"></i> ${cleanName}`;
-                            div.onclick = function() {
-                                selectTargetLocation(cleanName, parseFloat(item.lat), parseFloat(item.lon));
-                            };
-                            box.appendChild(div);
-                        });
-                        box.style.display = 'block';
-                    } else {
-                        box.style.display = 'none';
-                    }
-                }).catch(() => { box.style.display = 'none'; });
-            }, 400);
-        } 
-
-        function selectTargetLocation(name, lat, lng) {
-            document.getElementById('p_to').value = name;
-            document.getElementById('suggestionsBox').style.display = 'none';
-            destLat = lat;
-            destLng = lng; 
-
-            if (routingControl) map.removeControl(routingControl); 
-
-            routingControl = L.Routing.control({
-                waypoints: [L.latLng(clientLat, clientLng), L.latLng(destLat, destLng)],
-                lineOptions: { styles: [{ color: '#00ffaa', opacity: 0.8, weight: 6 }] },
-                createMarker: function() { return null; }
-            }).addTo(map); 
-
-            routingControl.on('routesfound', function(e) {
-                let distanceKm = e.routes[0].summary.totalDistance / 1000;
-                document.getElementById('txtDistance').innerHTML = `Quãng đường: ${distanceKm.toFixed(1)} km`;
-                let pricePerKm = (selectedCarType === "4_seats") ? 12000 : 15000;
-                document.getElementById('txtPrice').innerHTML = Math.round(distanceKm * pricePerKm).toLocaleString('vi-VN') + " đ";
-            });
-        } 
-
-        function saveToFavorites(name, lat, lng) {
-            let favs = localStorage.getItem('taxi_promax_favs');
-            favs = favs ? JSON.parse(favs) : []; 
-
-            let exist = favs.find(f => f.name.toLowerCase() === name.toLowerCase());
-            if (!exist) {
-                favs.unshift({ name: name, lat: lat, lng: lng });
-                if (favs.length > 4) favs.pop();
-                localStorage.setItem('taxi_promax_favs', JSON.stringify(favs));
-            }
-        } 
-
-        function loadFavoritePlaces() {
-            let favs = localStorage.getItem('taxi_promax_favs');
-            const sec = document.getElementById('favSection');
-            const container = document.getElementById('favContainer');
-            
-            if (favs) {
-                let list = JSON.parse(favs);
-                if(list.length > 0) {
-                    container.innerHTML = '';
-                    list.forEach(item => {
-                        let shortName = item.name.split(',')[0];
-                        let badge = document.createElement('div');
-                        badge.className = 'fav-badge';
-                        badge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> ${shortName}`;
-                        badge.onclick = function() {
-                            selectTargetLocation(item.name, item.lat, item.lng);
-                        };
-                        container.appendChild(badge);
-                    });
-                    sec.style.display = 'flex';
-                    return;
-                }
-            }
-            sec.style.display = 'none';
-        } 
-
-        function selectCar(type) {
-            selectedCarType = type;
-            document.getElementById('car4').classList.remove('active');
-            document.getElementById('car7').classList.remove('active');
-            if(type === '4_seats') document.getElementById('car4').classList.add('active');
-            else document.getElementById('car7').classList.add('active');
-            if(destLat && destLng) {
-                let address = document.getElementById('p_to').value;
-                selectTargetLocation(address, destLat, destLng);
-            }
-        } 
-
-        function submitBooking() {
-            const from = document.getElementById('p_from').value.trim();
-            const to = document.getElementById('p_to').value.trim();
-            const btn = document.getElementById('btnSubmit'); 
-
-            if (!to || !destLat) { 
-                showAppModal("Vui lòng chọn chính xác địa chỉ Điểm Đến!", false); 
-                return; 
-            } 
-
-            btn.disabled = true;
-            document.getElementById('trackerBox').style.display = "flex"; 
-
-            saveToFavorites(to, destLat, destLng); 
-
-            const bookingData = {
-                clientName: currentUser.name,
-                phone: currentUser.phone,
-                pickup: from,
-                dropoff: to,
-                carType: selectedCarType,
-                pickupLat: clientLat,
-                pickupLng: clientLng,
-                destLat: destLat,
-                destLng: destLng,
-                status: "waiting",
-                passengers: selectedCarType === "4_seats" ? 4 : 7,
-                timestamp: Date.now()
-            }; 
-
-            fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(bookingData)
-            })
-            .then(res => {
-                if(!res.ok) throw new Error('Kết nối Firebase thất bại');
-                return res.json();
-            })
-            .then(data => {
-                currentBookingId = data.name; 
-                showAppModal("Hệ thống đang điều phối tài xế gần nhất đến đón bạn.");
-                startTrackingTrip();
-            })
-            .catch(err => {
-                alert("Lỗi kết nối: " + err.message);
-                document.getElementById('trackerBox').style.display = "none";
-            })
-            .finally(() => { btn.disabled = false; });
-        } 
-
-        function cancelBooking() {
-            if (!currentBookingId) return;
-            if (confirm("Bạn có chắc chắn muốn hủy chuyến đi này không?")) {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: "canceled" })
-                }).then(() => {
-                    if (trackInterval) clearInterval(trackInterval);
-                    document.getElementById('trackerBox').style.display = "none";
-                    if (driverMarker) map.removeLayer(driverMarker);
-                    showAppModal("Đơn hàng đã được hủy thành công.", false);
-                    currentBookingId = null;
-                });
-            }
-        } 
-
-        function startTrackingTrip() {
-            if (!currentBookingId) return; 
-            if (trackInterval) clearInterval(trackInterval); 
-
-            trackInterval = setInterval(() => {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`)
-                .then(res => {
-                    if (!res.ok) return null;
-                    return res.json();
-                })
-                .then(trip => {
-                    if (!trip) return; 
-
-                    if (trip.status === "driving" && trip.driverId) {
-                        document.getElementById('trackerText').innerHTML = `<i class="fa-solid fa-car-side fa-bounce" style="color:#00ffaa"></i> Tài xế đang đến đón bạn...`;
-                        
-                        fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${trip.driverId}.json`)
-                        .then(res => res.json())
-                        .then(driverGps => {
-                            if (driverGps && driverGps.lat && driverGps.lng) {
-                                if (driverMarker) driverMarker.setLatLng([driverGps.lat, driverGps.lng]);
-                                else {
-                                    let carIcon = L.icon({
-                                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3085/3085339.png',
-                                        iconSize: [32, 32]
-                                    });
-                                    driverMarker = L.marker([driverGps.lat, driverGps.lng], {icon: carIcon}).addTo(map);
-                                }
-                            }
-                        });
-                    } else if (trip.status === "completed") {
-                        clearInterval(trackInterval);
-                        document.getElementById('trackerBox').style.display = "none";
-                        if (driverMarker) map.removeLayer(driverMarker);
-                        setStar(5);
-                        showAppModal("TAXI PROMAX cảm ơn bạn! Vui lòng đánh giá tài xế nhé:", true, true);
-                    }
-                }).catch(e => console.log("Đang đồng bộ dữ liệu mạng...", e));
-            }, 4000);
-        }
-    </script>
-</body>
-</html>
+    // Giả lập AI: Nếu là cuốc đi tỉnh xa (trên 40km), tự động tính giá trọn gói ưu đãi cố định 600.000đ
+    if (distanceKm >= 40) {
+      total = 600000; 
+    }
+    return total;
+  };
+
+  const handleDropoffChange = (text) => {
+    setDropoff(text);
+    setIsSearchingDropoff(true);
+    const filtered = SUGGESTED_PLACES.filter(place => place.title.toLowerCase().includes(text.toLowerCase()));
+    setFilteredSuggestions(filtered);
+  };
+
+  const selectSuggestion = (place) => {
+    setDropoff(place.title);
+    setIsSearchingDropoff(false);
+    
+    // Chạy AI tính tiền tự động
+    const estimatedPrice = calculateAIPrice(place.distance_km, carType);
+    setPrice(estimatedPrice);
+  };
+
+  // 4. Bấm đặt xe - Đẩy dữ liệu (bao gồm cả số tiền) lên hệ thống
+  const handleBookCar = async () => {
+    if (!pickup || !dropoff) return;
+
+    setLoading(true);
+    try {
+      const dbRef = ref(db, 'datxe');
+      const newTripRef = push(dbRef);
+      
+      const tripData = {
+        pickup: pickup,
+        dropoff: dropoff,
+        carType: carType,
+        price: price, // Số tiền hiển thị (Ví dụ: 600000)
+        status: "waiting", // Đang chờ tài xế bấm nhận
+        phone: "0987654321",
+        createdAt: Date.now()
+      };
+
+      await set(newTripRef, tripData);
+      setCurrentTripKey(newTripRef.key); // Lưu lại key để theo dõi trạng thái
+      Alert.alert("Thành công", `Đã phát lệnh tìm xe. Giá chuyến đi: ${price.toLocaleString('vi-VN')}đ`);
+    } catch (error) {
+      alert("Lỗi: " + error.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.logo}>TAXI PROMAX AI</Text>
+
+      <View style={styles.box}>
+        <TextInput style={styles.input} value={pickup} onChangeText={setPickup} placeholder="Điểm đón" placeholderTextColor="#aaa"/>
+        <View style={{height: 1, backgroundColor: '#222', my: 10}} />
+        <TextInput style={[styles.input, {color: '#00ffaa'}]} value={dropoff} onChangeText={handleDropoffChange} placeholder="Anh muốn đi đâu?" placeholderTextColor="#aaa"/>
+      </View>
+
+      {/* Hiển thị danh sách gợi ý */}
+      {isSearchingDropoff && (
+        <FlatList 
+          data={filteredSuggestions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.item} onPress={() => selectSuggestion(item)}>
+              <Text style={{fontSize: 16}}>{item.icon} {item.title}</Text>
+              <Text style={{color: '#aaa', fontSize: 12}}>{item.address}</Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+
+      {/* Hiển thị giá tiền thông minh bằng AI */}
+      {!isSearchingDropoff && price > 0 && (
+        <View style={styles.priceCard}>
+          <Text style={styles.priceLabel}>💰 GIÁ CƯỚC AI ĐỀ XUẤT TRỌN GÓI:</Text>
+          <Text style={styles.priceValue}>{price.toLocaleString('vi-VN')} đ</Text>
+        </View>
+      )}
+
+      {/* Nút đặt xe */}
+      {!isSearchingDropoff && (
+        <TouchableOpacity style={styles.btn} onPress={handleBookCar}>
+          {loading ? <ActivityIndicator color="#000"/> : <Text style={styles.btnText}>ĐẶT XE NGAY</Text>}
+        </TouchableOpacity>
+      )}
+
+      {/* Hiển thị trạng thái kết nối thời gian thực */}
+      {tripStatus !== '' && (
+        <Text style={styles.statusText}>Trạng thái đơn hàng: {tripStatus.toUpperCase()}</Text>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#050505', padding: 20 },
+  logo: { color: '#00ffaa', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginTop: 20, marginBottom: 20 },
+  box: { backgroundColor: '#111', borderRadius: 15, padding: 15, borderWidth: 1, borderColor: '#333' },
+  input: { color: '#fff', fontSize: 16, height: 40 },
+  item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#222', backgroundColor: '#111', borderRadius: 10, marginTop: 5 },
+  priceCard: { backgroundColor: 'rgba(0,255,170,0.1)', padding: 15, borderRadius: 15, marginTop: 20, borderWidth: 1, borderColor: '#00ffaa', alignItems: 'center' },
+  priceLabel: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  priceValue: { color: '#00ffaa', fontSize: 26, fontWeight: 'bold', marginTop: 5 },
+  btn: { backgroundColor: '#00ffaa', padding: 16, borderRadius: 30, alignItems: 'center', marginTop: 20 },
+  btnText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
+  statusText: { color: '#fff', textAlign: 'center', marginTop: 20, fontStyle: 'italic' }
+});
