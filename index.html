@@ -10,7 +10,6 @@
     
     <link rel="apple-touch-icon" href="assets/logo.png">
     <link rel="icon" type="image/png" href="assets/logo.png">
-
     <link rel="manifest" href="manifest.json">
 
     <title>TAXI PROMAX TÀI XẾ</title>
@@ -30,7 +29,34 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
+        /* KHUNG CHỨA BẢN ĐỒ: Đảm bảo rộng hơn màn hình để khi xoay góc không bị hở viền trắng */
+        #map-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            overflow: hidden;
+            background: #e5e3df;
+        }
+
+        /* BẢN ĐỒ LEAFLET: Tự động áp dụng hiệu ứng mượt khi xoay theo hướng xe */
+        #map { 
+            height: 140%; 
+            width: 140%; 
+            position: absolute; 
+            top: -20%; 
+            left: -20%;
+            transition: transform 0.3s ease-out;
+            will-change: transform;
+        } 
+
+        /* FIX ẢNH HƯỞNG XOAY BẢN ĐỒ: Giữ cho các ô chữ hoặc Tooltip trên bản đồ không bị lộn ngược */
+        .leaflet-tooltip-css, .customer-marker {
+            transition: transform 0.3s ease-out !important;
+            will-change: transform;
+        }
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
         .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); } 
@@ -63,18 +89,16 @@
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
-        /* CSS PHỤ TRÁCH ĐỊNH VỊ ĐA HƯỚNG XOAY TRÒN NHƯ VIDEO XANH SM */
+        /* CHUẨN XANH SM: Marker xe cố định góc nhìn thẳng, không xoay độc lập mà xoay đồng bộ theo map */
         .sm-direction-wrapper {
             width: 30px;
             height: 30px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s ease-out; /* Tạo hiệu ứng xoay mượt mà khi đổi hướng la bàn */
             will-change: transform;
         }
         
-        /* Hình tròn xanh lá mạ đặc trưng của Xanh SM */
         .sm-marker-circle { 
             width: 24px; 
             height: 24px; 
@@ -88,14 +112,13 @@
             justify-content: center;
         }
         
-        /* Mũi tên định vị nhọn nằm chính giữa vòng tròn để chỉ hướng xe chạy */
         .sm-marker-arrow { 
             width: 0; 
             height: 0; 
             border-left: 5px solid transparent; 
             border-right: 5px solid transparent; 
             border-bottom: 9px solid white; 
-            margin-top: -3px; /* Đẩy tâm mũi tên cân đối */
+            margin-top: -3px; 
         } 
 
         .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
@@ -117,9 +140,6 @@
         .tp-pill-timer { display: inline-flex; align-items: center; background: #ffeaa7; color: #d35400; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 900; margin-left: 10px; border: 1px solid #f39c12; }
         .tp-badge-trial { background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px; position: absolute; top: -8px; right: 10px; }
         
-        .pulsating-circle { animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 0.3; } 100% { transform: scale(0.8); opacity: 0.8; } }
-
         .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
     </style>
 </head>
@@ -141,7 +161,9 @@
         </div>
     </div> 
 
-    <div id="map"></div> 
+    <div id="map-container">
+        <div id="map"></div> 
+    </div>
 
     <div id="tab-vi" class="tab-content">
         <div class="p-header">
@@ -244,11 +266,9 @@
     <div id="orderModal" class="custom-modal">
         <div class="modal-content">
             <h2 style="color:var(--danger); margin:0 0 5px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
-            
             <div class="tp-countdown-wrapper">
                 <span id="tp-modal-timer-val">15</span>
             </div>
-
             <div style="text-align:left; background:#f5f6fa; padding:15px; border-radius:15px; margin-bottom:15px; font-size:13px; color:#333; line-height:1.5;">
                 <p style="margin:4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color:var(--primary); font-weight:900;">...</span></p>
                 <p style="margin:4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
@@ -279,7 +299,6 @@
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         
-        // Tạo cấu trúc HTML cho Marker đa hướng có ID cụ thể để tác động góc xoay sau này
         var smIcon = L.divIcon({ 
             className: 'sm-div-icon', 
             html: "<div id='tp-driver-compass' class='sm-direction-wrapper'><div class='sm-marker-circle'><div class='sm-marker-arrow'></div></div></div>", 
@@ -291,7 +310,7 @@
         let customerMarker = null, activeCustomerData = null; 
         let countdownValue = 15, countdownInterval = null;
         let audioCtx = null, audioInterval = null;
-        let currentHeading = 0; // Lưu góc xoay la bàn hiện tại
+        let currentHeading = 0; 
 
         function initAudioAndCloseModal() {
             try {
@@ -305,35 +324,38 @@
             closeModal('wishModal');
         }
 
-        // --- 2. THEO DÕI HƯỚNG XOAY LA BÀN THỰC TẾ ---
-        // Lắng nghe cảm biến con quay hồi chuyển của điện thoại để xoay vòng tròn đa hướng
+        // --- 2. THEO DÕI HƯỚNG XOAY & ĐIỀU KHIỂN XOAY BẢN ĐỒ NỀN ---
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', function(event) {
-                // Trên iOS dùng webkitCompassHeading, Android dùng alpha
                 let heading = event.webkitCompassHeading || (360 - event.alpha);
                 if (heading) {
                     currentHeading = Math.round(heading);
-                    updateMarkerRotation();
+                    applyMapRotation();
                 }
             }, true);
         }
 
-        function updateMarkerRotation() {
-            const compassEl = document.getElementById('tp-driver-compass');
-            if (compassEl) {
-                // Xoay chuẩn góc mũi tên theo hướng đầu điện thoại hướng tới
-                compassEl.style.transform = `rotate(${currentHeading}deg)`;
+        function applyMapRotation() {
+            const mapEl = document.getElementById('map');
+            if (mapEl) {
+                // XOAY BẢN ĐỒ NGƯỢC LẠI GÓC XE CHẠY: Để xe luôn hướng thẳng lên trên màn hình điện thoại giống Xanh SM
+                mapEl.style.transform = `rotate(${-currentHeading}deg)`;
+                
+                // Đảo ngược góc xoay của các nhãn thông tin hoặc các điểm khách hàng để chữ không bị ngược
+                document.querySelectorAll('.customer-marker, .leaflet-tooltip').forEach(el => {
+                    el.style.transform = `rotate(${currentHeading}deg)`;
+                });
             }
         }
 
-        // --- 3. ĐỊNH VỊ GPS LIÊN TỤC ---
+        // --- 3. ĐỊNH VỊ GPS LIÊN TỤC VÀ DỊCH CHUYỂN THEO XE ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
                     const { latitude, longitude, speed, heading } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     
-                    // Nếu chip GPS trả về hướng di chuyển (heading), ưu tiên sử dụng thay cảm biến la bàn cơ học
+                    // Nếu xe đang chạy nhanh, lấy góc hướng di chuyển trực tiếp từ vệ tinh GPS
                     if (heading !== null && heading !== undefined && !isNaN(heading)) {
                         currentHeading = Math.round(heading);
                     }
@@ -345,21 +367,20 @@
                         marker.setLatLng(newPos);
                     }
                     
-                    // Cập nhật ngay góc xoay sau khi marker được nạp lại vào bản đồ
-                    updateMarkerRotation();
+                    // Cập nhật lại góc xoay ngay khi tọa độ dịch chuyển
+                    applyMapRotation();
                     
                     const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
 
                     if(isRunning) {
-                        // CHUẨN XANH SM: Khi xe di chuyển thực sự (> 1.8 km/h), camera map mới di chuyển theo xe
-                        if (currentSpeed > 0.5) {
+                        // CHUẨN ĐỊNH VỊ: Cập nhật tâm bản đồ liên tục khi xe di chuyển
+                        if (currentSpeed > 0.4) {
                             map.panTo(newPos);
                         }
                         
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            // Tránh nhảy cước ảo khi đứng yên một chỗ nhiễu sóng
-                            if(d > 0.005 && currentSpeed > 0.28) { 
+                            if(d > 0.004 && currentSpeed > 0.25) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
                                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
@@ -380,7 +401,7 @@
             const driverData = {
                 lat: lat,
                 lng: lng,
-                heading: currentHeading, // Đẩy cả góc xoay lên tổng đài Realtime
+                heading: currentHeading, 
                 lastUpdated: Date.now(),
                 status: isRunning ? "busy" : "ready",
                 carType: "4_seats"
@@ -392,7 +413,7 @@
             }).catch(err => console.error(err));
         }
 
-        // --- 4. ĐIỀU KHIỂN HÀNH TRÌNH CHUYẾN ĐI ---
+        // --- 4. CÁC HÀM XỬ LÝ NHẬN ĐƠN VÀ ĐÓN KHÁCH ---
         function handleTrip() {
             const btn = document.getElementById('mainBtn');
             if(!isRunning) {
@@ -414,7 +435,6 @@
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
                 document.getElementById('endModal').style.display = 'flex';
                 if(wakeLock) { wakeLock.release(); wakeLock = null; }
-                
                 if(customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
                 
                 if (activeCustomerData && activeCustomerData.id) {
@@ -424,7 +444,6 @@
                         body: JSON.stringify({ status: "completed" })
                     }).catch(err => console.error(err));
                 }
-                
                 if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
             }
         }
@@ -444,7 +463,6 @@
 
         function updateRate(v) { currentRate = v; document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); } 
 
-        // --- 5. LỊCH SỬ CHUYẾN ĐI ---
         function saveHistory(km, cost) {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
@@ -464,7 +482,7 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. QUÉT VÀ HIỂN THỊ ĐƠN HÀNG TỪ TỔNG ĐÀI REALTME ---
+        // --- 5. LẮNG NGHE TỔNG ĐÀI TÌM KHÁCH HÀNG ---
         let lastCheckedOrderId = null;
         let isModalOpening = false; 
 
@@ -493,7 +511,7 @@
                     activeCustomerData = { id: targetOrderKey, ...order };
                     isModalOpening = true;
 
-                    tpSpeak("Báo cáo anh Đạt, phát hiện có đơn đặt xe mới. Vui lòng kiểm tra màn hình.");
+                    tpSpeak("Có đơn hàng mới, thưa anh Đạt.");
                     startNotificationEffects();
 
                     document.getElementById('modalPhone').innerText = order.phone || 'Không có';
@@ -528,7 +546,7 @@
             isModalOpening = false;
             showTab('home');
 
-            tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
+            tpSpeak("Nhận đơn thành công.");
 
             const customerLat = activeCustomerData.pickupLat || activeCustomerData.lat;
             const customerLng = activeCustomerData.pickupLng || activeCustomerData.lng;
@@ -562,7 +580,7 @@
             });
 
             customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
-            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b>`).openTooltip();
+            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b>`, { className: 'leaflet-tooltip-css' }).openTooltip();
 
             if (marker) {
                 var group = new L.featureGroup([marker, customerMarker]);
@@ -570,6 +588,7 @@
             } else {
                 map.setView([lat, lng], 16);
             }
+            applyMapRotation();
         }
 
         function declineCustomer() {
@@ -577,7 +596,7 @@
             closeModal('orderModal');
             isModalOpening = false;
             activeCustomerData = null;
-            tpSpeak("Đã bỏ qua đơn hàng.");
+            tpSpeak("Đã bỏ qua đơn.");
         }
 
         function startNotificationEffects() {
@@ -603,24 +622,25 @@
             if (navigator.vibrate) navigator.vibrate(0); 
         }
 
-        // --- 7. QUẢN LÝ GÓI CƯỚC & TIỆN ÍCH ---
+        // --- 6. QUẢN LÝ GÓI CƯỚC TÀI XẾ ---
         const TAXI_PROMAX_DATABASE = [
             { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
             { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#0054a3" }
         ];
 
         function tpOpenRadar() {
-            if (!lastPos) { tpSpeak("Đang tìm tín hiệu vệ tinh."); return; }
-            tpSpeak("Đang cập nhật điểm nóng khu vực.");
+            if (!lastPos) { tpSpeak("Đang kết nối định vị."); return; }
+            tpSpeak("Cập nhật bản đồ nhiệt.");
             if (window.radarLayers) { window.radarLayers.forEach(l => map.removeLayer(l)); }
             window.radarLayers = [];
             TAXI_PROMAX_DATABASE.forEach(s => {
                 let m = L.circleMarker([s.lat, s.lng], { radius: 12, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.8 }).addTo(map);
-                m.bindTooltip(`<b>${s.n}</b>`).openTooltip();
+                m.bindTooltip(`<b>${s.n}</b>`, { className: 'leaflet-tooltip-css' }).openTooltip();
                 window.radarLayers.push(m);
             });
             showTab('home');
             map.flyTo(lastPos, 14);
+            applyMapRotation();
         }
 
         function tpSpeak(text) {
@@ -643,7 +663,7 @@
                     method: 'PATCH',
                     body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' })
                 });
-                tpSpeak("Kích hoạt gói dùng thử 7 ngày thành công.");
+                tpSpeak("Kích hoạt gói trải nghiệm thành công.");
                 tpInitCountdown();
             } else if (typeof createPayment === 'function') {
                 createPayment(amount, planName);
@@ -680,8 +700,8 @@
         }
 
         setInterval(checkNewBookings, 4000);
-        function tpOpenSOS() { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí cứu hộ!"); }
-        function tpOpenMaintenance() { alert("Kiểm tra áp suất lốp trước khi khởi hành."); }
+        function tpOpenSOS() { tpSpeak("Đang gửi tín hiệu cứu hộ."); alert("Đã gửi vị trí cứu hộ!"); }
+        function tpOpenMaintenance() { alert("Kiểm tra áp suất lốp xe trước khi đi."); }
         function tpOpenProfit() { 
             const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             let total = history.reduce((sum, item) => sum + parseInt(item.cost.replace(/,/g, '')), 0);
@@ -694,7 +714,10 @@
             if(btn) btn.classList.add('active');
             if(tab === 'home') {
                 document.getElementById('homeControls').style.display = 'block';
-                setTimeout(() => map.invalidateSize(), 300); 
+                setTimeout(() => {
+                    map.invalidateSize();
+                    applyMapRotation();
+                }, 300); 
             } else { 
                 document.getElementById('homeControls').style.display = 'none'; 
                 document.getElementById('tab-' + tab).style.display = 'flex'; 
