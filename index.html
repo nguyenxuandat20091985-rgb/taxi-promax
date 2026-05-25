@@ -18,19 +18,27 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --primary: #00bfa5; --dark: #002d26; --gold: #ffc107; --danger: #ff5252; --bg: #f8faf9; --glass: rgba(255, 255, 255, 0.95); }
+        :root { 
+            --primary: #0054a3; /* Đồng bộ sang màu xanh BIDV uy tín */
+            --accent: #00bfa5;  /* Màu xanh ngọc cho các nút kích hoạt hành trình */
+            --dark: #1c1e21; 
+            --gold: #f1c40f; 
+            --danger: #d32f2f; 
+            --bg: #f4f7f6; 
+            --glass: rgba(255, 255, 255, 0.95); 
+        }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
         #map { height: 100vh; width: 100vw; z-index: 1; transition: 0.3s; } 
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border: 1px solid white; } 
+        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); } 
 
         .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
         .stat-item { flex: 1; text-align: center; }
         .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--dark); margin-top: 2px; } 
+        .stat-value { font-size: 22px; font-weight: 900; color: var(--primary); margin-top: 2px; } 
 
         .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
         .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
@@ -40,15 +48,15 @@
 
         .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
 
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 130px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
-        .p-header { background: var(--primary); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 140px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
+        .p-header { background: linear-gradient(135deg, var(--primary), #003d7a); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
 
         .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
         .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
-        .p-card.active { border-color: var(--primary); background: #f0fffb; transform: scale(1.02); }
-        .p-btn { margin-top: 10px; background: var(--primary); color: white; border: none; border-radius: 10px; padding: 5px; font-size: 10px; font-weight: bold; }
+        .p-card.active { border-color: var(--primary); background: #f0f4f8; transform: scale(1.02); }
+        .p-btn { margin-top: 10px; background: var(--primary); color: white; border: none; border-radius: 10px; padding: 7px; font-size: 11px; font-weight: bold; }
         .p-card b { display: block; font-size: 13px; color: var(--dark); }
-        .p-card span { color: var(--primary); font-weight: 800; font-size: 14px; }
+        .p-card span { color: var(--danger); font-weight: 800; font-size: 14px; }
         .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
 
         .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
@@ -56,14 +64,14 @@
         .h-info { text-align: left; }
         .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
 
-        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,191,165,0.5); position: relative; }
+        .sm-marker { width: 24px; height: 24px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0,84,163,0.5); position: relative; }
         .sm-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--primary); } 
 
         .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
         @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
 
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--primary); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
-        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); height: 5px; }
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--accent); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
+        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--danger); height: 5px; }
         
         .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .modal-content { background: white; width: 88%; max-width: 340px; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
@@ -88,7 +96,7 @@
 
     <div class="header">
         <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
-        <div class="badge" style="color:var(--gold)" id="planShow">⭐ GÓI: FREE (7D)</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ ĐANG ĐỒNG BỘ GÓI...</div>
     </div> 
 
     <div class="stats-bar" id="statsUI">
@@ -117,17 +125,17 @@
                 <ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul>
                 <div class="p-btn">KÍCH HOẠT</div>
             </div>
-            <div class="p-card" onclick="tpHandlePayment(5000, 'CHUYẾN LẺ')">
+            <div class="p-card" onclick="tpHandlePayment(5000, 'LẺ')">
                 <b>CHUYẾN LẺ</b><span>5.000đ</span>
                 <ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul>
                 <div class="p-btn">NẠP NGAY</div>
             </div>
-            <div class="p-card" onclick="tpHandlePayment(49000, 'GÓI PRO')">
+            <div class="p-card" onclick="tpHandlePayment(49000, 'PRO')">
                 <b>GÓI PRO</b><span>49.000đ</span>
                 <ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul>
                 <div class="p-btn">NẠP NGAY</div>
             </div>
-            <div class="p-card" onclick="tpHandlePayment(129000, 'PRO MAX')">
+            <div class="p-card" onclick="tpHandlePayment(129000, 'PROMAX')">
                 <b>PRO MAX</b><span>129.000đ</span>
                 <ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul>
                 <div class="p-btn">NẠP NGAY</div>
@@ -173,7 +181,7 @@
                 <p>Mã tài xế: <b id="profileID">...</b></p>
                 <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
                 <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
-                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="localStorage.removeItem('trip_history'); location.reload();">XÓA LỊCH SỬ</button>
+                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="localStorage.removeItem('trip_history'); localStorage.removeItem('tp_expiry'); location.reload();">XÓA LỊCH SỬ</button>
             </div>
         </div>
     </div> 
@@ -219,7 +227,7 @@
             </div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                 <button class="btn-main" style="background:#7f8c8d; font-size:14px; padding:12px;" onclick="declineCustomer()">BỎ QUA</button>
-                <button class="btn-main" style="font-size:14px; padding:12px;" onclick="acceptCustomer()">ĐÓN KHÁCH</button>
+                <button class="btn-main" style="background:var(--primary); font-size:14px; padding:12px;" onclick="acceptCustomer()">ĐÓN KHÁCH</button>
             </div>
         </div>
     </div>
@@ -256,11 +264,9 @@
         let audioCtx = null;
         let audioInterval = null;
 
-        // Mẹo mở khóa âm thanh trình duyệt khi click nút Đồng ý chào mừng
         function initAudioAndCloseModal() {
             try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                // Kích hoạt chạy thử một âm thanh câm để trình duyệt lưu quyền tự động phát
                 let buffer = audioCtx.createBuffer(1, 1, 22050);
                 let source = audioCtx.createBufferSource();
                 source.buffer = buffer;
@@ -312,7 +318,7 @@
             };
             
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
-                method: 'PUT',
+                method: 'PATCH', // Đổi sang PATCH để tránh đè mất trường tp_expiry khi đồng bộ vị trí
                 body: JSON.stringify(driverData)
             }).catch(err => console.error("Lỗi đồng bộ vị trí xe lên Firebase:", err));
         }
@@ -333,7 +339,7 @@
             } else {
                 isRunning = false; 
                 btn.innerText = "BẮT ĐẦU CHUYẾN ĐI"; 
-                btn.style.background = "var(--primary)";
+                btn.style.background = "var(--accent)";
                 let finalCost = Math.round(totalKm * currentRate);
                 saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
                 document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
@@ -389,7 +395,7 @@
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
         } 
 
-        // --- 6. QUÉT ĐƠN THỜI GIAN THỰC THEO MÃ ---
+        // --- 6. QUÉT ĐƠN THỜI GIAN THỰC THEO MẠNG ---
         let lastCheckedOrderId = null;
         let isModalOpening = false; 
 
@@ -455,7 +461,6 @@
 
             tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
 
-            // ĐÃ SỬA: Sửa lại logic lấy tọa độ chính xác của Firebase (pickupLat hoặc lat)
             const customerLat = activeCustomerData.pickupLat || activeCustomerData.lat;
             const customerLng = activeCustomerData.pickupLng || activeCustomerData.lng;
 
@@ -502,7 +507,6 @@
             tpSpeak("Đã bỏ qua đơn hàng.");
         }
 
-        // --- CÁC HÀM TIỆN ÍCH CHUÔNG BÁO ---
         function startNotificationEffects() {
             if (navigator.vibrate) {
                 navigator.vibrate([1000, 500, 1000, 500, 1000]); 
@@ -528,18 +532,10 @@
             }
         }
 
-        function stopNotificationEffects() {
-            if (countdownInterval) clearInterval(countdownInterval);
-            if (audioInterval) clearInterval(audioInterval);
-            if (navigator.vibrate) navigator.vibrate(0); 
-        }
-
-        setInterval(checkNewBookings, 4000);
-
         // --- 7. TÍNH NĂNG MỞ RỘNG (RADAR, SOS, SPEAK) ---
         const TAXI_PROMAX_DATABASE = [
             { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP đi tỉnh", color: "#ffc107" },
-            { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#00bfa5" },
+            { n: "Cổng Sun World", lat: 20.9585, lng: 107.0370, desc: "Khách vẫy giờ cao điểm", color: "#0054a3" },
             { n: "Sảnh T1 Nội Bài", lat: 21.2187, lng: 105.8041, desc: "Khách vừa xuống xe", color: "#ffc107" }
         ];
 
@@ -566,11 +562,20 @@
             }
         }
 
+        // ĐÃ SỬA: Loại bỏ hàm viết lặp, gộp logic kiểm tra thời gian thực từ Firebase lên giao diện
         function tpHandlePayment(amount, planName) {
             if (amount === 0) {
                 if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
                 localStorage.setItem('tp_trial_used', 'true');
-                localStorage.setItem('tp_expiry', new Date().getTime() + (7 * 24 * 60 * 60 * 1000));
+                const nextWeek = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
+                localStorage.setItem('tp_expiry', nextWeek);
+                
+                // Đồng bộ luôn trạng thái dùng thử lên Firebase
+                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' })
+                });
+
                 tpSpeak("Kích hoạt thành công gói dùng thử 7 ngày.");
                 tpInitCountdown();
             } else if (typeof createPayment === 'function') {
@@ -578,35 +583,57 @@
             } else { alert("Hệ thống thanh toán đang bảo trì!"); }
         }
 
-        function tpHandlePayment(amount, planName) {
-            if (amount === 0) {
-                if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
-                localStorage.setItem('tp_trial_used', 'true');
-                localStorage.setItem('tp_expiry', new Date().getTime() + (7 * 24 * 60 * 60 * 1000));
-                tpSpeak("Kích hoạt thành công gói dùng thử 7 ngày.");
-                tpInitCountdown();
-            } else if (typeof createPayment === 'function') {
-                createPayment(amount, planName);
-            } else { alert("Hệ thống thanh toán đang bảo trì!"); }
-        }
-
+        // ĐÃ HOÀN THIỆN: Logic kết nối Firebase quét thời gian thực để cập nhật tên Gói cước lên Header
         function tpInitCountdown() {
-            const expiry = localStorage.getItem('tp_expiry');
-            if (!expiry) return;
-            document.getElementById('planShow').innerText = "⭐ GÓI: TRIAL (7D)";
-            document.getElementById('planShow').style.color = "var(--primary)";
-            const banner = document.getElementById('tp-mini-timer');
-            banner.style.display = 'inline-flex';
-            const timerFunc = () => {
-                const dist = expiry - new Date().getTime();
-                if (dist < 0) { banner.style.display = 'none'; return; }
-                const days = Math.floor(dist / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
+            const checkExpiryFromFirebase = () => {
+                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`)
+                .then(res => res.json())
+                .then(driverData => {
+                    const planShow = document.getElementById('planShow');
+                    const banner = document.getElementById('tp-mini-timer');
+                    const now = Date.now();
+
+                    if (driverData && driverData.tp_expiry && parseInt(driverData.tp_expiry) > now) {
+                        const expiry = parseInt(driverData.tp_expiry);
+                        const planName = driverData.active_plan_name || "PROMAX";
+                        
+                        // Cập nhật text trên Header
+                        planShow.innerText = `⭐ GÓI: ${planName.toUpperCase()}`;
+                        planShow.style.color = "#0054a3";
+                        
+                        // Tính toán thời gian đếm ngược hiển thị ở chân trang
+                        banner.style.display = 'inline-flex';
+                        const dist = expiry - now;
+                        const days = Math.floor(dist / (1000 * 60 * 60 * 24));
+                        const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
+                    } else {
+                        planShow.innerText = "⭐ GÓI: HẾT HẠN (FREE)";
+                        planShow.style.color = "var(--danger)";
+                        banner.style.display = 'none';
+                    }
+                }).catch(() => {
+                    // Cơ chế dự phòng (Fallback) nếu mất mạng thì đọc tạm từ LocalStorage
+                    const localExpiry = localStorage.getItem('tp_expiry');
+                    if (localExpiry && parseInt(localExpiry) > Date.now()) {
+                        document.getElementById('planShow').innerText = "⭐ GÓI: ĐANG DÙNG";
+                    } else {
+                        document.getElementById('planShow').innerText = "⭐ GÓI: MIỄN PHÍ";
+                    }
+                });
             };
-            timerFunc();
-            setInterval(timerFunc, 60000);
+            
+            checkExpiryFromFirebase();
+            setInterval(checkExpiryFromFirebase, 30000); // Tự động quét cập nhật sau mỗi 30 giây
         }
+
+        function stopNotificationEffects() {
+            if (countdownInterval) clearInterval(countdownInterval);
+            if (audioInterval) clearInterval(audioInterval);
+            if (navigator.vibrate) navigator.vibrate(0); 
+        }
+
+        setInterval(checkNewBookings, 4000);
 
         function tpOpenSOS() { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí cứu hộ!"); }
         function tpOpenMaintenance() { alert("TRỢ LÝ: Kiểm tra áp suất lốp trước khi khởi hành anh nhé."); }
