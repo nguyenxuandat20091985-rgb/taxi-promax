@@ -254,7 +254,9 @@
             html: "<div class='sm-marker pulsating-circle'><div class='sm-arrow'></div></div>", 
             iconSize: [24, 24], iconAnchor: [12, 12] 
         });
-        var marker = L.marker([21.02, 105.83], { icon: smIcon }).addTo(map); 
+        
+        // ĐÃ SỬA: Không cố định vị trí marker ban đầu để tránh lỗi đồng bộ hiển thị
+        var marker = null; 
 
         let isRunning = false, totalKm = 0, lastPos = null, currentRate = 15000, wakeLock = null;
         let customerMarker = null, activeCustomerData = null; 
@@ -284,13 +286,25 @@
                 navigator.geolocation.watchPosition((pos) => {
                     const { latitude, longitude, speed } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
-                    marker.setLatLng(newPos);
                     
+                    // ĐÃ SỬA: Tạo mới marker định vị nếu chưa có hoặc cập nhật tọa độ thực tế chính xác
+                    if (!marker) {
+                        marker = L.marker(newPos, { icon: smIcon }).addTo(map);
+                        map.setView(newPos, 16);
+                    } else {
+                        marker.setLatLng(newPos);
+                    }
+                    
+                    // Kiểm tra tốc độ di chuyển thực tế (m/s). 0.28 m/s xấp xỉ bằng 1 km/h.
+                    // Đang đỗ xe hoặc đứng im thì không tính tiền cước nhảy bậy do nhiễu GPS.
+                    const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
+
                     if(isRunning) {
-                        if (speed > 0.5) map.panTo(newPos);
+                        if (currentSpeed > 0.5) map.panTo(newPos);
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
-                            if(d > 0.005) { 
+                            // ĐÃ SỬA: Chỉ tính tiền/quãng đường khi xe có chuyển động thực tế (Tốc độ > 1km/h)
+                            if(d > 0.005 && currentSpeed > 0.28) { 
                                 totalKm += d; 
                                 document.getElementById('km').innerText = totalKm.toFixed(2); 
                                 document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
@@ -298,7 +312,7 @@
                         }
                     } else {
                         if(!lastPos) map.setView(newPos, 16);
-                        if(speed > 2.2) handleTrip(); 
+                        if(currentSpeed > 2.2) handleTrip(); // Tốc độ chạy nhanh tự khởi động chuyến đi
                     }
                     lastPos = newPos;
 
@@ -318,7 +332,7 @@
             };
             
             fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
-                method: 'PATCH', // Đổi sang PATCH để tránh đè mất trường tp_expiry khi đồng bộ vị trí
+                method: 'PATCH',
                 body: JSON.stringify(driverData)
             }).catch(err => console.error("Lỗi đồng bộ vị trí xe lên Firebase:", err));
         }
@@ -495,8 +509,12 @@
             customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
             customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b><br>SĐT: ${activeCustomerData.phone || ''}`).openTooltip();
 
-            var group = new L.featureGroup([marker, customerMarker]);
-            map.fitBounds(group.getBounds().pad(0.3));
+            if (marker) {
+                var group = new L.featureGroup([marker, customerMarker]);
+                map.fitBounds(group.getBounds().pad(0.3));
+            } else {
+                map.setView([lat, lng], 16);
+            }
         }
 
         function declineCustomer() {
@@ -562,7 +580,6 @@
             }
         }
 
-        // ĐÃ SỬA: Loại bỏ hàm viết lặp, gộp logic kiểm tra thời gian thực từ Firebase lên giao diện
         function tpHandlePayment(amount, planName) {
             if (amount === 0) {
                 if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
@@ -570,7 +587,6 @@
                 const nextWeek = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
                 localStorage.setItem('tp_expiry', nextWeek);
                 
-                // Đồng bộ luôn trạng thái dùng thử lên Firebase
                 fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
                     method: 'PATCH',
                     body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' })
@@ -583,7 +599,6 @@
             } else { alert("Hệ thống thanh toán đang bảo trì!"); }
         }
 
-        // ĐÃ HOÀN THIỆN: Logic kết nối Firebase quét thời gian thực để cập nhật tên Gói cước lên Header
         function tpInitCountdown() {
             const checkExpiryFromFirebase = () => {
                 fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`)
@@ -597,11 +612,9 @@
                         const expiry = parseInt(driverData.tp_expiry);
                         const planName = driverData.active_plan_name || "PROMAX";
                         
-                        // Cập nhật text trên Header
                         planShow.innerText = `⭐ GÓI: ${planName.toUpperCase()}`;
                         planShow.style.color = "#0054a3";
                         
-                        // Tính toán thời gian đếm ngược hiển thị ở chân trang
                         banner.style.display = 'inline-flex';
                         const dist = expiry - now;
                         const days = Math.floor(dist / (1000 * 60 * 60 * 24));
@@ -613,7 +626,6 @@
                         banner.style.display = 'none';
                     }
                 }).catch(() => {
-                    // Cơ chế dự phòng (Fallback) nếu mất mạng thì đọc tạm từ LocalStorage
                     const localExpiry = localStorage.getItem('tp_expiry');
                     if (localExpiry && parseInt(localExpiry) > Date.now()) {
                         document.getElementById('planShow').innerText = "⭐ GÓI: ĐANG DÙNG";
@@ -624,7 +636,7 @@
             };
             
             checkExpiryFromFirebase();
-            setInterval(checkExpiryFromFirebase, 30000); // Tự động quét cập nhật sau mỗi 30 giây
+            setInterval(checkExpiryFromFirebase, 30000); 
         }
 
         function stopNotificationEffects() {
