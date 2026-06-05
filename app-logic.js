@@ -1,7 +1,7 @@
 /**
  * TAXI PROMAX - PREMIUM CORE LOGIC 2026
  * Tác giả: NGUYỄN XUÂN ĐẠT
- * Trạng thái: Khôi phục toàn bộ tính năng cao cấp & Sửa lỗi đồng bộ bản đồ.
+ * Trạng thái: ĐÃ TÍCH HỢP ĐỒNG BỘ FIREBASE REALTIME ĐỂ NHẬN ĐƠN KHÁCH ĐẶT
  */
 
 const App = {
@@ -9,18 +9,20 @@ const App = {
         price: 15000, 
         autoStart: 5, 
         minAcc: 40,
-        deviceId: localStorage.getItem('deviceId') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase()
+        deviceId: localStorage.getItem('deviceId') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+        // ĐỊA CHỈ SERVER FIREBASE MỚI CỦA ANH ĐẠT
+        databaseURL: "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/"
     },
     state: { 
         active: false, 
         km: 0, 
         lastPos: null, 
         path: [], 
-        history: JSON.parse(localStorage.getItem('trip_history') || '[]') 
+        history: JSON.parse(localStorage.getItem('trip_history') || '[]'),
+        currentBookingId: null // Lưu ID cuốc xe đang nhận
     },
 
     init() {
-        // Lưu định danh thiết bị duy nhất
         localStorage.setItem('deviceId', this.config.deviceId);
         
         const phone = localStorage.getItem('userPhone');
@@ -35,14 +37,13 @@ const App = {
         this.updateHeaderUI(phone);
         this.renderHistory(); 
         
-        // Khôi phục các tính năng mở rộng
-        console.log("Hệ thống TAXI PROMAX đã sẵn sàng!");
+        // KÍCH HOẠT LẮNG NGHE ĐƠN HÀNG TỪ KHÁCH
+        this.listenToFirebaseBookings();
+        console.log("Hệ thống TAXI PROMAX + Kênh kết nối Firebase đã sẵn sàng!");
     },
 
     initMap() {
-        // Tọa độ Hạ Long (Khu vực của anh Đạt)
         this.map = L.map('map', {zoomControl: false, attributionControl: false}).setView([20.95, 107.05], 15);
-        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
         
         const carIcon = L.divIcon({ 
@@ -59,7 +60,6 @@ const App = {
             const {latitude: lat, longitude: lon, accuracy: acc} = p.coords;
             const newPos = L.latLng(lat, lon);
             
-            // CẬP NHẬT: Bản đồ luôn chạy theo xe (Auto-Center)
             this.marker.setLatLng(newPos);
             if (this.state.active) {
                 this.map.panTo(newPos); 
@@ -68,7 +68,6 @@ const App = {
             if (acc <= this.config.minAcc) {
                 if (this.state.active && this.state.lastPos) {
                     const d = this.map.distance(this.state.lastPos, newPos);
-                    // Lọc nhiễu thông minh (chỉ tính di chuyển thực tế)
                     if (d > 2 && d < 150) { 
                         this.state.km += (d / 1000);
                         this.state.path.push(newPos);
@@ -87,26 +86,105 @@ const App = {
         document.getElementById('cost').innerText = fare.toLocaleString();
     },
 
+    // THÀNH PHẦN MỚI: Tự động quét đơn hàng đang trạng thái "waiting" từ Firebase
+    listenToFirebaseBookings() {
+        setInterval(() => {
+            // Không quét đơn mới nếu tài xế đang chạy khách
+            if (this.state.active) return; 
+
+            fetch(`${this.config.databaseURL}/bookings.json`)
+                .then(res => res.json())
+                .then(bookings => {
+                    if (!bookings) return;
+
+                    // Tìm đơn hàng có trạng thái đang đợi gần nhất
+                    for (let id in bookings) {
+                        if (bookings[id].status === "waiting") {
+                            this.promptDriverToAccept(id, bookings[id]);
+                            break;
+                        }
+                    }
+                })
+                .catch(err => console.error("Lỗi kết nối Server đặt xe: ", err));
+        }, 3000); // Cứ mỗi 3 giây quét Server một lần để tìm khách vẫy/đặt app
+    },
+
+    // THÀNH PHẦN MỚI: Bật bảng thông báo hỏi tài xế có nhận cuốc không
+    promptDriverToAccept(bookingId, bookingData) {
+        if (this.state.currentBookingId === bookingId) return; // Tránh trùng lặp thông báo
+        this.state.currentBookingId = bookingId;
+
+        const confirmTrip = confirm(
+            `🚖 CÓ CUỐC XE MỚI!\n\n` +
+            `• Khách hàng: ${bookingData.clientName}\n` +
+            `• SĐT: ${bookingData.phone}\n` +
+            `• Điểm đón: ${bookingData.pickup}\n` +
+            `• Điểm đến: ${bookingData.dropoff}\n` +
+            `• Quãng đường: ${bookingData.distanceKm} km\n` +
+            `• Giá cước dự kiến: ${parseInt(bookingData.price).toLocaleString()}đ\n\n` +
+            `Anh Đạt có muốn ĐÓN CUỐC NÀY KHÔNG?`
+        );
+
+        if (confirmTrip) {
+            // Cập nhật trạng thái cuốc xe trên Firebase thành "accepted" để app khách biết
+            fetch(`${this.config.databaseURL}/bookings/${bookingId}.json`, {
+                method: 'PATCH',
+                body: JSON.stringify({ 
+                    status: "accepted",
+                    driverId: this.config.deviceId,
+                    driverPhone: localStorage.getItem('userPhone')
+                })
+            })
+            .then(() => {
+                alert("Đã nhận đơn thành công! Hệ thống bắt đầu tính km hành trình.");
+                // Tự động kích hoạt hành trình chạy xe
+                this.state.active = true;
+                this.state.km = 0;
+                this.state.path = [];
+                this.routeLine.setLatLngs([]);
+                
+                const btn = document.getElementById('mainBtn');
+                if(btn) {
+                    btn.innerText = "KẾT THÚC CHUYẾN ĐI";
+                    btn.style.background = "#e74c3c";
+                }
+            });
+        } else {
+            this.state.currentBookingId = null;
+        }
+    },
+
     handleTripToggle() {
         const btn = document.getElementById('mainBtn');
         if (!this.state.active) {
-            // BẮT ĐẦU CHUYẾN
             this.state.active = true;
             this.state.km = 0;
             this.state.path = [];
             this.routeLine.setLatLngs([]);
-            btn.innerText = "KẾT THÚC CHUYẾN ĐI";
-            btn.style.background = "#e74c3c";
+            if(btn) {
+                btn.innerText = "KẾT THÚC CHUYẾN ĐI";
+                btn.style.background = "#e74c3c";
+            }
         } else {
-            // KẾT THÚC & LƯU LỊCH SỬ THỰC TẾ
             const finalFare = Math.round(this.state.km * this.config.price);
             if (this.state.km > 0.01) {
                 this.saveToHistory(this.state.km, finalFare);
             }
+
+            // Nếu cuốc này nhận từ khách đặt trên app, cập nhật trạng thái "completed" lên Firebase
+            if (this.state.currentBookingId) {
+                fetch(`${this.config.databaseURL}/bookings/${this.state.currentBookingId}.json`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: "completed" })
+                });
+                this.state.currentBookingId = null;
+            }
             
             this.state.active = false;
-            btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
-            btn.style.background = "#00bfa5";
+            if(btn) {
+                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
+                btn.style.background = "#00bfa5";
+            }
             alert(`Hoàn thành! Quãng đường: ${this.state.km.toFixed(2)}km. Cước phí: ${finalFare.toLocaleString()}đ`);
         }
     },
@@ -141,13 +219,11 @@ const App = {
             `;
         }).join('');
 
-        // Cập nhật Báo cáo lợi nhuận nếu có phần tử hiển thị
         const revUI = document.getElementById('totalRevenue');
         if (revUI) revUI.innerText = totalRevenue.toLocaleString() + " VNĐ";
     },
 
     updateHeaderUI(phone) {
-        // Đồng bộ ID thiết bị và thông tin gói cước
         document.getElementById('idShow').innerText = "🆔 " + this.config.deviceId;
         if(document.getElementById('profilePhone')) document.getElementById('profilePhone').innerText = phone;
     }
@@ -158,7 +234,6 @@ const App = {
  */
 window.toggleHeatmap = () => {
     alert("Đang quét mật độ khách hàng tại khu vực Hạ Long...");
-    // Logic vẽ vòng tròn nhiệt (mô phỏng)
     const heatPoints = [[20.952, 107.054], [20.947, 107.045]];
     heatPoints.forEach(p => {
         L.circle(p, {radius: 200, color: 'red', fillOpacity: 0.2}).addTo(App.map);
