@@ -433,7 +433,8 @@
         function closeAppModal() {
             document.getElementById('appModal').style.display = 'none';
             if(document.getElementById('ratingContainer').style.display === 'flex' && currentBookingId) {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`, {
+                // Sửa link 1/4: Gửi đánh giá sao sau khi hoàn thành chuyến đi
+                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ rating: selectedRating })
@@ -648,7 +649,8 @@
                 timestamp: Date.now()
             }; 
 
-            fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json', {
+            // Sửa link 2/4: Khách hàng nhấn đặt xe đẩy dữ liệu lên Firebase mới
+            fetch('https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe.json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(bookingData)
@@ -660,90 +662,4 @@
             .then(data => {
                 currentBookingId = data.name; 
                 showAppModal("Hệ thống đang điều phối tài xế gần nhất đến đón bạn.");
-                startTrackingTrip();
-            })
-            .catch(err => {
-                alert("Lỗi kết nối: " + err.message);
-                document.getElementById('trackerBox').style.display = "none";
-            })
-            .finally(() => { btn.disabled = false; });
-        } 
-
-        function cancelBooking() {
-            if (!currentBookingId) return;
-            if (confirm("Bạn có chắc chắn muốn hủy chuyến đi này không?")) {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: "canceled" })
-                }).then(() => {
-                    if (trackInterval) clearInterval(trackInterval);
-                    document.getElementById('trackerBox').style.display = "none";
-                    if (driverMarker) map.removeLayer(driverMarker);
-                    showAppModal("Đơn hàng đã được hủy thành công.", false);
-                    currentBookingId = null;
-                });
-            }
-        } 
-
-        function startTrackingTrip() {
-            if (!currentBookingId) return; 
-            if (trackInterval) clearInterval(trackInterval); 
-
-            trackInterval = setInterval(() => {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${currentBookingId}.json`)
-                .then(res => {
-                    if (!res.ok) return null;
-                    return res.json();
-                })
-                .then(trip => {
-                    if (!trip) return; 
-
-                    // ĐỒNG BỘ LUỒNG TRẠNG THÁI CHẠY THỰC TẾ
-                    if ((trip.status === "accepted" || trip.status === "driving") && trip.driverId) {
-                        
-                        if(trip.status === "accepted") {
-                            document.getElementById('trackerText').innerHTML = `<i class="fa-solid fa-car-side fa-bounce" style="color:#00ffaa"></i> Tài xế đang đến đón bạn...`;
-                        } else {
-                            document.getElementById('trackerText').innerHTML = `<i class="fa-solid fa-road fa-spin" style="color:#00bcff"></i> Xe đang trong hành trình đến Điểm Đến...`;
-                        }
-                        
-                        fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${trip.driverId}.json`)
-                        .then(res => res.json())
-                        .then(driverGps => {
-                            if (driverGps && driverGps.lat && driverGps.lng) {
-                                if (driverMarker) {
-                                    driverMarker.setLatLng([driverGps.lat, driverGps.lng]);
-                                } else {
-                                    let carIcon = L.icon({
-                                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3085/3085339.png',
-                                        iconSize: [32, 32],
-                                        iconAnchor: [16, 16]
-                                    });
-                                    driverMarker = L.marker([driverGps.lat, driverGps.lng], {icon: carIcon}).addTo(map).bindPopup('Xe Tài Xế').openPopup();
-                                }
-
-                                if (routingControl) {
-                                    let targetLat = (trip.status === "driving") ? trip.destLat : trip.pickupLat;
-                                    let targetLng = (trip.status === "driving") ? trip.destLng : trip.pickupLng;
-                                    
-                                    routingControl.setWaypoints([
-                                        L.latLng(driverGps.lat, driverGps.lng), 
-                                        L.latLng(targetLat, targetLng)
-                                    ]);
-                                }
-                            }
-                        });
-                    } else if (trip.status === "completed") {
-                        clearInterval(trackInterval);
-                        document.getElementById('trackerBox').style.display = "none";
-                        if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
-                        setStar(5);
-                        showAppModal("TAXI PROMAX cảm ơn bạn! Vui lòng đánh giá tài xế nhé:", true, true);
-                    }
-                }).catch(e => console.log("Đang đồng bộ dữ liệu mạng...", e));
-            }, 3000); 
-        }
-    </script>
-</body>
-</html>
+                start
