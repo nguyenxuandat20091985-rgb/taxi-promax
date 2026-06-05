@@ -73,7 +73,6 @@
             justify-content: center;
         }
 
-        /* Vầng quang tỏa rộng nhấp nháy xung quanh */
         .sm-pulse-ring {
             position: absolute;
             width: 42px;
@@ -84,7 +83,6 @@
             pointer-events: none;
         }
 
-        /* Wrapper quản lý xoay la bàn dẫn hướng */
         .sm-direction-wrapper {
             width: 26px;
             height: 26px;
@@ -96,7 +94,6 @@
             will-change: transform;
         }
         
-        /* Chấm định vị cốt lõi xanh lục lam Cyan đặc trưng */
         .sm-marker-circle { 
             width: 20px; 
             height: 20px; 
@@ -107,10 +104,9 @@
             z-index: 2;
         }
         
-        /* Mũi tên la bàn nhọn đặt ở rìa phía trước để dẫn hướng xe chạy */
         .sm-marker-arrow { 
             position: absolute;
-            top: -6px; /* Đẩy hẳn ra rìa ngoài vòng tròn để dễ quan sát */
+            top: -6px; 
             left: 50%;
             transform: translateX(-50%);
             width: 0; 
@@ -298,6 +294,7 @@
     <script>
         // --- 1. KHỞI TẠO BIẾN ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        const TX_PHONE = "0985190985"; // Quản lý tập trung SĐT tài xế ở đây
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
@@ -305,7 +302,6 @@
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
         
-        // Tạo cấu trúc HTML cho Marker có vầng quang và la bàn chỉ hướng chuẩn Xanh SM
         var smIcon = L.divIcon({ 
             className: 'sm-div-icon', 
             html: `
@@ -516,9 +512,9 @@
                 }
 
                 if (order && targetOrderKey !== lastCheckedOrderId) {
+                    isModalOpening = true; // Khóa modal ngay lập tức để tránh gọi đè dữ liệu trùng lặp
                     lastCheckedOrderId = targetOrderKey;
                     activeCustomerData = { id: targetOrderKey, ...order };
-                    isModalOpening = true;
 
                     tpSpeak("Báo cáo anh Đạt, phát hiện có đơn đặt xe mới. Vui lòng kiểm tra màn hình.");
                     startNotificationEffects();
@@ -552,7 +548,6 @@
 
             stopNotificationEffects();
             closeModal('orderModal');
-            isModalOpening = false;
             showTab('home');
 
             tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
@@ -574,9 +569,14 @@
                 body: JSON.stringify({ 
                     status: "driving", 
                     driverId: TX_ID,    
-                    driverPhone: "0985190985" 
+                    driverPhone: TX_PHONE 
                 })
-            }).catch(err => console.error(err));
+            }).then(() => {
+                isModalOpening = false; // Mở khóa quét đơn sau khi dữ liệu Firebase được xử lý hoàn tất
+            }).catch(err => {
+                console.error(err);
+                isModalOpening = false;
+            });
         }
 
         function setupCustomerMarker(lat, lng) {
@@ -602,9 +602,9 @@
         function declineCustomer() {
             stopNotificationEffects();
             closeModal('orderModal');
-            isModalOpening = false;
             activeCustomerData = null;
             tpSpeak("Đã bỏ qua đơn hàng.");
+            setTimeout(() => { isModalOpening = false; }, 1000); // Trì hoãn một chút để đảm bảo vòng quét tiếp theo ổn định
         }
 
         function startNotificationEffects() {
