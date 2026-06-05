@@ -143,6 +143,14 @@
         .tp-badge-trial { background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px; position: absolute; top: -8px; right: 10px; }
         
         .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
+
+        /* ================= CSS BOX CHUYẾN ĐI ONLINE CHUẨN GRAB ================= */
+        .online-trip-box { background: #e0f2f1; border: 2px dashed var(--accent); padding: 12px; border-radius: 15px; margin-bottom: 12px; text-align: left; }
+        .online-title { font-size: 11px; font-weight: 900; color: #00796b; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .online-detail { font-size: 12px; font-weight: bold; color: var(--dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rating-star-container { font-size: 22px; color: #bdc3c7; margin: 15px 0; }
+        .rating-star-container span { cursor: pointer; transition: 0.2s; margin: 0 4px; }
+        .rating-star-container span.selected { color: var(--gold); }
     </style>
 </head>
 <body oncontextmenu="return false;"> 
@@ -224,7 +232,12 @@
 
     <div id="tab-lichsu" class="tab-content">
         <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
+        <!-- Thống kê đơn bỏ qua chuẩn Grab -->
+        <div style="background:#fff3cd; color:#856404; margin:10px 15px; padding:10px 15px; border-radius:10px; font-size:12px; font-weight:bold; display:flex; justify-content:space-between;">
+            <span>⚠️ ĐƠN BỎ QUA TRONG NGÀY:</span>
+            <span id="skippedCountShow">0 Chuyến</span>
+        </div>
+        <div id="historyList" style="padding-top: 5px;"></div>
     </div> 
 
     <div id="tab-toi" class="tab-content">
@@ -232,26 +245,43 @@
         <div style="padding:20px;">
             <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
                 <p>Mã tài xế: <b id="profileID">...</b></p>
+                <!-- Điểm đánh giá sao tích hợp chuẩn Xanh SM -->
+                <p>Đánh giá tài xế: <b style="color:var(--gold)" id="driverRatingShow">5.0 ⭐</b></p>
                 <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
                 <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
-                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="localStorage.removeItem('trip_history'); localStorage.removeItem('tp_expiry'); location.reload();">XÓA LỊCH SỬ</button>
+                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="localStorage.clear(); location.reload();">XÓA LỊCH SỬ & RESET</button>
             </div>
         </div>
     </div> 
 
     <div class="footer-panel">
         <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
-                <div style="display: flex; align-items: center;">
-                    <span>GIÁ/KM</span>
-                    <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">
-                        ⏳ <span id="tp-cd-val">00:00</span>
+            <!-- CHẾ ĐỘ 1: CHUYẾN VẪY TRUYỀN THỐNG -->
+            <div id="panelChuyenVay">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
+                    <div style="display: flex; align-items: center;">
+                        <span>GIÁ/KM (CHUYẾN VẪY)</span>
+                        <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">
+                            ⏳ <span id="tp-cd-val">00:00</span>
+                        </div>
                     </div>
+                    <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
                 </div>
-                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
+                <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+                <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI VẪY</button>
             </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+
+            <!-- CHẾ ĐỘ 2: ĐƠN ĐẶT ONLINE TỪ HỆ THỐNG (TỰ CHUYỂN KHI BẤM NHẬN ĐƠN) -->
+            <div id="panelChuyenOnline" style="display: none;">
+                <div class="online-trip-box">
+                    <div class="online-title">
+                        <span>ĐƠN ĐẶT TRỰC TUYẾN</span>
+                        <span id="onlineStatusBadge" style="color:var(--danger)">ĐANG ĐẾN ĐÓN</span>
+                    </div>
+                    <div class="online-detail" id="onlineTextPickup">📍 Khách: ...</div>
+                </div>
+                <button id="onlineBtn" class="btn-main" style="background:var(--primary);" onclick="handleOnlineStep()">ĐÃ ĐẾN ĐIỂM ĐÓN</button>
+            </div>
         </div> 
 
         <div class="nav-grid">
@@ -285,6 +315,22 @@
         </div>
     </div>
 
+    <!-- HỘP THOẠI ĐÁNH GIÁ SAO SAU CHUYẾN ĐI CHUẨN GRAB/XANH SM -->
+    <div id="ratingModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="margin:0 0 10px 0; color:var(--primary);">XẾP HẠNG TÀI XẾ</h3>
+            <p style="font-size:12px; color:#666;">Vui lòng chấm điểm chất lượng chuyến đi vừa hoàn thành:</p>
+            <div class="rating-star-container">
+                <span onclick="setRatingStar(1)">⭐</span>
+                <span onclick="setRatingStar(2)">⭐</span>
+                <span onclick="setRatingStar(3)">⭐</span>
+                <span onclick="setRatingStar(4)">⭐</span>
+                <span onclick="setRatingStar(5)">⭐</span>
+            </div>
+            <button class="btn-main" id="submitRatingBtn" style="background:var(--primary); font-size:14px;" onclick="submitDriverRating()">HOÀN TẤT</button>
+        </div>
+    </div>
+
     <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="initAudioAndCloseModal()">ĐỒNG Ý</button></div></div>
     <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
 
@@ -292,12 +338,11 @@
     <script src="js/payment.js"></script>
     
     <script>
-        // --- ĐƯỜNG DẪN CONFIG LIÊN KẾT SERVER FIREBASE CHÂU Á MỚI ---
         const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
 
         // --- 1. KHỞI TẠO BIẾN ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-        const TX_PHONE = "0985190985"; // Quản lý tập trung SĐT tài xế ở đây
+        const TX_PHONE = "0985190985"; 
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID; 
@@ -325,6 +370,10 @@
         let countdownValue = 15, countdownInterval = null;
         let audioCtx = null, audioInterval = null;
         let currentHeading = 0; 
+        
+        // Trạng thái đơn online: 0 = Không chạy, 1 = Đang đến đón, 2 = Đang di chuyển giao khách
+        let onlineStepStatus = 0; 
+        let currentSelectedStars = 5; 
 
         function initAudioAndCloseModal() {
             try {
@@ -338,51 +387,32 @@
             closeModal('wishModal');
         }
 
-        // --- 2. THEO DÕI HƯỚNG XOAY LA BÀN THỰC TẾ ---
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', function(event) {
                 let heading = event.webkitCompassHeading || (360 - event.alpha);
-                if (heading) {
-                    currentHeading = Math.round(heading);
-                    updateMarkerRotation();
-                }
+                if (heading) { currentHeading = Math.round(heading); updateMarkerRotation(); }
             }, true);
         }
 
         function updateMarkerRotation() {
             const compassEl = document.getElementById('tp-driver-compass');
-            if (compassEl) {
-                compassEl.style.transform = `rotate(${currentHeading}deg)`;
-            }
+            if (compassEl) { compassEl.style.transform = `rotate(${currentHeading}deg)`; }
         }
 
-        // --- 3. ĐỊNH VỊ GPS LIÊN TỤC ---
         function startTracking() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
                     const { latitude, longitude, speed, heading } = pos.coords;
                     const newPos = L.latLng(latitude, longitude);
                     
-                    if (heading !== null && heading !== undefined && !isNaN(heading)) {
-                        currentHeading = Math.round(heading);
-                    }
-
-                    if (!marker) {
-                        marker = L.marker(newPos, { icon: smIcon }).addTo(map);
-                        map.setView(newPos, 16);
-                    } else {
-                        marker.setLatLng(newPos);
-                    }
-                    
+                    if (heading !== null && heading !== undefined && !isNaN(heading)) { currentHeading = Math.round(heading); }
+                    if (!marker) { marker = L.marker(newPos, { icon: smIcon }).addTo(map); map.setView(newPos, 16); } else { marker.setLatLng(newPos); }
                     updateMarkerRotation();
                     
                     const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
 
                     if(isRunning) {
-                        if (currentSpeed > 0.5) {
-                            map.panTo(newPos);
-                        }
-                        
+                        if (currentSpeed > 0.5) { map.panTo(newPos); }
                         if(lastPos) {
                             let d = newPos.distanceTo(lastPos) / 1000;
                             if(d > 0.005 && currentSpeed > 0.28) { 
@@ -395,86 +425,110 @@
                         if(!lastPos) map.setView(newPos, 16);
                     }
                     lastPos = newPos;
-
                     syncDriverLocationToFirebase(latitude, longitude);
-
                 }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
             }
         }
 
         function syncDriverLocationToFirebase(lat, lng) {
+            const isBusy = (isRunning || onlineStepStatus > 0);
             const driverData = {
-                lat: lat,
-                lng: lng,
-                heading: currentHeading, 
-                lastUpdated: Date.now(),
-                status: isRunning ? "busy" : "ready",
-                carType: "4_seats"
+                lat: lat, lng: lng, heading: currentHeading, lastUpdated: Date.now(),
+                status: isBusy ? "busy" : "ready", carType: "4_seats"
             };
-            
-            fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
-                method: 'PATCH',
-                body: JSON.stringify(driverData)
-            }).catch(err => console.error(err));
+            fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, { method: 'PATCH', body: JSON.stringify(driverData) }).catch(() => {});
         }
 
-        // --- 4. ĐIỀU KHIỂN HÀNH TRÌNH CHUYẾN ĐI ---
+        // --- CHUYẾN VẪY TRUYỀN THỐNG ---
         function handleTrip() {
             const btn = document.getElementById('mainBtn');
             if(!isRunning) {
                 isRunning = true; 
-                btn.innerText = "KẾT THÚC CHUYẾN ĐI"; 
-                btn.style.background = "var(--danger)";
+                btn.innerText = "KẾT THÚC CHUYẾN ĐI"; btn.style.background = "var(--danger)";
                 document.getElementById('wishModal').style.display = 'flex';
-                totalKm = 0; 
-                document.getElementById('km').innerText = "0.00"; 
-                document.getElementById('cost').innerText = "0";
+                totalKm = 0; document.getElementById('km').innerText = "0.00"; document.getElementById('cost').innerText = "0";
                 requestWakeLock();
-                if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
             } else {
                 isRunning = false; 
-                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI"; 
-                btn.style.background = "var(--accent)";
+                btn.innerText = "BẮT ĐẦU CHUYẾN ĐI VẪY"; btn.style.background = "var(--accent)";
                 let finalCost = Math.round(totalKm * currentRate);
-                saveHistory(totalKm.toFixed(2), finalCost.toLocaleString());
-                document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
+                saveHistory(totalKm.toFixed(2), finalCost.toLocaleString(), "Chuyến Vẫy");
+                document.getElementById('endSummary').innerHTML = `Hành trình vẫy: <b>${totalKm.toFixed(2)} KM</b><br>Tổng cước: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
                 document.getElementById('endModal').style.display = 'flex';
                 if(wakeLock) { wakeLock.release(); wakeLock = null; }
+                if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
+            }
+        }
+
+        // --- 🔄 NÂNG CẤP 1: BỘ ĐIỀU KHIỂN CHUYẾN ĐI ONLINE CHUẨN XANH SM / GRAB ---
+        function handleOnlineStep() {
+            const onlineBtn = document.getElementById('onlineBtn');
+            const statusBadge = document.getElementById('onlineStatusBadge');
+            
+            if (onlineStepStatus === 1) { 
+                // Bước 1: Tài xế đi tới điểm đón và bấm "Đã đến điểm đón"
+                onlineStepStatus = 2;
+                statusBadge.innerText = "ĐANG DI CHUYỂN";
+                statusBadge.style.color = "#00796b";
+                onlineBtn.innerText = "HOÀN THÀNH CHUYẾN ĐI";
+                onlineBtn.style.background = "var(--danger)";
                 
+                tpSpeak("Khách hàng đã lên xe. Bắt đầu di chuyển lộ trình.");
+                
+                // Kích hoạt tính năng tính tiền hành trình
+                isRunning = true;
+                totalKm = 0;
+                document.getElementById('km').innerText = "0.00";
+                document.getElementById('cost').innerText = "0";
+                requestWakeLock();
+
+                fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: "pickup_done" })
+                });
+
+            } else if (onlineStepStatus === 2) {
+                // Bước 2: Điểm đến, tài xế bấm "Hoàn thành chuyến đi"
+                isRunning = false;
+                onlineStepStatus = 0;
+                
+                // Ẩn panel online, khôi phục panel chuyến vẫy ban đầu
+                document.getElementById('panelChuyenOnline').style.display = 'none';
+                document.getElementById('panelChuyenVay').style.display = 'block';
+                
+                let finalCost = Math.round(totalKm * currentRate);
+                saveHistory(totalKm.toFixed(2), finalCost.toLocaleString(), `Khách: ${activeCustomerData.clientName || 'Online'}`);
+                
+                document.getElementById('endSummary').innerHTML = `Đơn hệ thống: <b>${totalKm.toFixed(2)} KM</b><br>Tổng cước: <b style="color:var(--primary); font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
+                document.getElementById('endModal').style.display = 'flex';
+                
+                if(wakeLock) { wakeLock.release(); wakeLock = null; }
                 if(customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
-                
-                if (activeCustomerData && activeCustomerData.id) {
-                    fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: "completed" })
-                    }).catch(err => console.error(err));
-                }
-                
+
+                fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: "completed", priceResult: finalCost })
+                });
+
+                // Kích hoạt hộp thoại đánh giá xếp hạng sao chuẩn Grab
+                setTimeout(() => { openRatingModal(); }, 800);
                 if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
             }
         }
 
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
-                try { 
-                    wakeLock = await navigator.wakeLock.request('screen'); 
-                    document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; 
-                } catch (err) { console.warn("WakeLock failed"); }
+                try { wakeLock = await navigator.wakeLock.request('screen'); document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)"; } catch (err) {}
             }
         }
 
-        document.addEventListener('visibilitychange', () => {
-            if (isRunning && document.visibilityState === 'visible') requestWakeLock();
-        });
-
         function updateRate(v) { currentRate = v; document.getElementById('rateLabel').innerText = parseInt(v).toLocaleString(); } 
 
-        // --- 5. LỊCH SỬ CHUYẾN ĐI ---
-        function saveHistory(km, cost) {
+        // --- 📊 NÂNG CẤP 3: LƯU TRỮ VÀ THỐNG KÊ ĐƠN BỎ QUA ---
+        function saveHistory(km, cost, type) {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-            history.unshift({ time, km, cost });
+            history.unshift({ time, km, cost, type });
             localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 50)));
             renderHistory();
         } 
@@ -484,33 +538,35 @@
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             list.innerHTML = history.length ? history.map(h => `
                 <div class="history-card">
-                    <div class="h-info"><b>${h.time}</b><br><small>${h.km} KM</small></div>
+                    <div class="h-info"><b>${h.time}</b> [${h.type || 'Chuyến Vẫy'}]<br><small>${h.km} KM</small></div>
                     <div class="h-price">${h.cost}đ</div>
                 </div>
             `).join('') : '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
+
+            // Hiển thị số lượng đơn bỏ qua lưu trong máy
+            let skippedCount = parseInt(localStorage.getItem('tp_skipped_today') || '0');
+            document.getElementById('skippedCountShow').innerText = skippedCount + " Chuyến";
         } 
 
-        // --- 6. QUÉT VÀ HIỂN THỊ ĐƠN HÀNG TỪ TỔNG ĐÀI REALTME ---
+        // --- 🔍 QUÉT ĐƠN REALTIME & NÂNG CẤP 2: LẮNG NGHE KHÁCH HỦY ĐƠN ---
         let lastCheckedOrderId = null;
         let isModalOpening = false; 
+        let firebaseBookingListener = null; 
 
         function checkNewBookings() {
-            if (isModalOpening || isRunning) return; 
+            if (isModalOpening || isRunning || onlineStepStatus > 0) return; 
 
             fetch(`${FIREBASE_BASE_URL}/datxe.json`)
             .then(res => res.json())
             .then(data => {
                 if (!data) return;
-
                 const keys = Object.keys(data);
                 let targetOrderKey = null;
                 let order = null;
 
                 for (let i = keys.length - 1; i >= 0; i--) {
                     if (data[keys[i]] && data[keys[i]].status === "waiting") {
-                        targetOrderKey = keys[i];
-                        order = data[keys[i]];
-                        break;
+                        targetOrderKey = keys[i]; order = data[keys[i]]; break;
                     }
                 }
 
@@ -538,73 +594,92 @@
                         document.getElementById('tp-modal-timer-val').innerText = countdownValue;
                         if (countdownValue <= 0) {
                             clearInterval(countdownInterval);
+                            // Quá thời gian tự động tính là Bỏ qua cuốc xe chuẩn Grab
                             declineCustomer(); 
                         }
                     }, 1000);
                 }
-            })
-            .catch(err => console.error(err));
+            }).catch(() => {});
         }
 
         function acceptCustomer() {
             if (!activeCustomerData) return;
-
             stopNotificationEffects();
             closeModal('orderModal');
             showTab('home');
 
-            tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
+            tpSpeak("Đã nhận đơn hàng thành công. Tiến hành lộ trình di chuyển.");
+
+            // Kích hoạt giao diện chế độ nhận chuyến đặt online
+            onlineStepStatus = 1; 
+            document.getElementById('panelChuyenVay').style.display = 'none';
+            document.getElementById('panelChuyenOnline').style.display = 'block';
+            document.getElementById('onlineStatusBadge').innerText = "ĐANG ĐẾN ĐÓN";
+            document.getElementById('onlineStatusBadge').style.color = "var(--danger)";
+            document.getElementById('onlineBtn').innerText = "ĐÃ ĐẾN ĐIỂM ĐÓN";
+            document.getElementById('onlineBtn').style.background = "var(--primary)";
+            document.getElementById('onlineTextPickup').innerText = `📍 Điểm đón: ${activeCustomerData.pickup}`;
 
             const customerLat = activeCustomerData.pickupLat || activeCustomerData.lat;
             const customerLng = activeCustomerData.pickupLng || activeCustomerData.lng;
-
-            if (customerLat && customerLng) {
-                setupCustomerMarker(customerLat, customerLng);
-            } else if (lastPos) {
-                const randomLat = lastPos.lat + (Math.random() - 0.5) * 0.005;
-                const randomLng = lastPos.lng + (Math.random() - 0.5) * 0.005;
-                setupCustomerMarker(randomLat, randomLng);
-            }
+            if (customerLat && customerLng) { setupCustomerMarker(customerLat, customerLng); }
 
             fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    status: "driving", 
-                    driverId: TX_ID,    
-                    driverPhone: TX_PHONE 
-                })
-            }).then(() => {
-                isModalOpening = false; 
-            }).catch(err => {
-                console.error(err);
+                body: JSON.stringify({ status: "driving", driverId: TX_ID, driverPhone: TX_PHONE })
+            }).then(() => { 
                 isModalOpening = false;
-            });
+                startListeningToCustomerCancel(); // Bật vòng quét liên tục nghe khách hủy đơn hay không
+            }).catch(() => { isModalOpening = false; });
         }
 
-        function setupCustomerMarker(lat, lng) {
-            if(customerMarker) map.removeLayer(customerMarker);
+        // Cơ chế quét liên tục xem khách hàng có bấm hủy đơn bên app khách không
+        function startListeningToCustomerCancel() {
+            if (firebaseBookingListener) clearInterval(firebaseBookingListener);
+            
+            firebaseBookingListener = setInterval(() => {
+                if (!activeCustomerData || onlineStepStatus === 0) { clearInterval(firebaseBookingListener); return; }
+                
+                fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`)
+                .then(res => res.json())
+                .then(orderData => {
+                    // Nếu dữ liệu trên Server đổi trạng thái thành "cancelled" (Khách hủy)
+                    if (orderData && orderData.status === "cancelled") {
+                        clearInterval(firebaseBookingListener);
+                        handleCustomerCancelledEvent();
+                    }
+                }).catch(() => {});
+            }, 3000);
+        }
 
-            var custIcon = L.divIcon({
-                className: 'cust-div-icon',
-                html: "<div class='customer-marker'>🧍</div>",
-                iconSize: [26, 26], iconAnchor: [13, 13]
-            });
-
-            customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
-            customerMarker.bindTooltip(`<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b>`).openTooltip();
-
-            if (marker) {
-                var group = new L.featureGroup([marker, customerMarker]);
-                map.fitBounds(group.getBounds().pad(0.3));
-            } else {
-                map.setView([lat, lng], 16);
-            }
+        function handleCustomerCancelledEvent() {
+            isRunning = false;
+            onlineStepStatus = 0;
+            
+            // Khôi phục giao diện chuyến vẫy ban đầu
+            document.getElementById('panelChuyenOnline').style.display = 'none';
+            document.getElementById('panelChuyenVay').style.display = 'block';
+            
+            if(customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
+            if(wakeLock) { wakeLock.release(); wakeLock = null; }
+            
+            closeModal('orderModal');
+            tpSpeak("Cảnh báo, khách hàng đã hủy chuyến đi trên hệ thống.");
+            alert("🚨 Khách hàng đã chủ động HỦY chuyến đi này!");
+            
+            if(lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng);
         }
 
         function declineCustomer() {
             stopNotificationEffects();
             closeModal('orderModal');
+            
+            // Cộng dồn đếm số đơn bỏ qua lưu vào bộ nhớ máy tài xế
+            let skippedCount = parseInt(localStorage.getItem('tp_skipped_today') || '0');
+            skippedCount++;
+            localStorage.setItem('tp_skipped_today', skippedCount);
+            renderHistory();
+
             activeCustomerData = null;
             tpSpeak("Đã bỏ qua đơn hàng.");
             setTimeout(() => { isModalOpening = false; }, 1000); 
@@ -616,10 +691,8 @@
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioInterval) clearInterval(audioInterval);
                 audioInterval = setInterval(() => {
-                    let osc = audioCtx.createOscillator();
-                    let gain = audioCtx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
                     gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
                     osc.connect(gain); gain.connect(audioCtx.destination);
                     osc.start(); osc.stop(audioCtx.currentTime + 0.15); 
@@ -631,6 +704,41 @@
             if (countdownInterval) clearInterval(countdownInterval);
             if (audioInterval) clearInterval(audioInterval);
             if (navigator.vibrate) navigator.vibrate(0); 
+        }
+
+        // --- 🌟 NÂNG CẤP 4: HỆ THỐNG ĐÁNH GIÁ VÀ XẾP HẠNG TÀI XẾ ---
+        function openRatingModal() {
+            currentSelectedStars = 5;
+            setRatingStar(5);
+            document.getElementById('ratingModal').style.display = 'flex';
+        }
+
+        function setRatingStar(num) {
+            currentSelectedStars = num;
+            const stars = document.querySelectorAll('.rating-star-container span');
+            for (let i = 0; i < stars.length; i++) {
+                if (i < num) { stars[i].classList.add('selected'); } else { stars[i].classList.remove('selected'); }
+            }
+        }
+
+        function submitDriverRating() {
+            closeModal('ratingModal');
+            // Đọc danh sách điểm đánh giá cũ ra để tính trung bình cộng tích lũy
+            let ratings = JSON.parse(localStorage.getItem('tp_ratings_list') || '[]');
+            ratings.push(currentSelectedStars);
+            localStorage.setItem('tp_ratings_list', JSON.stringify(ratings));
+            
+            let sum = ratings.reduce((a, b) => a + b, 0);
+            let avgRating = (sum / ratings.length).toFixed(1);
+            
+            document.getElementById('driverRatingShow').innerText = `${avgRating} ⭐`;
+            tpSpeak(`Đã ghi nhận đánh giá ${currentSelectedStars} sao cho hành trình.`);
+
+            // Đẩy điểm số tích lũy lên Server Firebase quản lý tập trung
+            fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
+                method: 'PATCH',
+                body: JSON.stringify({ ratingAverage: avgRating, totalTrips: ratings.length })
+            });
         }
 
         // --- 7. QUẢN LÝ GÓI CƯỚC & TIỆN ÍCH ---
@@ -649,8 +757,7 @@
                 m.bindTooltip(`<b>${s.n}</b>`).openTooltip();
                 window.radarLayers.push(m);
             });
-            showTab('home');
-            map.flyTo(lastPos, 14);
+            showTab('home'); map.flyTo(lastPos, 14);
         }
 
         function tpSpeak(text) {
@@ -668,16 +775,9 @@
                 localStorage.setItem('tp_trial_used', 'true');
                 const nextWeek = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
                 localStorage.setItem('tp_expiry', nextWeek);
-                
-                fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' })
-                });
-                tpSpeak("Kích hoạt gói dùng thử 7 ngày thành công.");
-                tpInitCountdown();
-            } else if (typeof createPayment === 'function') {
-                createPayment(amount, planName);
-            } else { alert("Hệ thống thanh toán bảo trì!"); }
+                fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, { method: 'PATCH', body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' }) });
+                tpSpeak("Kích hoạt gói dùng thử 7 ngày thành công."); tpInitCountdown();
+            } else if (typeof createPayment === 'function') { createPayment(amount, planName); } else { alert("Hệ thống thanh toán bảo trì!"); }
         }
 
         function tpInitCountdown() {
@@ -692,21 +792,20 @@
                     if (driverData && driverData.tp_expiry && parseInt(driverData.tp_expiry) > now) {
                         const expiry = parseInt(driverData.tp_expiry);
                         planShow.innerText = `⭐ GÓI: ${driverData.active_plan_name || "PROMAX"}`;
-                        planShow.style.color = "#0054a3";
-                        banner.style.display = 'inline-flex';
+                        planShow.style.color = "#0054a3"; banner.style.display = 'inline-flex';
                         const dist = expiry - now;
                         const days = Math.floor(dist / (1000 * 60 * 60 * 24));
                         const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                         document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
-                    } else {
-                        planShow.innerText = "⭐ GÓI: MIỄN PHÍ";
-                        planShow.style.color = "var(--danger)";
-                        banner.style.display = 'none';
+                    } else { planShow.innerText = "⭐ GÓI: MIỄN PHÍ"; planShow.style.color = "var(--danger)"; banner.style.display = 'none'; }
+                    
+                    // Đồng bộ điểm sao hiển thị từ Firebase về giao diện profile
+                    if (driverData && driverData.ratingAverage) {
+                        document.getElementById('driverRatingShow').innerText = `${driverData.ratingAverage} ⭐`;
                     }
                 }).catch(() => {});
             };
-            checkExpiryFromFirebase();
-            setInterval(checkExpiryFromFirebase, 30000); 
+            checkExpiryFromFirebase(); setInterval(checkExpiryFromFirebase, 30000); 
         }
 
         setInterval(checkNewBookings, 4000);
@@ -723,12 +822,8 @@
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             if(btn) btn.classList.add('active');
             if(tab === 'home') {
-                document.getElementById('homeControls').style.display = 'block';
-                setTimeout(() => map.invalidateSize(), 300); 
-            } else { 
-                document.getElementById('homeControls').style.display = 'none'; 
-                document.getElementById('tab-' + tab).style.display = 'flex'; 
-            }
+                document.getElementById('homeControls').style.display = 'block'; setTimeout(() => map.invalidateSize(), 300); 
+            } else { document.getElementById('homeControls').style.display = 'none'; document.getElementById('tab-' + tab).style.display = 'flex'; }
         } 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; } 
 
