@@ -433,7 +433,6 @@
         function closeAppModal() {
             document.getElementById('appModal').style.display = 'none';
             if(document.getElementById('ratingContainer').style.display === 'flex' && currentBookingId) {
-                // Sửa link 1/4: Gửi đánh giá sao sau khi hoàn thành chuyến đi
                 fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -649,7 +648,6 @@
                 timestamp: Date.now()
             }; 
 
-            // Sửa link 2/4: Khách hàng nhấn đặt xe đẩy dữ liệu lên Firebase mới
             fetch('https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe.json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -662,4 +660,80 @@
             .then(data => {
                 currentBookingId = data.name; 
                 showAppModal("Hệ thống đang điều phối tài xế gần nhất đến đón bạn.");
-                start
+                startTrackingStatus();
+            })
+            .catch(err => {
+                console.error(err);
+                btn.disabled = false;
+                document.getElementById('trackerBox').style.display = "none";
+                showAppModal("Lỗi hệ thống, không thể đặt xe lúc này!", false);
+            });
+        }
+
+        function startTrackingStatus() {
+            if (trackInterval) clearInterval(trackInterval);
+            
+            trackInterval = setInterval(() => {
+                if (!currentBookingId) return;
+
+                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`)
+                .then(res => res.json())
+                .then(booking => {
+                    if (!booking) return;
+
+                    const trackerText = document.getElementById('trackerText');
+
+                    if (booking.status === 'driving') {
+                        trackerText.innerHTML = `<i class="fa-solid fa-car fa-bounce" style="color:var(--primary)"></i> Tài xế <b>${booking.driverPhone || 'Hệ thống'}</b> đã nhận đơn và đang đến đón bạn!`;
+                        
+                        if (booking.driverLat && booking.driverLng) {
+                            if (driverMarker) {
+                                driverMarker.setLatLng([booking.driverLat, booking.driverLng]);
+                            } else {
+                                const taxiIcon = L.icon({
+                                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448654.png',
+                                    iconSize: [32, 32],
+                                    iconAnchor: [16, 16]
+                                });
+                                driverMarker = L.marker([booking.driverLat, booking.driverLng], { icon: taxiIcon }).addTo(map).bindPopup('Vị trí tài xế').openPopup();
+                            }
+                        }
+                    } else if (booking.status === 'completed') {
+                        clearInterval(trackInterval);
+                        document.getElementById('trackerBox').style.display = "none";
+                        document.getElementById('btnSubmit').disabled = false;
+                        if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
+                        showAppModal("Hành trình hoàn thành! Cảm ơn bạn đã trải nghiệm dịch vụ Taxi ProMax. Xin vui lòng đánh giá dịch vụ:", true, true);
+                    } else if (booking.status === 'cancelled') {
+                        clearInterval(trackInterval);
+                        document.getElementById('trackerBox').style.display = "none";
+                        document.getElementById('btnSubmit').disabled = false;
+                        currentBookingId = null;
+                        if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
+                        showAppModal("Chuyến đi đã bị hủy bỏ bởi tài xế hoặc hệ thống.", false);
+                    }
+                });
+            }, 3000);
+        }
+
+        function cancelBooking() {
+            if (!currentBookingId) return;
+            
+            if (confirm("Bạn có chắc chắn muốn hủy yêu cầu đặt xe này không?")) {
+                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'cancelled' })
+                }).then(() => {
+                    clearInterval(trackInterval);
+                    currentBookingId = null;
+                    document.getElementById('trackerBox').style.display = "none";
+                    document.getElementById('btnSubmit').disabled = false;
+                    if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
+                    showAppModal("Đã hủy chuyến đi thành công!");
+                });
+            }
+        }
+    </script>
+</body>
+</html>
