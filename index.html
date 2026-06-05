@@ -292,6 +292,9 @@
     <script src="js/payment.js"></script>
     
     <script>
+        // --- ĐƯỜNG DẪN CONFIG LIÊN KẾT SERVER FIREBASE CHÂU Á MỚI ---
+        const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
+
         // --- 1. KHỞI TẠO BIẾN ---
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         const TX_PHONE = "0985190985"; // Quản lý tập trung SĐT tài xế ở đây
@@ -409,7 +412,7 @@
                 carType: "4_seats"
             };
             
-            fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
+            fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
                 method: 'PATCH',
                 body: JSON.stringify(driverData)
             }).catch(err => console.error(err));
@@ -441,7 +444,7 @@
                 if(customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
                 
                 if (activeCustomerData && activeCustomerData.id) {
-                    fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${activeCustomerData.id}.json`, {
+                    fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: "completed" })
@@ -494,7 +497,7 @@
         function checkNewBookings() {
             if (isModalOpening || isRunning) return; 
 
-            fetch('https://taxi-promax-default-rtdb.firebaseio.com/datxe.json')
+            fetch(`${FIREBASE_BASE_URL}/datxe.json`)
             .then(res => res.json())
             .then(data => {
                 if (!data) return;
@@ -512,7 +515,7 @@
                 }
 
                 if (order && targetOrderKey !== lastCheckedOrderId) {
-                    isModalOpening = true; // Khóa modal ngay lập tức để tránh gọi đè dữ liệu trùng lặp
+                    isModalOpening = true; 
                     lastCheckedOrderId = targetOrderKey;
                     activeCustomerData = { id: targetOrderKey, ...order };
 
@@ -563,7 +566,7 @@
                 setupCustomerMarker(randomLat, randomLng);
             }
 
-            fetch(`https://taxi-promax-default-rtdb.firebaseio.com/datxe/${activeCustomerData.id}.json`, {
+            fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -572,7 +575,7 @@
                     driverPhone: TX_PHONE 
                 })
             }).then(() => {
-                isModalOpening = false; // Mở khóa quét đơn sau khi dữ liệu Firebase được xử lý hoàn tất
+                isModalOpening = false; 
             }).catch(err => {
                 console.error(err);
                 isModalOpening = false;
@@ -604,7 +607,7 @@
             closeModal('orderModal');
             activeCustomerData = null;
             tpSpeak("Đã bỏ qua đơn hàng.");
-            setTimeout(() => { isModalOpening = false; }, 1000); // Trì hoãn một chút để đảm bảo vòng quét tiếp theo ổn định
+            setTimeout(() => { isModalOpening = false; }, 1000); 
         }
 
         function startNotificationEffects() {
@@ -666,7 +669,7 @@
                 const nextWeek = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
                 localStorage.setItem('tp_expiry', nextWeek);
                 
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`, {
+                fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
                     method: 'PATCH',
                     body: JSON.stringify({ tp_expiry: nextWeek, active_plan_name: 'TRIAL 7D' })
                 });
@@ -679,7 +682,7 @@
 
         function tpInitCountdown() {
             const checkExpiryFromFirebase = () => {
-                fetch(`https://taxi-promax-default-rtdb.firebaseio.com/tai_xe_online/${TX_ID}.json`)
+                fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`)
                 .then(res => res.json())
                 .then(driverData => {
                     const planShow = document.getElementById('planShow');
