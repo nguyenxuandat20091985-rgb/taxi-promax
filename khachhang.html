@@ -485,7 +485,6 @@
             }
         } 
 
-        // NÂNG CẤP AI DỰ ĐOÁN ĐIỂM ĐẾN & KIẾM TÌM ĐỊA CHỈ
         function suggestDestination(val) {
             clearTimeout(searchTimeout);
             const box = document.getElementById('suggestionsBox');
@@ -497,7 +496,6 @@
             } 
 
             searchTimeout = setTimeout(() => {
-                // Giả lập AI lọc qua danh sách địa điểm quen thuộc trước để tối ưu tốc độ gợi ý điểm đến
                 let favs = localStorage.getItem('taxi_promax_favs');
                 let aiSuggestions = [];
                 if (favs) {
@@ -510,7 +508,6 @@
                 .then(data => {
                     box.innerHTML = '';
                     
-                    // Hiện kết quả do AI dự đoán (từ lịch sử quen thuộc) trước
                     aiSuggestions.forEach(item => {
                         let div = document.createElement('div');
                         div.className = 'suggestion-item';
@@ -522,12 +519,9 @@
                         box.appendChild(div);
                     });
 
-                    // Tiếp tục hiện kết quả tìm kiếm online trên OpenStreetMap
                     if (data && data.length > 0) {
                         data.forEach(item => {
                             let cleanName = item.display_name.split(',').slice(0, 3).join(',').trim();
-                            
-                            // Tránh trùng lắp với mục quen thuộc phía trên
                             if (aiSuggestions.some(a => a.name.toLowerCase() === cleanName.toLowerCase())) return;
 
                             let div = document.createElement('div');
@@ -622,7 +616,6 @@
             }
         } 
 
-        // NÂNG CẤP BÁO SỐ TIỀN KHÁCH ĐẶT ĐẾN APP TÀI XẾ
         function submitBooking() {
             const from = document.getElementById('p_from').value.trim();
             const to = document.getElementById('p_to').value.trim();
@@ -650,8 +643,8 @@
                 destLng: destLng,
                 status: "waiting",
                 passengers: selectedCarType === "4_seats" ? 4 : 7,
-                price: calculatedPrice,          // Gửi số tiền đã tính lên tài xế nhận diện
-                distanceKm: calculatedDistance,   // Gửi số km lên app tài xế
+                price: calculatedPrice,          
+                distanceKm: calculatedDistance,   
                 timestamp: Date.now()
             }; 
 
@@ -693,7 +686,6 @@
             }
         } 
 
-        // NÂNG CẤP THEO DÕI HÀNH TRÌNH XE ĐI ĐÓN KHÁCH & ĐIỂM ĐI ĐẾN ĐIỂM ĐẾN
         function startTrackingTrip() {
             if (!currentBookingId) return; 
             if (trackInterval) clearInterval(trackInterval); 
@@ -707,7 +699,7 @@
                 .then(trip => {
                     if (!trip) return; 
 
-                    // Khi tài xế nhận chuyến và đang đi đến điểm đón hoặc đang thực hiện chuyến đi
+                    // ĐỒNG BỘ LUỒNG TRẠNG THÁI CHẠY THỰC TẾ
                     if ((trip.status === "accepted" || trip.status === "driving") && trip.driverId) {
                         
                         if(trip.status === "accepted") {
@@ -720,7 +712,6 @@
                         .then(res => res.json())
                         .then(driverGps => {
                             if (driverGps && driverGps.lat && driverGps.lng) {
-                                // Cập nhật vị trí marker tài xế trên map
                                 if (driverMarker) {
                                     driverMarker.setLatLng([driverGps.lat, driverGps.lng]);
                                 } else {
@@ -732,9 +723,7 @@
                                     driverMarker = L.marker([driverGps.lat, driverGps.lng], {icon: carIcon}).addTo(map).bindPopup('Xe Tài Xế').openPopup();
                                 }
 
-                                // NÂNG CẤP: Vẽ đường đi thực tế động của Tài Xế
                                 if (routingControl) {
-                                    // Nếu đang chở khách, vẽ từ vị trí xe đến Điểm Đến. Nếu đi đón, vẽ từ vị trí xe đến Điểm Đón của Khách.
                                     let targetLat = (trip.status === "driving") ? trip.destLat : trip.pickupLat;
                                     let targetLng = (trip.status === "driving") ? trip.destLng : trip.pickupLng;
                                     
@@ -753,7 +742,7 @@
                         showAppModal("TAXI PROMAX cảm ơn bạn! Vui lòng đánh giá tài xế nhé:", true, true);
                     }
                 }).catch(e => console.log("Đang đồng bộ dữ liệu mạng...", e));
-            }, 3000); // Tăng tốc độ quét lên 3 giây/lần để theo dõi hành trình mượt mà hơn
+            }, 3000); 
         }
     </script>
 </body>
