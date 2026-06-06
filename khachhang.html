@@ -26,7 +26,8 @@
             }
             document.addEventListener('click', function(e) {
                 if (e.target.id !== 'p_to') {
-                    document.getElementById('suggestionsBox').style.display = 'none';
+                    const suggestionsBox = document.getElementById('suggestionsBox');
+                    if (suggestionsBox) suggestionsBox.style.display = 'none';
                 }
             });
         }; 
@@ -77,7 +78,6 @@
         function closeAppModal() {
             document.getElementById('appModal').style.display = 'none';
             if(document.getElementById('ratingContainer').style.display === 'flex' && currentBookingId) {
-                // ĐỒNG BỘ NODE /bookings THEO HIẾN PHÁP DỰ ÁN
                 fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings/${currentBookingId}.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -228,7 +228,7 @@
             const sec = document.getElementById('favSection');
             const container = document.getElementById('favContainer');
             
-            if (favs) {
+            if (favs && sec && container) {
                 let list = JSON.parse(favs);
                 if(list.length > 0) {
                     container.innerHTML = '';
@@ -246,7 +246,7 @@
                     return;
                 }
             }
-            sec.style.display = 'none';
+            if (sec) sec.style.display = 'none';
         } 
 
         function selectCar(type) {
@@ -261,9 +261,6 @@
             }
         } 
 
-        // ==========================================
-        // SỬA ĐỒNG BỘ SANG NODE /bookings THEO ĐIỀU 6 & ĐIỀU 7
-        // ==========================================
         function submitBooking() {
             const from = document.getElementById('p_from').value.trim();
             const to = document.getElementById('p_to').value.trim();
@@ -289,14 +286,13 @@
                 pickupLng: clientLng,
                 destLat: destLat,
                 destLng: destLng,
-                status: "waiting", // Khớp trạng thái chờ điều phối của tài xế
+                status: "waiting",
                 passengers: selectedCarType === "4_seats" ? 4 : 7,
                 price: calculatedPrice,          
                 distanceKm: parseFloat(calculatedDistance.toFixed(2)),   
                 timestamp: Date.now()
             }; 
 
-            // Đồng bộ đẩy dữ liệu thẳng vào node gốc /bookings.json
             fetch('https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings.json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -309,7 +305,7 @@
             .then(data => {
                 currentBookingId = data.name; 
                 showAppModal("Hệ thống đang điều phối tài xế gần nhất đến đón bạn.");
-                startTrackingStatusRealtime(); // Chuyển sang luồng lắng nghe thời gian thực bằng SSE
+                startTrackingStatusRealtime(); 
             })
             .catch(err => {
                 console.error(err);
@@ -319,56 +315,42 @@
             });
         }
 
-        // ==========================================
-        // NÂNG CẤP ĐIỀU 10: LẮNG NGHE REALTIME BẰNG EVENTSOURCE (SSE)
-        // Loại bỏ hoàn toàn setInterval gây tốn dữ liệu mạng
-        // ==========================================
         function startTrackingStatusRealtime() {
             if (eventSourceTracker) {
                 eventSourceTracker.close();
             }
             
-            // Lắng nghe streaming sự thay đổi duy nhất của cuốc xe này trên Firebase
             eventSourceTracker = new EventSource(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings/${currentBookingId}.json`);
             
             eventSourceTracker.addEventListener('put', (event) => {
                 const streamData = JSON.parse(event.data);
                 if (!streamData) return;
 
-                // Firebase REST SSE trả về cấu trúc phân mảnh qua data.path và data.data
                 const path = streamData.path;
                 const changeData = streamData.data;
 
-                // Biến tạm để gom và theo dõi trạng thái cuốc xe
                 let currentStatus = "";
-                let driverPhone = "";
 
-                // Trường hợp nhận dữ liệu khởi tạo ban đầu (path là "/")
                 if (path === "/") {
                     if (!changeData) return;
                     currentStatus = changeData.status;
-                    driverPhone = changeData.driverPhone;
-                    
-                    // Vẽ vị trí xe tài xế nếu tài xế đã nhận đơn
                     if ((currentStatus === 'accepted' || currentStatus === 'in_progress') && changeData.driverId) {
-                        // Tìm kiếm vị trí trực tiếp từ node driver của tài xế đó để hiển thị lên bản đồ khách
                         trackDriverMovingRealtime(changeData.driverId);
                     }
                 } 
-                // Trường hợp tài xế cập nhật thuộc tính riêng lẻ (ví dụ tài xế PATCH status lên node)
                 else if (path === "/status") {
                     currentStatus = changeData;
                 }
 
                 const trackerText = document.getElementById('trackerText');
+                if (!trackerText) return;
 
-                // Khớp trạng thái "accepted" từ logic app-logic.js của tài xế gửi lên
                 if (currentStatus === 'accepted' || currentStatus === 'in_progress') {
                     trackerText.innerHTML = `<i class="fa-solid fa-car fa-bounce" style="color:var(--primary)"></i> Tài xế đã nhận đơn và đang thực hiện hành trình đón bạn!`;
                 } 
                 else if (currentStatus === 'completed') {
                     if (eventSourceTracker) eventSourceTracker.close();
-                    if (window.driverLocationSource) window.driverLocationSource.close(); // Đóng stream định vị tài xế
+                    if (window.driverLocationSource) window.driverLocationSource.close(); 
                     
                     document.getElementById('trackerBox').style.display = "none";
                     document.getElementById('btnSubmit').disabled = false;
@@ -382,23 +364,21 @@
                     
                     document.getElementById('trackerBox').style.display = "none";
                     document.getElementById('btnSubmit').disabled = false;
-                    currentBookingId = null;
                     if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
                     showAppModal("Chuyến đi đã bị hủy bỏ bởi tài xế hoặc hệ thống.", false);
                 }
             });
         }
 
-        // Kênh Stream thứ 2: Đọc trực tiếp tọa độ của tài xế di chuyển từ bảng điều động `/drivers`
         function trackDriverMovingRealtime(driverId) {
             if (window.driverLocationSource) window.driverLocationSource.close();
 
             window.driverLocationSource = new EventSource(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/drivers/${driverId}.json`);
             window.driverLocationSource.addEventListener('put', (event) => {
                 const raw = JSON.parse(event.data);
-                if (!raw || !raw.data) return;
+                if (!raw || raw.data === null) return;
 
-                let lat, lon;
+                let lat = null, lon = null;
                 if (raw.path === "/") {
                     lat = raw.data.lat;
                     lon = raw.data.lon;
@@ -408,7 +388,7 @@
                     lon = raw.data;
                 }
 
-                if (lat && lon) {
+                if (lat !== null && lon !== null) {
                     const taxiPos = [lat, lon];
                     if (driverMarker) {
                         driverMarker.setLatLng(taxiPos);
@@ -428,7 +408,6 @@
             if (!currentBookingId) return;
             
             if (confirm("Bạn có chắc chắn muốn hủy yêu cầu đặt xe này không?")) {
-                // Đồng bộ hủy đơn về đúng node /bookings
                 fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings/${currentBookingId}.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
