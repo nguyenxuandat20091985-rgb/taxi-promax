@@ -3,116 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax - Driver App</title>
-    <!-- Leaflet CSS -->
+    <title>TAXI PROMAX DRIVER</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #00bfa5; --bg: #f4f7f6; --text: #333; --white: #ffffff; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: var(--bg); overflow: hidden; }
+        :root { --main: #00bfa5; --bg: #f5f5f5; --danger: #d32f2f; }
+        body { margin: 0; font-family: sans-serif; background: var(--bg); overflow: hidden; }
+        
+        /* Bản đồ & Marker */
+        #map { height: 100vh; width: 100%; position: absolute; z-index: 1; }
+        .glowing-marker { width: 40px; height: 40px; background: var(--main); border-radius: 50%; box-shadow: 0 0 15px var(--main); border: 3px solid white; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(0.9); opacity: 1; } }
 
-        /* Map Container */
-        #map { height: 100vh; width: 100vw; position: absolute; z-index: 1; }
-
-        /* Glowing Marker */
-        .driver-marker { position: relative; display: flex; justify-content: center; align-items: center; }
-        .pulse-ring { width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 191, 165, 0.4); animation: pulsate 2s infinite; }
-        .inner-dot { width: 15px; height: 15px; background: var(--primary); border-radius: 50%; position: absolute; border: 2px solid white; }
-        @keyframes pulsate { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
-
-        /* UI Overlay */
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: none; background: rgba(255,255,255,0.95); padding: 20px; padding-bottom: 100px; box-sizing: border-box; }
-        .tab-content.active { display: block; }
-
-        .header-bar { position: fixed; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; z-index: 20; }
-        .wallet-badge { background: white; padding: 8px 15px; border-radius: 20px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: var(--primary); }
-
-        .footer-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 15px 0; z-index: 20; box-shadow: 0 -5px 10px rgba(0,0,0,0.05); }
-        .nav-item { text-align: center; cursor: pointer; color: #888; font-size: 12px; }
-        .nav-item.active { color: var(--primary); }
-
-        /* Modal styling */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: center; justify-content: center; }
-        .modal-body { background: white; width: 90%; padding: 20px; border-radius: 20px; text-align: center; }
-        .btn-action { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 15px; font-weight: bold; margin-top: 10px; }
+        /* Giao diện Overlay */
+        .ui-layer { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; pointer-events: none; }
+        .nav-bottom { position: absolute; bottom: 0; width: 100%; background: white; padding: 20px; border-radius: 20px 20px 0 0; pointer-events: auto; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
+        .tab-btn { flex: 1; text-align: center; cursor: pointer; font-size: 12px; }
+        
+        /* Modal đơn hàng */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: white; width: 90%; border-radius: 20px; padding: 20px; text-align: center; }
+        
+        /* Chế độ nhận chuyến */
+        .trip-active { background: white; padding: 15px; border-radius: 15px; margin: 10px; pointer-events: auto; }
+        .btn-action { width: 100%; padding: 15px; border: none; border-radius: 10px; background: var(--main); color: white; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <!-- Map -->
-    <div id="map"></div>
+<!-- Bản đồ -->
+<div id="map"></div>
 
-    <!-- UI Overlay (Tabs) -->
-    <div id="tab-home" class="tab-content active">
-        <div class="header-bar">
-            <div class="wallet-badge">💰 610.300đ</div>
-            <div class="wallet-badge" id="status-toggle" style="background:#e8f5e9; color:#2e7d32;">● Đang trực tuyến</div>
+<!-- UI Lớp phủ -->
+<div class="ui-layer">
+    <!-- Header: Trạng thái & Ví tiền -->
+    <div style="padding: 20px; display: flex; justify-content: space-between;">
+        <div id="statusIndicator" style="background: var(--main); color: white; padding: 5px 15px; border-radius: 20px;">Trực tuyến</div>
+        <div style="background: white; padding: 5px 15px; border-radius: 20px;">Ví: 610.300đ</div>
+    </div>
+
+    <!-- Khu vực hiển thị đơn đang nhận (không tự chuyển màn hình) -->
+    <div id="activeTrip" class="trip-active" style="display:none;">
+        <h3 id="tripStatus">Đang di chuyển đón khách</h3>
+        <p>📍 Đón: <span id="fromLoc">...</span></p>
+        <p>🏁 Trả: <span id="toLoc">...</span></p>
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="background:#3498db;">Gọi</button>
+            <button class="btn-action" style="background:#2ecc71;">Nhắn tin</button>
         </div>
-        <!-- Nội dung Trang chủ -->
+        <button class="btn-action" style="background:var(--danger);" onclick="completeTrip()">Hoàn thành chuyến</button>
     </div>
 
-    <div id="tab-wallet" class="tab-content">
-        <h2>Ví Tài Xế</h2>
-        <p>Lịch sử nạp/rút và số dư.</p>
-    </div>
-
-    <div id="tab-history" class="tab-content">
-        <h2>Lịch sử chuyến đi</h2>
-        <!-- Dữ liệu chuyến đi -->
-    </div>
-
-    <div id="tab-profile" class="tab-content">
-        <h2>Nguyễn Xuân Đạt</h2>
-        <p>Hạng tài xế: Xanh</p>
-    </div>
-
-    <!-- Modal Nhận Cuốc (Chuyến vẫy) -->
-    <div id="trip-modal" class="modal">
-        <div class="modal-body">
-            <h3>🚨 ĐƠN HÀNG MỚI</h3>
-            <p>Khách hàng: Hoàng Minh Chiến</p>
-            <p>📍 Điểm đón: Nhà hàng Hồng Hạnh 6</p>
-            <button class="btn-action" onclick="alert('Đã nhận chuyến!')">ĐÓN KHÁCH</button>
-            <button class="btn-action" style="background:#ff5252;" onclick="document.getElementById('trip-modal').style.display='none'">BỎ QUA</button>
+    <!-- Thanh Menu đáy -->
+    <div class="nav-bottom">
+        <div style="display: flex; justify-content: space-around;">
+            <div class="tab-btn" onclick="showTab('home')">🏠 Trang chủ</div>
+            <div class="tab-btn" onclick="showTab('wallet')">💰 Ví tiền</div>
+            <div class="tab-btn" onclick="showTab('history')">📊 Lịch sử</div>
+            <div class="tab-btn" onclick="showTab('profile')">👤 Tôi</div>
         </div>
     </div>
+</div>
 
-    <!-- Footer Navigation -->
-    <div class="footer-nav">
-        <div class="nav-item active" onclick="showTab('home')">🏠<br>Trang chủ</div>
-        <div class="nav-item" onclick="showTab('wallet')">💰<br>Ví tiền</div>
-        <div class="nav-item" onclick="showTab('history')">📊<br>Lịch sử</div>
-        <div class="nav-item" onclick="showTab('profile')">👤<br>Tôi</div>
+<!-- Modal Đăng nhập (Bắt buộc) -->
+<div id="loginModal" class="modal" style="display: flex;">
+    <div class="modal-content">
+        <h2>Đăng nhập Tài xế</h2>
+        <input type="text" id="phone" placeholder="Số điện thoại" style="width:80%; padding:10px; margin-bottom:10px;"><br>
+        <select id="vehicleType" style="width:85%; padding:10px;">
+            <option value="electric">Xe điện (VF e34/VF8/VF9)</option>
+            <option value="gas">Xe xăng</option>
+        </select>
+        <button class="btn-action" onclick="login()">Bắt đầu làm việc</button>
     </div>
+</div>
 
-    <!-- Scripts -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // Init Map
-        const map = L.map('map', {zoomControl: false}).setView([20.95, 107.03], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+<!-- Modal Nhận đơn -->
+<div id="orderModal" class="modal">
+    <div class="modal-content">
+        <h2>🚨 ĐƠN HÀNG MỚI</h2>
+        <p>Khách: Nguyễn Văn A</p>
+        <button class="btn-action" onclick="acceptOrder()">Nhận chuyến</button>
+        <button class="btn-action" style="background:gray;" onclick="ignoreOrder()">Bỏ qua</button>
+    </div>
+</div>
 
-        // Custom Glowing Marker
-        const pulseIcon = L.divIcon({
-            className: 'driver-marker',
-            html: '<div class="pulse-ring"></div><div class="inner-dot"></div>',
-            iconSize: [40, 40]
-        });
-        L.marker([20.95, 107.03], {icon: pulseIcon}).addTo(map);
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Logic quản lý trạng thái
+    let state = {
+        isLoggedIn: false,
+        ignoredCount: 0,
+        currentTrip: null
+    };
 
-        // Tab Switching
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById('tab-' + tabId).classList.add('active');
-            event.currentTarget.classList.add('active');
-        }
+    function login() {
+        state.isLoggedIn = true;
+        document.getElementById('loginModal').style.display = 'none';
+        alert("Đăng nhập thành công!");
+    }
 
-        // Simulate incoming ride (Integration hook)
-        setTimeout(() => {
-            document.getElementById('trip-modal').style.display = 'flex';
-            // Play sound here
-            new Audio('https://actions.google.com/sounds/v1/notifications/beep_short.ogg').play();
-        }, 3000);
-    </script>
+    function acceptOrder() {
+        state.currentTrip = { from: "Hùng Thắng", to: "Bãi Cháy" };
+        document.getElementById('orderModal').style.display = 'none';
+        document.getElementById('activeTrip').style.display = 'block';
+        document.getElementById('fromLoc').innerText = state.currentTrip.from;
+        document.getElementById('toLoc').innerText = state.currentTrip.to;
+    }
+
+    function ignoreOrder() {
+        state.ignoredCount++;
+        document.getElementById('orderModal').style.display = 'none';
+        console.log("Tổng đơn đã bỏ qua hôm nay: " + state.ignoredCount);
+    }
+
+    function completeTrip() {
+        // Mở modal đánh giá
+        alert("Chuyến đi hoàn tất! Mời khách hàng đánh giá.");
+        document.getElementById('activeTrip').style.display = 'none';
+        state.currentTrip = null;
+    }
+
+    // Khởi tạo bản đồ
+    var map = L.map('map').setView([20.95, 107.03], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    // Icon phát quang (đơn giản hóa bằng divIcon)
+    L.marker([20.95, 107.03], {
+        icon: L.divIcon({ className: 'glowing-marker', html: '' })
+    }).addTo(map);
+</script>
 </body>
 </html>
