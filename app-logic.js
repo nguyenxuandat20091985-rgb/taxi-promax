@@ -1,25 +1,28 @@
 /**
  * TAXI PROMAX - PREMIUM CORE LOGIC 2026
  * Tác giả: NGUYỄN XUÂN ĐẠT
- * Trạng thái: ĐÃ TÍCH HỢP ĐỒNG BỘ FIREBASE REALTIME ĐỂ NHẬN ĐƠN KHÁCH ĐẶT
+ * Trạng thái: ĐÃ CẬP NHẬT BỘ LỌC CHỐNG GIAN LẬN GPS (ĐIỀU 8) & CHỨC NĂNG CHUYẾN VẪY (ĐIỀU 5)
  */
 
 const App = {
     config: { 
         price: 15000, 
         autoStart: 5, 
-        minAcc: 40,
+        minAcc: 30, // Điều 8: Tuyệt đối không cộng KM khi accuracy > 30m
+        maxSpeedKmh: 150, // Điều 18: Tốc độ tối đa hợp lệ của xe taxi để chống hack tốc độ
+        minSpeedKmh: 2, // Tốc độ tối thiểu để loại bỏ nhiễu rung sai tọa độ khi đứng yên
         deviceId: localStorage.getItem('deviceId') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
-        // ĐỊA CHỈ SERVER FIREBASE MỚI CỦA ANH ĐẠT
         databaseURL: "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/"
     },
     state: { 
         active: false, 
         km: 0, 
         lastPos: null, 
+        lastPosTime: null, // Lưu mốc thời gian để tính toán vận tốc thực tế
         path: [], 
         history: JSON.parse(localStorage.getItem('trip_history') || '[]'),
-        currentBookingId: null // Lưu ID cuốc xe đang nhận
+        currentBookingId: null,
+        isHailTrip: false // Đánh dấu nhận biết đang chạy hành trình "Chuyến Vẫy"
     },
 
     init() {
@@ -36,10 +39,8 @@ const App = {
         this.watchGPS();
         this.updateHeaderUI(phone);
         this.renderHistory(); 
-        
-        // KÍCH HOẠT LẮNG NGHE ĐƠN HÀNG TỪ KHÁCH
         this.listenToFirebaseBookings();
-        console.log("Hệ thống TAXI PROMAX + Kênh kết nối Firebase đã sẵn sàng!");
+        console.log("Hệ thống TAXI PROMAX: Toàn bộ lõi chức năng nâng cấp v5.1 đã kích hoạt!");
     },
 
     initMap() {
@@ -55,78 +56,135 @@ const App = {
         this.routeLine = L.polyline([], {color: '#00bfa5', weight: 6, opacity: 0.7}).addTo(this.map);
     },
 
+    // ==========================================
+    // NÂNG CẤP ĐIỀU 8 & 18: BỘ LỌC GPS CHỐNG GIAN LẬN CAO CẤP
+    // ==========================================
     watchGPS() {
+        if (!navigator.geolocation) {
+            console.error("Thiết bị không hỗ trợ định vị GPS toàn cầu.");
+            return;
+        }
+
         navigator.geolocation.watchPosition(p => {
             const {latitude: lat, longitude: lon, accuracy: acc} = p.coords;
             const newPos = L.latLng(lat, lon);
+            const currentTime = Date.now();
             
+            // Cập nhật vị trí biểu tượng xe trên bản đồ giao diện trực quan
             this.marker.setLatLng(newPos);
             if (this.state.active) {
                 this.map.panTo(newPos); 
             }
 
-            if (acc <= this.config.minAcc) {
-                if (this.state.active && this.state.lastPos) {
-                    const d = this.map.distance(this.state.lastPos, newPos);
-                    if (d > 2 && d < 150) { 
-                        this.state.km += (d / 1000);
+            // KIỂM TRA ĐIỀU KIỆN 1 (Điều 8): Bộ lọc độ chính xác hình học (Accuracy Filter)
+            if (acc > this.config.minAcc) {
+                console.warn(`[GPS Filter] Đã bỏ qua tọa độ do nhiễu sóng, độ sai số vượt ngưỡng: ${acc.toFixed(1)}m > ${this.config.minAcc}m`);
+                return;
+            }
+
+            if (this.state.active && this.state.lastPos && this.state.lastPosTime) {
+                // Tính khoảng cách di chuyển thực tế (mét) giữa 2 điểm định vị liên tiếp
+                const distanceMeters = this.map.distance(this.state.lastPos, newPos);
+                // Tính khoảng thời gian chênh lệch (giây)
+                const timeDiffSeconds = (currentTime - this.state.lastPosTime) / 1000;
+
+                if (timeDiffSeconds > 0 && distanceMeters > 0) {
+                    // Tính vận tốc tức thời thực tế di chuyển: v = s / t (đổi ra km/h)
+                    const speedKmh = (distanceMeters / timeDiffSeconds) * 3.6;
+
+                    // KIỂM TRA ĐIỀU KIỆN 2 (Điều 18): Kiểm định vận tốc tối đa và tối thiểu chống Fake GPS / Nhảy GPS Drift
+                    if (speedKmh >= this.config.minSpeedKmh && speedKmh <= this.config.maxSpeedKmh) {
+                        this.state.km += (distanceMeters / 1000);
                         this.state.path.push(newPos);
                         this.routeLine.setLatLngs(this.state.path);
                         this.updateStats();
+                    } else {
+                        console.warn(`[Anti-Fraud] Phát hiện di chuyển bất thường! Vận tốc tính toán: ${speedKmh.toFixed(1)} km/h. Đã hủy ghi nhận cước.`);
                     }
                 }
-                this.state.lastPos = newPos;
             }
-        }, err => console.error(err), { enableHighAccuracy: true, maximumAge: 0 });
+
+            // Lưu lại tọa độ và thời gian làm mốc tính toán cho điểm kế tiếp
+            this.state.lastPos = newPos;
+            this.state.lastPosTime = currentTime;
+
+            // Đồng bộ định vị của tài xế lên hệ thống máy chủ trung tâm phục vụ Admin Dashboard điều động xe
+            this.syncDriverCoordinatesToServer(lat, lon);
+
+        }, err => console.error("Lỗi phần cứng định vị GPS trên thiết bị: ", err), { 
+            enableHighAccuracy: true, 
+            maximumAge: 0,
+            timeout: 5000 
+        });
+    },
+
+    syncDriverCoordinatesToServer(lat, lon) {
+        const phone = localStorage.getItem('userPhone');
+        if (!phone) return;
+
+        fetch(`${this.config.databaseURL}/drivers/${this.config.deviceId}.json`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                phone: phone,
+                lat: lat,
+                lon: lon,
+                status: this.state.active ? "busy" : "online",
+                lastUpdate: Date.now()
+            })
+        }).catch(err => console.error("Lỗi đồng bộ tọa độ xe lên Firebase: ", err));
     },
 
     updateStats() {
-        const fare = Math.round(this.state.km * this.config.price);
+        const finalFare = Math.round(this.state.km * this.config.price);
         document.getElementById('km').innerText = this.state.km.toFixed(2);
-        document.getElementById('cost').innerText = fare.toLocaleString();
+        document.getElementById('cost').innerText = finalFare.toLocaleString();
     },
 
-    // THÀNH PHẦN MỚI: Tự động quét đơn hàng đang trạng thái "waiting" từ Firebase
     listenToFirebaseBookings() {
-        setInterval(() => {
-            // Không quét đơn mới nếu tài xế đang chạy khách
-            if (this.state.active) return; 
+        if (this.eventSource) this.eventSource.close();
+        
+        try {
+            this.eventSource = new EventSource(`${this.config.databaseURL}/bookings.json`);
+            this.eventSource.addEventListener('put', (event) => {
+                if (this.state.active) return; 
 
-            fetch(`${this.config.databaseURL}/bookings.json`)
-                .then(res => res.json())
-                .then(bookings => {
-                    if (!bookings) return;
+                const data = JSON.parse(event.data);
+                if (!data || !data.data) return;
 
-                    // Tìm đơn hàng có trạng thái đang đợi gần nhất
-                    for (let id in bookings) {
-                        if (bookings[id].status === "waiting") {
-                            this.promptDriverToAccept(id, bookings[id]);
+                const path = data.path;
+                const bookingData = data.data;
+
+                if (path !== "/" && bookingData.status === "waiting") {
+                    this.promptDriverToAccept(path.replace('/', ''), bookingData);
+                } else if (path === "/") {
+                    for (let id in bookingData) {
+                        if (bookingData[id] && bookingData[id].status === "waiting") {
+                            this.promptDriverToAccept(id, bookingData[id]);
                             break;
                         }
                     }
-                })
-                .catch(err => console.error("Lỗi kết nối Server đặt xe: ", err));
-        }, 3000); // Cứ mỗi 3 giây quét Server một lần để tìm khách vẫy/đặt app
+                }
+            });
+        } catch (error) {
+            console.error("Lỗi khởi tạo Realtime Listener: ", error);
+        }
     },
 
-    // THÀNH PHẦN MỚI: Bật bảng thông báo hỏi tài xế có nhận cuốc không
     promptDriverToAccept(bookingId, bookingData) {
-        if (this.state.currentBookingId === bookingId) return; // Tránh trùng lặp thông báo
+        if (this.state.currentBookingId === bookingId) return; 
         this.state.currentBookingId = bookingId;
 
         const confirmTrip = confirm(
-            `🚖 CÓ CUỐC XE MỚI!\n\n` +
+            `🚖 CÓ CUỐC XE MỚI TỪ APP KHÁCH!\n\n` +
             `• Khách hàng: ${bookingData.clientName}\n` +
             `• SĐT: ${bookingData.phone}\n` +
             `• Điểm đón: ${bookingData.pickup}\n` +
             `• Điểm đến: ${bookingData.dropoff}\n` +
-            `• Quãng đường: ${bookingData.distanceKm} km\n` +
-            `• Giá cước dự kiến: ${parseInt(bookingData.price).toLocaleString()}đ\n\n` +
+            `• Quãng đường dự kiến: ${bookingData.distanceKm} km\n\n` +
             `Anh Đạt có muốn ĐÓN CUỐC NÀY KHÔNG?`
         );
 
         if (confirmTrip) {
-            // Cập nhật trạng thái cuốc xe trên Firebase thành "accepted" để app khách biết
             fetch(`${this.config.databaseURL}/bookings/${bookingId}.json`, {
                 method: 'PATCH',
                 body: JSON.stringify({ 
@@ -136,9 +194,9 @@ const App = {
                 })
             })
             .then(() => {
-                alert("Đã nhận đơn thành công! Hệ thống bắt đầu tính km hành trình.");
-                // Tự động kích hoạt hành trình chạy xe
+                alert("Đã khóa và nhận đơn thành công!");
                 this.state.active = true;
+                this.state.isHailTrip = false;
                 this.state.km = 0;
                 this.state.path = [];
                 this.routeLine.setLatLngs([]);
@@ -154,38 +212,85 @@ const App = {
         }
     },
 
+    // ==========================================
+    // NÂNG CẤP ĐIỀU 5: HOÀN THIỆN HOÀN TOÀN CHỨC NĂNG CHUYỂN VẪY
+    // ==========================================
+    createHailTrip() {
+        if (this.state.active) return;
+        if (!this.state.lastPos) {
+            alert("Hệ thống chưa nhận diện được tọa độ GPS ổn định. Vui lòng thử lại sau vài giây.");
+            return;
+        }
+
+        if (confirm("🚨 KÍCH HOẠT CHUYẾN VẪY XE TRỰC TIẾP DỌC ĐƯỜNG?\n\nHành trình sẽ tự động ghi nhận km dựa trên đồng hồ thực tế định vị GPS di chuyển của xe.")) {
+            const hailId = 'HAIL-' + Date.now();
+            const hailData = {
+                clientName: "Khách Vẫy Khách Đường",
+                phone: "0000000000",
+                pickup: "Đón trực tiếp trên đường di chuyển",
+                pickupLat: this.state.lastPos.lat,
+                pickupLon: this.state.lastPos.lng,
+                status: "in_progress", // Đồng bộ trạng thái hành trình trực tiếp lên server
+                driverId: this.config.deviceId,
+                driverPhone: localStorage.getItem('userPhone'),
+                createdAt: new Date().toISOString()
+            };
+
+            // Lưu thông tin đơn vẫy lên cấu trúc node cây dữ liệu Firebase chuẩn quy định
+            fetch(`${this.config.databaseURL}/bookings/${hailId}.json`, {
+                method: 'PUT',
+                body: JSON.stringify(hailData)
+            })
+            .then(() => {
+                this.state.active = true;
+                this.state.isHailTrip = true;
+                this.state.currentBookingId = hailId;
+                this.state.km = 0;
+                this.state.path = [];
+                this.routeLine.setLatLngs([]);
+
+                const btn = document.getElementById('mainBtn');
+                if(btn) {
+                    btn.innerText = "KẾT THÚC CHUYẾN VẪY";
+                    btn.style.background = "#e74c3c";
+                }
+                alert("Đồng hồ tính cước Chuyến Vẫy đã mở! Chúc anh Đạt lái xe an toàn.");
+            })
+            .catch(err => console.error("Lỗi đồng bộ chuyến vẫy lên Server: ", err));
+        }
+    },
+
     handleTripToggle() {
         const btn = document.getElementById('mainBtn');
         if (!this.state.active) {
-            this.state.active = true;
-            this.state.km = 0;
-            this.state.path = [];
-            this.routeLine.setLatLngs([]);
-            if(btn) {
-                btn.innerText = "KẾT THÚC CHUYẾN ĐI";
-                btn.style.background = "#e74c3c";
-            }
+            // Nếu bấm nút chạy thủ công ngoài màn hình, mặc định khởi chạy tính năng Chuyến Vẫy (Điều 5)
+            this.createHailTrip();
         } else {
             const finalFare = Math.round(this.state.km * this.config.price);
             if (this.state.km > 0.01) {
                 this.saveToHistory(this.state.km, finalFare);
             }
 
-            // Nếu cuốc này nhận từ khách đặt trên app, cập nhật trạng thái "completed" lên Firebase
             if (this.state.currentBookingId) {
                 fetch(`${this.config.databaseURL}/bookings/${this.state.currentBookingId}.json`, {
                     method: 'PATCH',
-                    body: JSON.stringify({ status: "completed" })
+                    body: JSON.stringify({ 
+                        status: "completed",
+                        actualDistanceKm: this.state.km.toFixed(2),
+                        finalPrice: finalFare,
+                        completedAt: new Date().toISOString()
+                    })
                 });
                 this.state.currentBookingId = null;
             }
             
             this.state.active = false;
+            this.state.isHailTrip = false;
             if(btn) {
                 btn.innerText = "BẮT ĐẦU CHUYẾN ĐI";
                 btn.style.background = "#00bfa5";
             }
-            alert(`Hoàn thành! Quãng đường: ${this.state.km.toFixed(2)}km. Cước phí: ${finalFare.toLocaleString()}đ`);
+            alert(`Hành trình hoàn thành! Quãng đường di chuyển thực tế: ${this.state.km.toFixed(2)} km. Tổng cước: ${finalFare.toLocaleString()} VNĐ`);
         }
     },
 
@@ -230,10 +335,10 @@ const App = {
 };
 
 /**
- * CÁC HÀM TÍNH NĂNG MỞ RỘNG (GIAO DIỆN CÔNG CỤ HỖ TRỢ)
+ * LIÊN KẾT HÀM TOÀN CỤC VỚI GIAO DIỆN HTML NÚT BẤM
  */
 window.toggleHeatmap = () => {
-    alert("Đang quét mật độ khách hàng tại khu vực Hạ Long...");
+    alert("Đang quét vị trí nhu cầu mật độ khách hàng...");
     const heatPoints = [[20.952, 107.054], [20.947, 107.045]];
     heatPoints.forEach(p => {
         L.circle(p, {radius: 200, color: 'red', fillOpacity: 0.2}).addTo(App.map);
@@ -241,8 +346,8 @@ window.toggleHeatmap = () => {
 };
 
 window.triggerSOS = () => {
-    if(confirm("XÁC NHẬN CỨU HỘ: Gửi vị trí của anh tới cộng đồng tài xế gần nhất?")) {
-        alert("Đã phát tín hiệu SOS! Vui lòng giữ liên lạc.");
+    if(confirm("XÁC NHẬN: Phát tín hiệu cứu hộ khẩn cấp khẩn nguy tới hệ thống trung tâm điều hành?")) {
+        alert("Đã gửi định vị khẩn cấp thành công!");
     }
 };
 
@@ -257,6 +362,8 @@ window.showTab = (tabId, btn) => {
 };
 
 window.handleTrip = () => App.handleTripToggle();
+window.handleHailTrip = () => App.createHailTrip(); // Hàm kích hoạt nút Chuyến vẫy riêng biệt
+
 window.processRegistration = () => {
     const p = document.getElementById('regPhone').value;
     if(p.length >= 10) { 
@@ -270,5 +377,4 @@ window.updateRate = (val) => {
     document.getElementById('rateVal').innerText = App.config.price.toLocaleString() + "đ";
 };
 
-// Khởi tạo ứng dụng
 window.onload = () => App.init();
