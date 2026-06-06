@@ -2,65 +2,127 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>TAXI PROMAX TÀI XẾ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --primary: #0054a3; --accent: #00bfa5; --bg: #f4f7f6; --danger: #d32f2f; }
-        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { margin: 0; padding: 0; overflow: hidden; background: var(--bg); }
-        #map { height: 100vh; width: 100vw; position: absolute; z-index: 1; }
+        :root { --primary: #0054a3; --accent: #00bfa5; --dark: #1c1e21; --gold: #f1c40f; --danger: #d32f2f; --bg: #f4f7f6; --glass: rgba(255, 255, 255, 0.95); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
         
-        /* UI Panel */
-        .controls-container { position: fixed; bottom: 0; width: 100%; background: white; padding: 20px; border-radius: 25px 25px 0 0; z-index: 1000; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); }
-        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .btn-main { padding: 15px; border-radius: 12px; border: none; color: white; font-weight: 900; cursor: pointer; }
-        .btn-vẫy { background: var(--primary); }
-        .btn-start { background: var(--accent); }
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
+        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; }
+        .badge { background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); }
+        
+        .stats-bar { position: fixed; top: 60px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; z-index: 1000; border: 1px solid #fff; }
+        .stat-item { flex: 1; text-align: center; }
+        .stat-value { font-size: 20px; font-weight: 900; color: var(--primary); }
+        
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; padding: 15px 20px 30px; box-shadow: 0 -10px 30px rgba(0,0,0,0.1); }
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--accent); color: white; font-size: 16px; font-weight: 900; cursor: pointer; margin-top: 10px; }
+        .btn-secondary { background: var(--gold); color: #000; }
+        .nav-grid { display: flex; justify-content: space-around; margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 100px); background: #fff; z-index: 1500; display: none; overflow-y: auto; padding: 20px; }
+        
+        /* Modal */
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: white; width: 90%; padding: 20px; border-radius: 20px; text-align: center; }
     </style>
 </head>
 <body>
 
-    <div style="position:fixed; top:10px; z-index:1000; left:10px; right:10px; display:flex; justify-content:space-between;">
-        <div id="idShow" style="background:rgba(255,255,255,0.9); padding:5px 10px; border-radius:20px; font-weight:bold;">Đang kết nối...</div>
+    <div class="header">
+        <div class="badge" id="idShow">🆔 PRO-XXXX</div>
+        <div class="badge" style="color:var(--gold)">⭐ ĐANG HOẠT ĐỘNG</div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-item"><div class="stat-label" style="font-size:9px;">CƯỚC (VNĐ)</div><div id="cost" class="stat-value">0</div></div>
+        <div class="stat-item"><div class="stat-label" style="font-size:9px;">KM</div><div id="km" class="stat-value">0.00</div></div>
     </div>
 
     <div id="map"></div>
 
-    <div class="controls-container">
-        <div style="text-align:center; margin-bottom:10px;">
-            <div id="km" style="font-size:30px; font-weight:900;">0.00 KM</div>
-            <div id="cost" style="color:var(--primary); font-size:18px;">0 VNĐ</div>
-        </div>
+    <div id="tab-home" class="tab-content" style="display: block; background: transparent; padding: 0;"></div>
 
-        <div class="btn-row">
-            <button class="btn-main btn-vẫy" onclick="startStreetTrip()">CHUYẾN VẪY</button>
-            <button class="btn-main btn-start" id="mainBtn" onclick="handleTrip()">BẮT ĐẦU</button>
+    <div class="footer-panel">
+        <div id="controls">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+            <button class="btn-main btn-secondary" onclick="startManualTrip()">CHUYẾN VẪY (KHÁCH VÃNG LAI)</button>
+        </div>
+        <div class="nav-grid">
+            <button onclick="showTab('home')">🏠 Trang chủ</button>
+            <button onclick="showTab('lichsu')">📊 Lịch sử</button>
+        </div>
+    </div>
+
+    <div id="endModal" class="custom-modal">
+        <div class="modal-content">
+            <h3>HOÀN THÀNH CHUYẾN</h3>
+            <p id="finalReport"></p>
+            <button class="btn-main" onclick="closeModal()">ĐÓNG</button>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // LOGIC GỐC CỦA ANH
-        let isRunning = false;
-        let totalKm = 0;
-        
-        function startStreetTrip() {
-            // Chế độ vẫy: Không chờ lệnh server, chỉ tính tiền theo đồng hồ ảo
-            isRunning = true;
-            document.getElementById('mainBtn').innerText = "KẾT THÚC VẪY";
-            alert("Đang bắt đầu chuyến vẫy khách (Offline Mode)");
+        // --- CẤU HÌNH ---
+        let isRunning = false, totalKm = 0, lastPos = null, marker = null;
+        const TX_ID = 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        document.getElementById('idShow').innerText = "🆔 " + TX_ID;
+
+        var map = L.map('map', { zoomControl: false }).setView([21.02, 105.83], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // --- CÁC HÀM XỬ LÝ ---
+        function startTracking() {
+            navigator.geolocation.watchPosition((pos) => {
+                const newPos = [pos.coords.latitude, pos.coords.longitude];
+                if (!marker) {
+                    marker = L.marker(newPos).addTo(map);
+                    map.setView(newPos, 16);
+                } else {
+                    marker.setLatLng(newPos);
+                    if(isRunning) {
+                        map.panTo(newPos);
+                        if(lastPos) {
+                            let d = L.latLng(newPos).distanceTo(lastPos) / 1000;
+                            if(d > 0.005) { totalKm += d; updateUI(); }
+                        }
+                    }
+                }
+                lastPos = newPos;
+            }, null, { enableHighAccuracy: true });
         }
 
         function handleTrip() {
             isRunning = !isRunning;
-            document.getElementById('mainBtn').innerText = isRunning ? "KẾT THÚC" : "BẮT ĐẦU";
-            // ... (Giữ nguyên các hàm xử lý GPS và Firebase của anh ở đây)
+            document.getElementById('mainBtn').innerText = isRunning ? "KẾT THÚC CHUYẾN ĐI" : "BẮT ĐẦU CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = isRunning ? "var(--danger)" : "var(--accent)";
+            if(!isRunning) showSummary();
+            else totalKm = 0;
         }
 
-        // Khởi tạo bản đồ
-        var map = L.map('map').setView([21.02, 105.83], 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        // TÍNH NĂNG MỚI: CHUYẾN VẪY
+        function startManualTrip() {
+            alert("Đã bắt đầu chuyến vẫy khách (Tự do). Hệ thống đang đo km...");
+            if(!isRunning) handleTrip();
+        }
+
+        function updateUI() {
+            document.getElementById('km').innerText = totalKm.toFixed(2);
+            document.getElementById('cost').innerText = Math.round(totalKm * 15000).toLocaleString();
+        }
+
+        function showSummary() {
+            document.getElementById('finalReport').innerText = `Tổng quãng đường: ${totalKm.toFixed(2)} km. Tổng tiền: ${(totalKm * 15000).toLocaleString()} VNĐ`;
+            document.getElementById('endModal').style.display = 'flex';
+        }
+
+        function closeModal() { document.getElementById('endModal').style.display = 'none'; }
+        function showTab(t) { console.log("Tab: " + t); }
+
+        window.onload = startTracking;
     </script>
 </body>
 </html>
