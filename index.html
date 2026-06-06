@@ -3,134 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TAXI PROMAX DRIVER</title>
+    <title>TAXI PROMAX - CHUYÊN NGHIỆP</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --main: #00bfa5; --bg: #f5f5f5; --danger: #d32f2f; }
-        body { margin: 0; font-family: sans-serif; background: var(--bg); overflow: hidden; }
-        
-        /* Bản đồ & Marker */
-        #map { height: 100vh; width: 100%; position: absolute; z-index: 1; }
-        .glowing-marker { width: 40px; height: 40px; background: var(--main); border-radius: 50%; box-shadow: 0 0 15px var(--main); border: 3px solid white; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(0.9); opacity: 1; } }
-
-        /* Giao diện Overlay */
-        .ui-layer { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; pointer-events: none; }
-        .nav-bottom { position: absolute; bottom: 0; width: 100%; background: white; padding: 20px; border-radius: 20px 20px 0 0; pointer-events: auto; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
-        .tab-btn { flex: 1; text-align: center; cursor: pointer; font-size: 12px; }
-        
-        /* Modal đơn hàng */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; }
-        .modal-content { background: white; width: 90%; border-radius: 20px; padding: 20px; text-align: center; }
-        
-        /* Chế độ nhận chuyến */
-        .trip-active { background: white; padding: 15px; border-radius: 15px; margin: 10px; pointer-events: auto; }
-        .btn-action { width: 100%; padding: 15px; border: none; border-radius: 10px; background: var(--main); color: white; font-weight: bold; margin-top: 5px; }
+        :root { --primary: #0054a3; --accent: #00bfa5; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
+        .glass { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); }
+        .tab-view { display: none; }
+        .active-tab { display: block; }
+        .pulse { animation: pulse-ring 1.5s infinite; }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
     </style>
 </head>
 <body>
 
-<!-- Bản đồ -->
-<div id="map"></div>
-
-<!-- UI Lớp phủ -->
-<div class="ui-layer">
-    <!-- Header: Trạng thái & Ví tiền -->
-    <div style="padding: 20px; display: flex; justify-content: space-between;">
-        <div id="statusIndicator" style="background: var(--main); color: white; padding: 5px 15px; border-radius: 20px;">Trực tuyến</div>
-        <div style="background: white; padding: 5px 15px; border-radius: 20px;">Ví: 610.300đ</div>
-    </div>
-
-    <!-- Khu vực hiển thị đơn đang nhận (không tự chuyển màn hình) -->
-    <div id="activeTrip" class="trip-active" style="display:none;">
-        <h3 id="tripStatus">Đang di chuyển đón khách</h3>
-        <p>📍 Đón: <span id="fromLoc">...</span></p>
-        <p>🏁 Trả: <span id="toLoc">...</span></p>
-        <div style="display:flex; gap:10px;">
-            <button class="btn-action" style="background:#3498db;">Gọi</button>
-            <button class="btn-action" style="background:#2ecc71;">Nhắn tin</button>
-        </div>
-        <button class="btn-action" style="background:var(--danger);" onclick="completeTrip()">Hoàn thành chuyến</button>
-    </div>
-
-    <!-- Thanh Menu đáy -->
-    <div class="nav-bottom">
-        <div style="display: flex; justify-content: space-around;">
-            <div class="tab-btn" onclick="showTab('home')">🏠 Trang chủ</div>
-            <div class="tab-btn" onclick="showTab('wallet')">💰 Ví tiền</div>
-            <div class="tab-btn" onclick="showTab('history')">📊 Lịch sử</div>
-            <div class="tab-btn" onclick="showTab('profile')">👤 Tôi</div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Đăng nhập (Bắt buộc) -->
-<div id="loginModal" class="modal" style="display: flex;">
-    <div class="modal-content">
-        <h2>Đăng nhập Tài xế</h2>
-        <input type="text" id="phone" placeholder="Số điện thoại" style="width:80%; padding:10px; margin-bottom:10px;"><br>
-        <select id="vehicleType" style="width:85%; padding:10px;">
-            <option value="electric">Xe điện (VF e34/VF8/VF9)</option>
+    <div id="loginScreen" class="fixed inset-0 z-[9999] bg-white flex flex-col justify-center items-center p-6">
+        <h1 class="text-2xl font-bold text-blue-800 mb-6">TAXI PROMAX LOGIN</h1>
+        <input type="text" id="inpName" placeholder="Tên tài xế" class="w-full p-3 border rounded-xl mb-3">
+        <select id="inpCar" class="w-full p-3 border rounded-xl mb-3">
+            <option value="electric">Xe điện</option>
             <option value="gas">Xe xăng</option>
         </select>
-        <button class="btn-action" onclick="login()">Bắt đầu làm việc</button>
+        <button onclick="login()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold">ĐĂNG NHẬP</button>
     </div>
-</div>
 
-<!-- Modal Nhận đơn -->
-<div id="orderModal" class="modal">
-    <div class="modal-content">
-        <h2>🚨 ĐƠN HÀNG MỚI</h2>
-        <p>Khách: Nguyễn Văn A</p>
-        <button class="btn-action" onclick="acceptOrder()">Nhận chuyến</button>
-        <button class="btn-action" style="background:gray;" onclick="ignoreOrder()">Bỏ qua</button>
+    <div id="map"></div>
+
+    <div class="fixed top-0 left-0 right-0 p-4 z-[1000] flex justify-between items-center pointer-events-none">
+        <div class="bg-white p-3 rounded-xl shadow-lg pointer-events-auto">
+            <div class="text-xs text-gray-500">ĐƠN BỎ QUA HÔM NAY</div>
+            <div id="skippedCount" class="text-xl font-bold text-red-600">0</div>
+        </div>
+        <div class="bg-white p-3 rounded-xl shadow-lg pointer-events-auto">
+            <label class="flex items-center space-x-2">
+                <span>Chế độ Vẫy</span>
+                <input type="checkbox" id="vayMode" checked class="w-6 h-6">
+            </label>
+        </div>
     </div>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    // Logic quản lý trạng thái
-    let state = {
-        isLoggedIn: false,
-        ignoredCount: 0,
-        currentTrip: null
-    };
+    <div class="fixed bottom-0 left-0 right-0 bg-white p-4 z-[1000] rounded-t-3xl shadow-2xl">
+        <div class="flex justify-around mb-4">
+            <button onclick="switchTab('home')" class="text-xs font-bold text-blue-700">🏠 Trang chủ</button>
+            <button onclick="switchTab('wallet')" class="text-xs font-bold">💰 Ví tiền</button>
+            <button onclick="switchTab('history')" class="text-xs font-bold">📊 Lịch sử</button>
+            <button onclick="switchTab('profile')" class="text-xs font-bold">👤 Tôi</button>
+        </div>
+        <button id="btnMain" onclick="handleAction()" class="w-full bg-teal-500 text-white p-4 rounded-2xl font-bold">BẮT ĐẦU HOẠT ĐỘNG</button>
+    </div>
 
-    function login() {
-        state.isLoggedIn = true;
-        document.getElementById('loginModal').style.display = 'none';
-        alert("Đăng nhập thành công!");
-    }
+    <div id="orderModal" class="hidden fixed inset-0 z-[2000] bg-black/50 flex justify-center items-center p-4">
+        <div class="bg-white w-full rounded-3xl p-6">
+            <h2 class="text-lg font-bold text-red-500 mb-4">🚨 CÓ ĐƠN KHÁCH MỚI</h2>
+            <p>Khách: <span id="cusName">...</span></p>
+            <p>Điểm đón: <span id="cusPickup">...</span></p>
+            <div class="flex gap-4 mt-6">
+                <button onclick="declineOrder()" class="flex-1 p-3 bg-gray-200 rounded-xl">Bỏ qua</button>
+                <button onclick="acceptOrder()" class="flex-1 p-3 bg-blue-600 text-white rounded-xl">Nhận chuyến</button>
+            </div>
+        </div>
+    </div>
 
-    function acceptOrder() {
-        state.currentTrip = { from: "Hùng Thắng", to: "Bãi Cháy" };
-        document.getElementById('orderModal').style.display = 'none';
-        document.getElementById('activeTrip').style.display = 'block';
-        document.getElementById('fromLoc').innerText = state.currentTrip.from;
-        document.getElementById('toLoc').innerText = state.currentTrip.to;
-    }
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map, driverMarker;
+        let skippedTrips = localStorage.getItem('skipped_trips') || 0;
 
-    function ignoreOrder() {
-        state.ignoredCount++;
-        document.getElementById('orderModal').style.display = 'none';
-        console.log("Tổng đơn đã bỏ qua hôm nay: " + state.ignoredCount);
-    }
+        // Init Map
+        map = L.map('map', { zoomControl: false }).setView([21.02, 105.83], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    function completeTrip() {
-        // Mở modal đánh giá
-        alert("Chuyến đi hoàn tất! Mời khách hàng đánh giá.");
-        document.getElementById('activeTrip').style.display = 'none';
-        state.currentTrip = null;
-    }
+        function login() {
+            document.getElementById('loginScreen').style.display = 'none';
+        }
 
-    // Khởi tạo bản đồ
-    var map = L.map('map').setView([20.95, 107.03], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    
-    // Icon phát quang (đơn giản hóa bằng divIcon)
-    L.marker([20.95, 107.03], {
-        icon: L.divIcon({ className: 'glowing-marker', html: '' })
-    }).addTo(map);
-</script>
+        function handleAction() {
+            // Logic bắt đầu/kết thúc chuyến
+            alert("Đã gửi tín hiệu lên hệ thống PROMAX AI...");
+        }
+
+        function declineOrder() {
+            skippedTrips++;
+            localStorage.setItem('skipped_trips', skippedTrips);
+            document.getElementById('skippedCount').innerText = skippedTrips;
+            document.getElementById('orderModal').classList.add('hidden');
+        }
+
+        function acceptOrder() {
+            // Điều hướng mở Maps
+            const url = `https://www.google.com/maps/dir/?api=1&destination=21.03,105.84`;
+            window.open(url, '_blank');
+            document.getElementById('orderModal').classList.add('hidden');
+        }
+
+        function switchTab(tab) {
+            // Logic chuyển tab
+        }
+
+        // Cập nhật số liệu ban đầu
+        document.getElementById('skippedCount').innerText = skippedTrips;
+    </script>
 </body>
 </html>
