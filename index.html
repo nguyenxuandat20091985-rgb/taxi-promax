@@ -3,96 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax Driver</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>Taxi ProMax - Driver App</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --primary: #008f86;
-            --bg: #f5f7f9;
-            --white: #ffffff;
-            --text-dark: #2d3436;
-            --text-light: #636e72;
-            --accent: #00b894;
-        }
+        :root { --primary: #00bfa5; --bg: #f4f7f6; --text: #333; --white: #ffffff; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: var(--bg); overflow: hidden; }
 
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text-dark); }
-        
-        /* Header */
-        header { background: var(--white); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .wallet-balance { font-weight: 700; color: var(--primary); font-size: 1.1em; }
+        /* Map Container */
+        #map { height: 100vh; width: 100vw; position: absolute; z-index: 1; }
 
-        /* Main Content */
-        .content { padding: 20px; padding-bottom: 80px; }
-        .card { background: var(--white); border-radius: 15px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        
-        /* Quick Actions Grid */
-        .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 10px; }
-        .menu-item { text-align: center; font-size: 0.85em; cursor: pointer; }
-        .menu-icon { width: 50px; height: 50px; background: #e0f2f1; color: var(--primary); border-radius: 15px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 1.2em; }
+        /* Glowing Marker */
+        .driver-marker { position: relative; display: flex; justify-content: center; align-items: center; }
+        .pulse-ring { width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 191, 165, 0.4); animation: pulsate 2s infinite; }
+        .inner-dot { width: 15px; height: 15px; background: var(--primary); border-radius: 50%; position: absolute; border: 2px solid white; }
+        @keyframes pulsate { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
 
-        /* Bottom Nav */
-        .nav-bottom { position: fixed; bottom: 0; width: 100%; background: var(--white); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #eee; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; }
-        .nav-item { text-align: center; font-size: 0.75em; color: var(--text-light); }
+        /* UI Overlay */
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: none; background: rgba(255,255,255,0.95); padding: 20px; padding-bottom: 100px; box-sizing: border-box; }
+        .tab-content.active { display: block; }
+
+        .header-bar { position: fixed; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; z-index: 20; }
+        .wallet-badge { background: white; padding: 8px 15px; border-radius: 20px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: var(--primary); }
+
+        .footer-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 15px 0; z-index: 20; box-shadow: 0 -5px 10px rgba(0,0,0,0.05); }
+        .nav-item { text-align: center; cursor: pointer; color: #888; font-size: 12px; }
         .nav-item.active { color: var(--primary); }
 
-        /* Action Button */
-        .btn-action { width: 100%; padding: 15px; border-radius: 12px; border: none; background: var(--primary); color: white; font-weight: bold; font-size: 1em; cursor: pointer; margin-top: 10px; }
-        
-        .tab-view { display: none; }
-        .tab-view.active { display: block; }
+        /* Modal styling */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: center; justify-content: center; }
+        .modal-body { background: white; width: 90%; padding: 20px; border-radius: 20px; text-align: center; }
+        .btn-action { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 15px; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <header>
-        <div style="font-weight: 800; font-size: 1.2em;">Taxi ProMax</div>
-        <div class="wallet-balance"><i class="fa-solid fa-wallet"></i> 610.300đ</div>
-    </header>
+    <!-- Map -->
+    <div id="map"></div>
 
-    <div class="content">
-        <!-- Dashboard Tab -->
-        <div id="tab-home" class="tab-view active">
-            <div class="card">
-                <div style="display:flex; justify-content: space-between; align-items:center;">
-                    <span>Trạng thái: <b>Đang trực tuyến</b></span>
-                    <button style="background:var(--accent); color:white; border:none; padding:8px 15px; border-radius:20px;">Tắt</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="grid-menu">
-                    <div class="menu-item"><div class="menu-icon"><i class="fa-solid fa-car"></i></div>Tạo cuốc</div>
-                    <div class="menu-item"><div class="menu-icon"><i class="fa-solid fa-heart"></i></div>Yêu thích</div>
-                    <div class="menu-item"><div class="menu-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>Lịch sử</div>
-                    <div class="menu-item"><div class="menu-icon"><i class="fa-solid fa-car-side"></i></div>Mua xe</div>
-                    <div class="menu-item"><div class="menu-icon"><i class="fa-solid fa-gear"></i></div>Cài đặt</div>
-                </div>
-            </div>
+    <!-- UI Overlay (Tabs) -->
+    <div id="tab-home" class="tab-content active">
+        <div class="header-bar">
+            <div class="wallet-badge">💰 610.300đ</div>
+            <div class="wallet-badge" id="status-toggle" style="background:#e8f5e9; color:#2e7d32;">● Đang trực tuyến</div>
         </div>
+        <!-- Nội dung Trang chủ -->
+    </div>
 
-        <!-- Placeholder for other tabs -->
-        <div id="tab-profile" class="tab-view">
-            <div class="card">
-                <h3>Thông tin tài xế</h3>
-                <p>Nguyễn Xuân Đạt - Hạng Xanh</p>
-            </div>
+    <div id="tab-wallet" class="tab-content">
+        <h2>Ví Tài Xế</h2>
+        <p>Lịch sử nạp/rút và số dư.</p>
+    </div>
+
+    <div id="tab-history" class="tab-content">
+        <h2>Lịch sử chuyến đi</h2>
+        <!-- Dữ liệu chuyến đi -->
+    </div>
+
+    <div id="tab-profile" class="tab-content">
+        <h2>Nguyễn Xuân Đạt</h2>
+        <p>Hạng tài xế: Xanh</p>
+    </div>
+
+    <!-- Modal Nhận Cuốc (Chuyến vẫy) -->
+    <div id="trip-modal" class="modal">
+        <div class="modal-body">
+            <h3>🚨 ĐƠN HÀNG MỚI</h3>
+            <p>Khách hàng: Hoàng Minh Chiến</p>
+            <p>📍 Điểm đón: Nhà hàng Hồng Hạnh 6</p>
+            <button class="btn-action" onclick="alert('Đã nhận chuyến!')">ĐÓN KHÁCH</button>
+            <button class="btn-action" style="background:#ff5252;" onclick="document.getElementById('trip-modal').style.display='none'">BỎ QUA</button>
         </div>
     </div>
 
-    <!-- Navigation -->
-    <nav class="nav-bottom">
-        <div class="nav-item active" onclick="showTab('home')"><i class="fa-solid fa-house"></i><br>Trang chủ</div>
-        <div class="nav-item" onclick="alert('Tính năng ví')"><i class="fa-solid fa-wallet"></i><br>Ví</div>
-        <div class="nav-item" onclick="showTab('profile')"><i class="fa-solid fa-user"></i><br>Cá nhân</div>
-    </nav>
+    <!-- Footer Navigation -->
+    <div class="footer-nav">
+        <div class="nav-item active" onclick="showTab('home')">🏠<br>Trang chủ</div>
+        <div class="nav-item" onclick="showTab('wallet')">💰<br>Ví tiền</div>
+        <div class="nav-item" onclick="showTab('history')">📊<br>Lịch sử</div>
+        <div class="nav-item" onclick="showTab('profile')">👤<br>Tôi</div>
+    </div>
 
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Init Map
+        const map = L.map('map', {zoomControl: false}).setView([20.95, 107.03], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // Custom Glowing Marker
+        const pulseIcon = L.divIcon({
+            className: 'driver-marker',
+            html: '<div class="pulse-ring"></div><div class="inner-dot"></div>',
+            iconSize: [40, 40]
+        });
+        L.marker([20.95, 107.03], {icon: pulseIcon}).addTo(map);
+
+        // Tab Switching
         function showTab(tabId) {
-            document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.add('active');
             event.currentTarget.classList.add('active');
         }
+
+        // Simulate incoming ride (Integration hook)
+        setTimeout(() => {
+            document.getElementById('trip-modal').style.display = 'flex';
+            // Play sound here
+            new Audio('https://actions.google.com/sounds/v1/notifications/beep_short.ogg').play();
+        }, 3000);
     </script>
 </body>
 </html>
