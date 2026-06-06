@@ -2,221 +2,88 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    
-    <link rel="apple-touch-icon" href="assets/logo.png">
-    <link rel="icon" type="image/png" href="assets/logo.png"> 
-    <link rel="manifest" href="manifest.json"> 
-
-    <title>TAXI PROMAX TÀI XẾ</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Taxi ProMax - Driver</title>
     <style>
-        :root { 
-            --primary: #0054a3; --accent: #00bfa5; --dark: #1c1e21; 
-            --gold: #f1c40f; --danger: #d32f2f; --bg: #f4f7f6; 
-            --glass: rgba(255, 255, 255, 0.95); 
-        }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
+        :root { --primary: #00bfa5; --dark: #1c1e21; --bg: #f4f7f6; --white: #ffffff; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 0; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; z-index: 1; }
         
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
+        /* Header Stats */
+        .header { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 10; display: flex; justify-content: space-between; align-items: center; }
+        .wallet-badge { background: var(--white); padding: 8px 15px; border-radius: 20px; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* Bottom Controls */
+        .bottom-panel { position: absolute; bottom: 0; width: 100%; background: var(--white); padding: 20px; border-radius: 25px 25px 0 0; z-index: 10; box-shadow: 0 -5px 15px rgba(0,0,0,0.05); }
+        .grid-menu { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+        .menu-item { text-align: center; font-size: 11px; cursor: pointer; }
+        .menu-icon { width: 45px; height: 45px; background: #e0f2f1; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 5px; color: var(--primary); }
 
-        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
-        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); } 
-
-        .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
-        .stat-item { flex: 1; text-align: center; }
-        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
-        .stat-value { font-size: 22px; font-weight: 900; color: var(--primary); margin-top: 2px; } 
-
-        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
-        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
-        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
-        .nav-item.active { color: var(--primary); }
-        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; font-style: normal; } 
-
-        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
-
-        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 140px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
-        .p-header { background: linear-gradient(135deg, var(--primary), #003d7a); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
-
-        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
-        .p-card.active { border-color: var(--primary); background: #f0f4f8; transform: scale(1.02); }
-        .p-btn { margin-top: 10px; background: var(--primary); color: white; border: none; border-radius: 10px; padding: 7px; font-size: 11px; font-weight: bold; }
-        .p-card b { display: block; font-size: 13px; color: var(--dark); }
-        .p-card span { color: var(--danger); font-weight: 800; font-size: 14px; }
-        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
-
-        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .h-info { text-align: left; }
-        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; } 
-
-        /* CSS Định vị */
-        .sm-marker-container { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; } 
-        .sm-pulse-ring { position: absolute; width: 42px; height: 42px; border-radius: 50%; background-color: rgba(0, 191, 165, 0.4); animation: smSpread 2s infinite ease-out; pointer-events: none; } 
-        .sm-direction-wrapper { width: 26px; height: 26px; position: relative; display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease-out; will-change: transform; }
-        .sm-marker-circle { width: 20px; height: 20px; background: #00bfa5; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0, 191, 165, 0.6); z-index: 2; }
-        .sm-marker-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-bottom: 8.5px solid #00bfa5; z-index: 3; } 
-        @keyframes smSpread { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
-        .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
-        @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } } 
-        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--accent); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
-        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--danger); height: 5px; }
-        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .modal-content { background: white; width: 88%; max-width: 340px; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); } 
-        .tp-new-container { padding: 0 15px 20px; }
-        .tp-grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
-        .tp-feature-card { background: white; border-radius: 15px; padding: 12px; text-align: center; border: 1px solid #eee; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
-        .tp-feature-card i { font-size: 24px; display: block; margin-bottom: 5px; }
-        .tp-feature-card span { font-size: 10px; font-weight: 800; color: var(--dark); }
-        .tp-feature-card p { font-size: 8px; color: #95a5a6; margin: 4px 0 0; line-height: 1.2; }
-        .tp-pill-timer { display: inline-flex; align-items: center; background: #ffeaa7; color: #d35400; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 900; margin-left: 10px; border: 1px solid #f39c12; }
-        .tp-badge-trial { background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px; position: absolute; top: -8px; right: 10px; }
-        .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
+        /* Modal Trip */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: flex-end; }
+        .modal-content { background: white; width: 100%; border-radius: 25px 25px 0 0; padding: 20px; }
+        .btn-full { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 15px; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        
+        /* Utility List */
+        .util-list { list-style: none; padding: 0; }
+        .util-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
     </style>
 </head>
-<body oncontextmenu="return false;"> 
+<body>
 
+    <div id="map"></div> <!-- Placeholder cho bản đồ -->
+
+    <!-- Header -->
     <div class="header">
-        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
-        <div class="badge" style="color:var(--gold)" id="planShow">⭐ ĐANG ĐỒNG BỘ GÓI...</div>
-    </div> 
+        <div class="wallet-badge">💰 610.300đ</div>
+        <div class="status-badge" style="background: var(--primary); color: white; padding: 5px 15px; border-radius: 20px;">Đang trực tuyến</div>
+    </div>
 
-    <div class="stats-bar" id="statsUI">
-        <div class="stat-item" style="border-right: 1px solid #eee;">
-            <div class="stat-label">CƯỚC (VNĐ)</div>
-            <div id="cost" class="stat-value">0</div>
+    <!-- Bottom Panel -->
+    <div class="bottom-panel">
+        <div class="grid-menu">
+            <div class="menu-item" onclick="openServiceModal()"> <div class="menu-icon">🚗</div> Tạo cuốc </div>
+            <div class="menu-item"> <div class="menu-icon">❤️</div> Yêu thích </div>
+            <div class="menu-item"> <div class="menu-icon">📅</div> Lịch sử </div>
+            <div class="menu-item" onclick="toggleProfile()"> <div class="menu-icon">⚙️</div> Cài đặt </div>
         </div>
-        <div class="stat-item">
-            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
-            <div id="km" class="stat-value">0.00</div>
-        </div>
-    </div> 
+    </div>
 
-    <div id="map"></div> 
-
-    <div id="tab-vi" class="tab-content">
-        <div class="p-header">
-            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">TỰ ĐỘNG KÍCH HOẠT QUA PAYOS</div>
-        </div>
-        <div class="p-grid">
-            <div class="p-card" onclick="tpHandlePayment(0, 'TRIAL 7D')">
-                <div class="tp-badge-trial">KHUYÊN DÙNG</div>
-                <b>TRẢI NGHIỆM</b><span>0đ</span>
-                <ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul>
-                <div class="p-btn">KÍCH HOẠT</div>
-            </div>
-            <div class="p-card" onclick="tpHandlePayment(5000, 'LẺ')">
-                <b>CHUYẾN LẺ</b><span>5.000đ</span>
-                <ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul>
-                <div class="p-btn">NẠP NGAY</div>
-            </div>
-            <div class="p-card" onclick="tpHandlePayment(49000, 'PRO')">
-                <b>GÓI PRO</b><span>49.000đ</span>
-                <ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul>
-                <div class="p-btn">NẠP NGAY</div>
-            </div>
-            <div class="p-card" onclick="tpHandlePayment(129000, 'PROMAX')">
-                <b>PRO MAX</b><span>129.000đ</span>
-                <ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul>
-                <div class="p-btn">NẠP NGAY</div>
-            </div>
-        </div> 
-
-        <div class="tp-new-container">
-            <div style="font-size: 11px; font-weight: 900; color: var(--dark); margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px;">CÔNG CỤ HỖ TRỢ TÀI XẾ</div>
-            <div class="tp-grid-4">
-                <div class="tp-feature-card" onclick="tpOpenRadar()"><i>📡</i><span>BẢN ĐỒ NHIỆT</span><p>Tìm điểm nóng khách</p></div>
-                <div class="tp-feature-card" onclick="tpOpenSOS()"><i>🆘</i><span>SOS CỨU HỘ</span><p>Cộng đồng trợ giúp</p></div>
-                <div class="tp-feature-card" onclick="tpOpenMaintenance()"><i>🛠️</i><span>TRỢ LÝ BẢO DƯỠNG</span><p>Nhắc thay dầu, lốp</p></div>
-                <div class="tp-feature-card" onclick="tpOpenProfit()"><i>📈</i><span>BÁO CÁO LỢI NHUẬN</span><p>Thống kê thực tế</p></div>
-            </div>
-        </div>
-    </div> 
-
-    <div id="tab-lichsu" class="tab-content">
-        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-        <div id="historyList" style="padding-top: 10px;"></div>
-    </div> 
-
-    <div id="tab-toi" class="tab-content">
-        <div class="p-header">THIẾT LẬP</div>
-        <div style="padding:20px;">
-            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
-                <p>Mã tài xế: <b id="profileID">...</b></p>
-                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
-                <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
-                <button class="btn-main" style="margin-top:10px; background:#666;" onclick="localStorage.removeItem('trip_history'); localStorage.removeItem('tp_expiry'); location.reload();">XÓA LỊCH SỬ</button>
-            </div>
-        </div>
-    </div> 
-
-    <div class="footer-panel">
-        <div id="homeControls">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
-                <div style="display: flex; align-items: center;">
-                    <span>GIÁ/KM</span>
-                    <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">⏳ <span id="tp-cd-val">00:00</span></div>
-                </div>
-                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
-            </div>
-            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-        </div> 
-        <div class="nav-grid">
-            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
-        </div>
-        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
-    </div> 
-
-    <div id="orderModal" class="custom-modal">
+    <!-- Modal chọn dịch vụ -->
+    <div id="serviceModal" class="modal">
         <div class="modal-content">
-            <h2 style="color:var(--danger); margin:0 0 5px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
-            <div class="tp-countdown-wrapper"><span id="tp-modal-timer-val">15</span></div> 
-            <div style="text-align:left; background:#f5f6fa; padding:15px; border-radius:15px; margin-bottom:15px; font-size:13px; color:#333; line-height:1.5;">
-                <p>📞 <b>SĐT:</b> <span id="modalPhone">...</span></p>
-                <p>📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
-                <p>🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
-                <p>👥 <b>Khách hàng:</b> <span id="modalClientName">...</span></p>
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <button class="btn-main" style="background:#7f8c8d;" onclick="declineCustomer()">BỎ QUA</button>
-                <button class="btn-main" onclick="acceptCustomer()">ĐÓN KHÁCH</button>
-            </div>
+            <h3>Chọn dịch vụ</h3>
+            <div class="util-item" onclick="startTrip('GreenNow')">GreenNow <span>◯</span></div>
+            <div class="util-item" onclick="startTrip('Premium')">Green Premium <span>◯</span></div>
+            <button class="btn-full" onclick="closeModal()">Đóng</button>
         </div>
-    </div> 
-    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3>THƯỢNG LỘ BÌNH AN!</h3><button class="btn-main" onclick="initAudioAndCloseModal()">ĐỒNG Ý</button></div></div>
-    <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
+    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/payment.js"></script>
+    <!-- Modal Trip -->
+    <div id="tripModal" class="modal">
+        <div class="modal-content">
+            <h3 id="customerName">Hành khách: Nguyễn Văn A</h3>
+            <p>📍 Điểm đón: 58 Anh Đào, Bãi Cháy</p>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-full" style="background: #3498db;">Nhắn tin</button>
+                <button class="btn-full" style="background: #2ecc71;">Gọi điện</button>
+            </div>
+            <button class="btn-full" onclick="completeTrip()">Đã đến điểm đón / Hoàn thành</button>
+        </div>
+    </div>
+
     <script>
-        const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app"; 
-        const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-        const TX_PHONE = "0985190985";
-        localStorage.setItem('tx_id', TX_ID);
-        document.getElementById('idShow').innerText = "🆔 " + TX_ID;
-        document.getElementById('profileID').innerText = TX_ID; 
-
-        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
-        
-        // [Copy phần logic JavaScript từ file cũ của anh vào đây hoặc giữ file js/payment.js nếu anh đã có nó]
-        // (Em đã để đoạn Script này gọn lại theo đúng logic anh cung cấp phía trên)
-        // Lưu ý: Đảm bảo file js/payment.js của anh đã có các hàm tpHandlePayment, createPayment...
-        
-        window.onload = () => { startTracking(); renderHistory(); tpInitCountdown(); };
+        function openServiceModal() { document.getElementById('serviceModal').style.display = 'flex'; }
+        function closeModal() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+        function startTrip(service) { 
+            closeModal(); 
+            document.getElementById('tripModal').style.display = 'flex'; 
+        }
+        function completeTrip() { 
+            alert('Chuyến đi đã hoàn thành!'); 
+            closeModal(); 
+        }
+        function toggleProfile() { alert('Mở tab Hồ sơ & Tiện ích'); }
     </script>
 </body>
 </html>
