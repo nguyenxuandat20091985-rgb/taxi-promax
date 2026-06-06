@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="assets/logo.png">
-    <link rel="icon" type="image/png" href="assets/logo.png">
-    <link rel="manifest" href="manifest.json">
     <title>TAXI PROMAX TÀI XẾ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="css/main.css">
@@ -33,72 +29,61 @@
 
     <div id="map"></div> 
 
-    <div id="tab-vi" class="tab-content">
+    <div id="tab-vi" class="tab-content" style="display:none;">
         <div class="p-header">
             <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
-            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">TỰ ĐỘNG KÍCH HOẠT QUA PAYOS</div>
         </div>
         <div class="p-grid">
-            <div class="p-card" onclick="tpHandlePayment(0, 'TRIAL 7D')">
-                <div class="tp-badge-trial">KHUYÊN DÙNG</div>
-                <b>TRẢI NGHIỆM</b><span>0đ</span>
-                <ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul>
-                <div class="p-btn">KÍCH HOẠT</div>
-            </div>
-            <div class="p-card" onclick="tpHandlePayment(5000, 'LẺ')">
-                <b>CHUYẾN LẺ</b><span>5.000đ</span>
-                <ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul>
-                <div class="p-btn">NẠP NGAY</div>
-            </div>
-            <div class="p-card" onclick="tpHandlePayment(49000, 'PRO')">
-                <b>GÓI PRO</b><span>49.000đ</span>
-                <ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul>
-                <div class="p-btn">NẠP NGAY</div>
-            </div>
-            <div class="p-card" onclick="tpHandlePayment(129000, 'PROMAX')">
-                <b>PRO MAX</b><span>129.000đ</span>
-                <ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul>
-                <div class="p-btn">NẠP NGAY</div>
-            </div>
+            <div class="p-card" onclick="tpHandlePayment(0, 'TRIAL 7D')"><b>TRẢI NGHIỆM</b><span>0đ</span><div class="p-btn">KÍCH HOẠT</div></div>
+            <div class="p-card" onclick="tpHandlePayment(5000, 'LẺ')"><b>CHUYẾN LẺ</b><span>5.000đ</span><div class="p-btn">NẠP NGAY</div></div>
         </div>
+    </div> 
+
+    <div id="tab-lichsu" class="tab-content" style="display:none;">
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList"></div>
+    </div> 
+
+    <div id="tab-toi" class="tab-content" style="display:none;">
+        <div class="p-header">THIẾT LẬP</div>
+        <div style="padding:20px;">
+            <p>Mã tài xế: <b id="profileID">...</b></p>
+            <button class="btn-main" onclick="localStorage.removeItem('trip_history'); location.reload();">XÓA LỊCH SỬ</button>
+        </div>
+    </div> 
+
+    <div class="footer-panel">
+        <div id="homeControls">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
         </div> 
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)">Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)">Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)">Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)">Tôi</button>
+        </div>
+    </div> 
+
+    <div id="orderModal" class="custom-modal" style="display:none;">...</div>
+    <div id="wishModal" class="custom-modal" style="display:none;">...</div>
+    <div id="endModal" class="custom-modal" style="display:none;">...</div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/map.js"></script>
     <script src="js/payment.js"></script>
+    <script src="js/map.js"></script>
     
     <script>
-        // Cấu hình duy nhất tại đây
         const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-        const TX_PHONE = "0985190985";
-        
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID;
 
-        // Khởi tạo các biến global cần thiết
-        let isRunning = false, totalKm = 0, currentRate = 15000;
-
-        // Hàm này bắt buộc phải có để map.js gửi dữ liệu về
-        function onLocationUpdate(newPos, currentSpeed) {
-            if(isRunning) {
-                if (currentSpeed > 0.5) map.panTo(newPos);
-                if(typeof lastPos !== 'undefined' && lastPos) {
-                    let d = newPos.distanceTo(lastPos) / 1000;
-                    if(d > 0.005 && currentSpeed > 0.28) { 
-                        totalKm += d; 
-                        document.getElementById('km').innerText = totalKm.toFixed(2); 
-                        document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
-                    }
-                }
-            }
-        }
-
-        // Chạy khi trang load xong
+        // Code khởi tạo bắt buộc
         window.onload = () => { 
-            startTracking(); // Hàm từ map.js
-            tpInitCountdown(); // Hàm từ payment.js
+            if(typeof startTracking === 'function') startTracking();
+            if(typeof renderHistory === 'function') renderHistory();
+            if(typeof tpInitCountdown === 'function') tpInitCountdown();
         };
     </script>
 </body>
