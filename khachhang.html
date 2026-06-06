@@ -1,359 +1,3 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TAXI PROMAX - ĐẶT XE CÔNG NGHỆ</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script> 
-
-    <style>
-        :root { 
-            --primary: #00ffaa; 
-            --primary-hover: #00cc88; 
-            --bg-main: #040a08; 
-            --bg-card: #0d1613; 
-            --bg-input: #162420; 
-            --text-main: #ffffff;
-            --text-muted: #a3b8b3;
-        } 
-
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background: var(--bg-main); 
-            color: var(--text-main); 
-            margin: 0; 
-            padding: 10px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-            box-sizing: border-box;
-        } 
-
-        .app-container { 
-            background: var(--bg-card); 
-            border: 1px solid rgba(0, 255, 170, 0.2); 
-            padding: 20px; 
-            border-radius: 28px; 
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 255, 170, 0.05); 
-            width: 100%;
-            max-width: 460px; 
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        } 
-
-        #authScreen {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            padding: 10px 5px;
-        }
-        .auth-logo {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .auth-logo i {
-            font-size: 50px;
-            color: var(--primary);
-            text-shadow: 0 0 20px rgba(0, 255, 170, 0.4);
-            margin-bottom: 10px;
-        }
-        .auth-logo h1 {
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--primary);
-            margin: 0;
-            letter-spacing: 1px;
-        }
-        .auth-logo p {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 5px;
-        } 
-
-        #mainAppScreen {
-            display: none;
-            flex-direction: column;
-            gap: 14px;
-        } 
-
-        .header { text-align: center; margin-bottom: 2px; }
-        .header h2 { 
-            color: var(--primary); font-size: 26px; font-weight: 800; margin: 0 0 4px 0; 
-            letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 10px;
-            text-shadow: 0 0 15px rgba(0, 255, 170, 0.3);
-        }
-        
-        .quote-banner {
-            background: rgba(0, 255, 170, 0.04);
-            border-left: 3px solid var(--primary);
-            padding: 10px 12px;
-            border-radius: 0 12px 12px 0;
-            font-size: 12px;
-            color: #d1ebd6;
-            font-style: italic;
-            line-height: 1.5;
-        } 
-
-        .user-welcome-bar {
-            background: #111a17;
-            border: 1px solid rgba(0, 255, 170, 0.15);
-            padding: 10px 16px;
-            border-radius: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 13px;
-        }
-        .user-welcome-bar .welcome-text { font-weight: 600; color: #ffffff; }
-        .user-welcome-bar .btn-logout { color: #ff4a4a; cursor: pointer; font-weight: 700; font-size: 12px; } 
-
-        .map-wrapper {
-            position: relative; width: 100%; height: 180px; border-radius: 20px; overflow: hidden;
-            border: 1.5px solid rgba(0, 255, 170, 0.25);
-        }
-        #map { width: 100%; height: 100%; background: #111; }
-        
-        .btn-locate {
-            position: absolute; bottom: 12px; right: 12px; z-index: 1000;
-            background: var(--bg-card); border: 1.5px solid var(--primary); color: var(--primary);
-            width: 36px; height: 36px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer;
-        } 
-
-        .price-banner {
-            background: #11221a; border: 1px dashed var(--primary); border-radius: 16px; padding: 12px 16px;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .price-info { display: flex; flex-direction: column; }
-        .price-info .label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
-        .price-info .value { font-size: 20px; color: var(--primary); font-weight: 800; }
-        .distance-info { text-align: right; font-size: 13px; color: #ffffff; font-weight: 700; } 
-
-        .service-selection { display: flex; gap: 12px; }
-        .service-card {
-            flex: 1; background: var(--bg-input); border: 2px solid transparent; padding: 12px;
-            border-radius: 18px; text-align: center; cursor: pointer; transition: all 0.2s ease;
-        }
-        .service-card i { font-size: 22px; color: var(--text-muted); margin-bottom: 6px; }
-        .service-card .title { font-size: 13px; font-weight: 700; color: var(--text-muted); }
-        .service-card.active { border-color: var(--primary); background: rgba(0, 255, 170, 0.05); }
-        .service-card.active i, .service-card.active .title { color: var(--primary); } 
-
-        .form-grid { display: flex; flex-direction: column; gap: 12px; position: relative; }
-        .input-box { display: flex; flex-direction: column; gap: 6px; position: relative; }
-        .input-box label { font-size: 11px; color: var(--primary); font-weight: 700; }
-        .input-wrapper { position: relative; display: flex; align-items: center; }
-        .input-wrapper i { position: absolute; left: 14px; color: var(--text-muted); font-size: 14px; }
-        .input-wrapper input { 
-            width: 100%; padding: 12px 12px 12px 42px; border-radius: 14px; 
-            border: 1px solid rgba(255, 255, 255, 0.08); background: var(--bg-input); color: var(--text-main); 
-            font-size: 13.5px; font-weight: 500; box-sizing: border-box;
-        } 
-
-        .suggestions-list {
-            position: absolute; top: 100%; left: 0; right: 0; background: #121f1b;
-            border: 1px solid rgba(0, 255, 170, 0.3); border-radius: 12px; max-height: 180px;
-            overflow-y: auto; z-index: 2000; display: none; margin-top: 4px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-        }
-        .suggestion-item {
-            padding: 10px 14px; font-size: 13px; color: #ffffff; cursor: pointer;
-            border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; align-items: center; gap: 8px;
-        }
-        .suggestion-item:hover { background: rgba(0, 255, 170, 0.1); }
-        .suggestion-item i { color: var(--primary); font-size: 12px; } 
-
-        .favorites-section { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
-        .favorites-title { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
-        .favorites-container { display: flex; gap: 8px; flex-wrap: wrap; }
-        .fav-badge {
-            background: rgba(0, 255, 170, 0.06); border: 1px solid rgba(0, 255, 170, 0.15);
-            padding: 6px 12px; border-radius: 50px; font-size: 12px; color: #ffffff;
-            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
-        }
-        .fav-badge:hover { background: rgba(0, 255, 170, 0.15); border-color: var(--primary); }
-        .fav-badge i { color: var(--primary); font-size: 11px; } 
-
-        .status-tracker {
-            background: #161f24; border: 1px solid #00bcff; border-radius: 16px; padding: 14px;
-            font-size: 13px; font-weight: 600; text-align: center; color: #00bcff; display: none;
-            flex-direction: column; gap: 10px;
-        }
-        .btn-cancel {
-            background: #ff4a4a; color: white; border: none; padding: 8px 16px; border-radius: 50px;
-            font-weight: 700; font-size: 12px; cursor: pointer; align-self: center;
-        } 
-
-        .btn-send { 
-            width: 100%; padding: 16px; border-radius: 50px; border: none; 
-            background: linear-gradient(135deg, var(--primary), #00aa77); color: #030712; 
-            font-weight: 800; font-size: 16px; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 255, 170, 0.3);
-            display: flex; justify-content: center; align-items: center; gap: 10px;
-        } 
-
-        .custom-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(3, 7, 18, 0.85); z-index: 9999; display: none;
-            justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
-        }
-        .modal-content {
-            background: var(--bg-card); border: 2px solid var(--primary); border-radius: 24px;
-            padding: 24px; width: 100%; max-width: 380px; text-align: center;
-            box-shadow: 0 0 30px rgba(0, 255, 170, 0.25);
-        }
-        .modal-icon { font-size: 40px; color: var(--primary); margin-bottom: 14px; }
-        .modal-text { font-size: 15px; font-weight: 600; color: #ffffff; line-height: 1.6; margin-bottom: 20px; }
-        
-        .star-rating { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        .star-rating i { font-size: 28px; color: #374151; cursor: pointer; transition: color 0.1s; }
-        .star-rating i.active { color: #ffca28; text-shadow: 0 0 10px rgba(255,202,40,0.3); } 
-
-        .btn-modal-close {
-            background: linear-gradient(135deg, var(--primary), #00aa77); color: #030712;
-            border: none; padding: 12px 30px; border-radius: 50px; font-weight: 800; font-size: 14px; cursor: pointer;
-        } 
-
-        .leaflet-routing-container { display: none !important; }
-        .leaflet-layer { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
-    </style>
-</head>
-<body> 
-
-    <div class="app-container">
-        
-        <div id="authScreen">
-            <div class="auth-logo">
-                <i class="fa-solid fa-taxi"></i>
-                <h1>TAXI PROMAX</h1>
-                <p>Vui lòng điền thông tin để trải nghiệm đặt xe</p>
-            </div>
-            
-            <div class="form-grid">
-                <div class="input-box">
-                    <label>HỌ VÀ TÊN HÀNH KHÁCH</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-user"></i>
-                        <input type="text" id="reg_name" placeholder="Ví dụ: Nguyễn Văn A">
-                    </div>
-                </div>
-                
-                <div class="input-box">
-                    <label>SỐ ĐIỆN THOẠI ĐĂNG KÝ</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-phone"></i>
-                        <input type="tel" id="reg_phone" placeholder="Nhập số điện thoại đón xe">
-                    </div>
-                </div>
-            </div> 
-
-            <button class="btn-send" onclick="handleRegister()">
-                <i class="fa-solid fa-right-to-bracket"></i> ĐĂNG KÝ & VÀO APP
-            </button>
-        </div> 
-
-        <div id="mainAppScreen">
-            <div class="header">
-                <h2><i class="fa-solid fa-taxi"></i> TAXI PROMAX</h2>
-            </div> 
-
-            <div class="user-welcome-bar">
-                <span class="welcome-text" id="lblWelcomeUser">Chào hành khách, ...</span>
-                <span class="btn-logout" onclick="handleLogout()"><i class="fa-solid fa-power-off"></i> Đăng xuất</span>
-            </div> 
-
-            <div class="quote-banner" id="lbQuote">
-                "Chúc bạn có một hành trình êm ái cùng Taxi ProMax."
-            </div> 
-
-            <div class="map-wrapper">
-                <div id="map"></div>
-                <div class="btn-locate" onclick="getCurrentLocation()">
-                    <i class="fa-solid fa-crosshairs"></i>
-                </div>
-            </div> 
-
-            <div class="price-banner">
-                <div class="price-info">
-                    <div class="label">CHI PHÍ DỰ KIẾN</div>
-                    <div class="value" id="txtPrice">0 đ</div>
-                </div>
-                <div class="distance-info" id="txtDistance">Quãng đường: 0 km</div>
-            </div> 
-
-            <div class="service-selection">
-                <div class="service-card active" id="car4" onclick="selectCar('4_seats')">
-                    <i class="fa-solid fa-car-side"></i>
-                    <div class="title">Xe 4 Chỗ (12k/km)</div>
-                </div>
-                <div class="service-card" id="car7" onclick="selectCar('7_seats')">
-                    <i class="fa-solid fa-van-shuttle"></i>
-                    <div class="title">Xe 7 Chỗ (15k/km)</div>
-                </div>
-            </div>
-            
-            <div class="form-grid">
-                <div class="input-box">
-                    <label>ĐIỂM ĐÓN (TỰ ĐỘNG ĐỊNH VỊ)</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-location-dot" style="color: var(--primary);"></i>
-                        <input type="text" id="p_from" placeholder="Đang xác định vị trí GPS...">
-                    </div>
-                </div> 
-
-                <div class="input-box">
-                    <label>ĐIỂM ĐẾN</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-flag-checkered" style="color: #ff4a4a;"></i>
-                        <input type="text" id="p_to" placeholder="Nhập điểm đến để chọn nhanh..." oninput="suggestDestination(this.value)">
-                    </div>
-                    <div class="suggestions-list" id="suggestionsBox"></div>
-                </div>
-            </div> 
-
-            <div class="favorites-section" id="favSection" style="display: none;">
-                <div class="favorites-title">📍 ĐỊA ĐIỂM HAY ĐI QUEN THUỘC :</div>
-                <div class="favorites-container" id="favContainer"></div>
-            </div> 
-
-            <div class="status-tracker" id="trackerBox">
-                <span id="trackerText"><i class="fa-solid fa-spinner fa-spin"></i> Hệ thống đang điều phối tài xế gần nhất...</span>
-                <button class="btn-cancel" onclick="cancelBooking()">HỦY CHUYẾN ĐI</button>
-            </div> 
-
-            <button class="btn-send" id="btnSubmit" onclick="submitBooking()">
-                <i class="fa-solid fa-paper-plane"></i> ĐẶT XE CÔNG NGHỆ NGAY
-            </button>
-        </div> 
-
-    </div> 
-
-    <div class="custom-modal" id="appModal">
-        <div class="modal-content">
-            <div class="modal-icon" id="modalIcon"><i class="fa-solid fa-circle-check"></i></div>
-            <div class="modal-text" id="modalText">Nội dung thông báo</div>
-            
-            <div class="star-rating" id="ratingContainer" style="display: none;">
-                <i class="fa-solid fa-star" data-star="1" onclick="setStar(1)"></i>
-                <i class="fa-solid fa-star" data-star="2" onclick="setStar(2)"></i>
-                <i class="fa-solid fa-star" data-star="3" onclick="setStar(3)"></i>
-                <i class="fa-solid fa-star" data-star="4" onclick="setStar(4)"></i>
-                <i class="fa-solid fa-star" data-star="5" onclick="setStar(5)"></i>
-            </div> 
-
-            <button class="btn-modal-close" id="btnModalClose" onclick="closeAppModal()">XÁC NHẬN</button>
-        </div>
-    </div> 
-
     <script>
         let currentUser = null; 
         let selectedCarType = "4_seats";
@@ -362,7 +6,7 @@
         let destLat = null, destLng = null;
         let currentBookingId = null;
         let selectedRating = 5;
-        let trackInterval = null;
+        let eventSourceTracker = null; // Quản lý luồng lắng nghe Realtime không tốn băng thông
         let searchTimeout = null; 
         let calculatedPrice = 0;
         let calculatedDistance = 0;
@@ -433,7 +77,8 @@
         function closeAppModal() {
             document.getElementById('appModal').style.display = 'none';
             if(document.getElementById('ratingContainer').style.display === 'flex' && currentBookingId) {
-                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`, {
+                // ĐỒNG BỘ NODE /bookings THEO HIẾN PHÁP DỰ ÁN
+                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings/${currentBookingId}.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ rating: selectedRating })
@@ -616,6 +261,9 @@
             }
         } 
 
+        // ==========================================
+        // SỬA ĐỒNG BỘ SANG NODE /bookings THEO ĐIỀU 6 & ĐIỀU 7
+        // ==========================================
         function submitBooking() {
             const from = document.getElementById('p_from').value.trim();
             const to = document.getElementById('p_to').value.trim();
@@ -641,14 +289,15 @@
                 pickupLng: clientLng,
                 destLat: destLat,
                 destLng: destLng,
-                status: "waiting",
+                status: "waiting", // Khớp trạng thái chờ điều phối của tài xế
                 passengers: selectedCarType === "4_seats" ? 4 : 7,
                 price: calculatedPrice,          
-                distanceKm: calculatedDistance,   
+                distanceKm: parseFloat(calculatedDistance.toFixed(2)),   
                 timestamp: Date.now()
             }; 
 
-            fetch('https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe.json', {
+            // Đồng bộ đẩy dữ liệu thẳng vào node gốc /bookings.json
+            fetch('https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings.json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(bookingData)
@@ -660,7 +309,7 @@
             .then(data => {
                 currentBookingId = data.name; 
                 showAppModal("Hệ thống đang điều phối tài xế gần nhất đến đón bạn.");
-                startTrackingStatus();
+                startTrackingStatusRealtime(); // Chuyển sang luồng lắng nghe thời gian thực bằng SSE
             })
             .catch(err => {
                 console.error(err);
@@ -670,62 +319,123 @@
             });
         }
 
-        function startTrackingStatus() {
-            if (trackInterval) clearInterval(trackInterval);
+        // ==========================================
+        // NÂNG CẤP ĐIỀU 10: LẮNG NGHE REALTIME BẰNG EVENTSOURCE (SSE)
+        // Loại bỏ hoàn toàn setInterval gây tốn dữ liệu mạng
+        // ==========================================
+        function startTrackingStatusRealtime() {
+            if (eventSourceTracker) {
+                eventSourceTracker.close();
+            }
             
-            trackInterval = setInterval(() => {
-                if (!currentBookingId) return;
+            // Lắng nghe streaming sự thay đổi duy nhất của cuốc xe này trên Firebase
+            eventSourceTracker = new EventSource(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings/${currentBookingId}.json`);
+            
+            eventSourceTracker.addEventListener('put', (event) => {
+                const streamData = JSON.parse(event.data);
+                if (!streamData) return;
 
-                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`)
-                .then(res => res.json())
-                .then(booking => {
-                    if (!booking) return;
+                // Firebase REST SSE trả về cấu trúc phân mảnh qua data.path và data.data
+                const path = streamData.path;
+                const changeData = streamData.data;
 
-                    const trackerText = document.getElementById('trackerText');
+                // Biến tạm để gom và theo dõi trạng thái cuốc xe
+                let currentStatus = "";
+                let driverPhone = "";
 
-                    if (booking.status === 'driving') {
-                        trackerText.innerHTML = `<i class="fa-solid fa-car fa-bounce" style="color:var(--primary)"></i> Tài xế <b>${booking.driverPhone || 'Hệ thống'}</b> đã nhận đơn và đang đến đón bạn!`;
-                        
-                        if (booking.driverLat && booking.driverLng) {
-                            if (driverMarker) {
-                                driverMarker.setLatLng([booking.driverLat, booking.driverLng]);
-                            } else {
-                                const taxiIcon = L.icon({
-                                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448654.png',
-                                    iconSize: [32, 32],
-                                    iconAnchor: [16, 16]
-                                });
-                                driverMarker = L.marker([booking.driverLat, booking.driverLng], { icon: taxiIcon }).addTo(map).bindPopup('Vị trí tài xế').openPopup();
-                            }
-                        }
-                    } else if (booking.status === 'completed') {
-                        clearInterval(trackInterval);
-                        document.getElementById('trackerBox').style.display = "none";
-                        document.getElementById('btnSubmit').disabled = false;
-                        if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
-                        showAppModal("Hành trình hoàn thành! Cảm ơn bạn đã trải nghiệm dịch vụ Taxi ProMax. Xin vui lòng đánh giá dịch vụ:", true, true);
-                    } else if (booking.status === 'cancelled') {
-                        clearInterval(trackInterval);
-                        document.getElementById('trackerBox').style.display = "none";
-                        document.getElementById('btnSubmit').disabled = false;
-                        currentBookingId = null;
-                        if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
-                        showAppModal("Chuyến đi đã bị hủy bỏ bởi tài xế hoặc hệ thống.", false);
+                // Trường hợp nhận dữ liệu khởi tạo ban đầu (path là "/")
+                if (path === "/") {
+                    if (!changeData) return;
+                    currentStatus = changeData.status;
+                    driverPhone = changeData.driverPhone;
+                    
+                    // Vẽ vị trí xe tài xế nếu tài xế đã nhận đơn
+                    if ((currentStatus === 'accepted' || currentStatus === 'in_progress') && changeData.driverId) {
+                        // Tìm kiếm vị trí trực tiếp từ node driver của tài xế đó để hiển thị lên bản đồ khách
+                        trackDriverMovingRealtime(changeData.driverId);
                     }
-                });
-            }, 3000);
+                } 
+                // Trường hợp tài xế cập nhật thuộc tính riêng lẻ (ví dụ tài xế PATCH status lên node)
+                else if (path === "/status") {
+                    currentStatus = changeData;
+                }
+
+                const trackerText = document.getElementById('trackerText');
+
+                // Khớp trạng thái "accepted" từ logic app-logic.js của tài xế gửi lên
+                if (currentStatus === 'accepted' || currentStatus === 'in_progress') {
+                    trackerText.innerHTML = `<i class="fa-solid fa-car fa-bounce" style="color:var(--primary)"></i> Tài xế đã nhận đơn và đang thực hiện hành trình đón bạn!`;
+                } 
+                else if (currentStatus === 'completed') {
+                    if (eventSourceTracker) eventSourceTracker.close();
+                    if (window.driverLocationSource) window.driverLocationSource.close(); // Đóng stream định vị tài xế
+                    
+                    document.getElementById('trackerBox').style.display = "none";
+                    document.getElementById('btnSubmit').disabled = false;
+                    if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
+                    
+                    showAppModal("Hành trình hoàn thành! Cảm ơn bạn đã trải nghiệm dịch vụ Taxi ProMax. Xin vui lòng đánh giá dịch vụ:", true, true);
+                } 
+                else if (currentStatus === 'cancelled') {
+                    if (eventSourceTracker) eventSourceTracker.close();
+                    if (window.driverLocationSource) window.driverLocationSource.close();
+                    
+                    document.getElementById('trackerBox').style.display = "none";
+                    document.getElementById('btnSubmit').disabled = false;
+                    currentBookingId = null;
+                    if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
+                    showAppModal("Chuyến đi đã bị hủy bỏ bởi tài xế hoặc hệ thống.", false);
+                }
+            });
+        }
+
+        // Kênh Stream thứ 2: Đọc trực tiếp tọa độ của tài xế di chuyển từ bảng điều động `/drivers`
+        function trackDriverMovingRealtime(driverId) {
+            if (window.driverLocationSource) window.driverLocationSource.close();
+
+            window.driverLocationSource = new EventSource(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/drivers/${driverId}.json`);
+            window.driverLocationSource.addEventListener('put', (event) => {
+                const raw = JSON.parse(event.data);
+                if (!raw || !raw.data) return;
+
+                let lat, lon;
+                if (raw.path === "/") {
+                    lat = raw.data.lat;
+                    lon = raw.data.lon;
+                } else if (raw.path === "/lat") {
+                    lat = raw.data;
+                } else if (raw.path === "/lon") {
+                    lon = raw.data;
+                }
+
+                if (lat && lon) {
+                    const taxiPos = [lat, lon];
+                    if (driverMarker) {
+                        driverMarker.setLatLng(taxiPos);
+                    } else {
+                        const taxiIcon = L.icon({
+                            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448654.png',
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16]
+                        });
+                        driverMarker = L.marker(taxiPos, { icon: taxiIcon }).addTo(map).bindPopup('Vị trí Taxi ProMax').openPopup();
+                    }
+                }
+            });
         }
 
         function cancelBooking() {
             if (!currentBookingId) return;
             
             if (confirm("Bạn có chắc chắn muốn hủy yêu cầu đặt xe này không?")) {
-                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/datxe/${currentBookingId}.json`, {
+                // Đồng bộ hủy đơn về đúng node /bookings
+                fetch(`https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app/bookings/${currentBookingId}.json`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'cancelled' })
                 }).then(() => {
-                    clearInterval(trackInterval);
+                    if (eventSourceTracker) eventSourceTracker.close();
+                    if (window.driverLocationSource) window.driverLocationSource.close();
                     currentBookingId = null;
                     document.getElementById('trackerBox').style.display = "none";
                     document.getElementById('btnSubmit').disabled = false;
@@ -735,5 +445,3 @@
             }
         }
     </script>
-</body>
-</html>
