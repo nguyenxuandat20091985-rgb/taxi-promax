@@ -3,17 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    
     <link rel="apple-touch-icon" href="assets/logo.png">
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="manifest" href="manifest.json">
-
     <title>TAXI PROMAX TÀI XẾ</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="css/main.css">
 </head>
@@ -36,32 +32,59 @@
     </div> 
 
     <div id="map"></div> 
-    
+
+    <div id="tab-vi" class="tab-content">
+        <div class="p-header">
+            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
+            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">TỰ ĐỘNG KÍCH HOẠT QUA PAYOS</div>
+        </div>
+        <div class="p-grid">
+            <div class="p-card" onclick="tpHandlePayment(0, 'TRIAL 7D')">
+                <div class="tp-badge-trial">KHUYÊN DÙNG</div>
+                <b>TRẢI NGHIỆM</b><span>0đ</span>
+                <ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul>
+                <div class="p-btn">KÍCH HOẠT</div>
+            </div>
+            <div class="p-card" onclick="tpHandlePayment(5000, 'LẺ')">
+                <b>CHUYẾN LẺ</b><span>5.000đ</span>
+                <ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+            <div class="p-card" onclick="tpHandlePayment(49000, 'PRO')">
+                <b>GÓI PRO</b><span>49.000đ</span>
+                <ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+            <div class="p-card" onclick="tpHandlePayment(129000, 'PROMAX')">
+                <b>PRO MAX</b><span>129.000đ</span>
+                <ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+        </div>
+        </div> 
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="js/map.js"></script>
     <script src="js/payment.js"></script>
     
     <script>
-        // --- CẤU HÌNH BIẾN TOÀN CỤC ---
+        // Cấu hình duy nhất tại đây
         const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
         const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
         const TX_PHONE = "0985190985";
+        
         localStorage.setItem('tx_id', TX_ID);
         document.getElementById('idShow').innerText = "🆔 " + TX_ID;
         document.getElementById('profileID').innerText = TX_ID;
 
-        // Các biến điều khiển
-        let isRunning = false, totalKm = 0, currentRate = 15000, wakeLock = null;
-        let activeCustomerData = null;
-        let countdownValue = 15, countdownInterval = null;
-        let audioCtx = null, audioInterval = null;
+        // Khởi tạo các biến global cần thiết
+        let isRunning = false, totalKm = 0, currentRate = 15000;
 
-        // HÀM NHẬN VỊ TRÍ TỪ MAP.JS
+        // Hàm này bắt buộc phải có để map.js gửi dữ liệu về
         function onLocationUpdate(newPos, currentSpeed) {
             if(isRunning) {
                 if (currentSpeed > 0.5) map.panTo(newPos);
-                
-                if(lastPos) {
+                if(typeof lastPos !== 'undefined' && lastPos) {
                     let d = newPos.distanceTo(lastPos) / 1000;
                     if(d > 0.005 && currentSpeed > 0.28) { 
                         totalKm += d; 
@@ -69,19 +92,13 @@
                         document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString(); 
                     }
                 }
-            } else {
-                if(!lastPos) map.setView(newPos, 16);
             }
         }
 
-        // --- CÁC HÀM XỬ LÝ ĐƠN HÀNG, LỊCH SỬ (Giữ nguyên như file cũ của anh) ---
-        // ... Anh copy các hàm: handleTrip, checkNewBookings, renderHistory, tpSpeak, v.v... vào đây ...
-        // ... (Đảm bảo xóa các đoạn code đã chuyển sang map.js để không bị trùng)
-        
+        // Chạy khi trang load xong
         window.onload = () => { 
-            startTracking(); // Hàm này nằm trong map.js
-            renderHistory(); 
-            tpInitCountdown(); 
+            startTracking(); // Hàm từ map.js
+            tpInitCountdown(); // Hàm từ payment.js
         };
     </script>
 </body>
