@@ -2,78 +2,953 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Taxi ProMax Luxury</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <title>Taxi ProMax — Đặt Xe</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        :root { --primary: #00ff9d; --bg: #090a0f; --text: #ffffff; --danger: #ff4757; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { width: 100%; height: 100vh; background: var(--bg); color: var(--text); overflow: hidden; }
-        
-        #map { width: 100%; height: 100%; }
-        
-        /* Hiệu ứng vầng quang định vị lớn hơn */
-        .gps-halo { width: 24px; height: 24px; background: var(--primary); border: 4px solid #fff; border-radius: 50%; box-shadow: 0 0 20px var(--primary); }
-        .gps-halo::after { content: ''; position: absolute; top: -20px; left: -20px; width: 64px; height: 64px; border: 3px solid var(--primary); border-radius: 50%; animation: halo 2s infinite; }
-        @keyframes halo { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        /* ============================================================
+           TAXI PROMAX — APP KHÁCH HÀNG
+           Thiết kế: Tối giản, chuyên nghiệp, dễ dùng
+        ============================================================ */
+        :root {
+            --primary:  #0054a3;
+            --accent:   #00bfa5;
+            --danger:   #d32f2f;
+            --gold:     #f1c40f;
+            --dark:     #0d1117;
+            --card:     rgba(255,255,255,0.04);
+            --border:   rgba(255,255,255,0.10);
+            --text:     #ffffff;
+            --subtext:  rgba(255,255,255,0.55);
+            --green:    #00ff9d;
+        }
 
-        .bottom-sheet { position: absolute; bottom: 0; width: 100%; background: rgba(18, 22, 33, 0.95); backdrop-filter: blur(20px); border-radius: 30px 30px 0 0; padding: 25px; z-index: 1000; border-top: 1px solid rgba(255,255,255,0.1); }
-        .price-display { font-size: 22px; font-weight: 800; color: var(--primary); }
-        .btn-main { width: 100%; padding: 18px; background: linear-gradient(135deg, #00ff9d, #00bfff); border: none; border-radius: 16px; font-weight: 800; cursor: pointer; color: #000; }
+        * { box-sizing: border-box; margin: 0; padding: 0;
+            -webkit-tap-highlight-color: transparent; outline: none;
+            font-family: 'Plus Jakarta Sans', sans-serif; }
+
+        body, html { width: 100%; height: 100%; overflow: hidden; background: var(--dark); color: var(--text); }
+
+        /* ===== MAP ===== */
+        #map { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* ===== HEADER ===== */
+        .kh-header {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            background: linear-gradient(180deg, rgba(13,17,23,0.95) 0%, transparent 100%);
+        }
+        .kh-logo {
+            font-size: 13px; font-weight: 900; letter-spacing: 1px;
+            color: var(--green);
+            text-shadow: 0 0 20px rgba(0,255,157,0.5);
+        }
+        .kh-gps-badge {
+            font-size: 10px; font-weight: 700; padding: 5px 12px;
+            border-radius: 20px; border: 1px solid var(--border);
+            background: var(--card); color: var(--subtext);
+            display: flex; align-items: center; gap: 6px;
+        }
+        .kh-gps-dot { width: 7px; height: 7px; border-radius: 50%; background: #555; transition: 0.3s; }
+        .kh-gps-dot.ok { background: var(--green); animation: gpsPulse 1.5s infinite; }
+        .kh-gps-dot.weak { background: var(--gold); }
+        @keyframes gpsPulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+        /* ===== MARKER GPS KHÁCH ===== */
+        .kh-gps-marker {
+            width: 22px; height: 22px;
+            background: var(--green);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(0,255,157,0.5);
+            animation: khGpsPulse 2s infinite;
+        }
+        @keyframes khGpsPulse {
+            0%   { box-shadow: 0 0 0 0   rgba(0,255,157,0.6); }
+            70%  { box-shadow: 0 0 0 18px rgba(0,255,157,0); }
+            100% { box-shadow: 0 0 0 0   rgba(0,255,157,0); }
+        }
+        .kh-driver-marker {
+            width: 30px; height: 30px;
+            background: var(--primary);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 4px 15px rgba(0,84,163,0.6);
+        }
+
+        /* ===== BOTTOM SHEET ===== */
+        .kh-sheet {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
+            background: rgba(13, 17, 23, 0.97);
+            backdrop-filter: blur(24px);
+            border-radius: 28px 28px 0 0;
+            border-top: 1px solid var(--border);
+            padding: 20px 20px calc(env(safe-area-inset-bottom, 10px) + 10px);
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+        .kh-sheet-handle {
+            width: 40px; height: 4px; background: var(--border);
+            border-radius: 2px; margin: 0 auto 20px;
+        }
+
+        /* ===== SCREENS ===== */
+        .kh-screen { display: none; }
+        .kh-screen.active { display: block; }
+
+        /* ===== FORM ĐẶT XE ===== */
+        .kh-section-title {
+            font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+            color: var(--subtext); text-transform: uppercase; margin-bottom: 12px;
+        }
+
+        .kh-input-group { position: relative; margin-bottom: 10px; }
+        .kh-input-icon {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+            font-size: 16px; pointer-events: none;
+        }
+        .kh-input {
+            width: 100%; padding: 14px 14px 14px 42px;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 14px; color: var(--text); font-size: 13px; font-weight: 600;
+            transition: 0.2s;
+        }
+        .kh-input:focus { border-color: rgba(0,255,157,0.4); background: rgba(0,255,157,0.05); }
+        .kh-input::placeholder { color: var(--subtext); }
+
+        .kh-phone-row {
+            display: flex; gap: 10px; margin-bottom: 14px;
+        }
+        .kh-input.phone { padding-left: 14px; flex: 1; }
+
+        /* ===== CAR TYPE ===== */
+        .kh-car-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .kh-car-btn {
+            flex: 1; padding: 11px 8px; border-radius: 12px;
+            border: 1px solid var(--border); background: var(--card);
+            color: var(--subtext); font-size: 11px; font-weight: 800;
+            cursor: pointer; text-align: center; transition: 0.2s;
+        }
+        .kh-car-btn.selected {
+            border-color: var(--green); background: rgba(0,255,157,0.08);
+            color: var(--green);
+        }
+        .kh-car-btn i { display: block; font-size: 18px; margin-bottom: 4px; font-style: normal; }
+
+        /* ===== PRICE INFO ===== */
+        .kh-price-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 14px; padding: 12px 16px; margin-bottom: 16px;
+        }
+        .kh-price-label { font-size: 11px; color: var(--subtext); font-weight: 700; }
+        .kh-price-val { font-size: 20px; font-weight: 900; color: var(--green); }
+        .kh-km-val { font-size: 11px; color: var(--subtext); font-weight: 700; text-align: right; }
+
+        /* ===== BUTTONS ===== */
+        .kh-btn {
+            width: 100%; padding: 16px; border-radius: 16px; border: none;
+            font-size: 15px; font-weight: 900; cursor: pointer;
+            transition: 0.2s; letter-spacing: 0.5px;
+        }
+        .kh-btn-primary {
+            background: linear-gradient(135deg, #00ff9d, #00bfff);
+            color: #000;
+            box-shadow: 0 8px 24px rgba(0,255,157,0.25);
+        }
+        .kh-btn-primary:active { transform: scale(0.98); }
+        .kh-btn-danger {
+            background: rgba(211,47,47,0.15);
+            border: 1px solid rgba(211,47,47,0.4);
+            color: var(--danger);
+            margin-top: 10px;
+        }
+
+        /* ===== TRẠNG THÁI TÌM TÀI XẾ ===== */
+        .kh-searching-anim {
+            display: flex; justify-content: center; align-items: center;
+            gap: 6px; margin: 10px 0 20px;
+        }
+        .kh-dot-wave {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--green);
+            animation: dotWave 1.4s infinite ease-in-out;
+        }
+        .kh-dot-wave:nth-child(2) { animation-delay: 0.2s; }
+        .kh-dot-wave:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotWave {
+            0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
+            40%          { transform: scale(1.2); opacity: 1; }
+        }
+
+        .kh-status-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 16px; margin-bottom: 12px;
+        }
+        .kh-status-label {
+            font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+            text-transform: uppercase; color: var(--subtext); margin-bottom: 6px;
+        }
+        .kh-status-val {
+            font-size: 14px; font-weight: 800; color: var(--text);
+        }
+
+        /* Driver info card */
+        .kh-driver-card {
+            background: rgba(0,84,163,0.15); border: 1px solid rgba(0,84,163,0.3);
+            border-radius: 16px; padding: 16px; margin-bottom: 12px;
+            display: flex; align-items: center; gap: 14px;
+        }
+        .kh-driver-avatar {
+            width: 46px; height: 46px; border-radius: 50%;
+            background: var(--primary); display: flex; align-items: center;
+            justify-content: center; font-size: 22px; flex-shrink: 0;
+        }
+        .kh-driver-info { flex: 1; }
+        .kh-driver-name { font-size: 14px; font-weight: 800; }
+        .kh-driver-phone {
+            font-size: 12px; color: var(--accent); font-weight: 700; margin-top: 2px;
+        }
+        .kh-driver-plate {
+            font-size: 10px; color: var(--subtext); margin-top: 2px;
+        }
+
+        /* ===== HOÀN THÀNH ===== */
+        .kh-done-icon {
+            text-align: center; font-size: 56px; margin: 10px 0 16px;
+            animation: bounceIn 0.5s ease;
+        }
+        @keyframes bounceIn {
+            0%  { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.1); }
+            100%{ transform: scale(1); opacity: 1; }
+        }
+
+        /* ===== TOAST ===== */
+        #khToast {
+            position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(30,35,50,0.97); border: 1px solid var(--border);
+            color: var(--text); padding: 10px 20px; border-radius: 20px;
+            font-size: 12px; font-weight: 700; z-index: 9999;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
+            white-space: nowrap;
+        }
+        #khToast.show { opacity: 1; }
+
+        /* ===== OFFLINE BANNER ===== */
+        #khOffline {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+            background: var(--danger); color: #fff; text-align: center;
+            padding: 8px; font-size: 11px; font-weight: 800;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
-    <div id="mainAppScreen">
-        <div id="map"></div>
-        <div class="bottom-sheet">
-            <div style="margin-bottom: 20px;">
-                <input type="text" id="addr_to" placeholder="Điểm đến của bạn..." style="width:100%; padding:15px; border-radius:12px; background:#1a1d26; border:1px solid #333; color:#fff;">
-            </div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <div id="lblDistance">Cự ly: 0 km</div>
-                <div class="price-display" id="lblCash">0 đ</div>
-            </div>
+    <!-- OFFLINE BANNER -->
+    <div id="khOffline">📵 MẤT KẾT NỐI MẠNG</div>
 
-            <button class="btn-main" id="btnBook" onclick="handleBooking()">ĐẶT XE PROMAX NGAY</button>
+    <!-- HEADER -->
+    <div class="kh-header">
+        <div class="kh-logo">⚡ TAXI PROMAX</div>
+        <div class="kh-gps-badge">
+            <div class="kh-gps-dot" id="khGpsDot"></div>
+            <span id="khGpsText">GPS...</span>
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-        import { getDatabase, ref, push, onValue, update } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    <!-- MAP -->
+    <div id="map"></div>
 
-        const db = getDatabase(initializeApp({ databaseURL: "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app" }));
-        let map = L.map('map').setView([21.0285, 105.8542], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    <!-- TOAST -->
+    <div id="khToast"></div>
 
-        // Marker định vị vầng quang
-        let userMarker = L.marker([21.0285, 105.8542], {
-            icon: L.divIcon({ html: '<div class="gps-halo"></div>', className: 'custom-icon', iconSize: [24,24] })
-        }).addTo(map);
+    <!-- BOTTOM SHEET -->
+    <div class="kh-sheet" id="khSheet">
+        <div class="kh-sheet-handle"></div>
 
-        window.handleBooking = async () => {
-            const priceText = document.getElementById('lblCash').innerText;
-            const rideRef = await push(ref(db, 'rides'), {
-                status: 'searching',
-                price: priceText,
-                timestamp: Date.now()
-            });
+        <!-- SCREEN 1: FORM ĐẶT XE -->
+        <div class="kh-screen active" id="scForm">
+            <div class="kh-section-title">Đặt xe ngay</div>
 
-            // Lắng nghe phản hồi từ app Tài xế
-            onValue(ref(db, `rides/${rideRef.key}`), (snapshot) => {
-                const data = snapshot.val();
-                if(data.status === 'accepted') {
-                    alert("Tài xế " + data.driverName + " đã nhận chuyến!");
+            <!-- SỐ ĐIỆN THOẠI -->
+            <div class="kh-phone-row">
+                <div class="kh-input-group" style="flex:1; margin-bottom:0;">
+                    <span class="kh-input-icon">📞</span>
+                    <input class="kh-input phone" id="inpPhone" type="tel"
+                        placeholder="Số điện thoại của bạn"
+                        maxlength="11"
+                        value="">
+                </div>
+            </div>
+            <div style="margin-bottom:10px;"></div>
+
+            <!-- ĐIỂM ĐÓN (tự động GPS) -->
+            <div class="kh-input-group">
+                <span class="kh-input-icon">📍</span>
+                <input class="kh-input" id="inpFrom" type="text"
+                    placeholder="Đang lấy vị trí của bạn..." readonly
+                    style="color: rgba(255,255,255,0.5);">
+            </div>
+
+            <!-- ĐIỂM ĐẾN -->
+            <div class="kh-input-group">
+                <span class="kh-input-icon">🏁</span>
+                <input class="kh-input" id="inpTo" type="text"
+                    placeholder="Điểm đến của bạn..."
+                    oninput="khEstimatePrice()">
+            </div>
+
+            <!-- LOẠI XE -->
+            <div class="kh-section-title" style="margin-top:4px;">Chọn loại xe</div>
+            <div class="kh-car-row">
+                <button class="kh-car-btn selected" id="car4" onclick="khSelectCar('4_seats', this)">
+                    <i>🚗</i>4 Chỗ
+                </button>
+                <button class="kh-car-btn" id="car7" onclick="khSelectCar('7_seats', this)">
+                    <i>🚙</i>7 Chỗ
+                </button>
+            </div>
+
+            <!-- GIÁ ƯỚC TÍNH -->
+            <div class="kh-price-row">
+                <div>
+                    <div class="kh-price-label">GIÁ ƯỚC TÍNH</div>
+                    <div class="kh-price-val" id="khPriceVal">Nhập điểm đến</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="kh-km-val" id="khKmVal"></div>
+                    <div class="kh-price-label" id="khRateInfo" style="margin-top:4px;"></div>
+                </div>
+            </div>
+
+            <button class="kh-btn kh-btn-primary" onclick="khBook()">
+                🚖 ĐẶT XE PROMAX NGAY
+            </button>
+        </div>
+
+        <!-- SCREEN 2: ĐANG TÌM TÀI XẾ -->
+        <div class="kh-screen" id="scSearching">
+            <div class="kh-section-title">Trạng thái đơn hàng</div>
+
+            <div class="kh-searching-anim">
+                <div class="kh-dot-wave"></div>
+                <div class="kh-dot-wave"></div>
+                <div class="kh-dot-wave"></div>
+            </div>
+
+            <div class="kh-status-card" style="text-align:center; border-color: rgba(0,255,157,0.2);">
+                <div class="kh-status-label">Đang tìm tài xế gần nhất</div>
+                <div class="kh-status-val" style="color: var(--green);">🔍 Hệ thống đang xử lý...</div>
+                <div style="font-size:11px; color:var(--subtext); margin-top:8px;">
+                    Vui lòng giữ nguyên vị trí của bạn
+                </div>
+            </div>
+
+            <div class="kh-status-card">
+                <div class="kh-status-label">Điểm đón</div>
+                <div class="kh-status-val" id="scFromDisplay">...</div>
+            </div>
+
+            <div class="kh-status-card">
+                <div class="kh-status-label">Điểm đến</div>
+                <div class="kh-status-val" id="scToDisplay">...</div>
+            </div>
+
+            <div class="kh-price-row" style="margin-bottom:16px;">
+                <div>
+                    <div class="kh-price-label">GIÁ ƯỚC TÍNH</div>
+                    <div class="kh-price-val" id="scPriceDisplay">...</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="kh-km-val" id="scKmDisplay"></div>
+                </div>
+            </div>
+
+            <button class="kh-btn kh-btn-danger" onclick="khCancel()">
+                ✕ HỦY ĐƠN
+            </button>
+        </div>
+
+        <!-- SCREEN 3: TÀI XẾ ĐÃ NHẬN — ĐANG ĐẾN -->
+        <div class="kh-screen" id="scDriving">
+            <div class="kh-section-title">Tài xế đang đến</div>
+
+            <div class="kh-driver-card">
+                <div class="kh-driver-avatar">🧑</div>
+                <div class="kh-driver-info">
+                    <div class="kh-driver-name" id="driverName">Đang tải...</div>
+                    <div class="kh-driver-phone" id="driverPhone">...</div>
+                    <div class="kh-driver-plate" id="driverPlate"></div>
+                </div>
+                <a id="btnCall" href="tel:0000000000"
+                    style="background:var(--accent); color:#fff; padding:10px 14px;
+                           border-radius:12px; text-decoration:none; font-size:18px;">
+                    📞
+                </a>
+            </div>
+
+            <div class="kh-status-card" style="border-color: rgba(0,191,165,0.3);">
+                <div class="kh-status-label">Trạng thái</div>
+                <div class="kh-status-val" style="color:var(--accent);" id="drivingStatus">
+                    🚗 Tài xế đang trên đường đến đón bạn
+                </div>
+            </div>
+
+            <div class="kh-price-row" style="margin-bottom:16px;">
+                <div>
+                    <div class="kh-price-label">GIÁ CHUYẾN ĐI</div>
+                    <div class="kh-price-val" id="drivingPrice">...</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="kh-km-val" id="drivingKm"></div>
+                </div>
+            </div>
+
+            <button class="kh-btn kh-btn-danger" onclick="khCancel()">
+                ✕ HỦY CHUYẾN
+            </button>
+        </div>
+
+        <!-- SCREEN 4: HOÀN THÀNH -->
+        <div class="kh-screen" id="scDone">
+            <div class="kh-done-icon">✅</div>
+            <div style="text-align:center; margin-bottom:20px;">
+                <div style="font-size:18px; font-weight:900; margin-bottom:6px;">
+                    Hoàn thành chuyến đi!
+                </div>
+                <div style="font-size:12px; color:var(--subtext);">
+                    Cảm ơn bạn đã sử dụng Taxi ProMax
+                </div>
+            </div>
+
+            <div class="kh-price-row" style="margin-bottom:20px;">
+                <div>
+                    <div class="kh-price-label">TỔNG TIỀN</div>
+                    <div class="kh-price-val" id="donePrice">...</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="kh-km-val" id="doneKm"></div>
+                </div>
+            </div>
+
+            <!-- ĐÁNH GIÁ SAO -->
+            <div style="text-align:center; margin-bottom:16px;">
+                <div class="kh-section-title" style="text-align:center; margin-bottom:10px;">
+                    Đánh giá tài xế
+                </div>
+                <div id="starRow" style="font-size:32px; cursor:pointer; letter-spacing:4px;">
+                    ⭐⭐⭐⭐⭐
+                </div>
+                <div style="font-size:10px; color:var(--subtext); margin-top:6px;">
+                    Chạm vào sao để đánh giá
+                </div>
+            </div>
+
+            <button class="kh-btn kh-btn-primary" onclick="khBookAgain()">
+                🚖 ĐẶT CHUYẾN MỚI
+            </button>
+        </div>
+
+        <!-- SCREEN 5: ĐÃ HỦY -->
+        <div class="kh-screen" id="scCancelled">
+            <div class="kh-done-icon">❌</div>
+            <div style="text-align:center; margin-bottom:20px;">
+                <div style="font-size:18px; font-weight:900; color:var(--danger); margin-bottom:6px;">
+                    Đơn đã bị hủy
+                </div>
+                <div style="font-size:12px; color:var(--subtext);">
+                    Bạn có thể đặt xe mới bất cứ lúc nào
+                </div>
+            </div>
+            <button class="kh-btn kh-btn-primary" onclick="khBookAgain()">
+                🚖 ĐẶT XE LẠI
+            </button>
+        </div>
+
+    </div><!-- /kh-sheet -->
+
+    <!-- Firebase SDK compat (đồng bộ với index.html) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+    // ============================================================
+    //  TAXI PROMAX — APP KHÁCH HÀNG
+    //  Node Firebase: /datxe (đồng bộ với App Tài Xế index.html)
+    //  Luồng: Form → waiting → driving → completed/cancelled
+    // ============================================================
+
+    // --- FIREBASE ---
+    const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
+    if (!firebase.apps.length) {
+        firebase.initializeApp({ databaseURL: FIREBASE_BASE_URL });
+    }
+    const db = firebase.database();
+
+    // --- BIẾN TRẠNG THÁI ---
+    let khMap, khUserMarker, khDriverMarker;
+    let khLat = null, khLng = null;
+    let khCurrentOrderId  = null;
+    let khOrderListener   = null;
+    let khSelectedCarType = '4_seats';
+    let khEstKm   = 0;
+    let khEstPrice = 0;
+
+    // Bảng giá theo loại xe (VNĐ/km)
+    const KH_RATES = { '4_seats': 15000, '7_seats': 18000 };
+
+    // ============================================================
+    // KHỞI TẠO MAP
+    // ============================================================
+    function khInitMap() {
+        khMap = L.map('map', { zoomControl: false, attributionControl: false })
+                 .setView([21.0285, 105.8542], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(khMap);
+    }
+
+    // ============================================================
+    // GPS — LẤY VỊ TRÍ KHÁCH HÀNG
+    // ============================================================
+    function khStartGPS() {
+        if (!('geolocation' in navigator)) {
+            khShowToast('Thiết bị không hỗ trợ GPS');
+            return;
+        }
+
+        navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy } = pos.coords;
+                khLat = latitude;
+                khLng = longitude;
+
+                // Cập nhật badge GPS
+                const dot  = document.getElementById('khGpsDot');
+                const text = document.getElementById('khGpsText');
+                if (accuracy <= 20) {
+                    dot.className  = 'kh-gps-dot ok';
+                    text.innerText = `GPS tốt (±${accuracy.toFixed(0)}m)`;
+                } else if (accuracy <= 50) {
+                    dot.className  = 'kh-gps-dot weak';
+                    text.innerText = `GPS TB (±${accuracy.toFixed(0)}m)`;
+                } else {
+                    dot.className  = 'kh-gps-dot';
+                    text.innerText = `GPS yếu (±${accuracy.toFixed(0)}m)`;
                 }
+
+                // Update marker
+                if (!khUserMarker) {
+                    const icon = L.divIcon({
+                        html: '<div class="kh-gps-marker"></div>',
+                        className: '', iconSize: [22, 22], iconAnchor: [11, 11]
+                    });
+                    khUserMarker = L.marker([latitude, longitude], { icon }).addTo(khMap);
+                    khMap.setView([latitude, longitude], 16);
+                } else {
+                    khUserMarker.setLatLng([latitude, longitude]);
+                }
+
+                // Reverse geocode → hiện địa chỉ điểm đón
+                khReverseGeocode(latitude, longitude);
+            },
+            (err) => {
+                console.error('GPS Error:', err);
+                document.getElementById('khGpsText').innerText = 'Không có GPS';
+                document.getElementById('inpFrom').placeholder = 'Không lấy được vị trí';
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    // Reverse geocode từ tọa độ → địa chỉ (Nominatim, miễn phí)
+    function khReverseGeocode(lat, lng) {
+        const inp = document.getElementById('inpFrom');
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=vi`)
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.display_name) {
+                    // Rút gọn địa chỉ
+                    const parts = data.display_name.split(',');
+                    const short = parts.slice(0, 3).join(',').trim();
+                    inp.value       = short;
+                    inp.style.color = '#fff';
+                    khEstimatePrice(); // Re-tính giá khi có điểm đón
+                }
+            })
+            .catch(() => {
+                inp.value       = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                inp.style.color = '#fff';
             });
+    }
+
+    // ============================================================
+    // CHỌN LOẠI XE
+    // ============================================================
+    function khSelectCar(type, el) {
+        khSelectedCarType = type;
+        document.querySelectorAll('.kh-car-btn').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+        khEstimatePrice();
+    }
+
+    // ============================================================
+    // TÍNH GIÁ ƯỚC TÍNH
+    // ============================================================
+    function khEstimatePrice() {
+        const to    = document.getElementById('inpTo').value.trim();
+        const from  = document.getElementById('inpFrom').value.trim();
+        const rate  = KH_RATES[khSelectedCarType] || 15000;
+        const priceEl = document.getElementById('khPriceVal');
+        const kmEl    = document.getElementById('khKmVal');
+        const rateEl  = document.getElementById('khRateInfo');
+
+        rateEl.innerText = `${rate.toLocaleString()}đ/km`;
+
+        if (!to || !from) {
+            priceEl.innerText = 'Nhập điểm đến';
+            kmEl.innerText    = '';
+            khEstKm    = 0;
+            khEstPrice = 0;
+            return;
+        }
+
+        // Nếu có GPS → geocode điểm đến, tính khoảng cách thực
+        if (khLat && khLng) {
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(to)}&format=json&limit=1&accept-language=vi`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data[0]) {
+                        const toLat = parseFloat(data[0].lat);
+                        const toLng = parseFloat(data[0].lon);
+                        // Haversine distance
+                        const km    = khHaversine(khLat, khLng, toLat, toLng);
+                        khEstKm     = parseFloat(km.toFixed(1));
+                        khEstPrice  = Math.round(khEstKm * rate);
+                        priceEl.innerText = khEstPrice.toLocaleString() + 'đ';
+                        kmEl.innerText    = khEstKm.toFixed(1) + ' km';
+
+                        // Vẽ marker điểm đến
+                        if (window._khDestMarker) khMap.removeLayer(window._khDestMarker);
+                        window._khDestMarker = L.marker([toLat, toLng], {
+                            icon: L.divIcon({
+                                html: '<div style="background:#d32f2f;width:16px;height:16px;border-radius:50%;border:3px solid #fff;"></div>',
+                                className: '', iconSize: [16,16], iconAnchor: [8,8]
+                            })
+                        }).addTo(khMap);
+
+                        // Fit bounds
+                        const group = L.featureGroup([
+                            L.marker([khLat, khLng]),
+                            L.marker([toLat, toLng])
+                        ]);
+                        khMap.fitBounds(group.getBounds().pad(0.25));
+                    } else {
+                        // Không geocode được → ước tính ngẫu nhiên
+                        khEstKm    = parseFloat((Math.random() * 8 + 2).toFixed(1));
+                        khEstPrice = Math.round(khEstKm * rate);
+                        priceEl.innerText = khEstPrice.toLocaleString() + 'đ';
+                        kmEl.innerText    = '~' + khEstKm.toFixed(1) + ' km';
+                    }
+                })
+                .catch(() => {
+                    khEstKm    = parseFloat((Math.random() * 8 + 2).toFixed(1));
+                    khEstPrice = Math.round(khEstKm * rate);
+                    priceEl.innerText = khEstPrice.toLocaleString() + 'đ';
+                    kmEl.innerText    = '~' + khEstKm.toFixed(1) + ' km';
+                });
+        } else {
+            // Chưa có GPS
+            priceEl.innerText = 'Đang lấy GPS...';
+        }
+    }
+
+    // Haversine formula tính khoảng cách 2 tọa độ (km)
+    function khHaversine(lat1, lng1, lat2, lng2) {
+        const R  = 6371;
+        const dL = (lat2 - lat1) * Math.PI / 180;
+        const dG = (lng2 - lng1) * Math.PI / 180;
+        const a  = Math.sin(dL/2) * Math.sin(dL/2)
+                 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180)
+                 * Math.sin(dG/2) * Math.sin(dG/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // ============================================================
+    // ĐẶT XE — GHI /datxe (ĐỒNG BỘ VỚI INDEX.HTML)
+    // ============================================================
+    async function khBook() {
+        const phone = document.getElementById('inpPhone').value.trim();
+        const from  = document.getElementById('inpFrom').value.trim();
+        const to    = document.getElementById('inpTo').value.trim();
+
+        // Validate
+        if (!phone || phone.length < 9) {
+            khShowToast('⚠️ Vui lòng nhập số điện thoại hợp lệ');
+            return;
+        }
+        if (!to) {
+            khShowToast('⚠️ Vui lòng nhập điểm đến');
+            return;
+        }
+        if (!khLat || !khLng) {
+            khShowToast('⚠️ Đang lấy GPS, vui lòng đợi...');
+            return;
+        }
+
+        // Dữ liệu đơn hàng — đầy đủ cho App Tài Xế
+        const orderData = {
+            status:      'waiting',       // App tài xế lọc status==='waiting'
+            phone:       phone,
+            clientName:  'Khách ProMax',
+            pickup:      from   || `${khLat.toFixed(5)}, ${khLng.toFixed(5)}`,
+            dropoff:     to,
+            pickupLat:   khLat,
+            pickupLng:   khLng,
+            carType:     khSelectedCarType,
+            estimateKm:  khEstKm,
+            estimatePrice: khEstPrice,
+            timestamp:   Date.now(),
+            // Phục vụ Anti-fraud
+            userAgent:   navigator.userAgent.substring(0, 100)
         };
+
+        try {
+            // Push vào /datxe (đúng node mà App tài xế lắng nghe)
+            const newRef = db.ref('datxe').push();
+            khCurrentOrderId = newRef.key;
+            await newRef.set(orderData);
+
+            // Chuyển sang screen tìm tài xế
+            khShowScreen('scSearching');
+            document.getElementById('scFromDisplay').innerText  = orderData.pickup;
+            document.getElementById('scToDisplay').innerText    = orderData.dropoff;
+            document.getElementById('scPriceDisplay').innerText = khEstPrice > 0
+                ? khEstPrice.toLocaleString() + 'đ' : 'Đang tính...';
+            document.getElementById('scKmDisplay').innerText    = khEstKm > 0
+                ? khEstKm.toFixed(1) + ' km' : '';
+
+            khShowToast('✅ Đơn đã gửi — Đang tìm tài xế...');
+
+            // Lắng nghe cập nhật đơn hàng realtime
+            khListenOrder(khCurrentOrderId);
+
+        } catch (err) {
+            console.error('Lỗi đặt xe:', err);
+            khShowToast('❌ Lỗi kết nối, vui lòng thử lại');
+        }
+    }
+
+    // ============================================================
+    // REALTIME LISTENER — THEO DÕI TRẠNG THÁI ĐƠN HÀNG
+    // ============================================================
+    function khListenOrder(orderId) {
+        // Hủy listener cũ nếu có
+        if (khOrderListener) {
+            db.ref(`datxe/${khOrderListener}`).off();
+        }
+        khOrderListener = orderId;
+
+        db.ref(`datxe/${orderId}`).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            console.log('[ORDER] Status:', data.status);
+
+            switch (data.status) {
+                case 'waiting':
+                    // Vẫn đang tìm — không làm gì
+                    break;
+
+                case 'driving':
+                    // Tài xế đã nhận → hiện thông tin tài xế
+                    khShowScreen('scDriving');
+                    document.getElementById('driverName').innerText  =
+                        data.driverName  || `Tài xế ${data.driverId || ''}`;
+                    document.getElementById('driverPhone').innerText =
+                        data.driverPhone || 'Đang cập nhật...';
+                    document.getElementById('driverPlate').innerText =
+                        data.driverPlate ? `🚗 ${data.driverPlate}` : '';
+                    document.getElementById('drivingPrice').innerText =
+                        khEstPrice > 0 ? khEstPrice.toLocaleString() + 'đ' : '...';
+                    document.getElementById('drivingKm').innerText   =
+                        khEstKm > 0 ? khEstKm.toFixed(1) + ' km' : '';
+
+                    // Cập nhật nút gọi điện
+                    const phone = data.driverPhone || '';
+                    if (phone) {
+                        document.getElementById('btnCall').href = `tel:${phone}`;
+                    }
+
+                    // Hiện marker tài xế nếu có tọa độ
+                    if (data.lat && data.lng) {
+                        khUpdateDriverMarker(data.lat, data.lng);
+                    }
+
+                    khShowToast('🚗 Tài xế đang đến đón bạn!');
+                    khVibrate();
+                    break;
+
+                case 'completed':
+                    // Hoàn thành chuyến
+                    khShowScreen('scDone');
+                    document.getElementById('donePrice').innerText =
+                        khEstPrice > 0 ? khEstPrice.toLocaleString() + 'đ' : '...';
+                    document.getElementById('doneKm').innerText =
+                        khEstKm > 0 ? khEstKm.toFixed(1) + ' km' : '';
+                    khInitStarRating(orderId);
+                    khStopListener();
+                    khShowToast('✅ Chuyến đi hoàn thành!');
+                    break;
+
+                case 'cancelled':
+                    // Đã hủy (bởi tài xế hoặc hệ thống)
+                    khShowScreen('scCancelled');
+                    khStopListener();
+                    khShowToast('❌ Chuyến đã bị hủy');
+                    break;
+            }
+        });
+    }
+
+    // Hiện marker tài xế trên bản đồ
+    function khUpdateDriverMarker(lat, lng) {
+        if (!khDriverMarker) {
+            const icon = L.divIcon({
+                html: '<div class="kh-driver-marker">🚗</div>',
+                className: '', iconSize: [30,30], iconAnchor: [15,15]
+            });
+            khDriverMarker = L.marker([lat, lng], { icon }).addTo(khMap);
+        } else {
+            khDriverMarker.setLatLng([lat, lng]);
+        }
+        // Fit cả 2 marker
+        if (khUserMarker) {
+            const group = L.featureGroup([khUserMarker, khDriverMarker]);
+            khMap.fitBounds(group.getBounds().pad(0.3));
+        }
+    }
+
+    // ============================================================
+    // HỦY ĐƠN
+    // ============================================================
+    function khCancel() {
+        if (!khCurrentOrderId) return;
+
+        if (!confirm('Bạn có chắc muốn hủy chuyến không?')) return;
+
+        db.ref(`datxe/${khCurrentOrderId}`).update({ status: 'cancelled' })
+            .then(() => {
+                khStopListener();
+                khShowScreen('scCancelled');
+                khShowToast('Đã hủy chuyến');
+            })
+            .catch(err => {
+                console.error('Hủy thất bại:', err);
+                khShowToast('❌ Không hủy được, thử lại!');
+            });
+    }
+
+    // ============================================================
+    // ĐÁNH GIÁ SAO
+    // ============================================================
+    function khInitStarRating(orderId) {
+        const starRow = document.getElementById('starRow');
+        const stars   = ['⭐','⭐','⭐','⭐','⭐'];
+        let selected  = 5;
+
+        const render = (count) => {
+            starRow.innerHTML = stars.map((s, i) =>
+                `<span style="opacity:${i < count ? 1 : 0.25}; cursor:pointer;"
+                       onclick="khRate(${i+1}, '${orderId}')">${s}</span>`
+            ).join('');
+        };
+        render(5);
+    }
+
+    window.khRate = function(star, orderId) {
+        // Lưu đánh giá vào /ratings
+        db.ref(`ratings/${orderId}`).set({
+            star:      star,
+            orderId:   orderId,
+            timestamp: Date.now()
+        }).then(() => {
+            khShowToast(`Cảm ơn bạn đã đánh giá ${star} sao! ⭐`);
+        }).catch(() => {});
+    };
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+    function khShowScreen(id) {
+        document.querySelectorAll('.kh-screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function khStopListener() {
+        if (khOrderListener) {
+            db.ref(`datxe/${khOrderListener}`).off();
+            khOrderListener   = null;
+            khCurrentOrderId  = null;
+        }
+    }
+
+    function khBookAgain() {
+        khStopListener();
+        // Xóa marker cũ
+        if (khDriverMarker) { khMap.removeLayer(khDriverMarker); khDriverMarker = null; }
+        if (window._khDestMarker) { khMap.removeLayer(window._khDestMarker); window._khDestMarker = null; }
+        // Reset form
+        document.getElementById('inpTo').value    = '';
+        document.getElementById('khPriceVal').innerText = 'Nhập điểm đến';
+        document.getElementById('khKmVal').innerText    = '';
+        khEstKm    = 0;
+        khEstPrice = 0;
+        khShowScreen('scForm');
+        if (khLat && khLng) khMap.setView([khLat, khLng], 16);
+    }
+
+    let toastTimer = null;
+    function khShowToast(msg) {
+        const el = document.getElementById('khToast');
+        el.innerText = msg;
+        el.classList.add('show');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    function khVibrate() {
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+    }
+
+    // ============================================================
+    // ONLINE / OFFLINE
+    // ============================================================
+    window.addEventListener('offline', () => {
+        document.getElementById('khOffline').style.display = 'block';
+    });
+    window.addEventListener('online', () => {
+        document.getElementById('khOffline').style.display = 'none';
+    });
+
+    // ============================================================
+    // KHỞI ĐỘNG
+    // ============================================================
+    window.onload = () => {
+        khInitMap();
+        khStartGPS();
+    };
+
     </script>
 </body>
 </html>
