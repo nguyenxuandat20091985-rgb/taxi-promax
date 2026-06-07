@@ -1,14 +1,24 @@
+/**
+ * TAXI PROMAX - CREATE PAYMENT (Vercel Serverless Function)
+ * FIX v2.0:
+ * [FIX-1] returnUrl/cancelUrl thông minh — phân biệt app tài xế vs khách hàng
+ * [FIX-2] Thêm success:true trong response — đồng bộ với payment.js frontend
+ * Giữ nguyên: CORS, PayOS logic, description format, orderCode auto-gen
+ * Phát triển bởi: NGUYỄN XUÂN ĐẠT
+ */
+
 import PayOS from '@payos/node';
 
-// Khởi tạo PayOS đồng bộ chuẩn cú pháp ES Modules (import)
+// Dùng Environment Variables — KHÔNG hardcode (constitution §9)
 const payos = new PayOS(
-    process.env.PAYOS_CLIENT_ID, 
-    process.env.PAYOS_API_KEY, 
+    process.env.PAYOS_CLIENT_ID,
+    process.env.PAYOS_API_KEY,
     process.env.PAYOS_CHECKSUM_KEY
 );
 
 export default async function handler(req, res) {
-    // Cấu hình CORS để cho phép App Frontend gọi API mượt mà không bị chặn
+
+    // ===== CORS =====
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -17,45 +27,68 @@ export default async function handler(req, res) {
         'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
     );
 
-    // Xử lý phương thức OPTIONS (Preflight request) bắt buộc của cấu hình CORS
+    // Xử lý preflight OPTIONS
     if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+        return res.status(200).end();
     }
 
-    // Chỉ cho phép phương thức POST để bảo mật dữ liệu nạp tiền
+    // Chỉ nhận POST
     if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method not allowed' });
+        return res.status(405).json({ success: false, message: 'Method not allowed' });
     }
 
     try {
-        const { amount, description, orderCode, phone } = req.body;
-        
-        // Khóa bảo vệ: Tự động sinh mã đơn hàng nếu frontend truyền lên bị thiếu/trống
-        const finalOrderCode = orderCode ? parseInt(orderCode) : Math.floor(Date.now() / 1000);
+        const { amount, description, orderCode, phone, planName, returnPage } = req.body;
 
-        // Format nội dung chuyển khoản: Không dấu, viết liền, giới hạn dưới 25 ký tự theo luật PayOS
-        const safePhone = (phone || 'TAIXE').replace(/\s/g, '');
-        const safeDesc = (description || 'NAPGOI').replace(/\s/g, '').toUpperCase();
-        const fullDescription = `PROMAX ${safePhone} ${safeDesc}`;
-        
-        // Cấu hình gói dữ liệu thanh toán chuẩn hóa
+        // Validate amount
+        const parsedAmount = parseInt(amount);
+        if (!parsedAmount || parsedAmount < 1000) {
+            return res.status(400).json({ success: false, error: 'Số tiền không hợp lệ' });
+        }
+
+        // Auto-generate orderCode nếu thiếu
+        const finalOrderCode = orderCode
+            ? parseInt(orderCode)
+            : Math.floor(Date.now() / 1000);
+
+        // Format description chuẩn PayOS: "PROMAX {TX_ID} {PLAN}"
+        // Webhook.js sẽ parse theo format này để kích hoạt gói
+        const safePhone = (phone || 'TAIXE').replace(/\s/g, '').toUpperCase();
+        const safePlan  = (planName || description || 'NAPGOI').replace(/\s/g, '').toUpperCase();
+        const fullDesc  = `PROMAX ${safePhone} ${safePlan}`;
+
+        // [FIX-1] returnUrl thông minh — phân biệt trang gọi
+        // returnPage: 'driver' (mặc định) hoặc 'customer'
+        const host      = req.headers.host;
+        const basePage  = (returnPage === 'customer') ? 'khachhang.html' : 'index.html';
+        const returnUrl = `https://${host}/${basePage}?status=success&plan=${encodeURIComponent(safePlan)}`;
+        const cancelUrl = `https://${host}/${basePage}?status=cancel`;
+
+        // Cấu hình PayOS
         const paymentData = {
-            orderCode: finalOrderCode,
-            amount: parseInt(amount), // Ép kiểu số nguyên bắt buộc cho PayOS
-            description: fullDescription.substring(0, 25), // Cắt chuỗi an toàn bảo vệ hệ thống
-            cancelUrl: `https://${req.headers.host}/index.html?status=cancel`,
-            returnUrl: `https://${req.headers.host}/index.html?status=success`,
+            orderCode:   finalOrderCode,
+            amount:      parsedAmount,
+            description: fullDesc.substring(0, 25), // PayOS giới hạn 25 ký tự
+            cancelUrl:   cancelUrl,
+            returnUrl:   returnUrl
         };
 
-        // Gọi PayOS sinh cổng thanh toán trực tuyến
+        console.log(`[create-payment] Tạo đơn: ${JSON.stringify(paymentData)}`);
+
         const checkoutLink = await payos.createPaymentLink(paymentData);
-        
-        // Trả link thành công về cho thiết bị tài xế nổ đơn
-        return res.status(200).json({ checkoutUrl: checkoutLink.checkoutUrl });
+
+        // [FIX-2] Thêm success:true — đồng bộ với payment.js frontend check data.success
+        return res.status(200).json({
+            success:     true,
+            checkoutUrl: checkoutLink.checkoutUrl,
+            orderCode:   finalOrderCode
+        });
 
     } catch (error) {
-        console.error("Lỗi PayOS Serverless:", error);
-        return res.status(500).json({ error: error.message });
+        console.error('[create-payment] Lỗi PayOS:', error.message);
+        return res.status(500).json({
+            success: false,
+            error:   error.message
+        });
     }
 }
