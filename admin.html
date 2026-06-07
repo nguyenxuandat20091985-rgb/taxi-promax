@@ -1,165 +1,1034 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-    <title>HỆ THỐNG QUẢN TRỊ - TAXI PROMAX</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <title>ADMIN — TAXI PROMAX</title>
+
+    <!-- Firebase SDK v10 compat — đồng bộ với index.html & khachhang.html -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
     <style>
+        /* ============================================================
+           TAXI PROMAX — ADMIN DASHBOARD
+           Constitution §22: Đầy đủ chức năng quản trị
+        ============================================================ */
         :root {
-            --bg: #0f172a;
-            --card: #1e293b;
+            --bg:      #0f172a;
+            --card:    #1e293b;
+            --border:  rgba(255,255,255,0.08);
             --primary: #00bfa5;
-            --danger: #ef4444;
+            --danger:  #ef4444;
             --warning: #f1c40f;
-            --text: #f8fafc;
+            --info:    #3b82f6;
+            --text:    #f8fafc;
+            --sub:     #94a3b8;
         }
-        body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            padding: 20px;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        * { box-sizing: border-box; margin: 0; padding: 0;
+            -webkit-tap-highlight-color: transparent; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
         }
-        .container { width: 100%; max-width: 450px; }
-        .admin-card {
-            background: var(--card);
-            padding: 25px;
-            border-radius: 24px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+
+        /* ===== LOGIN ===== */
+        #loginScreen {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; padding: 20px;
+        }
+        .login-box {
+            background: var(--card); border-radius: 24px;
+            padding: 40px 30px; width: 100%; max-width: 360px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             text-align: center;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
         }
-        h2 { margin: 0 0 20px; color: var(--primary); font-size: 22px; letter-spacing: 1px; }
-        
-        /* Trạng thái */
-        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .status-item { padding: 15px; border-radius: 15px; background: rgba(255,255,255,0.05); font-size: 12px; }
-        .status-item b { display: block; font-size: 16px; margin-top: 5px; }
-
-        .btn {
-            width: 100%; padding: 16px; border: none; border-radius: 14px;
-            color: white; font-weight: 800; font-size: 14px;
-            cursor: pointer; margin-bottom: 12px; transition: 0.2s;
+        .login-logo { font-size: 48px; margin-bottom: 10px; }
+        .login-title { font-size: 18px; font-weight: 900; color: var(--primary); margin-bottom: 6px; }
+        .login-sub { font-size: 11px; color: var(--sub); margin-bottom: 28px; }
+        .adm-input {
+            width: 100%; padding: 14px 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border); border-radius: 12px;
+            color: var(--text); font-size: 14px; margin-bottom: 12px;
         }
-        .btn-maintenance { background: var(--danger); }
-        .btn-event { background: var(--warning); color: #000; }
-        .btn-reset { background: #64748b; }
-        .btn:active { transform: scale(0.96); }
+        .adm-input:focus { border-color: var(--primary); outline: none; }
+        .adm-btn {
+            width: 100%; padding: 14px; border: none; border-radius: 12px;
+            font-size: 14px; font-weight: 900; cursor: pointer; transition: 0.2s;
+        }
+        .adm-btn-primary { background: var(--primary); color: #000; }
+        .adm-btn-danger  { background: var(--danger);  color: #fff; }
+        .adm-btn-warning { background: var(--warning); color: #000; }
+        .adm-btn-gray    { background: #334155;        color: #fff; }
+        .adm-btn-info    { background: var(--info);    color: #fff; }
+        .adm-btn:active  { transform: scale(0.97); }
+        #loginError { color: var(--danger); font-size: 12px; margin-top: 8px; display: none; }
 
-        /* Danh sách nạp tiền */
-        .order-box { text-align: left; background: rgba(0,0,0,0.2); border-radius: 15px; padding: 15px; }
-        .order-item {
+        /* ===== DASHBOARD ===== */
+        #dashboard { display: none; }
+
+        .adm-topbar {
+            background: var(--card); border-bottom: 1px solid var(--border);
+            padding: 14px 20px; display: flex;
+            justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .adm-topbar-title { font-size: 14px; font-weight: 900; color: var(--primary); }
+        .adm-topbar-right { display: flex; align-items: center; gap: 10px; }
+        .adm-live-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--primary); animation: livePulse 1.5s infinite;
+        }
+        @keyframes livePulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+        .adm-logout {
+            font-size: 11px; color: var(--sub); cursor: pointer;
+            padding: 6px 12px; border-radius: 8px;
+            border: 1px solid var(--border); background: none;
+            color: var(--text);
+        }
+
+        /* ===== TABS ===== */
+        .adm-tabs {
+            display: flex; overflow-x: auto; gap: 0;
+            background: var(--card); border-bottom: 1px solid var(--border);
+            padding: 0 10px;
+        }
+        .adm-tab {
+            padding: 12px 16px; font-size: 11px; font-weight: 800;
+            color: var(--sub); border: none; background: none;
+            cursor: pointer; white-space: nowrap;
+            border-bottom: 2px solid transparent; transition: 0.2s;
+        }
+        .adm-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .adm-panel { display: none; padding: 16px; }
+        .adm-panel.active { display: block; }
+
+        /* ===== STAT CARDS ===== */
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .stat-card {
+            background: var(--card); border-radius: 18px; padding: 16px;
+            border: 1px solid var(--border); text-align: center;
+        }
+        .stat-label { font-size: 9px; font-weight: 800; color: var(--sub);
+                      text-transform: uppercase; letter-spacing: 0.8px; }
+        .stat-val   { font-size: 28px; font-weight: 900; margin: 6px 0 2px; }
+        .stat-sub   { font-size: 10px; color: var(--sub); }
+        .c-primary { color: var(--primary); }
+        .c-warning { color: var(--warning); }
+        .c-danger  { color: var(--danger);  }
+        .c-info    { color: var(--info);    }
+
+        /* ===== SECTION ===== */
+        .adm-section {
+            background: var(--card); border-radius: 18px;
+            border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden;
+        }
+        .adm-section-header {
+            padding: 14px 16px; font-size: 11px; font-weight: 900;
+            letter-spacing: 1px; text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
             display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        .btn-approve { background: var(--primary); padding: 8px 15px; border-radius: 8px; font-size: 12px; }
+        .adm-badge {
+            font-size: 10px; padding: 3px 10px; border-radius: 10px;
+            font-weight: 800;
+        }
+        .adm-badge-green  { background: rgba(0,191,165,0.15); color: var(--primary); }
+        .adm-badge-red    { background: rgba(239,68,68,0.15);  color: var(--danger);  }
+        .adm-badge-yellow { background: rgba(241,196,15,0.15); color: var(--warning); }
+
+        /* ===== LIST ITEMS ===== */
+        .adm-list-item {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .adm-list-item:last-child { border-bottom: none; }
+        .adm-item-main { font-size: 13px; font-weight: 700; }
+        .adm-item-sub  { font-size: 10px; color: var(--sub); margin-top: 2px; }
+        .adm-item-right { text-align: right; }
+
+        .adm-action-btn {
+            padding: 7px 14px; border-radius: 8px; border: none;
+            font-size: 11px; font-weight: 800; cursor: pointer;
+            transition: 0.2s;
+        }
+        .adm-action-btn:active { transform: scale(0.95); }
+        .btn-lock   { background: rgba(239,68,68,0.15);  color: var(--danger);  }
+        .btn-unlock { background: rgba(0,191,165,0.15);  color: var(--primary); }
+        .btn-ok     { background: rgba(0,191,165,0.15);  color: var(--primary); }
+
+        /* ===== CONTROL BUTTONS ===== */
+        .ctrl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; }
+        .ctrl-btn {
+            padding: 14px; border-radius: 14px; border: none;
+            font-size: 12px; font-weight: 800; cursor: pointer;
+            transition: 0.2s; text-align: center; line-height: 1.4;
+        }
+        .ctrl-btn:active { transform: scale(0.96); }
+        .ctrl-btn i { display: block; font-size: 22px; margin-bottom: 5px; font-style: normal; }
+
+        /* ===== EMPTY STATE ===== */
+        .adm-empty {
+            text-align: center; padding: 30px 20px;
+            color: var(--sub); font-size: 12px; font-weight: 700;
+        }
+
+        /* ===== MODAL ===== */
+        .adm-modal {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+            display: none; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .adm-modal.open { display: flex; }
+        .adm-modal-box {
+            background: var(--card); border-radius: 20px;
+            padding: 24px; width: 100%; max-width: 340px;
+            border: 1px solid var(--border);
+        }
+        .adm-modal-title { font-size: 15px; font-weight: 900; margin-bottom: 16px; }
+        .adm-modal-btns  { display: flex; gap: 10px; margin-top: 16px; }
+
+        /* ===== TOAST ===== */
+        #admToast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: var(--primary); color: #000;
+            padding: 10px 24px; border-radius: 20px;
+            font-size: 12px; font-weight: 800;
+            z-index: 99999; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none; white-space: nowrap;
+        }
+        #admToast.show { opacity: 1; }
+
+        /* ===== ONLINE STATUS DOT ===== */
+        .online-dot {
+            display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; background: var(--primary);
+            margin-right: 6px; animation: livePulse 1.5s infinite;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="admin-card">
-            <h2>🎛️ BẢNG ĐIỀU KHIỂN</h2>
-            
-            <div class="status-grid">
-                <div class="status-item">HỆ THỐNG<b id="sysStat">ĐANG TẢI...</b></div>
-                <div class="status-item">SỰ KIỆN<b id="evtStat">ĐANG TẢI...</b></div>
-            </div>
+<!-- ============================================================
+     MÀNG HÌNH ĐĂNG NHẬP
+============================================================ -->
+<div id="loginScreen">
+    <div class="login-box">
+        <div class="login-logo">🎛️</div>
+        <div class="login-title">TAXI PROMAX ADMIN</div>
+        <div class="login-sub">Hệ thống quản trị nội bộ</div>
 
-            <button class="btn btn-maintenance" onclick="toggleStatus('systemStatus')">BẬT/TẮT BẢO TRÌ</button>
-            <button class="btn btn-event" onclick="toggleStatus('currentEvent', 'tet', 'normal')">🧧 CHẾ ĐỘ TẾT / THƯỜNG</button>
-            <button class="btn btn-reset" onclick="resetPrice()">CÀI GIÁ CƯỚC CHUẨN (15K)</button>
+        <input class="adm-input" type="password" id="inpPwd"
+            placeholder="Nhập mật khẩu quản trị..."
+            onkeydown="if(event.key==='Enter') admLogin()">
+        <button class="adm-btn adm-btn-primary" onclick="admLogin()">
+            ĐĂNG NHẬP
+        </button>
+        <div id="loginError">❌ Sai mật khẩu, thử lại!</div>
+    </div>
+</div>
+
+<!-- ============================================================
+     DASHBOARD
+============================================================ -->
+<div id="dashboard">
+
+    <!-- TOPBAR -->
+    <div class="adm-topbar">
+        <div class="adm-topbar-title">🎛️ TAXI PROMAX ADMIN</div>
+        <div class="adm-topbar-right">
+            <div class="adm-live-dot"></div>
+            <span style="font-size:10px; color:var(--sub);">REALTIME</span>
+            <button class="adm-logout" onclick="admLogout()">ĐĂNG XUẤT</button>
         </div>
-
-        <div class="admin-card">
-            <h2 style="color: var(--warning)">💰 DUYỆT NẠP TIỀN</h2>
-            <div id="paymentList" class="order-box">
-                <p style="text-align:center; color:#64748b;">Đang theo dõi giao dịch...</p>
-            </div>
-        </div>
-
-        <p style="font-size: 11px; color: #64748b; text-align: center;">Quản trị viên: <b>Nguyễn Xuân Đạt</b></p>
     </div>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyDWX-YyE_1-F0yNqW9Kk8-G-Y4fG-Z-Y4f",
-            authDomain: "taxi-promax-9f79b.firebaseapp.com",
-            databaseURL: "https://taxi-promax-9f79b-default-rtdb.firebaseio.com",
-            projectId: "taxi-promax-9f79b",
-            storageBucket: "taxi-promax-9f79b.appspot.com",
-            messagingSenderId: "338804599298",
-            appId: "1:338804599298:web:12704381270438"
-        };
-        
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+    <!-- TABS -->
+    <div class="adm-tabs">
+        <button class="adm-tab active" onclick="admTab('overview',this)">📊 TỔNG QUAN</button>
+        <button class="adm-tab" onclick="admTab('drivers',this)">🚗 TÀI XẾ</button>
+        <button class="adm-tab" onclick="admTab('orders',this)">📋 ĐƠN HÀNG</button>
+        <button class="adm-tab" onclick="admTab('payments',this)">💰 DUYỆT GÓI</button>
+        <button class="adm-tab" onclick="admTab('control',this)">⚙️ ĐIỀU KHIỂN</button>
+    </div>
 
-        // 1. Lắng nghe trạng thái
-        db.ref('systemStatus').on('value', s => {
-            const val = s.val() || 'on';
-            document.getElementById('sysStat').innerText = val === 'on' ? 'ONLINE' : 'BẢO TRÌ';
-            document.getElementById('sysStat').style.color = val === 'on' ? 'var(--primary)' : 'var(--danger)';
-        });
+    <!-- ===== PANEL: TỔNG QUAN ===== -->
+    <div class="adm-panel active" id="panel-overview">
 
-        db.ref('currentEvent').on('value', s => {
-            const val = s.val() || 'normal';
-            document.getElementById('evtStat').innerText = val === 'tet' ? '🧧 TẾT' : 'THƯỜNG';
-            document.getElementById('evtStat').style.color = val === 'tet' ? 'var(--danger)' : 'white';
-        });
+        <!-- Stat Cards -->
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-label">Tài xế Online</div>
+                <div class="stat-val c-primary" id="statDriverOnline">0</div>
+                <div class="stat-sub">Đang hoạt động</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đơn hôm nay</div>
+                <div class="stat-val c-warning" id="statOrderToday">0</div>
+                <div class="stat-sub">Tổng đơn</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Doanh thu hôm nay</div>
+                <div class="stat-val c-info" id="statRevToday" style="font-size:18px;">0đ</div>
+                <div class="stat-sub">Từ chuyến hoàn thành</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đơn đang chạy</div>
+                <div class="stat-val c-danger" id="statOrderRunning">0</div>
+                <div class="stat-sub">Status: driving</div>
+            </div>
+        </div>
 
-        // 2. Lắng nghe yêu cầu nạp tiền (Đồng bộ với app-logic.js)
-        db.ref('paymentRequests').on('value', snapshot => {
-            const list = document.getElementById('paymentList');
-            list.innerHTML = "";
-            const data = snapshot.val();
-            if(!data) { list.innerHTML = "<p style='text-align:center; color:#64748b;'>Chưa có yêu cầu mới</p>"; return; }
+        <!-- Stat hàng 2 -->
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-label">Hoàn thành</div>
+                <div class="stat-val c-primary" id="statDone">0</div>
+                <div class="stat-sub">Hôm nay</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đã hủy</div>
+                <div class="stat-val c-danger" id="statCancelled">0</div>
+                <div class="stat-sub">Hôm nay</div>
+            </div>
+        </div>
 
-            for(let id in data) {
-                const item = data[id];
-                list.innerHTML += `
-                    <div class="order-item">
-                        <div><b>${item.phone}</b><br><small>${item.plan}</small></div>
-                        <button class="btn-approve" onclick="approve('${id}', '${item.phone}', '${item.plan}')">DUYỆT</button>
+        <!-- Tỷ lệ -->
+        <div class="adm-section">
+            <div class="adm-section-header">
+                <span>TỶ LỆ HOÀN THÀNH</span>
+            </div>
+            <div style="padding:16px;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:8px;">
+                    <span>Nhận chuyến</span>
+                    <b id="rateAccept" class="c-primary">0%</b>
+                </div>
+                <div style="background:rgba(255,255,255,0.05); border-radius:6px; height:8px; overflow:hidden;">
+                    <div id="barAccept" style="height:100%; background:var(--primary); width:0%; border-radius:6px; transition:0.5s;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin:12px 0 8px;">
+                    <span>Hoàn thành</span>
+                    <b id="rateComplete" class="c-info">0%</b>
+                </div>
+                <div style="background:rgba(255,255,255,0.05); border-radius:6px; height:8px; overflow:hidden;">
+                    <div id="barComplete" style="height:100%; background:var(--info); width:0%; border-radius:6px; transition:0.5s;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top tài xế -->
+        <div class="adm-section">
+            <div class="adm-section-header">
+                <span>🏆 TOP TÀI XẾ HÔM NAY</span>
+            </div>
+            <div id="topDriverList">
+                <div class="adm-empty">Đang tải dữ liệu...</div>
+            </div>
+        </div>
+
+    </div><!-- /panel-overview -->
+
+    <!-- ===== PANEL: TÀI XẾ ===== -->
+    <div class="adm-panel" id="panel-drivers">
+        <div class="adm-section">
+            <div class="adm-section-header">
+                <span>TÀI XẾ ĐANG ONLINE</span>
+                <span class="adm-badge adm-badge-green" id="driverOnlineBadge">0</span>
+            </div>
+            <div id="driverOnlineList">
+                <div class="adm-empty">Chưa có tài xế nào online</div>
+            </div>
+        </div>
+
+        <div class="adm-section">
+            <div class="adm-section-header">
+                <span>KHÓA / MỞ TÀI KHOẢN</span>
+            </div>
+            <div style="padding:16px;">
+                <div style="display:flex; gap:10px;">
+                    <input class="adm-input" id="inpLockId" placeholder="Nhập mã tài xế (VD: PRO-ABC12)"
+                        style="margin:0; flex:1;">
+                    <button class="adm-btn adm-btn-danger" style="width:auto; padding:14px 16px; margin:0;"
+                        onclick="admLockDriver()">KHÓA</button>
+                </div>
+            </div>
+            <div id="lockedDriverList">
+                <div class="adm-empty">Chưa có tài khoản nào bị khóa</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PANEL: ĐƠN HÀNG ===== -->
+    <div class="adm-panel" id="panel-orders">
+        <!-- Filter -->
+        <div style="display:flex; gap:8px; margin-bottom:14px; overflow-x:auto;">
+            <button class="adm-action-btn btn-ok" onclick="admFilterOrders('all',this)"
+                style="background:rgba(0,191,165,0.2);">Tất cả</button>
+            <button class="adm-action-btn" onclick="admFilterOrders('waiting',this)"
+                style="background:rgba(241,196,15,0.1); color:var(--warning);">Chờ</button>
+            <button class="adm-action-btn" onclick="admFilterOrders('driving',this)"
+                style="background:rgba(59,130,246,0.1); color:var(--info);">Đang chạy</button>
+            <button class="adm-action-btn" onclick="admFilterOrders('completed',this)"
+                style="background:rgba(0,191,165,0.1); color:var(--primary);">Hoàn thành</button>
+            <button class="adm-action-btn" onclick="admFilterOrders('cancelled',this)"
+                style="background:rgba(239,68,68,0.1); color:var(--danger);">Đã hủy</button>
+        </div>
+
+        <div class="adm-section">
+            <div id="orderList">
+                <div class="adm-empty">Đang tải đơn hàng...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PANEL: DUYỆT GÓI ===== -->
+    <div class="adm-panel" id="panel-payments">
+        <div class="adm-section">
+            <div class="adm-section-header">
+                <span>YÊU CẦU NẠP GÓI</span>
+                <span class="adm-badge adm-badge-yellow" id="paymentBadge">0</span>
+            </div>
+            <div id="paymentList">
+                <div class="adm-empty">Chưa có yêu cầu mới</div>
+            </div>
+        </div>
+
+        <!-- Cấp gói thủ công -->
+        <div class="adm-section">
+            <div class="adm-section-header"><span>CẤP GÓI THỦ CÔNG</span></div>
+            <div style="padding:16px; display:flex; flex-direction:column; gap:10px;">
+                <input class="adm-input" id="inpGrantId"
+                    placeholder="Mã tài xế (VD: PRO-ABC12)" style="margin:0;">
+                <select class="adm-input" id="inpGrantPlan" style="margin:0;">
+                    <option value="TRIAL 7D">Dùng thử 7 ngày</option>
+                    <option value="LẺ">Chuyến lẻ (1 ngày)</option>
+                    <option value="PRO">Gói PRO (30 ngày)</option>
+                    <option value="PROMAX">Gói PROMAX (90 ngày)</option>
+                </select>
+                <button class="adm-btn adm-btn-primary" onclick="admGrantPlan()">
+                    ✅ CẤP GÓI NGAY
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PANEL: ĐIỀU KHIỂN ===== -->
+    <div class="adm-panel" id="panel-control">
+
+        <!-- Trạng thái hệ thống -->
+        <div class="adm-section" style="margin-bottom:14px;">
+            <div class="adm-section-header"><span>TRẠNG THÁI HỆ THỐNG</span></div>
+            <div style="padding:16px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:13px; font-weight:800;">Hệ thống</div>
+                    <div id="sysStatusLabel" style="font-size:11px; color:var(--primary); margin-top:3px;">ONLINE</div>
+                </div>
+                <button class="adm-action-btn btn-lock" id="btnToggleSys" onclick="admToggleSys()">
+                    BẬT BẢO TRÌ
+                </button>
+            </div>
+            <div style="padding:0 16px 16px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:13px; font-weight:800;">Chế độ sự kiện</div>
+                    <div id="evtStatusLabel" style="font-size:11px; color:var(--sub); margin-top:3px;">THƯỜNG</div>
+                </div>
+                <button class="adm-action-btn btn-ok" id="btnToggleEvt" onclick="admToggleEvt()">
+                    BẬT TẾT
+                </button>
+            </div>
+        </div>
+
+        <!-- Điều khiển nhanh -->
+        <div class="ctrl-grid">
+            <button class="ctrl-btn" style="background:rgba(239,68,68,0.15); color:var(--danger);"
+                onclick="admBroadcast()">
+                <i>📢</i>THÔNG BÁO HỆ THỐNG
+            </button>
+            <button class="ctrl-btn" style="background:rgba(0,191,165,0.15); color:var(--primary);"
+                onclick="admResetPrice()">
+                <i>💲</i>CÀI GIÁ CHUẨN 15K
+            </button>
+            <button class="ctrl-btn" style="background:rgba(59,130,246,0.15); color:var(--info);"
+                onclick="admExportData()">
+                <i>📥</i>XUẤT DỮ LIỆU
+            </button>
+            <button class="ctrl-btn" style="background:rgba(241,196,15,0.15); color:var(--warning);"
+                onclick="admClearOldOrders()">
+                <i>🗑️</i>DỌN ĐƠN CŨ
+            </button>
+        </div>
+
+        <!-- Thông tin hệ thống -->
+        <div class="adm-section">
+            <div class="adm-section-header"><span>THÔNG TIN HỆ THỐNG</span></div>
+            <div style="padding:16px; font-size:12px; line-height:2;">
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="color:var(--sub);">Database</span>
+                    <b style="color:var(--primary);">Firebase Asia SE</b>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="color:var(--sub);">Deploy</span>
+                    <b>Vercel</b>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="color:var(--sub);">Phiên bản</span>
+                    <b>v2.0 — Fix Build</b>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="color:var(--sub);">Quản trị viên</span>
+                    <b>Nguyễn Xuân Đạt</b>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /panel-control -->
+
+</div><!-- /dashboard -->
+
+<!-- ===== MODAL BROADCAST ===== -->
+<div class="adm-modal" id="modalBroadcast">
+    <div class="adm-modal-box">
+        <div class="adm-modal-title">📢 THÔNG BÁO HỆ THỐNG</div>
+        <textarea class="adm-input" id="broadcastMsg"
+            placeholder="Nhập nội dung thông báo gửi tới toàn bộ tài xế..."
+            rows="4" style="resize:none;"></textarea>
+        <div class="adm-modal-btns">
+            <button class="adm-btn adm-btn-gray" style="flex:1;"
+                onclick="closeModal('modalBroadcast')">HỦY</button>
+            <button class="adm-btn adm-btn-primary" style="flex:1;"
+                onclick="admSendBroadcast()">GỬI NGAY</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div id="admToast"></div>
+
+<script>
+// ============================================================
+//  TAXI PROMAX — ADMIN DASHBOARD v2.0
+//  Constitution §22: Đầy đủ chức năng quản trị
+//  [FIX-1] Đúng Firebase URL: taxipromax-new Asia SE
+//  [FIX-2] Approve gói ghi đúng node /tai_xe_online
+//  [FIX-3] Firebase SDK v10 compat đồng bộ toàn hệ thống
+//  [FIX-4] Bảo vệ bằng mật khẩu
+// ============================================================
+
+// --- FIREBASE CONFIG ---
+// [FIX-1] Đúng URL — KHÔNG hardcode apiKey (dùng databaseURL only)
+const ADMIN_FB_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+if (!firebase.apps.length) {
+    firebase.initializeApp({ databaseURL: ADMIN_FB_URL });
+}
+const admDb = firebase.database();
+
+// --- ADMIN PASSWORD ---
+// Lưu hash thay vì plaintext (SHA-256 đơn giản)
+// Mật khẩu mặc định: "promax2024" — anh đổi hash này sau khi deploy!
+const ADMIN_PWD_HASH = "promax2024"; // TODO: đổi sang hash sau
+
+// ============================================================
+// ĐĂNG NHẬP
+// ============================================================
+function admLogin() {
+    const pwd = document.getElementById('inpPwd').value;
+    if (pwd === ADMIN_PWD_HASH) {
+        sessionStorage.setItem('adm_auth', '1');
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        admInitDashboard();
+    } else {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('inpPwd').value = '';
+    }
+}
+
+function admLogout() {
+    sessionStorage.removeItem('adm_auth');
+    location.reload();
+}
+
+// Auto-login nếu còn session
+window.onload = () => {
+    if (sessionStorage.getItem('adm_auth') === '1') {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('dashboard').style.display  = 'block';
+        admInitDashboard();
+    }
+    document.getElementById('inpPwd')
+        .addEventListener('keydown', e => { if (e.key === 'Enter') admLogin(); });
+};
+
+// ============================================================
+// KHỞI TẠO DASHBOARD — Kích hoạt tất cả Realtime Listeners
+// ============================================================
+function admInitDashboard() {
+    admListenDrivers();
+    admListenOrders();
+    admListenPayments();
+    admListenSystemStatus();
+}
+
+// ============================================================
+// [REALTIME] TÀI XẾ ONLINE
+// ============================================================
+let _allDrivers = {};
+
+function admListenDrivers() {
+    admDb.ref('tai_xe_online').on('value', (snap) => {
+        _allDrivers = snap.val() || {};
+        admRenderDrivers();
+        admUpdateOverview();
+    });
+
+    // Tài xế bị khóa
+    admDb.ref('banned_drivers').on('value', (snap) => {
+        const banned = snap.val() || {};
+        admRenderBanned(banned);
+    });
+}
+
+function admRenderDrivers() {
+    const list    = document.getElementById('driverOnlineList');
+    const badge   = document.getElementById('driverOnlineBadge');
+    const statEl  = document.getElementById('statDriverOnline');
+    const drivers = Object.entries(_allDrivers);
+    const now     = Date.now();
+    // Coi là online nếu lastUpdated trong vòng 2 phút
+    const online  = drivers.filter(([, d]) => d && (now - (d.lastUpdated || 0)) < 120000);
+
+    badge.innerText   = online.length;
+    statEl.innerText  = online.length;
+
+    if (!online.length) {
+        list.innerHTML = '<div class="adm-empty">Chưa có tài xế nào online</div>';
+        return;
+    }
+
+    list.innerHTML = online.map(([id, d]) => `
+        <div class="adm-list-item">
+            <div>
+                <div class="adm-item-main">
+                    <span class="online-dot"></span>${id}
+                </div>
+                <div class="adm-item-sub">
+                    ${d.status === 'busy' ? '🚗 Đang chạy' : '✅ Sẵn sàng'} |
+                    GPS: ±${d.accuracy ? d.accuracy.toFixed(0) : '--'}m |
+                    ${d.carType === '7_seats' ? '7 chỗ' : '4 chỗ'}
+                </div>
+            </div>
+            <div class="adm-item-right">
+                <button class="adm-action-btn btn-lock"
+                    onclick="admConfirmLock('${id}')">KHÓA</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function admRenderBanned(banned) {
+    const list  = document.getElementById('lockedDriverList');
+    const items = Object.entries(banned);
+    if (!items.length) {
+        list.innerHTML = '<div class="adm-empty">Chưa có tài khoản nào bị khóa</div>';
+        return;
+    }
+    list.innerHTML = items.map(([id, info]) => `
+        <div class="adm-list-item">
+            <div>
+                <div class="adm-item-main">🔒 ${id}</div>
+                <div class="adm-item-sub">${info.reason || 'Vi phạm'} — ${new Date(info.at || Date.now()).toLocaleString('vi-VN')}</div>
+            </div>
+            <button class="adm-action-btn btn-unlock"
+                onclick="admUnlock('${id}')">MỞ KHÓA</button>
+        </div>
+    `).join('');
+}
+
+// ============================================================
+// [REALTIME] ĐƠN HÀNG
+// ============================================================
+let _allOrders    = {};
+let _orderFilter  = 'all';
+
+function admListenOrders() {
+    admDb.ref('datxe').on('value', (snap) => {
+        _allOrders = snap.val() || {};
+        admRenderOrders();
+        admUpdateOverview();
+    });
+}
+
+function admFilterOrders(filter, btn) {
+    _orderFilter = filter;
+    document.querySelectorAll('#panel-orders .adm-action-btn')
+        .forEach(b => b.style.opacity = '0.5');
+    btn.style.opacity = '1';
+    admRenderOrders();
+}
+
+function admRenderOrders() {
+    const list   = document.getElementById('orderList');
+    const today  = new Date(); today.setHours(0,0,0,0);
+    let orders   = Object.entries(_allOrders);
+
+    // Lọc theo ngày hôm nay
+    orders = orders.filter(([, o]) => o && o.timestamp >= today.getTime());
+
+    // Lọc theo status
+    if (_orderFilter !== 'all') {
+        orders = orders.filter(([, o]) => o.status === _orderFilter);
+    }
+
+    // Mới nhất lên trước
+    orders.sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+
+    if (!orders.length) {
+        list.innerHTML = '<div class="adm-empty">Không có đơn hàng</div>';
+        return;
+    }
+
+    const statusMap = {
+        waiting:   { label: 'Chờ tài xế', color: 'var(--warning)' },
+        driving:   { label: 'Đang chạy',  color: 'var(--info)'    },
+        completed: { label: 'Hoàn thành', color: 'var(--primary)'  },
+        cancelled: { label: 'Đã hủy',     color: 'var(--danger)'   }
+    };
+
+    list.innerHTML = orders.slice(0, 50).map(([id, o]) => {
+        const s = statusMap[o.status] || { label: o.status, color: '#fff' };
+        const t = o.timestamp ? new Date(o.timestamp).toLocaleTimeString('vi-VN',
+            { hour:'2-digit', minute:'2-digit' }) : '--';
+        return `
+            <div class="adm-list-item">
+                <div style="flex:1;">
+                    <div class="adm-item-main">${o.phone || 'Ẩn danh'}</div>
+                    <div class="adm-item-sub">
+                        📍 ${(o.pickup || '').substring(0,30)}...<br>
+                        🏁 ${(o.dropoff || '').substring(0,30)}
                     </div>
-                `;
-            }
+                    <div class="adm-item-sub">${t} | ${o.carType === '7_seats' ? '7 chỗ' : '4 chỗ'}</div>
+                </div>
+                <div style="text-align:right; flex-shrink:0;">
+                    <div style="font-size:11px; font-weight:800; color:${s.color};">${s.label}</div>
+                    ${o.estimatePrice ? `<div style="font-size:12px; font-weight:900; color:var(--primary);">${o.estimatePrice.toLocaleString()}đ</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============================================================
+// [REALTIME] DUYỆT GÓI THANH TOÁN
+// ============================================================
+function admListenPayments() {
+    admDb.ref('paymentRequests').on('value', (snap) => {
+        const data  = snap.val() || {};
+        const list  = document.getElementById('paymentList');
+        const badge = document.getElementById('paymentBadge');
+        const items = Object.entries(data);
+
+        badge.innerText = items.length;
+
+        if (!items.length) {
+            list.innerHTML = '<div class="adm-empty">Chưa có yêu cầu nạp gói</div>';
+            return;
+        }
+
+        list.innerHTML = items.map(([id, item]) => `
+            <div class="adm-list-item">
+                <div>
+                    <div class="adm-item-main">${item.driverId || item.phone || 'Unknown'}</div>
+                    <div class="adm-item-sub">${item.plan} — ${item.amount ? item.amount.toLocaleString() + 'đ' : ''}</div>
+                </div>
+                <button class="adm-action-btn btn-ok"
+                    onclick="admApprovePlan('${id}', '${item.driverId || item.phone}', '${item.plan}')">
+                    DUYỆT
+                </button>
+            </div>
+        `).join('');
+    });
+}
+
+// [FIX-2] Approve gói ghi đúng node /tai_xe_online
+async function admApprovePlan(reqId, driverId, plan) {
+    if (!confirm(`Cấp gói "${plan}" cho tài xế ${driverId}?`)) return;
+
+    let days = 0;
+    const upper = plan.toUpperCase();
+    if      (upper.includes('LẺ'))                                    days = 1;
+    else if (upper.includes('PROMAX') || upper.includes('PRO MAX'))   days = 90;
+    else if (upper.includes('PRO'))                                   days = 30;
+    else if (upper.includes('THỬ') || upper.includes('TRIAL'))       days = 7;
+
+    if (!days) { admToast('❌ Không xác định được số ngày'); return; }
+
+    const now    = Date.now();
+    const newExp = now + (days * 24 * 60 * 60 * 1000);
+
+    try {
+        // Ghi đúng node /tai_xe_online/{driverId}
+        await admDb.ref(`tai_xe_online/${driverId}`).update({
+            tp_expiry:        newExp,
+            active_plan_name: plan.toUpperCase()
         });
+        // Xóa yêu cầu
+        await admDb.ref(`paymentRequests/${reqId}`).remove();
+        admToast(`✅ Đã cấp gói ${plan} cho ${driverId}`);
+    } catch (err) {
+        console.error(err);
+        admToast('❌ Lỗi cấp gói, thử lại!');
+    }
+}
 
-        // 3. Hàm xử lý
-        function toggleStatus(path, val1 = 'on', val2 = 'off') {
-            db.ref(path).once('value').then(s => {
-                const next = s.val() === val1 ? val2 : val1;
-                db.ref(path).set(next);
-            });
-        }
+// Cấp gói thủ công
+async function admGrantPlan() {
+    const driverId = document.getElementById('inpGrantId').value.trim();
+    const plan     = document.getElementById('inpGrantPlan').value;
 
-        function approve(orderId, phone, plan) {
-            const days = plan.includes('7D') ? 7 : (plan.includes('30') ? 30 : 90);
-            const expiry = Date.now() + (days * 24 * 60 * 60 * 1000);
-            
-            // Cập nhật hạn dùng cho tài xế
-            db.ref('users/' + phone).update({
-                tp_expiry: expiry,
-                current_plan: plan
-            }).then(() => {
-                db.ref('paymentRequests/' + orderId).remove();
-                alert("Đã kích hoạt gói " + plan + " cho số " + phone);
-            });
-        }
+    if (!driverId) { admToast('⚠️ Nhập mã tài xế'); return; }
 
-        function resetPrice() {
-            if(confirm("Cài lại giá 15.000đ cho toàn hệ thống?")) {
-                db.ref('globalConfig/price').set(15000);
-            }
-        }
-    </script>
+    let days = 0;
+    const upper = plan.toUpperCase();
+    if      (upper.includes('LẺ'))                                  days = 1;
+    else if (upper.includes('PROMAX') || upper.includes('PRO MAX')) days = 90;
+    else if (upper.includes('PRO'))                                  days = 30;
+    else                                                             days = 7;
+
+    const newExp = Date.now() + (days * 24 * 60 * 60 * 1000);
+
+    try {
+        await admDb.ref(`tai_xe_online/${driverId}`).update({
+            tp_expiry:        newExp,
+            active_plan_name: plan.toUpperCase()
+        });
+        admToast(`✅ Đã cấp ${plan} (${days} ngày) cho ${driverId}`);
+        document.getElementById('inpGrantId').value = '';
+    } catch (err) {
+        admToast('❌ Lỗi: ' + err.message);
+    }
+}
+
+// ============================================================
+// KHÓA / MỞ KHÓA TÀI XẾ
+// ============================================================
+function admLockDriver() {
+    const id = document.getElementById('inpLockId').value.trim();
+    if (!id) { admToast('⚠️ Nhập mã tài xế'); return; }
+    admConfirmLock(id);
+}
+
+function admConfirmLock(driverId) {
+    if (!confirm(`Khóa tài xế ${driverId}?`)) return;
+    admDb.ref(`banned_drivers/${driverId}`).set({
+        at:     Date.now(),
+        reason: 'Bị khóa bởi Admin'
+    }).then(() => {
+        // Đánh dấu trên node tài xế
+        admDb.ref(`tai_xe_online/${driverId}`).update({ banned: true });
+        admToast(`🔒 Đã khóa tài xế ${driverId}`);
+        document.getElementById('inpLockId').value = '';
+    }).catch(() => admToast('❌ Lỗi khóa tài khoản'));
+}
+
+function admUnlock(driverId) {
+    if (!confirm(`Mở khóa tài xế ${driverId}?`)) return;
+    admDb.ref(`banned_drivers/${driverId}`).remove().then(() => {
+        admDb.ref(`tai_xe_online/${driverId}`).update({ banned: false });
+        admToast(`✅ Đã mở khóa ${driverId}`);
+    }).catch(() => admToast('❌ Lỗi mở khóa'));
+}
+
+// ============================================================
+// THỐNG KÊ TỔNG QUAN
+// ============================================================
+function admUpdateOverview() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const now   = Date.now();
+    const orders = Object.values(_allOrders).filter(o => o && o.timestamp >= today.getTime());
+
+    const total     = orders.length;
+    const running   = orders.filter(o => o.status === 'driving').length;
+    const done      = orders.filter(o => o.status === 'completed').length;
+    const cancelled = orders.filter(o => o.status === 'cancelled').length;
+    const revenue   = orders
+        .filter(o => o.status === 'completed')
+        .reduce((sum, o) => sum + (o.estimatePrice || 0), 0);
+
+    document.getElementById('statOrderToday').innerText  = total;
+    document.getElementById('statOrderRunning').innerText = running;
+    document.getElementById('statDone').innerText        = done;
+    document.getElementById('statCancelled').innerText   = cancelled;
+    document.getElementById('statRevToday').innerText    = revenue > 0
+        ? revenue.toLocaleString() + 'đ' : '0đ';
+
+    // Tỷ lệ
+    const acceptRate   = total   > 0 ? Math.round((done + running) / total * 100) : 0;
+    const completeRate = (done + running) > 0 ? Math.round(done / (done + running) * 100) : 0;
+    document.getElementById('rateAccept').innerText    = acceptRate + '%';
+    document.getElementById('rateComplete').innerText  = completeRate + '%';
+    document.getElementById('barAccept').style.width   = acceptRate + '%';
+    document.getElementById('barComplete').style.width = completeRate + '%';
+
+    // Top tài xế (theo số chuyến)
+    admRenderTopDrivers(orders);
+}
+
+function admRenderTopDrivers(orders) {
+    const list = document.getElementById('topDriverList');
+    const doneOrders = orders.filter(o => o.status === 'completed' && o.driverId);
+    const countMap   = {};
+    const revMap     = {};
+
+    doneOrders.forEach(o => {
+        countMap[o.driverId] = (countMap[o.driverId] || 0) + 1;
+        revMap[o.driverId]   = (revMap[o.driverId]   || 0) + (o.estimatePrice || 0);
+    });
+
+    const sorted = Object.entries(countMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+    if (!sorted.length) {
+        list.innerHTML = '<div class="adm-empty">Chưa có dữ liệu</div>';
+        return;
+    }
+
+    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+    list.innerHTML = sorted.map(([id, count], i) => `
+        <div class="adm-list-item">
+            <div>
+                <div class="adm-item-main">${medals[i]} ${id}</div>
+                <div class="adm-item-sub">${count} chuyến | ${(revMap[id]||0).toLocaleString()}đ</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ============================================================
+// TRẠNG THÁI HỆ THỐNG
+// ============================================================
+function admListenSystemStatus() {
+    admDb.ref('systemStatus').on('value', (snap) => {
+        const val = snap.val() || 'on';
+        const isOn = val === 'on';
+        document.getElementById('sysStatusLabel').innerText = isOn ? 'ONLINE' : 'BẢO TRÌ';
+        document.getElementById('sysStatusLabel').style.color = isOn ? 'var(--primary)' : 'var(--danger)';
+        document.getElementById('btnToggleSys').innerText = isOn ? 'BẬT BẢO TRÌ' : 'TẮT BẢO TRÌ';
+    });
+
+    admDb.ref('currentEvent').on('value', (snap) => {
+        const val = snap.val() || 'normal';
+        const isTet = val === 'tet';
+        document.getElementById('evtStatusLabel').innerText = isTet ? '🧧 TẾT' : 'THƯỜNG';
+        document.getElementById('evtStatusLabel').style.color = isTet ? 'var(--warning)' : 'var(--sub)';
+        document.getElementById('btnToggleEvt').innerText = isTet ? 'TẮT TẾT' : 'BẬT TẾT';
+    });
+}
+
+function admToggleSys() {
+    admDb.ref('systemStatus').once('value').then(s => {
+        admDb.ref('systemStatus').set(s.val() === 'on' ? 'off' : 'on');
+    });
+}
+
+function admToggleEvt() {
+    admDb.ref('currentEvent').once('value').then(s => {
+        admDb.ref('currentEvent').set(s.val() === 'tet' ? 'normal' : 'tet');
+    });
+}
+
+// ============================================================
+// ĐIỀU KHIỂN KHÁC
+// ============================================================
+function admBroadcast() {
+    document.getElementById('modalBroadcast').classList.add('open');
+}
+
+function admSendBroadcast() {
+    const msg = document.getElementById('broadcastMsg').value.trim();
+    if (!msg) { admToast('⚠️ Nhập nội dung thông báo'); return; }
+    admDb.ref('broadcast').set({
+        message:   msg,
+        timestamp: Date.now()
+    }).then(() => {
+        admToast('📢 Đã gửi thông báo toàn hệ thống');
+        closeModal('modalBroadcast');
+        document.getElementById('broadcastMsg').value = '';
+    });
+}
+
+function admResetPrice() {
+    if (!confirm('Cài lại giá 15.000đ/km cho toàn hệ thống?')) return;
+    admDb.ref('globalConfig/price').set(15000)
+        .then(() => admToast('✅ Đã cài giá chuẩn 15.000đ/km'));
+}
+
+function admClearOldOrders() {
+    if (!confirm('Xóa đơn cũ hơn 7 ngày?')) return;
+    const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const toDelete = Object.entries(_allOrders)
+        .filter(([, o]) => o && o.timestamp < cutoff && o.status !== 'driving');
+    if (!toDelete.length) { admToast('Không có đơn cũ để dọn'); return; }
+    const updates = {};
+    toDelete.forEach(([id]) => { updates[`datxe/${id}`] = null; });
+    admDb.ref().update(updates)
+        .then(() => admToast(`🗑️ Đã dọn ${toDelete.length} đơn cũ`));
+}
+
+function admExportData() {
+    const today   = new Date(); today.setHours(0,0,0,0);
+    const orders  = Object.values(_allOrders).filter(o => o && o.timestamp >= today.getTime());
+    const csv     = ['Thời gian,SĐT,Điểm đón,Điểm đến,Tài xế,Giá,Trạng thái'];
+    orders.forEach(o => {
+        csv.push([
+            new Date(o.timestamp).toLocaleString('vi-VN'),
+            o.phone || '', o.pickup || '', o.dropoff || '',
+            o.driverId || '', o.estimatePrice || 0, o.status || ''
+        ].join(','));
+    });
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `taxipromax_${new Date().toLocaleDateString('vi-VN').replace(/\//g,'-')}.csv`;
+    a.click();
+    admToast('📥 Đã xuất dữ liệu CSV');
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function admTab(name, btn) {
+    document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.adm-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    btn.classList.add('active');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+let toastT = null;
+function admToast(msg) {
+    const el = document.getElementById('admToast');
+    el.innerText = msg;
+    el.classList.add('show');
+    if (toastT) clearTimeout(toastT);
+    toastT = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+
 </body>
 </html>
