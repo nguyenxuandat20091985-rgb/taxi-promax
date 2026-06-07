@@ -2,108 +2,1023 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TAXI PROMAX - CHUYÊN NGHIỆP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <link rel="apple-touch-icon" href="assets/logo.png">
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="manifest" href="manifest.json">
+
+    <title>TAXI PROMAX TÀI XẾ</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
-        :root { --primary: #0054a3; --accent: #00bfa5; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; }
-        .glass { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); }
-        .tab-view { display: none; }
-        .active-tab { display: block; }
-        .pulse { animation: pulse-ring 1.5s infinite; }
-        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        :root { 
+            --primary: #0054a3; 
+            --accent: #00bfa5;  
+            --dark: #1c1e21; 
+            --gold: #f1c40f; 
+            --danger: #d32f2f; 
+            --bg: #f4f7f6; 
+            --glass: rgba(255, 255, 255, 0.95); 
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; background: var(--bg); }
+        
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
+
+        .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
+        .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); } 
+
+        /* ===== GPS STATUS INDICATOR ===== */
+        .gps-status-bar {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            background: var(--glass);
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 800;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: 0.3s;
+        }
+        .gps-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #bdc3c7;
+            transition: 0.3s;
+        }
+        .gps-dot.good { background: #00bfa5; animation: gpsBlink 1.5s infinite; }
+        .gps-dot.weak { background: #f39c12; }
+        .gps-dot.bad { background: var(--danger); }
+        @keyframes gpsBlink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+        .stats-bar { position: fixed; top: 55px; left: 10px; right: 10px; background: var(--glass); border-radius: 15px; display: flex; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); z-index: 1000; border: 1px solid white; }
+        .stat-item { flex: 1; text-align: center; }
+        .stat-label { font-size: 9px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; }
+        .stat-value { font-size: 22px; font-weight: 900; color: var(--primary); margin-top: 2px; } 
+
+        .footer-panel { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2000; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.08); padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px); }
+        .nav-grid { display: flex; justify-content: space-around; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
+        .nav-item { border: none; background: none; color: #bdc3c7; font-size: 10px; font-weight: 700; text-align: center; flex: 1; transition: 0.3s; cursor: pointer; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 2px; font-style: normal; } 
+
+        .brand-footer { font-size: 9px; text-align: center; color: #bdc3c7; padding-bottom: 5px; font-weight: bold; letter-spacing: 0.5px; } 
+
+        .tab-content { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - 140px); background: #fdfdfd; z-index: 1500; display: none; flex-direction: column; overflow-y: auto; padding-bottom: 30px; }
+        .p-header { background: linear-gradient(135deg, var(--primary), #003d7a); color: white; padding: 25px 20px; text-align: center; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px; } 
+
+        .p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
+        .p-card { background: white; border: 2px solid #ecf0f1; border-radius: 18px; padding: 12px; transition: 0.3s; position: relative; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
+        .p-card.active { border-color: var(--primary); background: #f0f4f8; transform: scale(1.02); }
+        .p-btn { margin-top: 10px; background: var(--primary); color: white; border: none; border-radius: 10px; padding: 7px; font-size: 11px; font-weight: bold; }
+        .p-card b { display: block; font-size: 13px; color: var(--dark); }
+        .p-card span { color: var(--danger); font-weight: 800; font-size: 14px; }
+        .p-card ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 9px; color: #7f8c8d; line-height: 1.4; } 
+
+        .history-card { background: white; margin: 10px 15px; padding: 15px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .h-info { text-align: left; }
+        .h-price { font-weight: 900; color: var(--primary); font-size: 16px; }
+
+        /* ===== HISTORY SOURCE BADGE ===== */
+        .h-source { font-size: 8px; padding: 2px 6px; border-radius: 5px; font-weight: 800; }
+        .h-source.cloud { background: #e3f2fd; color: var(--primary); }
+        .h-source.local { background: #fff3e0; color: #e65100; }
+
+        /* ===== GPS MARKER ===== */
+        .sm-marker-container { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .sm-pulse-ring { position: absolute; width: 42px; height: 42px; border-radius: 50%; background-color: rgba(0, 191, 165, 0.4); animation: smSpread 2s infinite ease-out; pointer-events: none; }
+        .sm-direction-wrapper { width: 26px; height: 26px; position: relative; display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease-out; will-change: transform; }
+        .sm-marker-circle { width: 20px; height: 20px; background: #00bfa5; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0, 191, 165, 0.6); z-index: 2; }
+        .sm-marker-arrow { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-bottom: 8.5px solid #00bfa5; z-index: 3; }
+        @keyframes smSpread { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+
+        .customer-marker { width: 26px; height: 26px; background: var(--danger); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,82,82,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite; }
+        @keyframes pulseMarker { 0% { box-shadow: 0 0 0 0 rgba(255,82,82,0.7); } 70% { box-shadow: 0 0 0 15px rgba(255,82,82,0); } 100% { box-shadow: 0 0 0 0 rgba(255,82,82,0); } }
+
+        .btn-main { width: 100%; padding: 15px; border-radius: 15px; border: none; background: var(--accent); color: white; font-size: 18px; font-weight: 900; box-shadow: 0 6px 20px rgba(0,191,165,0.3); transition: 0.3s; cursor: pointer; }
+        input[type="range"] { width: 100%; margin-bottom: 12px; accent-color: var(--danger); height: 5px; }
+        
+        .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-content { background: white; width: 88%; max-width: 340px; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+
+        .tp-new-container { padding: 0 15px 20px; }
+        .tp-grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
+        .tp-feature-card { background: white; border-radius: 15px; padding: 12px; text-align: center; border: 1px solid #eee; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        .tp-feature-card i { font-size: 24px; display: block; margin-bottom: 5px; }
+        .tp-feature-card span { font-size: 10px; font-weight: 800; color: var(--dark); }
+        .tp-feature-card p { font-size: 8px; color: #95a5a6; margin: 4px 0 0; line-height: 1.2; }
+        
+        .tp-pill-timer { display: inline-flex; align-items: center; background: #ffeaa7; color: #d35400; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 900; margin-left: 10px; border: 1px solid #f39c12; }
+        .tp-badge-trial { background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px; position: absolute; top: -8px; right: 10px; }
+        
+        .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
+
+        /* ===== LOADING STATE ===== */
+        .history-loading { text-align: center; padding: 30px; color: #95a5a6; font-size: 12px; font-weight: 700; }
+        .history-loading::after { content: ''; animation: dots 1.5s infinite; }
+        @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+
+        /* ===== OFFLINE BANNER ===== */
+        #offlineBanner {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+            background: var(--danger); color: white;
+            text-align: center; padding: 8px; font-size: 11px; font-weight: 800;
+            display: none; animation: slideDown 0.3s ease;
+        }
+        @keyframes slideDown { from{transform:translateY(-100%)} to{transform:translateY(0)} }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;"> 
 
-    <div id="loginScreen" class="fixed inset-0 z-[9999] bg-white flex flex-col justify-center items-center p-6">
-        <h1 class="text-2xl font-bold text-blue-800 mb-6">TAXI PROMAX LOGIN</h1>
-        <input type="text" id="inpName" placeholder="Tên tài xế" class="w-full p-3 border rounded-xl mb-3">
-        <select id="inpCar" class="w-full p-3 border rounded-xl mb-3">
-            <option value="electric">Xe điện</option>
-            <option value="gas">Xe xăng</option>
-        </select>
-        <button onclick="login()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold">ĐĂNG NHẬP</button>
+    <!-- OFFLINE BANNER -->
+    <div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
+
+    <div class="header">
+        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
+        <div class="badge" style="color:var(--gold)" id="planShow">⭐ ĐANG ĐỒNG BỘ GÓI...</div>
     </div>
 
-    <div id="map"></div>
-
-    <div class="fixed top-0 left-0 right-0 p-4 z-[1000] flex justify-between items-center pointer-events-none">
-        <div class="bg-white p-3 rounded-xl shadow-lg pointer-events-auto">
-            <div class="text-xs text-gray-500">ĐƠN BỎ QUA HÔM NAY</div>
-            <div id="skippedCount" class="text-xl font-bold text-red-600">0</div>
-        </div>
-        <div class="bg-white p-3 rounded-xl shadow-lg pointer-events-auto">
-            <label class="flex items-center space-x-2">
-                <span>Chế độ Vẫy</span>
-                <input type="checkbox" id="vayMode" checked class="w-6 h-6">
-            </label>
-        </div>
+    <!-- GPS STATUS INDICATOR -->
+    <div class="gps-status-bar" id="gpsStatusBar">
+        <div class="gps-dot" id="gpsDot"></div>
+        <span id="gpsStatusText">GPS: Đang tìm...</span>
     </div>
 
-    <div class="fixed bottom-0 left-0 right-0 bg-white p-4 z-[1000] rounded-t-3xl shadow-2xl">
-        <div class="flex justify-around mb-4">
-            <button onclick="switchTab('home')" class="text-xs font-bold text-blue-700">🏠 Trang chủ</button>
-            <button onclick="switchTab('wallet')" class="text-xs font-bold">💰 Ví tiền</button>
-            <button onclick="switchTab('history')" class="text-xs font-bold">📊 Lịch sử</button>
-            <button onclick="switchTab('profile')" class="text-xs font-bold">👤 Tôi</button>
+    <div class="stats-bar" id="statsUI">
+        <div class="stat-item" style="border-right: 1px solid #eee;">
+            <div class="stat-label">CƯỚC (VNĐ)</div>
+            <div id="cost" class="stat-value">0</div>
         </div>
-        <button id="btnMain" onclick="handleAction()" class="w-full bg-teal-500 text-white p-4 rounded-2xl font-bold">BẮT ĐẦU HOẠT ĐỘNG</button>
-    </div>
+        <div class="stat-item">
+            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
+            <div id="km" class="stat-value">0.00</div>
+        </div>
+    </div> 
 
-    <div id="orderModal" class="hidden fixed inset-0 z-[2000] bg-black/50 flex justify-center items-center p-4">
-        <div class="bg-white w-full rounded-3xl p-6">
-            <h2 class="text-lg font-bold text-red-500 mb-4">🚨 CÓ ĐƠN KHÁCH MỚI</h2>
-            <p>Khách: <span id="cusName">...</span></p>
-            <p>Điểm đón: <span id="cusPickup">...</span></p>
-            <div class="flex gap-4 mt-6">
-                <button onclick="declineOrder()" class="flex-1 p-3 bg-gray-200 rounded-xl">Bỏ qua</button>
-                <button onclick="acceptOrder()" class="flex-1 p-3 bg-blue-600 text-white rounded-xl">Nhận chuyến</button>
+    <div id="map"></div> 
+
+    <div id="tab-vi" class="tab-content">
+        <div class="p-header">
+            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
+            <div id="trialBox" style="font-size: 11px; opacity: 0.9;">TỰ ĐỘNG KÍCH HOẠT QUA PAYOS</div>
+        </div>
+        <div class="p-grid">
+            <div class="p-card" onclick="tpHandlePayment(0, 'TRIAL 7D')">
+                <div class="tp-badge-trial">KHUYÊN DÙNG</div>
+                <b>TRẢI NGHIỆM</b><span>0đ</span>
+                <ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul>
+                <div class="p-btn">KÍCH HOẠT</div>
+            </div>
+            <div class="p-card" onclick="tpHandlePayment(5000, 'LẺ')">
+                <b>CHUYẾN LẺ</b><span>5.000đ</span>
+                <ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+            <div class="p-card" onclick="tpHandlePayment(49000, 'PRO')">
+                <b>GÓI PRO</b><span>49.000đ</span>
+                <ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+            <div class="p-card" onclick="tpHandlePayment(129000, 'PROMAX')">
+                <b>PRO MAX</b><span>129.000đ</span>
+                <ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+        </div>
+        <div class="tp-new-container">
+            <div style="font-size: 11px; font-weight: 900; color: var(--dark); margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px;">CÔNG CỤ HỖ TRỢ TÀI XẾ</div>
+            <div class="tp-grid-4">
+                <div class="tp-feature-card" onclick="tpOpenRadar()"><i>📡</i><span>BẢN ĐỒ NHIỆT</span><p>Tìm điểm nóng khách</p></div>
+                <div class="tp-feature-card" onclick="tpOpenSOS()"><i>🆘</i><span>SOS CỨU HỘ</span><p>Cộng đồng trợ giúp</p></div>
+                <div class="tp-feature-card" onclick="tpOpenMaintenance()"><i>🛠️</i><span>TRỢ LÝ BẢO DƯỠNG</span><p>Nhắc thay dầu, lốp</p></div>
+                <div class="tp-feature-card" onclick="tpOpenProfit()"><i>📈</i><span>BÁO CÁO LỢI NHUẬN</span><p>Thống kê thực tế</p></div>
+            </div>
+        </div>
+    </div> 
+
+    <div id="tab-lichsu" class="tab-content">
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList" style="padding-top: 10px;">
+            <div class="history-loading">Đang tải lịch sử</div>
+        </div>
+    </div> 
+
+    <div id="tab-toi" class="tab-content">
+        <div class="p-header">THIẾT LẬP</div>
+        <div style="padding:20px;">
+            <div style="background:white; padding:15px; border-radius:15px; font-size:13px;">
+                <p>Mã tài xế: <b id="profileID">...</b></p>
+                <p>Trạng thái: <b style="color:var(--primary)">ĐANG HOẠT ĐỘNG</b></p>
+                <p>Màn hình: <b id="screenStatus" style="color:var(--primary)">LUÔN SÁNG</b></p>
+                <p>GPS Accuracy: <b id="profileAccuracy" style="color:var(--accent)">--</b></p>
+                <button class="btn-main" style="margin-top:10px; background:#666;" 
+                    onclick="localStorage.removeItem('trip_history'); localStorage.removeItem('tp_expiry'); location.reload();">
+                    XÓA LỊCH SỬ CỤC BỘ
+                </button>
+            </div>
+        </div>
+    </div> 
+
+    <div class="footer-panel">
+        <div id="homeControls">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
+                <div style="display: flex; align-items: center;">
+                    <span>GIÁ/KM</span>
+                    <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">
+                        ⏳ <span id="tp-cd-val">00:00</span>
+                    </div>
+                </div>
+                <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ</span>
+            </div>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+        </div> 
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+        </div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
+    </div> 
+
+    <!-- MODALS -->
+    <div id="orderModal" class="custom-modal">
+        <div class="modal-content">
+            <h2 style="color:var(--danger); margin:0 0 5px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
+            <div class="tp-countdown-wrapper">
+                <span id="tp-modal-timer-val">15</span>
+            </div>
+            <div style="text-align:left; background:#f5f6fa; padding:15px; border-radius:15px; margin-bottom:15px; font-size:13px; color:#333; line-height:1.5;">
+                <p style="margin:4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color:var(--primary); font-weight:900;">...</span></p>
+                <p style="margin:4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
+                <p style="margin:4px 0;">🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
+                <p style="margin:4px 0;">👥 <b>Khách hàng:</b> <span id="modalClientName">...</span></p>
+                <p style="margin:4px 0;">🚗 <b>Loại xe:</b> <span id="modalCarType" style="color:var(--gold); font-weight:bold;">4 Chỗ</span></p>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button class="btn-main" style="background:#7f8c8d; font-size:14px; padding:12px;" onclick="declineCustomer()">BỎ QUA</button>
+                <button class="btn-main" style="background:var(--primary); font-size:14px; padding:12px;" onclick="acceptCustomer()">ĐÓN KHÁCH</button>
             </div>
         </div>
     </div>
 
+    <div id="wishModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3>
+            <p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p>
+            <button class="btn-main" onclick="initAudioAndCloseModal()">ĐỒNG Ý</button>
+        </div>
+    </div>
+
+    <div id="endModal" class="custom-modal">
+        <div class="modal-content">
+            <h3>HOÀN THÀNH!</h3>
+            <div id="endSummary" style="padding: 15px 0;"></div>
+            <button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button>
+        </div>
+    </div> 
+
+    <!-- Firebase SDK v9 compat (giữ nguyên cú pháp cũ, thêm Realtime listener) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/payment.js"></script>
+    
     <script>
-        let map, driverMarker;
-        let skippedTrips = localStorage.getItem('skipped_trips') || 0;
+    // ============================================================
+    //  TAXI PROMAX - APP TÀI XẾ
+    //  FIX v2.0 - 3 lỗi nghiêm trọng:
+    //  [FIX-1] Realtime Listener thay thế setInterval polling
+    //  [FIX-2] GPS Accuracy Filter (bỏ qua khi accuracy > 30m)
+    //  [FIX-3] Lịch sử chuyến lưu Firebase + localStorage backup
+    // ============================================================
 
-        // Init Map
-        map = L.map('map', { zoomControl: false }).setView([21.02, 105.83], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    // --- CONFIG ---
+    const FIREBASE_CONFIG = {
+        databaseURL: "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+    // Giữ nguyên FIREBASE_BASE_URL cho các fetch() cũ (payment.js dùng)
+    const FIREBASE_BASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-        function login() {
-            document.getElementById('loginScreen').style.display = 'none';
+    // --- KHỞI TẠO FIREBASE SDK ---
+    // Chỉ init nếu chưa có app nào
+    if (!firebase.apps.length) {
+        firebase.initializeApp({ databaseURL: FIREBASE_CONFIG.databaseURL });
+    }
+    const db = firebase.database();
+
+    // --- THÔNG TIN TÀI XẾ ---
+    const TX_ID = localStorage.getItem('tx_id') || 'PRO-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+    localStorage.setItem('tx_id', TX_ID);
+    document.getElementById('idShow').innerText  = "🆔 " + TX_ID;
+    document.getElementById('profileID').innerText = TX_ID;
+
+    // --- BIẾN TRẠNG THÁI ---
+    var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    var smIcon = L.divIcon({
+        className: 'sm-div-icon',
+        html: `<div class="sm-marker-container">
+                   <div class="sm-pulse-ring"></div>
+                   <div id="tp-driver-compass" class="sm-direction-wrapper">
+                       <div class="sm-marker-arrow"></div>
+                       <div class="sm-marker-circle"></div>
+                   </div>
+               </div>`,
+        iconSize: [40, 40], iconAnchor: [20, 20]
+    });
+
+    var marker          = null;
+    var customerMarker  = null;
+    var activeCustomerData = null;
+    var isRunning       = false;
+    var totalKm         = 0;
+    var lastPos         = null;
+    var currentRate     = 15000;
+    var wakeLock        = null;
+    var currentHeading  = 0;
+    var countdownValue  = 15;
+    var countdownInterval = null;
+    var audioCtx        = null;
+    var audioInterval   = null;
+    var orderListener   = null;   // [FIX-1] lưu ref listener để có thể off()
+
+    // ============================================================
+    // [FIX-1] REALTIME LISTENER - Thay thế setInterval polling
+    // Dùng Firebase onChildAdded() + onChildChanged() để lắng nghe
+    // đơn hàng mới realtime, không tốn băng thông quét toàn bộ.
+    // ============================================================
+    var _processedOrders = new Set(); // Tránh xử lý đơn trùng
+    var _isModalOpening  = false;
+
+    function startOrderListener() {
+        // Lắng nghe node /datxe, chỉ lấy đơn status==="waiting"
+        // onChildAdded: bắt đơn mới được thêm vào
+        // onChildChanged: bắt đơn vừa đổi sang status waiting (trường hợp retry)
+        const ordersRef = db.ref('datxe');
+
+        // Hủy listener cũ nếu có
+        if (orderListener) {
+            ordersRef.off();
+            orderListener = null;
         }
 
-        function handleAction() {
-            // Logic bắt đầu/kết thúc chuyến
-            alert("Đã gửi tín hiệu lên hệ thống PROMAX AI...");
+        const handleOrder = (snapshot) => {
+            if (_isModalOpening || isRunning) return;
+
+            const orderId = snapshot.key;
+            const order   = snapshot.val();
+
+            if (!order || order.status !== 'waiting') return;
+            if (_processedOrders.has(orderId)) return;
+
+            _processedOrders.add(orderId);
+            _isModalOpening = true;
+            activeCustomerData = { id: orderId, ...order };
+
+            tpSpeak("Báo cáo, phát hiện có đơn đặt xe mới. Vui lòng kiểm tra màn hình.");
+            startNotificationEffects();
+
+            document.getElementById('modalPhone').innerText     = order.phone      || 'Không có';
+            document.getElementById('modalFrom').innerText      = order.pickup     || 'Chưa định vị';
+            document.getElementById('modalTo').innerText        = order.dropoff    || 'Chưa định vị';
+            document.getElementById('modalClientName').innerText = order.clientName || 'Khách vãng lai';
+            document.getElementById('modalCarType').innerText   = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+
+            countdownValue = 15;
+            document.getElementById('tp-modal-timer-val').innerText = countdownValue;
+            document.getElementById('orderModal').style.display = 'flex';
+
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                countdownValue--;
+                document.getElementById('tp-modal-timer-val').innerText = countdownValue;
+                if (countdownValue <= 0) {
+                    clearInterval(countdownInterval);
+                    declineCustomer();
+                }
+            }, 1000);
+        };
+
+        // onChildAdded: bắt đơn mới
+        ordersRef.on('child_added', handleOrder);
+        // onChildChanged: bắt khi status đổi sang waiting
+        ordersRef.on('child_changed', handleOrder);
+
+        orderListener = ordersRef;
+        console.log("[FIX-1] ✅ Realtime Listener đã kích hoạt tại /datxe");
+    }
+
+    function stopOrderListener() {
+        if (orderListener) {
+            orderListener.off();
+            orderListener = null;
+            console.log("[FIX-1] Listener đã tắt (đang chạy chuyến)");
+        }
+    }
+
+    // ============================================================
+    // [FIX-2] GPS ACCURACY FILTER
+    // - Bỏ qua tín hiệu GPS khi accuracy > 30m (constitution §8)
+    // - Bỏ qua tốc độ bất thường (> 200 km/h = 55.6 m/s)
+    // - Hiển thị chất lượng GPS realtime cho tài xế
+    // ============================================================
+    const GPS_ACCURACY_LIMIT = 30;   // mét — constitution §8
+    const GPS_SPEED_MAX      = 55.6; // m/s = ~200 km/h
+
+    function updateGpsStatusUI(accuracy, isBlocked) {
+        const dot  = document.getElementById('gpsDot');
+        const text = document.getElementById('gpsStatusText');
+
+        if (accuracy === null || accuracy === undefined) {
+            dot.className  = 'gps-dot';
+            text.innerText = 'GPS: Đang tìm...';
+            return;
         }
 
-        function declineOrder() {
-            skippedTrips++;
-            localStorage.setItem('skipped_trips', skippedTrips);
-            document.getElementById('skippedCount').innerText = skippedTrips;
-            document.getElementById('orderModal').classList.add('hidden');
+        // Hiển thị accuracy trong tab Tôi
+        const accEl = document.getElementById('profileAccuracy');
+        if (accEl) accEl.innerText = accuracy.toFixed(1) + 'm';
+
+        if (isBlocked) {
+            dot.className  = 'gps-dot bad';
+            text.innerText = `GPS: Yếu (±${accuracy.toFixed(0)}m) — Bỏ qua`;
+        } else if (accuracy <= 10) {
+            dot.className  = 'gps-dot good';
+            text.innerText = `GPS: Tốt (±${accuracy.toFixed(0)}m)`;
+        } else if (accuracy <= 30) {
+            dot.className  = 'gps-dot weak';
+            text.innerText = `GPS: Trung bình (±${accuracy.toFixed(0)}m)`;
+        }
+    }
+
+    function startTracking() {
+        if (!("geolocation" in navigator)) {
+            console.error("Thiết bị không hỗ trợ GPS");
+            return;
         }
 
-        function acceptOrder() {
-            // Điều hướng mở Maps
-            const url = `https://www.google.com/maps/dir/?api=1&destination=21.03,105.84`;
-            window.open(url, '_blank');
-            document.getElementById('orderModal').classList.add('hidden');
+        navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+                const newPos = L.latLng(latitude, longitude);
+
+                // [FIX-2] Lọc accuracy > 30m — KHÔNG cộng KM, vẫn update marker
+                const isBlocked = (accuracy !== null && accuracy > GPS_ACCURACY_LIMIT);
+                updateGpsStatusUI(accuracy, isBlocked);
+
+                // Update hướng la bàn
+                if (heading !== null && heading !== undefined && !isNaN(heading)) {
+                    currentHeading = Math.round(heading);
+                }
+
+                // Luôn update vị trí marker (để tài xế thấy mình ở đâu)
+                if (!marker) {
+                    marker = L.marker(newPos, { icon: smIcon }).addTo(map);
+                    map.setView(newPos, 16);
+                } else {
+                    marker.setLatLng(newPos);
+                }
+                updateMarkerRotation();
+
+                // Tính tốc độ (m/s)
+                const currentSpeed = (speed !== null && speed !== undefined && !isNaN(speed)) ? speed : 0;
+
+                if (isRunning) {
+                    if (currentSpeed > 0.5) map.panTo(newPos);
+
+                    if (lastPos && !isBlocked) {
+                        // [FIX-2] Chỉ cộng KM khi accuracy ≤ 30m VÀ tốc độ hợp lệ
+                        const speedOk = (currentSpeed === 0 || currentSpeed <= GPS_SPEED_MAX);
+                        const d = newPos.distanceTo(lastPos) / 1000;
+
+                        if (d > 0.005 && currentSpeed > 0.28 && speedOk) {
+                            totalKm += d;
+                            document.getElementById('km').innerText   = totalKm.toFixed(2);
+                            document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
+                        } else if (!speedOk) {
+                            console.warn(`[FIX-2] Bỏ qua: tốc độ bất thường ${(currentSpeed * 3.6).toFixed(0)} km/h`);
+                        }
+                    }
+                } else {
+                    if (!lastPos) map.setView(newPos, 16);
+                }
+
+                // Lưu lastPos luôn (để tham chiếu vị trí, không phụ thuộc accuracy)
+                lastPos = newPos;
+
+                // Sync Firebase (luôn sync vị trí, kể cả accuracy kém)
+                syncDriverLocationToFirebase(latitude, longitude, accuracy);
+            },
+            (err) => {
+                console.error("GPS Error:", err.code, err.message);
+                updateGpsStatusUI(null, false);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    function syncDriverLocationToFirebase(lat, lng, accuracy) {
+        const driverData = {
+            lat: lat,
+            lng: lng,
+            accuracy: accuracy || 999,
+            heading: currentHeading,
+            lastUpdated: Date.now(),
+            status: isRunning ? "busy" : "ready",
+            carType: "4_seats"
+        };
+        // Dùng Firebase SDK PATCH qua REST (giữ tương thích payment.js)
+        fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
+            method: 'PATCH',
+            body: JSON.stringify(driverData)
+        }).catch(() => {});
+    }
+
+    // --- COMPASS ---
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', (event) => {
+            const heading = event.webkitCompassHeading || (360 - event.alpha);
+            if (heading) { currentHeading = Math.round(heading); updateMarkerRotation(); }
+        }, true);
+    }
+
+    function updateMarkerRotation() {
+        const el = document.getElementById('tp-driver-compass');
+        if (el) el.style.transform = `rotate(${currentHeading}deg)`;
+    }
+
+    // ============================================================
+    // [FIX-3] LỊCH SỬ CHUYẾN - Firebase + localStorage backup
+    // Schema: /trips/{TX_ID}/{timestamp} = { km, cost, time, rate }
+    // ============================================================
+    const TRIPS_PATH = `trips/${TX_ID}`;
+
+    /**
+     * Lưu chuyến đi lên Firebase trước, localStorage là backup.
+     * Nếu offline → lưu localStorage, đánh dấu pending → sync sau.
+     */
+    async function saveHistory(km, cost, costRaw) {
+        const now       = Date.now();
+        const timeLabel = new Date().toLocaleString('vi-VN', {
+            hour: '2-digit', minute: '2-digit',
+            day: '2-digit',  month: '2-digit'
+        });
+
+        const tripData = {
+            km:        parseFloat(km),
+            cost:      costRaw,           // số nguyên để tính tổng
+            costLabel: cost,              // chuỗi hiển thị "120,000"
+            time:      timeLabel,
+            timestamp: now,
+            rate:      currentRate,
+            driverId:  TX_ID
+        };
+
+        // Luôn lưu localStorage trước (backup tức thì)
+        _saveToLocalStorage(tripData);
+
+        // Lưu Firebase
+        try {
+            await db.ref(`${TRIPS_PATH}/${now}`).set(tripData);
+            console.log("[FIX-3] ✅ Chuyến đã lưu Firebase:", now);
+        } catch (err) {
+            // Offline hoặc lỗi → đánh dấu pending sync
+            console.warn("[FIX-3] Firebase offline, đã lưu cục bộ:", err.message);
+            _markPendingSync(now, tripData);
         }
 
-        function switchTab(tab) {
-            // Logic chuyển tab
+        renderHistory();
+    }
+
+    function _saveToLocalStorage(tripData) {
+        let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        history.unshift(tripData);
+        localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
+    }
+
+    function _markPendingSync(key, data) {
+        let pending = JSON.parse(localStorage.getItem('tp_pending_sync') || '{}');
+        pending[key] = data;
+        localStorage.setItem('tp_pending_sync', JSON.stringify(pending));
+    }
+
+    /**
+     * Sync các chuyến bị pending khi online lại
+     */
+    async function syncPendingTrips() {
+        const pending = JSON.parse(localStorage.getItem('tp_pending_sync') || '{}');
+        const keys    = Object.keys(pending);
+        if (!keys.length) return;
+
+        let synced = 0;
+        for (const key of keys) {
+            try {
+                await db.ref(`${TRIPS_PATH}/${key}`).set(pending[key]);
+                delete pending[key];
+                synced++;
+            } catch (e) { break; } // Vẫn offline, dừng
         }
 
-        // Cập nhật số liệu ban đầu
-        document.getElementById('skippedCount').innerText = skippedTrips;
+        if (synced > 0) {
+            localStorage.setItem('tp_pending_sync', JSON.stringify(pending));
+            console.log(`[FIX-3] ✅ Đã sync ${synced} chuyến pending lên Firebase`);
+        }
+    }
+
+    /**
+     * Render lịch sử: ưu tiên Firebase, fallback localStorage
+     */
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        if (!list) return;
+
+        // Thử load từ Firebase trước
+        db.ref(TRIPS_PATH).orderByChild('timestamp').limitToLast(50).once('value')
+            .then((snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    // Đảo ngược để mới nhất lên trên
+                    const trips = Object.values(data).reverse();
+                    _renderHistoryList(list, trips, 'cloud');
+                } else {
+                    // Firebase rỗng → fallback localStorage
+                    _renderFromLocalStorage(list);
+                }
+            })
+            .catch(() => {
+                // Lỗi mạng → fallback localStorage
+                _renderFromLocalStorage(list);
+            });
+    }
+
+    function _renderHistoryList(list, trips, source) {
+        if (!trips || trips.length === 0) {
+            list.innerHTML = '<p style="text-align:center;color:#999;margin-top:20px;">Chưa có chuyến đi nào</p>';
+            return;
+        }
+        const srcLabel = source === 'cloud'
+            ? `<span class="h-source cloud">☁️ Cloud</span>`
+            : `<span class="h-source local">📱 Cục bộ</span>`;
+
+        list.innerHTML = trips.map(h => `
+            <div class="history-card">
+                <div class="h-info">
+                    <b>${h.time}</b><br>
+                    <small>${typeof h.km === 'number' ? h.km.toFixed(2) : h.km} KM</small><br>
+                    ${srcLabel}
+                </div>
+                <div class="h-price">${h.costLabel || h.cost}đ</div>
+            </div>
+        `).join('');
+    }
+
+    function _renderFromLocalStorage(list) {
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        _renderHistoryList(list, history, 'local');
+    }
+
+    // ============================================================
+    // ĐIỀU KHIỂN HÀNH TRÌNH
+    // ============================================================
+    function handleTrip() {
+        const btn = document.getElementById('mainBtn');
+        if (!isRunning) {
+            isRunning  = true;
+            btn.innerText     = "KẾT THÚC CHUYẾN ĐI";
+            btn.style.background = "var(--danger)";
+            document.getElementById('wishModal').style.display = 'flex';
+            totalKm = 0;
+            document.getElementById('km').innerText   = "0.00";
+            document.getElementById('cost').innerText = "0";
+
+            // [FIX-1] Dừng listener khi đang chạy chuyến
+            stopOrderListener();
+            requestWakeLock();
+            if (lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng, null);
+
+        } else {
+            isRunning  = false;
+            btn.innerText     = "BẮT ĐẦU CHUYẾN ĐI";
+            btn.style.background = "var(--accent)";
+
+            const finalCost    = Math.round(totalKm * currentRate);
+            const finalCostStr = finalCost.toLocaleString();
+
+            // [FIX-3] Lưu Firebase + localStorage
+            saveHistory(totalKm.toFixed(2), finalCostStr, finalCost);
+
+            document.getElementById('endSummary').innerHTML =
+                `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>
+                 Tổng: <b style="color:var(--primary); font-size:20px;">${finalCostStr}đ</b>`;
+            document.getElementById('endModal').style.display = 'flex';
+
+            if (wakeLock) { wakeLock.release(); wakeLock = null; }
+            if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
+
+            if (activeCustomerData && activeCustomerData.id) {
+                db.ref(`datxe/${activeCustomerData.id}`).update({ status: "completed" })
+                    .catch(() => {
+                        // Fallback REST nếu SDK lỗi
+                        fetch(`${FIREBASE_BASE_URL}/datxe/${activeCustomerData.id}.json`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: "completed" })
+                        }).catch(() => {});
+                    });
+                activeCustomerData = null;
+            }
+
+            if (lastPos) syncDriverLocationToFirebase(lastPos.lat, lastPos.lng, null);
+
+            // [FIX-1] Bật lại listener sau khi kết thúc chuyến
+            setTimeout(() => startOrderListener(), 1000);
+        }
+    }
+
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                document.getElementById('screenStatus').innerText = "LUÔN SÁNG (ON)";
+            } catch (err) { console.warn("WakeLock failed:", err); }
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (isRunning && document.visibilityState === 'visible') requestWakeLock();
+    });
+
+    // ============================================================
+    // NHẬN / BỎ ĐƠN
+    // ============================================================
+    function acceptCustomer() {
+        if (!activeCustomerData) return;
+
+        stopNotificationEffects();
+        closeModal('orderModal');
+        showTab('home');
+        tpSpeak("Đã nhận đơn hàng thành công. Tiến hành định vị tọa độ khách hàng lên bản đồ.");
+
+        const lat = activeCustomerData.pickupLat || activeCustomerData.lat;
+        const lng = activeCustomerData.pickupLng || activeCustomerData.lng;
+
+        if (lat && lng) {
+            setupCustomerMarker(lat, lng);
+        } else if (lastPos) {
+            setupCustomerMarker(
+                lastPos.lat + (Math.random() - 0.5) * 0.005,
+                lastPos.lng + (Math.random() - 0.5) * 0.005
+            );
+        }
+
+        db.ref(`datxe/${activeCustomerData.id}`).update({
+            status:      "driving",
+            driverId:    TX_ID,
+            driverPhone: localStorage.getItem('tx_phone') || ''
+        }).then(() => { _isModalOpening = false; })
+          .catch(() => { _isModalOpening = false; });
+    }
+
+    function declineCustomer() {
+        stopNotificationEffects();
+        closeModal('orderModal');
+        activeCustomerData = null;
+        tpSpeak("Đã bỏ qua đơn hàng.");
+        setTimeout(() => { _isModalOpening = false; }, 1000);
+    }
+
+    function setupCustomerMarker(lat, lng) {
+        if (customerMarker) map.removeLayer(customerMarker);
+        var custIcon = L.divIcon({
+            className: 'cust-div-icon',
+            html: "<div class='customer-marker'>🧍</div>",
+            iconSize: [26, 26], iconAnchor: [13, 13]
+        });
+        customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
+        customerMarker.bindTooltip(
+            `<b>Khách: ${activeCustomerData.clientName || 'Khách vãng lai'}</b>`
+        ).openTooltip();
+
+        if (marker) {
+            var group = new L.featureGroup([marker, customerMarker]);
+            map.fitBounds(group.getBounds().pad(0.3));
+        } else {
+            map.setView([lat, lng], 16);
+        }
+    }
+
+    // ============================================================
+    // HIỆU ỨNG THÔNG BÁO
+    // ============================================================
+    function startNotificationEffects() {
+        if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioInterval) clearInterval(audioInterval);
+            audioInterval = setInterval(() => {
+                let osc  = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+            }, 800);
+        } catch (e) {}
+    }
+
+    function stopNotificationEffects() {
+        if (countdownInterval) clearInterval(countdownInterval);
+        if (audioInterval) clearInterval(audioInterval);
+        if (navigator.vibrate) navigator.vibrate(0);
+    }
+
+    function initAudioAndCloseModal() {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let buf  = audioCtx.createBuffer(1, 1, 22050);
+            let src  = audioCtx.createBufferSource();
+            src.buffer = buf;
+            src.connect(audioCtx.destination);
+            src.start(0);
+        } catch (e) {}
+        closeModal('wishModal');
+    }
+
+    // ============================================================
+    // GÓI CƯỚC & TIỆN ÍCH
+    // ============================================================
+    function tpHandlePayment(amount, planName) {
+        if (amount === 0) {
+            // Kiểm tra trial cả Firebase lẫn localStorage
+            db.ref(`tai_xe_online/${TX_ID}/trial_used`).once('value').then((snap) => {
+                if (snap.val() === true || localStorage.getItem('tp_trial_used')) {
+                    alert("Anh đã dùng gói dùng thử rồi!");
+                    return;
+                }
+                const nextWeek = Date.now() + (7 * 24 * 60 * 60 * 1000);
+                localStorage.setItem('tp_trial_used', 'true');
+                localStorage.setItem('tp_expiry', nextWeek);
+                db.ref(`tai_xe_online/${TX_ID}`).update({
+                    tp_expiry:        nextWeek,
+                    active_plan_name: 'TRIAL 7D',
+                    trial_used:       true
+                });
+                tpSpeak("Kích hoạt gói dùng thử 7 ngày thành công.");
+                tpInitCountdown();
+            }).catch(() => {
+                // Offline fallback
+                if (localStorage.getItem('tp_trial_used')) { alert("Anh đã dùng gói dùng thử rồi!"); return; }
+                const nextWeek = Date.now() + (7 * 24 * 60 * 60 * 1000);
+                localStorage.setItem('tp_trial_used', 'true');
+                localStorage.setItem('tp_expiry', nextWeek);
+                tpSpeak("Kích hoạt gói dùng thử 7 ngày thành công.");
+                tpInitCountdown();
+            });
+        } else if (typeof createPayment === 'function') {
+            createPayment(amount, planName);
+        } else {
+            alert("Hệ thống thanh toán bảo trì!");
+        }
+    }
+
+    function tpInitCountdown() {
+        const check = () => {
+            db.ref(`tai_xe_online/${TX_ID}`).once('value')
+                .then((snap) => {
+                    const d        = snap.val();
+                    const planShow = document.getElementById('planShow');
+                    const banner   = document.getElementById('tp-mini-timer');
+                    const now      = Date.now();
+
+                    if (d && d.tp_expiry && parseInt(d.tp_expiry) > now) {
+                        const expiry = parseInt(d.tp_expiry);
+                        planShow.innerText      = `⭐ GÓI: ${d.active_plan_name || "PROMAX"}`;
+                        planShow.style.color    = "#0054a3";
+                        banner.style.display    = 'inline-flex';
+                        const dist  = expiry - now;
+                        const days  = Math.floor(dist / (1000 * 60 * 60 * 24));
+                        const hours = Math.floor((dist % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        document.getElementById('tp-cd-val').innerText = days + "n " + hours + "h";
+                    } else {
+                        planShow.innerText   = "⭐ GÓI: MIỄN PHÍ";
+                        planShow.style.color = "var(--danger)";
+                        banner.style.display = 'none';
+                    }
+                }).catch(() => {});
+        };
+        check();
+        setInterval(check, 30000);
+    }
+
+    // ============================================================
+    // RADAR & TIỆN ÍCH
+    // ============================================================
+    const TAXI_PROMAX_DATABASE = [
+        { n: "Sảnh Wyndham Legend", lat: 20.9575, lng: 107.0355, desc: "Khách VIP", color: "#ffc107" },
+        { n: "Cổng Sun World",      lat: 20.9585, lng: 107.0370, desc: "Giờ cao điểm", color: "#0054a3" }
+    ];
+
+    function tpOpenRadar() {
+        if (!lastPos) { tpSpeak("Đang tìm tín hiệu vệ tinh."); return; }
+        tpSpeak("Đang cập nhật điểm nóng khu vực.");
+        if (window.radarLayers) window.radarLayers.forEach(l => map.removeLayer(l));
+        window.radarLayers = [];
+        TAXI_PROMAX_DATABASE.forEach(s => {
+            let m = L.circleMarker([s.lat, s.lng], {
+                radius: 12, fillColor: s.color, color: "#fff", weight: 2, fillOpacity: 0.8
+            }).addTo(map);
+            m.bindTooltip(`<b>${s.n}</b>`).openTooltip();
+            window.radarLayers.push(m);
+        });
+        showTab('home');
+        map.flyTo(lastPos, 14);
+    }
+
+    function tpSpeak(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'vi-VN'; msg.rate = 1.05;
+            window.speechSynthesis.speak(msg);
+        }
+    }
+
+    function tpOpenSOS()         { tpSpeak("Đang phát tín hiệu SOS."); alert("Đã gửi vị trí cứu hộ!"); }
+    function tpOpenMaintenance() { alert("Kiểm tra áp suất lốp trước khi khởi hành."); }
+    function tpOpenProfit() {
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        const total   = history.reduce((sum, h) => {
+            const c = typeof h.cost === 'number' ? h.cost : parseInt((h.costLabel || h.cost || '0').replace(/,/g, ''));
+            return sum + (isNaN(c) ? 0 : c);
+        }, 0);
+        alert(`Doanh thu (cục bộ): ${total.toLocaleString()}đ`);
+    }
+
+    // ============================================================
+    // UI HELPERS
+    // ============================================================
+    function updateRate(v) {
+        currentRate = parseInt(v);
+        document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
+    }
+
+    function showTab(tab, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        if (tab === 'home') {
+            document.getElementById('homeControls').style.display = 'block';
+            setTimeout(() => map.invalidateSize(), 300);
+        } else {
+            document.getElementById('homeControls').style.display = 'none';
+            document.getElementById('tab-' + tab).style.display   = 'flex';
+            if (tab === 'lichsu') renderHistory();
+        }
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    // ============================================================
+    // ONLINE / OFFLINE DETECTION
+    // ============================================================
+    window.addEventListener('online', () => {
+        document.getElementById('offlineBanner').style.display = 'none';
+        syncPendingTrips(); // Sync chuyến bị pending khi mạng trở lại
+        console.log("[NET] Đã kết nối lại — đang sync pending trips...");
+    });
+
+    window.addEventListener('offline', () => {
+        document.getElementById('offlineBanner').style.display = 'block';
+        console.warn("[NET] Mất kết nối — chế độ offline");
+    });
+
+    // ============================================================
+    // KHỞI ĐỘNG HỆ THỐNG
+    // ============================================================
+    window.onload = () => {
+        startTracking();          // GPS
+        startOrderListener();     // [FIX-1] Realtime listener
+        renderHistory();          // [FIX-3] Lịch sử từ Firebase
+        tpInitCountdown();        // Gói cước
+        syncPendingTrips();       // Sync pending nếu có
+    };
+
     </script>
 </body>
 </html>
