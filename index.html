@@ -1218,4 +1218,76 @@
 
     </script>
 </body>
+// ========== BỔ SUNG: TẠO LINK THEO DÕI CHUYẾN ĐI ==========
+async function createShareLink(orderId) {
+    if (!orderId) return null;
+    const linkId = Math.random().toString(36).substring(2, 10);
+    await db.ref(`share_links/${linkId}`).set({
+        orderId: orderId,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24h
+    });
+    return `https://${window.location.host}/track.html?t=${linkId}`;
+}
+
+// Ghi đè hàm shareTrip
+const originalShareTrip = shareTrip;
+shareTrip = async function() {
+    if (khOrderId) {
+        const trackLink = await createShareLink(khOrderId);
+        const text = `🚖 Tôi đang đi Taxi ProMax\n📍 Theo dõi chuyến đi của tôi: ${trackLink}\n👨‍✈️ Tài xế: ${document.getElementById('driverName').textContent}`;
+        if (navigator.share) {
+            navigator.share({ title: 'Chia sẻ chuyến đi Taxi ProMax', text });
+        } else {
+            navigator.clipboard.writeText(text);
+            showToast('✅ Đã sao chép link theo dõi chuyến đi', 'success');
+        }
+    } else {
+        originalShareTrip();
+    }
+};
+
+// ========== BỔ SUNG: LƯU LỘ TRÌNH ==========
+let locationInterval = null;
+
+function startTrackingTrip(orderId) {
+    if (locationInterval) clearInterval(locationInterval);
+    locationInterval = setInterval(async () => {
+        if (!khOrderId || !khLat || !khLng) return;
+        if (document.hidden) return; // Tiết kiệm pin
+        
+        await db.ref(`trip_locations/${orderId}_${Date.now()}`).set({
+            orderId: orderId,
+            lat: khLat,
+            lng: khLng,
+            timestamp: Date.now()
+        });
+    }, 30000); // Mỗi 30s lưu 1 điểm
+}
+
+// Gọi startTrackingTrip khi bắt đầu chuyến (trong case 'driving')
+// Thêm vào function listenOrder() trong case 'driving':
+// startTrackingTrip(orderId);
+
+// ========== BỔ SUNG: KIỂM TRA VERSION APP ==========
+async function checkAppVersion() {
+    try {
+        const snap = await db.ref('app_config/version').once('value');
+        const latestVersion = snap.val() || '1.0.0';
+        const currentVersion = '1.0.0'; // Tăng dần mỗi lần cập nhật
+        
+        if (latestVersion !== currentVersion) {
+            const force = await db.ref('app_config/force_update').once('value');
+            if (force.val() === true) {
+                alert('📱 Phiên bản mới đã có! Vui lòng tải lại trang để cập nhật.');
+                window.location.reload();
+            } else {
+                showToast('🆕 Đã có phiên bản mới, hãy tải lại trang để trải nghiệm tốt hơn!', 'success');
+            }
+        }
+    } catch(e) { console.warn('Check version failed:', e); }
+}
+
+// Gọi checkAppVersion() trong initApp()
+// Thêm dòng: checkAppVersion();
 </html>
