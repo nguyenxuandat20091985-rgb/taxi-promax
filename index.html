@@ -793,30 +793,49 @@
         }, 3600000);
     }
 
-    // ==================== ORDER LISTENER ====================
-    function startOrderListener() {
-        if (orderListener) db.ref('datxe').off();
-        orderListener = db.ref('datxe');
-        orderListener.on('child_added', (snap) => {
-            if (_isModalOpening || isRunning || isLocked) return;
-            const order = snap.val(), orderId = snap.key;
-            if (!order || order.status !== 'waiting') return;
-            if (_processedOrders.has(orderId)) return;
-            if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
-            _processedOrders.add(orderId); _isModalOpening = true; currentOrderId = orderId; currentCustomerData = order;
-            document.getElementById('modalPhone').innerText = order.phone || '...';
-            document.getElementById('modalFrom').innerText = order.pickup || '...';
-            document.getElementById('modalTo').innerText = order.dropoff || '...';
-            document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
-            document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
-            let countdown = 15; document.getElementById('tp-modal-timer-val').innerText = countdown;
-            document.getElementById('orderModal').style.display = 'flex';
-            if (countdownInterval) clearInterval(countdownInterval);
-            countdownInterval = setInterval(() => { countdown--; document.getElementById('tp-modal-timer-val').innerText = countdown; if (countdown <= 0) declineOrder(); }, 1000);
-            speak("Có đơn đặt xe mới.");
-        });
-    }
-
+    // ==================== ORDER LISTENER (ĐÃ SỬA - CHO PHÉP DÙNG THỬ NHẬN ĐƠN) ====================
+function startOrderListener() {
+    if (orderListener) db.ref('datxe').off();
+    orderListener = db.ref('datxe');
+    orderListener.on('child_added', (snap) => {
+        if (_isModalOpening || isRunning || isLocked) return;
+        const order = snap.val(), orderId = snap.key;
+        if (!order || order.status !== 'waiting') return;
+        if (_processedOrders.has(orderId)) return;
+        
+        // === SỬA: Nếu chưa đăng ký (dùng thử), mặc định loại xe 4 Chỗ để vẫn nhận đơn ===
+        if (!driverInfo.carClass) {
+            driverInfo.carClass = '4_seats';
+        }
+        
+        // Kiểm tra loại xe: nếu order yêu cầu 'both' hoặc trùng với loại xe tài xế
+        if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
+        
+        _processedOrders.add(orderId); 
+        _isModalOpening = true; 
+        currentOrderId = orderId; 
+        currentCustomerData = order;
+        
+        document.getElementById('modalPhone').innerText = order.phone || '...';
+        document.getElementById('modalFrom').innerText = order.pickup || '...';
+        document.getElementById('modalTo').innerText = order.dropoff || '...';
+        document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
+        document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+        
+        let countdown = 15; 
+        document.getElementById('tp-modal-timer-val').innerText = countdown;
+        document.getElementById('orderModal').style.display = 'flex';
+        
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(() => { 
+            countdown--; 
+            document.getElementById('tp-modal-timer-val').innerText = countdown; 
+            if (countdown <= 0) declineOrder(); 
+        }, 1000);
+        
+        speak("Có đơn đặt xe mới.");
+    });
+}
     function acceptOrder() {
         clearInterval(countdownInterval); closeModal('orderModal');
         if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
