@@ -6,13 +6,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="assets/logo.png">
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="manifest" href="manifest.json">
     <title>TAXI PROMAX - TÀI XẾ</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        /* ========== RESET & VARIABLES ========== */
         * {
             margin: 0;
             padding: 0;
@@ -22,31 +24,30 @@
 
         :root {
             --primary: #0054a3;
-            --primary-light: #e6f0ff;
+            --primary-dark: #003d7a;
+            --primary-light: #e3f2fd;
             --accent: #00bfa5;
-            --accent-light: #e0f7fa;
+            --accent-light: #e0f2f1;
             --danger: #d32f2f;
             --danger-light: #ffebee;
             --warning: #f39c12;
-            --warning-light: #fff8e1;
             --gold: #f1c40f;
             --dark: #1c1e21;
-            --dark-card: #2c3e50;
             --gray-bg: #f4f7f6;
             --gray-border: #e0e0e0;
             --text-primary: #1a1a1a;
-            --text-secondary: #666;
+            --text-secondary: #666666;
             --white: #ffffff;
             --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
             --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
             --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
-            --radius-sm: 10px;
-            --radius-md: 14px;
-            --radius-lg: 20px;
+            --radius-sm: 12px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Roboto, sans-serif;
             background: var(--gray-bg);
             overflow: hidden;
             height: 100vh;
@@ -54,6 +55,7 @@
             position: fixed;
         }
 
+        /* ========== MAP ========== */
         #map {
             height: 100vh;
             width: 100vw;
@@ -63,514 +65,7 @@
             z-index: 1;
         }
 
-        /* ===== HEADER ===== */
-        .app-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            background: transparent;
-            pointer-events: none;
-        }
-
-        .driver-badge {
-            pointer-events: auto;
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(20px);
-            padding: 8px 16px;
-            border-radius: 40px;
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--gray-border);
-        }
-
-        .driver-name {
-            font-size: 14px;
-            font-weight: 800;
-            color: var(--text-primary);
-        }
-
-        .driver-id {
-            font-size: 10px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-        }
-
-        .plan-badge {
-            pointer-events: auto;
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(20px);
-            padding: 8px 16px;
-            border-radius: 40px;
-            font-size: 12px;
-            font-weight: 800;
-            color: var(--gold);
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--gray-border);
-        }
-
-        /* ===== GPS STATUS ===== */
-        .gps-status {
-            position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(10px);
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 10px;
-            font-weight: 600;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            pointer-events: none;
-        }
-
-        .gps-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #95a5a6;
-        }
-
-        .gps-dot.good { background: #00bfa5; animation: gpsPulse 1.5s infinite; }
-        .gps-dot.weak { background: #f39c12; }
-        .gps-dot.bad { background: #d32f2f; }
-
-        @keyframes gpsPulse {
-            0%,100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-
-        /* ===== STATS BAR ===== */
-        .stats-bar {
-            position: fixed;
-            top: 100px;
-            left: 16px;
-            right: 16px;
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(20px);
-            border-radius: var(--radius-md);
-            display: flex;
-            padding: 12px;
-            box-shadow: var(--shadow-md);
-            z-index: 100;
-            border: 1px solid var(--gray-border);
-        }
-
-        .stat-item {
-            flex: 1;
-            text-align: center;
-        }
-
-        .stat-label {
-            font-size: 9px;
-            font-weight: 800;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-        }
-
-        .stat-value {
-            font-size: 20px;
-            font-weight: 900;
-            color: var(--primary);
-            margin-top: 2px;
-        }
-
-        /* ===== BOTTOM PANEL ===== */
-        .bottom-panel {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--white);
-            border-radius: 24px 24px 0 0;
-            box-shadow: var(--shadow-lg);
-            z-index: 200;
-            padding: 16px;
-            transition: transform 0.3s ease;
-        }
-
-        .rate-slider {
-            margin-bottom: 16px;
-        }
-
-        .rate-slider input {
-            width: 100%;
-            accent-color: var(--primary);
-        }
-
-        .rate-label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .btn-main {
-            width: 100%;
-            padding: 16px;
-            border-radius: var(--radius-md);
-            border: none;
-            background: var(--accent);
-            color: white;
-            font-size: 16px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .btn-main:active { transform: scale(0.98); }
-        .btn-main.danger { background: var(--danger); }
-
-        /* ===== NAV BAR ===== */
-        .nav-bar {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 16px;
-            padding-top: 12px;
-            border-top: 1px solid var(--gray-border);
-        }
-
-        .nav-item {
-            flex: 1;
-            text-align: center;
-            background: none;
-            border: none;
-            padding: 8px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.2s;
-            border-radius: var(--radius-sm);
-        }
-
-        .nav-item.active {
-            color: var(--primary);
-            background: var(--primary-light);
-        }
-
-        .nav-item i {
-            font-size: 20px;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        /* ===== TAB CONTENT ===== */
-        .tab-content {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--white);
-            z-index: 150;
-            display: none;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 80px 16px 100px 16px;
-        }
-
-        .tab-content.active {
-            display: flex;
-        }
-
-        .tab-header {
-            background: linear-gradient(135deg, var(--primary), #003d7a);
-            color: white;
-            padding: 20px;
-            border-radius: 0 0 24px 24px;
-            margin: -80px -16px 20px -16px;
-            text-align: center;
-        }
-
-        /* ===== PACKAGE CARDS ===== */
-        .package-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .package-card {
-            background: var(--white);
-            border: 2px solid var(--gray-border);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
-        }
-
-        .package-card:hover { border-color: var(--primary); transform: translateY(-2px); }
-        .package-card.recommended { border-color: var(--gold); }
-        .recommend-badge {
-            position: absolute;
-            top: -10px;
-            right: 10px;
-            background: var(--gold);
-            color: var(--dark);
-            font-size: 9px;
-            font-weight: 800;
-            padding: 2px 8px;
-            border-radius: 20px;
-        }
-
-        .package-name { font-size: 16px; font-weight: 800; }
-        .package-price { font-size: 20px; font-weight: 900; color: var(--primary); margin: 8px 0; }
-        .package-features { font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
-
-        /* ===== HISTORY CARD ===== */
-        .history-card {
-            background: var(--white);
-            border: 1px solid var(--gray-border);
-            border-radius: var(--radius-md);
-            padding: 14px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .history-info { flex: 1; }
-        .history-time { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
-        .history-route { font-size: 11px; margin-top: 4px; }
-        .history-price { font-size: 18px; font-weight: 900; color: var(--primary); }
-
-        /* ===== TRIP PANEL ===== */
-        .trip-panel {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--white);
-            border-radius: 24px 24px 0 0;
-            z-index: 300;
-            padding: 16px;
-            display: none;
-            box-shadow: var(--shadow-lg);
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        .trip-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, var(--primary), #003d7a);
-            color: white;
-            padding: 12px;
-            border-radius: var(--radius-md);
-            margin-bottom: 12px;
-        }
-
-        .trip-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--accent);
-            animation: gpsPulse 1s infinite;
-        }
-
-        .trip-customer-card {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: var(--gray-bg);
-            border-radius: var(--radius-md);
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-
-        .trip-avatar {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            color: white;
-        }
-
-        .trip-customer-info { flex: 1; }
-        .trip-customer-name { font-size: 15px; font-weight: 800; }
-        .trip-customer-phone { font-size: 12px; color: var(--primary); font-weight: 700; margin-top: 2px; }
-
-        .trip-call-btn {
-            width: 44px;
-            height: 44px;
-            background: var(--accent);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            color: white;
-            cursor: pointer;
-            text-decoration: none;
-        }
-
-        .trip-route-card {
-            background: var(--gray-bg);
-            border-radius: var(--radius-md);
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-
-        .trip-route-row {
-            display: flex;
-            gap: 10px;
-            padding: 6px 0;
-            font-size: 12px;
-        }
-
-        .trip-price-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--primary-light);
-            border-radius: var(--radius-md);
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-
-        .trip-price-val { font-size: 20px; font-weight: 900; color: var(--primary); }
-
-        .btn-row {
-            display: flex;
-            gap: 12px;
-            margin-top: 12px;
-        }
-
-        .btn-row .btn-main { flex: 1; }
-
-        /* ===== MODALS ===== */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.7);
-            z-index: 1000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(5px);
-        }
-
-        .modal-container {
-            background: var(--white);
-            border-radius: var(--radius-lg);
-            width: 90%;
-            max-width: 340px;
-            padding: 24px;
-            text-align: center;
-            animation: slideUp 0.3s ease;
-        }
-
-        .modal-countdown {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            border: 3px solid var(--danger);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            font-weight: 900;
-            color: var(--danger);
-            margin: 16px auto;
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        .modal-buttons button {
-            flex: 1;
-            padding: 12px;
-            border-radius: var(--radius-md);
-            border: none;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        /* ===== TOAST ===== */
-        .toast {
-            position: fixed;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-20px);
-            background: var(--dark);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: 600;
-            z-index: 1000;
-            opacity: 0;
-            transition: all 0.3s;
-            pointer-events: none;
-            white-space: nowrap;
-        }
-
-        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-        /* ===== OFFLINE BANNER ===== */
-        .offline-banner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: var(--danger);
-            color: white;
-            text-align: center;
-            padding: 8px;
-            font-size: 11px;
-            font-weight: 700;
-            z-index: 1001;
-            display: none;
-        }
-
-        /* ===== CANCEL BANNER ===== */
-        .cancel-banner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: var(--danger);
-            color: white;
-            text-align: center;
-            padding: 14px;
-            font-size: 13px;
-            font-weight: 800;
-            z-index: 1002;
-            display: none;
-            animation: slideDown 0.3s ease;
-            cursor: pointer;
-        }
-
-        @keyframes slideDown {
-            from { transform: translateY(-100%); }
-            to { transform: translateY(0); }
-        }
-
-        /* ===== AUTH SCREEN ===== */
+        /* ========== AUTH SCREEN ========== */
         .auth-screen {
             position: fixed;
             inset: 0;
@@ -593,7 +88,14 @@
             align-items: center;
             justify-content: center;
             font-size: 42px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 20px 40px rgba(0,84,163,0.3);
+            animation: authFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes authFloat {
+            0%,100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
         }
 
         .auth-title {
@@ -602,13 +104,14 @@
             background: linear-gradient(135deg, var(--primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .auth-subtitle {
             font-size: 13px;
             color: #94a3b8;
             margin-bottom: 32px;
+            text-align: center;
         }
 
         .auth-box {
@@ -616,8 +119,10 @@
             max-width: 400px;
             background: rgba(30,41,59,0.95);
             backdrop-filter: blur(20px);
+            border: 1px solid rgba(148,163,184,0.2);
             border-radius: 24px;
             padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
         }
 
         .auth-input {
@@ -627,21 +132,24 @@
             border: 2px solid rgba(148,163,184,0.2);
             border-radius: 14px;
             color: white;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
             margin-bottom: 12px;
         }
 
         .auth-input:focus {
             border-color: var(--primary);
+            background: #1e293b;
             outline: none;
         }
 
-        .auth-input::placeholder { color: #64748b; }
+        .auth-input::placeholder {
+            color: #64748b;
+        }
 
         .auth-btn {
             width: 100%;
-            padding: 14px;
+            padding: 15px;
             background: linear-gradient(135deg, var(--primary), var(--accent));
             border: none;
             border-radius: 14px;
@@ -649,944 +157,1898 @@
             font-size: 15px;
             font-weight: 700;
             cursor: pointer;
-            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.2s;
+        }
+
+        .auth-btn:active {
+            transform: translateY(2px);
+        }
+
+        .auth-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .auth-error {
             color: var(--danger);
             font-size: 11px;
-            margin-top: 8px;
+            margin-top: 6px;
             text-align: center;
             display: none;
         }
 
-        /* Responsive */
-        @media (max-width: 480px) {
-            .stats-bar { top: 90px; }
-            .gps-status { top: 55px; font-size: 9px; }
-            .stat-value { font-size: 18px; }
+        .auth-toggle {
+            width: 100%;
+            margin-top: 12px;
+            padding: 12px;
+            background: #334155;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* ========== INPUT ROW (2 cột) ========== */
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .input-row .auth-input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        /* Radio group */
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin: 12px 0;
+            padding: 8px 0;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .radio-label input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        /* ========== HEADER ========== */
+        .header {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .badge {
+            pointer-events: auto;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 15px;
+            border-radius: 20px;
+            box-shadow: var(--shadow-md);
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--dark);
+            border-left: 4px solid var(--primary);
+        }
+
+        /* GPS Status */
+        .gps-status-bar {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            background: rgba(255,255,255,0.95);
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 800;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .gps-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #bdc3c7;
+        }
+
+        .gps-dot.good { background: var(--accent); animation: gpsBlink 1.5s infinite; }
+        .gps-dot.weak { background: var(--warning); }
+        .gps-dot.bad { background: var(--danger); }
+
+        @keyframes gpsBlink {
+            0%,100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            position: fixed;
+            top: 55px;
+            left: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            display: flex;
+            padding: 12px;
+            box-shadow: var(--shadow-md);
+            z-index: 1000;
+            border: 1px solid white;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .stat-item:first-child {
+            border-right: 1px solid #eee;
+        }
+
+        .stat-label {
+            font-size: 9px;
+            color: #7f8c8d;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--primary);
+            margin-top: 2px;
+        }
+
+        /* Footer Panel */
+        .footer-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            z-index: 2000;
+            border-radius: 25px 25px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.08);
+            padding: 15px 15px calc(env(safe-area-inset-bottom, 5px) + 5px);
+        }
+
+        .nav-grid {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .nav-item {
+            border: none;
+            background: none;
+            color: #bdc3c7;
+            font-size: 10px;
+            font-weight: 700;
+            text-align: center;
+            flex: 1;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+        }
+
+        .nav-item i {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 2px;
+            font-style: normal;
+        }
+
+        .brand-footer {
+            font-size: 9px;
+            text-align: center;
+            color: #bdc3c7;
+            padding-bottom: 5px;
+            font-weight: bold;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 140px);
+            background: #fdfdfd;
+            z-index: 1500;
+            display: none;
+            flex-direction: column;
+            overflow-y: auto;
+            padding-bottom: 30px;
+        }
+
+        .p-header {
+            background: linear-gradient(135deg, var(--primary), #003d7a);
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+            border-bottom-left-radius: 25px;
+            border-bottom-right-radius: 25px;
+        }
+
+        .p-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding: 15px;
+        }
+
+        .p-card {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 18px;
+            padding: 12px;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .p-card.active {
+            border-color: var(--primary);
+            background: #f0f4f8;
+            transform: scale(1.02);
+        }
+
+        .p-card b {
+            display: block;
+            font-size: 13px;
+            color: var(--dark);
+        }
+
+        .p-card span {
+            color: var(--danger);
+            font-weight: 800;
+            font-size: 14px;
+        }
+
+        .p-card ul {
+            margin: 8px 0 0;
+            padding: 0;
+            list-style: none;
+            font-size: 9px;
+            color: #7f8c8d;
+        }
+
+        .p-btn {
+            margin-top: 10px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 7px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* History Card */
+        .history-card {
+            background: white;
+            margin: 10px 15px;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: var(--shadow-sm);
+            border-left: 5px solid var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .h-price {
+            font-weight: 900;
+            color: var(--primary);
+            font-size: 16px;
+        }
+
+        /* Trip Info Panel */
+        #tripInfoPanel {
+            display: none;
+        }
+
+        .trip-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, var(--primary), #003d7a);
+            color: white;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+        }
+
+        .trip-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff9d;
+            animation: gpsBlink 1s infinite;
+            flex-shrink: 0;
+        }
+
+        .trip-status-text {
+            font-size: 12px;
+            font-weight: 900;
+            flex: 1;
+        }
+
+        .trip-km-live {
+            font-size: 11px;
+            font-weight: 800;
+            color: #00ff9d;
+        }
+
+        .trip-customer-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8f9fa;
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .trip-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .trip-customer-info {
+            flex: 1;
+        }
+
+        .trip-customer-name {
+            font-size: 14px;
+            font-weight: 900;
+            color: var(--dark);
+        }
+
+        .trip-customer-phone {
+            font-size: 12px;
+            color: var(--primary);
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .trip-call-btn, .trip-nav-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+            box-shadow: var(--shadow-sm);
+            border: none;
+            color: white;
+            text-decoration: none;
+        }
+
+        .trip-nav-btn {
+            background: var(--primary);
+        }
+
+        .trip-route-card {
+            background: #f8f9fa;
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .trip-route-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 12px;
+            padding: 4px 0;
+        }
+
+        .trip-route-label {
+            font-size: 9px;
+            color: #7f8c8d;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .trip-route-val {
+            font-weight: 700;
+            color: var(--dark);
+            line-height: 1.3;
+        }
+
+        .trip-price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #e8f4fd;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+        }
+
+        .trip-price-val {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--primary);
+        }
+
+        .trip-action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .trip-action-buttons .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-pickup {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-nav {
+            background: var(--primary);
+            color: white;
+        }
+
+        .trip-end-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            background: var(--danger);
+            color: white;
+            font-size: 16px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        /* Home Controls */
+        .home-controls {
+            display: block;
+        }
+
+        .btn-main {
+            width: 100%;
+            padding: 15px;
+            border-radius: 15px;
+            border: none;
+            background: var(--accent);
+            color: white;
+            font-size: 18px;
+            font-weight: 900;
+            box-shadow: 0 6px 20px rgba(0,191,165,0.3);
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 12px;
+            accent-color: var(--danger);
+            height: 5px;
+        }
+
+        /* Modal */
+        .custom-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            width: 88%;
+            max-width: 340px;
+            padding: 25px;
+            border-radius: 25px;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Toast */
+        #txToast {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--dark);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 800;
+            z-index: 9998;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        #txToast.show { opacity: 1; }
+
+        /* Chat Overlay */
+        .chat-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 11000;
+            display: none;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .chat-container {
+            background: white;
+            border-radius: 28px 28px 0 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-top: auto;
+        }
+
+        .chat-header {
+            padding: 16px 20px;
+            background: white;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: 13px;
+        }
+
+        .chat-message.sent {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            align-self: flex-end;
+        }
+
+        .chat-message.received {
+            background: #f0f0f0;
+            color: #333;
+            align-self: flex-start;
+        }
+
+        .chat-input-row {
+            padding: 12px 16px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 30px;
+            font-size: 13px;
+        }
+
+        .chat-send {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Cancel Banner */
+        #cancelBanner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: var(--danger);
+            color: white;
+            text-align: center;
+            padding: 16px;
+            font-size: 14px;
+            font-weight: 900;
+            display: none;
+            cursor: pointer;
+        }
+
+        /* Offline Banner */
+        #offlineBanner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 99999;
+            background: var(--danger);
+            color: white;
+            text-align: center;
+            padding: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            display: none;
         }
     </style>
 </head>
 <body>
 
-<!-- AUTH SCREEN -->
-<div class="auth-screen" id="authScreen">
-    <div class="auth-logo">🚖</div>
-    <div class="auth-title">TAXI PROMAX</div>
-    <div class="auth-subtitle">Đăng ký tài xế - Kiếm tiền mỗi ngày</div>
+    <!-- ========== AUTH SCREEN ========== -->
+    <div class="auth-screen" id="authScreen">
+        <div class="auth-logo">🚖</div>
+        <div class="auth-title">TAXI PROMAX</div>
+        <div class="auth-subtitle">Đối tác tài xế — Thu nhập cao, an toàn</div>
 
-    <div class="auth-box">
-        <div id="stepRegister">
-            <input type="text" id="regFullname" class="auth-input" placeholder="Họ và tên">
-            <input type="tel" id="regPhone" class="auth-input" placeholder="Số điện thoại">
-            <input type="text" id="regCCCD" class="auth-input" placeholder="Số CCCD/CMND">
-            <input type="text" id="regPlate" class="auth-input" placeholder="Biển số xe">
-            <select id="regCarType" class="auth-input">
-                <option value="4_seats">4 Chỗ</option>
-                <option value="7_seats">7 Chỗ</option>
-            </select>
-            <select id="regFuelType" class="auth-input">
-                <option value="xang">Xăng</option>
-                <option value="dien">Xe điện</option>
-            </select>
-            <button class="auth-btn" id="btnRegister" onclick="doRegister()">ĐĂNG KÝ / ĐĂNG NHẬP</button>
-            <div class="auth-error" id="regError"></div>
+        <div class="auth-box">
+            <div id="stepRegister">
+                <input type="text" class="auth-input" id="regFullname" placeholder="Họ và tên" maxlength="50">
+                <input type="tel" class="auth-input" id="regPhone" placeholder="Số điện thoại" maxlength="10">
+                <input type="text" class="auth-input" id="regCccd" placeholder="CCCD/CMND (12 số)" maxlength="12">
+                
+                <div class="input-row">
+                    <input type="text" class="auth-input" id="regPlate" placeholder="Biển số xe" maxlength="15">
+                    <input type="text" class="auth-input" id="regCarModel" placeholder="Dòng xe" maxlength="30">
+                </div>
+                
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="fuelType" value="xang" checked> ⛽ Xăng
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="fuelType" value="dien"> 🔋 Điện
+                    </label>
+                </div>
+                
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="carClass" value="4_seats" checked> 🚗 4 Chỗ
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="carClass" value="7_seats"> 🚙 7 Chỗ
+                    </label>
+                </div>
+                
+                <button class="auth-btn" id="btnRegister" onclick="doRegister()">
+                    <i class="fas fa-user-plus"></i>
+                    <span id="btnRegText">ĐĂNG KÝ TÀI XẾ</span>
+                </button>
+                <div class="auth-error" id="regError"></div>
+            </div>
+
+            <div id="stepLogin" style="display:none;">
+                <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
+                <button class="auth-btn" id="btnLogin" onclick="doLogin()">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span id="btnLoginText">ĐĂNG NHẬP</span>
+                </button>
+                <div class="auth-error" id="loginError"></div>
+            </div>
+
+            <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">
+                Đã có tài khoản? Đăng nhập
+            </button>
         </div>
-    </div>
-</div>
-
-<!-- OFFLINE BANNER -->
-<div class="offline-banner" id="offlineBanner">📵 MẤT KẾT NỐI - ĐANG LƯU CỤC BỘ</div>
-
-<!-- CANCEL BANNER -->
-<div class="cancel-banner" id="cancelBanner" onclick="dismissCancel()">⚠️ KHÁCH HÀNG ĐÃ HỦY CHUYẾN - Bấm để xác nhận</div>
-
-<!-- MAP -->
-<div id="map"></div>
-
-<!-- HEADER -->
-<div class="app-header">
-    <div class="driver-badge">
-        <div class="driver-name" id="driverName">Tài xế</div>
-        <div class="driver-id" id="driverId">ID: Đang tải...</div>
-    </div>
-    <div class="plan-badge" id="planBadge">⭐ GÓI: MIỄN PHÍ</div>
-</div>
-
-<!-- GPS STATUS -->
-<div class="gps-status" id="gpsStatus">
-    <div class="gps-dot" id="gpsDot"></div>
-    <span id="gpsText">Đang tìm GPS...</span>
-</div>
-
-<!-- STATS BAR -->
-<div class="stats-bar">
-    <div class="stat-item">
-        <div class="stat-label">CƯỚC (VNĐ)</div>
-        <div id="cost" class="stat-value">0</div>
-    </div>
-    <div class="stat-item">
-        <div class="stat-label">KM</div>
-        <div id="km" class="stat-value">0.00</div>
-    </div>
-</div>
-
-<!-- BOTTOM PANEL (HOME) -->
-<div class="bottom-panel" id="homePanel">
-    <div class="rate-slider">
-        <div class="rate-label">
-            <span>GIÁ/KM</span>
-            <span><span id="rateLabel">15,000</span>đ</span>
-        </div>
-        <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-    </div>
-    <button class="btn-main" id="mainBtn" onclick="startTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
-    <div class="nav-bar">
-        <button class="nav-item active" onclick="showTab('home', this)"><i class="fas fa-home"></i>Trang chủ</button>
-        <button class="nav-item" onclick="showTab('packages', this)"><i class="fas fa-gem"></i>Gói cước</button>
-        <button class="nav-item" onclick="showTab('history', this)"><i class="fas fa-history"></i>Lịch sử</button>
-        <button class="nav-item" onclick="showTab('tools', this)"><i class="fas fa-tools"></i>Công cụ</button>
-    </div>
-</div>
-
-<!-- TRIP PANEL (khi đang chạy chuyến) -->
-<div class="trip-panel" id="tripPanel">
-    <div class="trip-status">
-        <div class="trip-dot"></div>
-        <div style="flex:1; font-size:13px; font-weight:800;" id="tripStatusText">🚗 ĐANG CHẠY CHUYẾN</div>
-        <div id="tripKmLive" style="font-size:12px; font-weight:800;">0.00 KM</div>
-    </div>
-
-    <div class="trip-customer-card">
-        <div class="trip-avatar" id="tripAvatar">🧑</div>
-        <div class="trip-customer-info">
-            <div class="trip-customer-name" id="tripClientName">Đang tải...</div>
-            <div class="trip-customer-phone" id="tripClientPhone">...</div>
-        </div>
-        <a class="trip-call-btn" id="tripCallBtn" href="tel:"><i class="fas fa-phone-alt"></i></a>
-    </div>
-
-    <div class="trip-route-card">
-        <div class="trip-route-row">
-            <i class="fas fa-circle" style="font-size:10px; color:var(--accent); margin-top:4px;"></i>
-            <div><div style="font-size:9px; color:var(--text-secondary);">ĐIỂM ĐÓN</div><div id="tripFrom">...</div></div>
-        </div>
-        <div class="trip-route-row">
-            <i class="fas fa-flag-checkered" style="font-size:10px; color:var(--danger); margin-top:4px;"></i>
-            <div><div style="font-size:9px; color:var(--text-secondary);">ĐIỂM ĐẾN</div><div id="tripTo">...</div></div>
+        <div style="margin-top: 20px; text-align: center; font-size: 10px; color: #64748b;">
+            Bằng việc tiếp tục, bạn đồng ý với <a href="#" style="color: var(--primary);">Điều khoản</a>
         </div>
     </div>
 
-    <div class="trip-price-row">
-        <div>
-            <div style="font-size:9px; font-weight:800;">GIÁ ƯỚC TÍNH</div>
-            <div class="trip-price-val" id="tripPrice">...</div>
+    <!-- OFFLINE BANNER -->
+    <div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
+
+    <!-- KHÁCH HỦY BANNER -->
+    <div id="cancelBanner" onclick="dismissCancelBanner()">
+        ⚠️ KHÁCH HÀNG ĐÃ HỦY CHUYẾN — Bấm để xác nhận
+    </div>
+
+    <div class="header">
+        <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
+        <div class="badge" id="planShow">⭐ ĐANG ĐỒNG BỘ...</div>
+    </div>
+
+    <div class="gps-status-bar" id="gpsStatusBar">
+        <div class="gps-dot" id="gpsDot"></div>
+        <span id="gpsStatusText">GPS: Đang tìm...</span>
+    </div>
+
+    <div class="stats-bar" id="statsUI">
+        <div class="stat-item">
+            <div class="stat-label">CƯỚC (VNĐ)</div>
+            <div id="cost" class="stat-value">0</div>
         </div>
-        <div style="text-align:right;">
-            <div id="tripEstKm" style="font-size:11px;"></div>
-            <div id="tripCarType" style="font-size:10px; color:var(--text-secondary);"></div>
+        <div class="stat-item">
+            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
+            <div id="km" class="stat-value">0.00</div>
         </div>
     </div>
 
-    <div class="btn-row">
-        <button class="btn-main" style="background:var(--danger);" onclick="cancelTrip()">HỦY CHUYẾN</button>
-        <button class="btn-main" id="nextStepBtn" onclick="nextTripStep()">ĐÃ ĐÓN KHÁCH</button>
-    </div>
-</div>
+    <div id="map"></div>
 
-<!-- ===== TABS ===== -->
-
-<!-- TAB PACKAGES -->
-<div class="tab-content" id="tabPackages">
-    <div class="tab-header">
-        <div style="font-size:20px; font-weight:800;">GÓI CƯỚC</div>
-        <div style="font-size:12px; opacity:0.9;">Chọn gói phù hợp để nhận thêm ưu đãi</div>
-    </div>
-    <div class="package-grid">
-        <div class="package-card recommended" onclick="handlePayment(0, 'DÙNG THỬ')">
-            <div class="recommend-badge">KHUYÊN DÙNG</div>
-            <div class="package-name">DÙNG THỬ</div>
-            <div class="package-price">0đ</div>
-            <div class="package-features">✅ 7 ngày trải nghiệm<br>✅ Đầy đủ tính năng</div>
+    <!-- ========== TAB CONTENT ========== -->
+    <div id="tab-vi" class="tab-content">
+        <div class="p-header">
+            <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
         </div>
-        <div class="package-card" onclick="handlePayment(5000, 'CHUYẾN LẺ')">
-            <div class="package-name">CHUYẾN LẺ</div>
-            <div class="package-price">5.000đ</div>
-            <div class="package-features">✅ 24h sử dụng<br>✅ GPS cao cấp</div>
-        </div>
-        <div class="package-card" onclick="handlePayment(49000, 'PRO')">
-            <div class="package-name">GÓI PRO</div>
-            <div class="package-price">49.000đ</div>
-            <div class="package-features">✅ 30 ngày<br>✅ Radar tìm khách</div>
-        </div>
-        <div class="package-card" onclick="handlePayment(129000, 'PRO MAX')">
-            <div class="package-name">PRO MAX</div>
-            <div class="package-price">129.000đ</div>
-            <div class="package-features">✅ 90 ngày<br>✅ Trợ lý AI đặc quyền</div>
+        <div class="p-grid">
+            <div class="p-card" onclick="handlePayment(0, 'TRIAL 7D')">
+                <div class="tp-badge-trial" style="position: absolute; top: -8px; right: 10px; background: #55efc4; color: #00b894; padding: 2px 6px; border-radius: 5px; font-size: 9px;">KHUYÊN DÙNG</div>
+                <b>TRẢI NGHIỆM</b><span>0đ</span>
+                <ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul>
+                <div class="p-btn">KÍCH HOẠT</div>
+            </div>
+            <div class="p-card" onclick="handlePayment(5000, 'LẺ')">
+                <b>CHUYẾN LẺ</b><span>5.000đ</span>
+                <ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+            <div class="p-card" onclick="handlePayment(49000, 'PRO')">
+                <b>GÓI PRO</b><span>49.000đ</span>
+                <ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
+            <div class="p-card" onclick="handlePayment(129000, 'PROMAX')">
+                <b>PRO MAX</b><span>129.000đ</span>
+                <ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul>
+                <div class="p-btn">NẠP NGAY</div>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- TAB HISTORY -->
-<div class="tab-content" id="tabHistory">
-    <div class="tab-header">
-        <div style="font-size:20px; font-weight:800;">LỊCH SỬ CHUYẾN ĐI</div>
-    </div>
-    <div id="historyList"></div>
-</div>
-
-<!-- TAB TOOLS -->
-<div class="tab-content" id="tabTools">
-    <div class="tab-header">
-        <div style="font-size:20px; font-weight:800;">CÔNG CỤ HỖ TRỢ</div>
-    </div>
-    <div class="package-grid">
-        <div class="package-card" onclick="openRadar()">
-            <div class="package-name">📡 BẢN ĐỒ NHIỆT</div>
-            <div class="package-features">Tìm điểm nóng khách hàng</div>
-        </div>
-        <div class="package-card" onclick="openSOS()">
-            <div class="package-name">🆘 SOS CỨU HỘ</div>
-            <div class="package-features">Phát tín hiệu khẩn cấp</div>
-        </div>
-        <div class="package-card" onclick="openProfit()">
-            <div class="package-name">📈 BÁO CÁO LỢI NHUẬN</div>
-            <div class="package-features">Thống kê doanh thu</div>
-        </div>
-        <div class="package-card" onclick="showGoldenHours()">
-            <div class="package-name">⏰ GIỜ VÀNG</div>
-            <div class="package-features">Cao điểm có khách</div>
+    <div id="tab-lichsu" class="tab-content">
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div id="historyList" style="padding-top: 10px;">
+            <div class="history-loading" style="text-align: center; padding: 30px;">Đang tải lịch sử...</div>
         </div>
     </div>
-</div>
 
-<!-- ORDER MODAL -->
-<div class="modal-overlay" id="orderModal">
-    <div class="modal-container">
-        <div style="font-size:20px; font-weight:800; color:var(--danger);">🚨 CÓ ĐƠN ĐẶT XE MỚI!</div>
-        <div class="modal-countdown" id="modalTimer">15</div>
-        <div style="text-align:left; background:var(--gray-bg); padding:12px; border-radius:var(--radius-md); margin:12px 0; font-size:12px;">
-            <p>📞 <b>SĐT:</b> <span id="modalPhone">...</span></p>
-            <p>📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
-            <p>🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
-            <p>👥 <b>Khách:</b> <span id="modalClientName">...</span></p>
-            <p>🚗 <b>Loại xe:</b> <span id="modalCarType">4 Chỗ</span></p>
-        </div>
-        <div class="modal-buttons">
-            <button style="background:#7f8c8d; color:white;" onclick="declineOrder()">BỎ QUA</button>
-            <button style="background:var(--primary); color:white;" onclick="acceptOrder()">ĐÓN KHÁCH</button>
+    <div id="tab-toi" class="tab-content">
+        <div class="p-header">THIẾT LẬP</div>
+        <div style="padding: 20px;">
+            <div style="background: white; padding: 15px; border-radius: 15px; font-size: 13px;">
+                <p><strong>Mã tài xế:</strong> <b id="profileID">...</b></p>
+                <p><strong>Họ tên:</strong> <b id="profileName">...</b></p>
+                <p><strong>Số điện thoại:</strong> <b id="profilePhone">...</b></p>
+                <p><strong>Biển số xe:</strong> <b id="profilePlate">...</b></p>
+                <p><strong>Dòng xe:</strong> <b id="profileCarModel">...</b></p>
+                <p><strong>Nhiên liệu:</strong> <b id="profileFuel">...</b></p>
+                <p><strong>Loại xe:</strong> <b id="profileCarClass">...</b></p>
+                <p><strong>Trạng thái:</strong> <b style="color: var(--primary);">ĐANG HOẠT ĐỘNG</b></p>
+                <p><strong>Độ chính xác GPS:</strong> <b id="profileAccuracy" style="color: var(--accent);">--</b></p>
+                <button class="btn-main" style="margin-top: 10px; background: #666;" 
+                    onclick="localStorage.removeItem('trip_history'); localStorage.removeItem('tp_expiry'); location.reload();">
+                    XÓA LỊCH SỬ CỤC BỘ
+                </button>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- END TRIP MODAL -->
-<div class="modal-overlay" id="endModal">
-    <div class="modal-container">
-        <div style="font-size:22px; font-weight:800;">✅ HOÀN THÀNH</div>
-        <div id="endSummary" style="padding:16px 0; font-size:14px;"></div>
-        <button class="auth-btn" onclick="closeModal('endModal')">XÁC NHẬN</button>
+    <!-- ========== FOOTER PANEL ========== -->
+    <div class="footer-panel">
+        <div id="homeControls" class="home-controls">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; font-weight: 800;">
+                <div>GIÁ/KM</div>
+                <span style="color: var(--danger);"><span id="rateLabel">15,000</span>đ</span>
+            </div>
+            <input type="range" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+            <button id="mainBtn" class="btn-main" onclick="handleTrip()">BẮT ĐẦU CHUYẾN ĐI</button>
+        </div>
+
+        <!-- Trip Info Panel - thay thế homeControls khi đang chạy chuyến -->
+        <div id="tripInfoPanel">
+            <div class="trip-status-bar">
+                <div class="trip-status-dot"></div>
+                <div class="trip-status-text" id="tripStatusText">🚗 ĐANG CHẠY CHUYẾN</div>
+                <div class="trip-km-live" id="tripKmLive">0.00 KM</div>
+            </div>
+
+            <div class="trip-customer-card">
+                <div class="trip-avatar">🧑</div>
+                <div class="trip-customer-info">
+                    <div class="trip-customer-name" id="tripClientName">Đang tải...</div>
+                    <div class="trip-customer-phone" id="tripClientPhone">...</div>
+                </div>
+                <button class="trip-call-btn" id="tripCallBtn" onclick="callCustomer()">📞</button>
+                <button class="trip-nav-btn" id="tripChatBtn" onclick="openChat()">💬</button>
+            </div>
+
+            <div class="trip-route-card">
+                <div class="trip-route-row">
+                    <div class="trip-route-icon">📍</div>
+                    <div>
+                        <div class="trip-route-label">Điểm đón</div>
+                        <div class="trip-route-val" id="tripFrom">...</div>
+                    </div>
+                </div>
+                <hr class="trip-route-divider" style="margin: 6px 0;">
+                <div class="trip-route-row">
+                    <div class="trip-route-icon">🏁</div>
+                    <div>
+                        <div class="trip-route-label">Điểm đến</div>
+                        <div class="trip-route-val" id="tripTo">...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="trip-price-row">
+                <div>
+                    <div class="trip-price-label">Giá ước tính</div>
+                    <div class="trip-price-val" id="tripPrice">...</div>
+                </div>
+                <div style="text-align: right;">
+                    <div class="trip-price-km" id="tripEstKm"></div>
+                    <div class="trip-price-km" id="tripCarType"></div>
+                </div>
+            </div>
+
+            <!-- Nút hành động: Đã đón khách / Chỉ đường -->
+            <div class="trip-action-buttons" id="tripActionButtons">
+                <button class="btn btn-pickup" id="pickupBtn" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button>
+                <button class="btn btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button>
+            </div>
+
+            <button class="trip-end-btn" id="endTripBtn" onclick="handleTrip()" style="display: none;">
+                🏁 KẾT THÚC CHUYẾN ĐI
+            </button>
+        </div>
+
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+        </div>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div>
-</div>
 
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
+    <!-- MODALS -->
+    <div id="orderModal" class="custom-modal">
+        <div class="modal-content">
+            <h2 style="color: var(--danger); margin: 0 0 5px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
+            <div class="tp-countdown-wrapper" style="margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5;">
+                <span id="tp-modal-timer-val">15</span>
+            </div>
+            <div style="text-align: left; background: #f5f6fa; padding: 15px; border-radius: 15px; margin-bottom: 15px; font-size: 13px; color: #333;">
+                <p style="margin: 4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color: var(--primary);">...</span></p>
+                <p style="margin: 4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
+                <p style="margin: 4px 0;">🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
+                <p style="margin: 4px 0;">👥 <b>Khách:</b> <span id="modalClientName">...</span></p>
+                <p style="margin: 4px 0;">🚗 <b>Loại xe:</b> <span id="modalCarType">4 Chỗ</span></p>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button class="btn-main" style="background: #7f8c8d; font-size: 14px; padding: 12px;" onclick="declineOrder()">BỎ QUA</button>
+                <button class="btn-main" style="background: var(--primary); font-size: 14px; padding: 12px;" onclick="acceptOrder()">ĐÓN KHÁCH</button>
+            </div>
+        </div>
+    </div>
 
-<!-- Firebase + Leaflet + Routing -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <div id="wishModal" class="custom-modal">
+        <div class="modal-content">
+            <h3 style="color: var(--primary);">THƯỢNG LỘ BÌNH AN!</h3>
+            <p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p>
+            <button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button>
+        </div>
+    </div>
 
-<script>
-// ============================================================
-// TAXI PROMAX - APP TÀI XẾ (HOÀN CHỈNH)
-// Version: 3.0 - Đã fix all lỗi, bổ sung đầy đủ tính năng
-// ============================================================
+    <div id="endModal" class="custom-modal">
+        <div class="modal-content">
+            <h3>HOÀN THÀNH!</h3>
+            <div id="endSummary" style="padding: 15px 0;"></div>
+            <button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button>
+        </div>
+    </div>
 
-// ==================== CONFIG ====================
-const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
-if (!firebase.apps.length) firebase.initializeApp({ databaseURL: FIREBASE_URL });
-const db = firebase.database();
+    <!-- TOAST -->
+    <div id="txToast"></div>
 
-// ==================== STATE ====================
-let map, driverMarker, customerMarker, routingControl;
-let currentLat = null, currentLng = null, currentHeading = 0;
-let isDriving = false;
-let totalKm = 0, currentRate = 15000;
-let lastPos = null;
-let currentOrderId = null, activeCustomer = null;
-let orderListener = null, cancelListener = null;
-let countdownInterval = null, countdownValue = 15;
-let tripStep = 'pickup'; // 'pickup' hoặc 'dropoff'
-let wakeLock = null;
-let audioCtx = null;
-let goldenHoursInterval = null;
+    <!-- CHAT OVERLAY -->
+    <div class="chat-overlay" id="chatOverlay">
+        <div class="chat-container">
+            <div class="chat-header">
+                <div style="font-size: 16px; font-weight: 800;">
+                    <i class="fas fa-comments" style="color: var(--accent);"></i> Nhắn khách hàng
+                </div>
+                <button class="chat-close" onclick="closeChat()" style="width: 36px; height: 36px; border-radius: 50%; background: #f0f0f0; border: none; font-size: 16px; cursor: pointer;">✕</button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div style="text-align: center; color: #999; padding: 20px;">Bắt đầu trò chuyện...</div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Nhắn tin..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+                <button class="chat-send" onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
 
-// Auth state
-let currentDriver = null;
-const TX_ID = localStorage.getItem('driver_id') || 'DRV_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-// ==================== AUTH ====================
-async function doRegister() {
-    const fullname = document.getElementById('regFullname').value.trim();
-    const phone = document.getElementById('regPhone').value.trim();
-    const cccd = document.getElementById('regCCCD').value.trim();
-    const plate = document.getElementById('regPlate').value.trim();
-    const carType = document.getElementById('regCarType').value;
-    const fuelType = document.getElementById('regFuelType').value;
-    const errorEl = document.getElementById('regError');
+    <script>
+    // ============================================================
+    // TAXI PROMAX - APP TÀI XẾ (FULL VERSION)
+    // Version: 3.0 - Đã sửa đầy đủ các lỗi
+    // ============================================================
 
-    errorEl.style.display = 'none';
+    // ==================== FIREBASE ====================
+    const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
+    if (!firebase.apps.length) firebase.initializeApp({ databaseURL: FIREBASE_URL });
+    const db = firebase.database();
 
-    if (!fullname || fullname.length < 2) {
-        errorEl.textContent = '⚠️ Vui lòng nhập họ tên';
-        errorEl.style.display = 'block';
-        return;
-    }
-    if (!/^0[0-9]{9}$/.test(phone)) {
-        errorEl.textContent = '⚠️ Số điện thoại không hợp lệ';
-        errorEl.style.display = 'block';
-        return;
-    }
-    if (!cccd || cccd.length < 9) {
-        errorEl.textContent = '⚠️ Vui lòng nhập CCCD/CMND hợp lệ';
-        errorEl.style.display = 'block';
-        return;
-    }
-    if (!plate) {
-        errorEl.textContent = '⚠️ Vui lòng nhập biển số xe';
-        errorEl.style.display = 'block';
-        return;
-    }
+    // ==================== BIẾN TOÀN CỤC ====================
+    let map, driverMarker, customerMarker, routeLayer;
+    let currentLat = null, currentLng = null;
+    let currentHeading = 0;
+    let isRunning = false;
+    let totalKm = 0;
+    let lastPos = null;
+    let currentRate = 15000;
+    let currentOrderId = null;
+    let currentCustomerData = null;
+    let orderListener = null;
+    let chatListener = null;
+    let cancelListener = null;
+    let wakeLock = null;
+    let countdownInterval = null;
+    let audioCtx = null;
+    let audioInterval = null;
+    let _isModalOpening = false;
+    let _processedOrders = new Set();
+    let hasPickedUp = false;  // Đã đón khách chưa?
 
-    const driverData = {
-        uid: TX_ID,
-        name: fullname,
-        phone: phone,
-        cccd: cccd,
-        plate: plate,
-        carType: carType,
-        fuelType: fuelType,
-        status: 'online',
-        createdAt: Date.now(),
-        totalRides: 0,
-        rating: 5.0,
-        coins: 0
+    // Thông tin tài xế (sẽ load từ Firebase sau đăng nhập)
+    let driverInfo = {
+        uid: null,
+        name: '',
+        phone: '',
+        plate: '',
+        carModel: '',
+        fuelType: 'xang',
+        carClass: '4_seats'
     };
 
-    try {
-        await db.ref(`drivers/${TX_ID}`).set(driverData);
-        currentDriver = driverData;
-        localStorage.setItem('driver_id', TX_ID);
-        localStorage.setItem('driver_data', JSON.stringify(driverData));
-        document.getElementById('authScreen').style.display = 'none';
-        document.getElementById('driverName').innerText = fullname;
-        document.getElementById('driverId').innerText = `ID: ${TX_ID.slice(-8)}`;
-        showToast('✅ Đăng nhập thành công!', 'success');
-        initApp();
-    } catch (e) {
-        errorEl.textContent = '⚠️ Lỗi: ' + e.message;
-        errorEl.style.display = 'block';
-    }
-}
+    // ==================== AUTH ====================
+    async function doRegister() {
+        const fullname = document.getElementById('regFullname').value.trim();
+        const phone = document.getElementById('regPhone').value.trim();
+        const cccd = document.getElementById('regCccd').value.trim();
+        const plate = document.getElementById('regPlate').value.trim();
+        const carModel = document.getElementById('regCarModel').value.trim();
+        const fuelType = document.querySelector('input[name="fuelType"]:checked')?.value || 'xang';
+        const carClass = document.querySelector('input[name="carClass"]:checked')?.value || '4_seats';
+        const btn = document.getElementById('btnRegister');
+        const btnText = document.getElementById('btnRegText');
+        const errorEl = document.getElementById('regError');
 
-// ==================== INIT ====================
-function initApp() {
-    initMap();
-    startGPS();
-    initOrderListener();
-    loadHistory();
-    checkPlanStatus();
-    startGoldenHoursAlert();
-    syncOnlineStatus(true);
-}
+        errorEl.style.display = 'none';
 
-function initMap() {
-    map = L.map('map', { zoomControl: false, attributionControl: false })
-        .setView([21.0285, 105.8542], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-    // Driver marker
-    const driverIcon = L.divIcon({
-        html: `<div style="position:relative; width:40px; height:40px;">
-                    <div style="position:absolute; width:40px; height:40px; border-radius:50%; background:rgba(0,191,165,0.4); animation:pulseRing 2s infinite;"></div>
-                    <div style="position:absolute; width:32px; height:32px; background:linear-gradient(135deg, #0054a3, #00bfa5); border:3px solid white; border-radius:50%; display:flex; align-items:center; justify-content:center;">
-                        <div style="position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-bottom:10px solid #00bfa5;"></div>
-                    </div>
-                </div>`,
-        className: '', iconSize: [40, 40], iconAnchor: [20, 20]
-    });
-    driverMarker = L.marker([21.0285, 105.8542], { icon: driverIcon }).addTo(map);
-
-    // Customer marker
-    const customerIcon = L.divIcon({
-        html: `<div style="width:26px; height:26px; background:#d32f2f; border:3px solid white; border-radius:50%; animation:customerPulse 1.5s infinite; display:flex; align-items:center; justify-content:center;">🧑</div>`,
-        className: '', iconSize: [26, 26], iconAnchor: [13, 13]
-    });
-    customerMarker = L.marker([21.0285, 105.8542], { icon: customerIcon }).addTo(map);
-    customerMarker.setOpacity(0);
-}
-
-function startGPS() {
-    if (!navigator.geolocation) {
-        showToast('⚠️ Không hỗ trợ GPS', 'error');
-        return;
-    }
-
-    navigator.geolocation.watchPosition(
-        (pos) => {
-            const { latitude, longitude, accuracy, heading } = pos.coords;
-            currentLat = latitude;
-            currentLng = longitude;
-            if (heading && !isNaN(heading)) currentHeading = heading;
-
-            // Update UI
-            const dot = document.getElementById('gpsDot');
-            const text = document.getElementById('gpsText');
-            if (accuracy <= 15) {
-                dot.className = 'gps-dot good';
-                text.innerText = `GPS: Tốt (±${accuracy.toFixed(0)}m)`;
-            } else if (accuracy <= 30) {
-                dot.className = 'gps-dot weak';
-                text.innerText = `GPS: TB (±${accuracy.toFixed(0)}m)`;
-            } else {
-                dot.className = 'gps-dot bad';
-                text.innerText = `GPS: Yếu (±${accuracy.toFixed(0)}m)`;
-            }
-
-            driverMarker.setLatLng([latitude, longitude]);
-            if (!isDriving) map.setView([latitude, longitude], 16);
-
-            // Tính km khi đang chạy
-            if (isDriving && lastPos && accuracy <= 30) {
-                const distance = lastPos.distanceTo(L.latLng(latitude, longitude)) / 1000;
-                if (distance > 0.01 && distance < 0.5) {
-                    totalKm += distance;
-                    document.getElementById('km').innerText = totalKm.toFixed(2);
-                    document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
-                    document.getElementById('tripKmLive').innerText = totalKm.toFixed(2) + ' KM';
-                    const realPrice = Math.round(totalKm * currentRate);
-                    const priceEl = document.getElementById('tripPrice');
-                    if (priceEl && totalKm > 0.1) priceEl.innerText = realPrice.toLocaleString() + 'đ';
-                }
-            }
-            lastPos = L.latLng(latitude, longitude);
-
-            // Sync lên Firebase
-            syncLocation();
-        },
-        (err) => { console.warn('GPS error:', err); },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-}
-
-function syncLocation() {
-    if (!currentLat) return;
-    db.ref(`tai_xe_online/${TX_ID}`).set({
-        lat: currentLat, lng: currentLng, heading: currentHeading,
-        status: isDriving ? 'busy' : 'ready',
-        lastUpdate: Date.now()
-    }).catch(() => {});
-}
-
-function syncOnlineStatus(online) {
-    db.ref(`tai_xe_online/${TX_ID}`).update({ online: online, lastSeen: Date.now() }).catch(() => {});
-}
-
-// ==================== ORDER LISTENER ====================
-function initOrderListener() {
-    db.ref('datxe').orderByChild('status').equalTo('waiting').on('child_added', (snap) => {
-        if (isDriving) return;
-        const order = snap.val();
-        if (!order) return;
-        if (order.carType === '7_seats' && currentDriver?.carType !== '7_seats') return;
-
-        // Kiểm tra gói cước còn hạn không
-        if (!checkCanAcceptOrder()) return;
-
-        activeCustomer = { id: snap.key, ...order };
-        showOrderModal();
-    });
-}
-
-function checkCanAcceptOrder() {
-    const expiry = localStorage.getItem('tp_expiry');
-    if (expiry && parseInt(expiry) < Date.now()) {
-        showToast('⚠️ Vui lòng gia hạn gói cước để nhận đơn', 'error');
-        showTab('packages');
-        return false;
-    }
-    return true;
-}
-
-function showOrderModal() {
-    if (!activeCustomer) return;
-
-    document.getElementById('modalPhone').innerText = activeCustomer.phone || '...';
-    document.getElementById('modalFrom').innerText = activeCustomer.pickup || '...';
-    document.getElementById('modalTo').innerText = activeCustomer.dropoff || '...';
-    document.getElementById('modalClientName').innerText = activeCustomer.clientName || 'Khách vãng lai';
-    document.getElementById('modalCarType').innerText = activeCustomer.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
-
-    countdownValue = 15;
-    document.getElementById('modalTimer').innerText = countdownValue;
-    document.getElementById('orderModal').style.display = 'flex';
-
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        countdownValue--;
-        document.getElementById('modalTimer').innerText = countdownValue;
-        if (countdownValue <= 0) {
-            clearInterval(countdownInterval);
-            declineOrder();
-        }
-    }, 1000);
-
-    playAlertSound();
-    if (navigator.vibrate) navigator.vibrate([500, 300, 500]);
-    speak("Có đơn đặt xe mới, vui lòng kiểm tra.");
-}
-
-function acceptOrder() {
-    clearInterval(countdownInterval);
-    closeModal('orderModal');
-    isDriving = true;
-    tripStep = 'pickup';
-
-    // Cập nhật order trên Firebase
-    db.ref(`datxe/${activeCustomer.id}`).update({
-        status: 'driving',
-        driverId: TX_ID,
-        driverName: currentDriver?.name || 'Tài xế',
-        driverPhone: currentDriver?.phone || '',
-        driverPlate: currentDriver?.plate || '',
-        driverRating: currentDriver?.rating || 5
-    }).catch(() => {});
-
-    // Hiển thị trip panel
-    document.getElementById('homePanel').style.display = 'none';
-    document.getElementById('tripPanel').style.display = 'block';
-    document.getElementById('mainBtn').style.display = 'none';
-
-    // Điền thông tin khách
-    document.getElementById('tripClientName').innerText = activeCustomer.clientName || 'Khách hàng';
-    document.getElementById('tripClientPhone').innerText = activeCustomer.phone || '...';
-    document.getElementById('tripCallBtn').href = `tel:${activeCustomer.phone || ''}`;
-    document.getElementById('tripFrom').innerText = activeCustomer.pickup || '...';
-    document.getElementById('tripTo').innerText = activeCustomer.dropoff || '...';
-
-    const price = activeCustomer.estimatePrice || 0;
-    document.getElementById('tripPrice').innerHTML = price > 0 ? price.toLocaleString() + 'đ' : 'Theo đồng hồ';
-    document.getElementById('tripEstKm').innerHTML = activeCustomer.estimateKm ? activeCustomer.estimateKm.toFixed(1) + ' km' : '';
-    document.getElementById('tripCarType').innerHTML = activeCustomer.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-
-    // Vẽ đường đi đến điểm đón
-    if (activeCustomer.pickupLat && activeCustomer.pickupLng) {
-        drawRoute(currentLat, currentLng, activeCustomer.pickupLat, activeCustomer.pickupLng);
-        customerMarker.setLatLng([activeCustomer.pickupLat, activeCustomer.pickupLng]);
-        customerMarker.setOpacity(1);
-        map.fitBounds([[currentLat, currentLng], [activeCustomer.pickupLat, activeCustomer.pickupLng]]);
-    }
-
-    currentOrderId = activeCustomer.id;
-    listenForCancel();
-
-    syncLocation();
-    speak("Đã nhận đơn, đang tiến hành điều hướng đến khách.");
-    showToast('✅ Đã nhận đơn! Đang điều hướng đến khách', 'success');
-}
-
-function declineOrder() {
-    clearInterval(countdownInterval);
-    closeModal('orderModal');
-    activeCustomer = null;
-    speak("Đã bỏ qua đơn hàng.");
-}
-
-function nextTripStep() {
-    if (tripStep === 'pickup') {
-        // Xác nhận đã đón khách -> vẽ đường đến điểm đến
-        tripStep = 'dropoff';
-        document.getElementById('nextStepBtn').innerHTML = '🏁 KẾT THÚC CHUYẾN';
-        document.getElementById('tripStatusText').innerHTML = '🚕 ĐANG ĐƯA KHÁCH ĐẾN ĐIỂM ĐẾN';
-
-        if (activeCustomer.dropoffLat && activeCustomer.dropoffLng) {
-            drawRoute(currentLat, currentLng, activeCustomer.dropoffLat, activeCustomer.dropoffLng);
-        } else {
-            // Geocode điểm đến
-            geocodeAddress(activeCustomer.dropoff, (lat, lng) => {
-                if (lat && lng) drawRoute(currentLat, currentLng, lat, lng);
-            });
-        }
-        speak("Đã đón khách, bắt đầu hành trình.");
-        showToast('✅ Đã đón khách! Chúc anh may mắn', 'success');
-    } else {
-        // Kết thúc chuyến
-        endTrip();
-    }
-}
-
-function drawRoute(fromLat, fromLng, toLat, toLng) {
-    if (routingControl) map.removeControl(routingControl);
-    routingControl = L.Routing.control({
-        waypoints: [L.latLng(fromLat, fromLng), L.latLng(toLat, toLng)],
-        routeWhileDragging: false,
-        showAlternatives: false,
-        lineOptions: { styles: [{ color: '#0054a3', weight: 5, opacity: 0.8 }] },
-        createMarker: () => null
-    }).addTo(map);
-}
-
-function geocodeAddress(address, callback) {
-    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
-        .then(r => r.json())
-        .then(data => {
-            if (data && data[0]) callback(parseFloat(data[0].lat), parseFloat(data[0].lon));
-            else callback(null, null);
-        })
-        .catch(() => callback(null, null));
-}
-
-function cancelTrip() {
-    if (confirm('Bạn có chắc muốn hủy chuyến không?')) {
-        if (currentOrderId) {
-            db.ref(`datxe/${currentOrderId}`).update({ status: 'cancelled', cancelledBy: 'driver' }).catch(() => {});
-        }
-        resetTrip();
-        showToast('❌ Đã hủy chuyến', 'error');
-    }
-}
-
-function endTrip() {
-    const finalCost = Math.round(totalKm * currentRate);
-    const finalCostStr = finalCost.toLocaleString();
-
-    // Lưu lịch sử
-    saveHistory(totalKm, finalCostStr, finalCost);
-
-    // Cập nhật order
-    if (currentOrderId) {
-        db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', actualKm: totalKm, actualPrice: finalCost }).catch(() => {});
-    }
-
-    document.getElementById('endSummary').innerHTML = `
-        Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>
-        Tổng tiền: <b style="color:var(--primary); font-size:22px;">${finalCostStr}đ</b>
-    `;
-    document.getElementById('endModal').style.display = 'flex';
-
-    resetTrip();
-}
-
-function resetTrip() {
-    isDriving = false;
-    tripStep = 'pickup';
-    totalKm = 0;
-    currentOrderId = null;
-    activeCustomer = null;
-
-    document.getElementById('km').innerText = '0.00';
-    document.getElementById('cost').innerText = '0';
-    document.getElementById('homePanel').style.display = 'block';
-    document.getElementById('tripPanel').style.display = 'none';
-    document.getElementById('mainBtn').style.display = 'block';
-    document.getElementById('nextStepBtn').innerHTML = 'ĐÃ ĐÓN KHÁCH';
-
-    if (routingControl) map.removeControl(routingControl);
-    customerMarker.setOpacity(0);
-
-    if (cancelListener) {
-        db.ref(`datxe/${cancelListener}/status`).off();
-        cancelListener = null;
-    }
-
-    syncLocation();
-}
-
-function listenForCancel() {
-    if (cancelListener) db.ref(`datxe/${cancelListener}/status`).off();
-    cancelListener = currentOrderId;
-    db.ref(`datxe/${currentOrderId}/status`).on('value', (snap) => {
-        if (snap.val() === 'cancelled' && isDriving) {
-            document.getElementById('cancelBanner').style.display = 'block';
-            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
-            speak("Cảnh báo! Khách hàng đã hủy chuyến.");
-        }
-    });
-}
-
-function dismissCancel() {
-    document.getElementById('cancelBanner').style.display = 'none';
-    if (isDriving) resetTrip();
-}
-
-function saveHistory(km, costLabel, costRaw) {
-    const history = JSON.parse(localStorage.getItem('driver_history') || '[]');
-    history.unshift({
-        km: parseFloat(km),
-        cost: costRaw,
-        costLabel: costLabel,
-        time: new Date().toLocaleString('vi-VN'),
-        timestamp: Date.now()
-    });
-    localStorage.setItem('driver_history', JSON.stringify(history.slice(0, 100)));
-
-    // Sync lên Firebase
-    db.ref(`trips/${TX_ID}/${Date.now()}`).set({
-        km: km, cost: costRaw, costLabel: costLabel, timestamp: Date.now()
-    }).catch(() => {});
-
-    loadHistory();
-}
-
-function loadHistory() {
-    const history = JSON.parse(localStorage.getItem('driver_history') || '[]');
-    const container = document.getElementById('historyList');
-    if (!container) return;
-
-    if (history.length === 0) {
-        container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">Chưa có chuyến đi nào</div>';
-        return;
-    }
-
-    container.innerHTML = history.map(h => `
-        <div class="history-card">
-            <div class="history-info">
-                <div class="history-time">${h.time}</div>
-                <div class="history-route">${h.km.toFixed(2)} KM</div>
-            </div>
-            <div class="history-price">${h.costLabel}đ</div>
-        </div>
-    `).join('');
-}
-
-// ==================== PACKAGES ====================
-function handlePayment(amount, planName) {
-    if (amount === 0) {
-        if (localStorage.getItem('trial_used')) {
-            showToast('⚠️ Bạn đã dùng gói dùng thử rồi!', 'error');
+        if (!fullname || fullname.length < 2) {
+            errorEl.textContent = '⚠️ Vui lòng nhập họ tên';
+            errorEl.style.display = 'block';
             return;
         }
-        const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        localStorage.setItem('tp_expiry', expiry);
-        localStorage.setItem('tp_plan', planName);
-        localStorage.setItem('trial_used', 'true');
-        db.ref(`drivers/${TX_ID}`).update({ tp_expiry: expiry, tp_plan: planName, trial_used: true }).catch(() => {});
-        showToast('✅ Kích hoạt gói dùng thử 7 ngày thành công!', 'success');
-        checkPlanStatus();
-    } else {
-        showToast(`💰 Vui lòng thanh toán ${amount.toLocaleString()}đ cho gói ${planName}`, 'info');
-        // Tích hợp PayOS ở đây
-    }
-}
-
-function checkPlanStatus() {
-    const expiry = localStorage.getItem('tp_expiry');
-    const now = Date.now();
-    const planEl = document.getElementById('planBadge');
-
-    if (expiry && parseInt(expiry) > now) {
-        const daysLeft = Math.ceil((parseInt(expiry) - now) / (1000 * 60 * 60 * 24));
-        planEl.innerHTML = `⭐ GÓI: ${localStorage.getItem('tp_plan') || 'PRO'} (${daysLeft} ngày)`;
-        planEl.style.color = '#f1c40f';
-    } else {
-        planEl.innerHTML = '⚠️ GÓI: HẾT HẠN';
-        planEl.style.color = '#d32f2f';
-        if (isDriving) {
-            showToast('⚠️ Gói cước đã hết hạn! Vui lòng gia hạn để tiếp tục nhận đơn', 'error');
+        if (!/^0[0-9]{9}$/.test(phone)) {
+            errorEl.textContent = '⚠️ Số điện thoại không hợp lệ';
+            errorEl.style.display = 'block';
+            return;
         }
-    }
-}
-
-// ==================== TOOLS ====================
-const HOT_SPOTS = [
-    { name: "Sân bay Nội Bài", lat: 21.2212, lng: 105.8071, hotTime: "18:00-21:00" },
-    { name: "Bến xe Giáp Bát", lat: 20.9825, lng: 105.8445, hotTime: "16:00-19:00" },
-    { name: "Phố cổ Hà Nội", lat: 21.0285, lng: 105.8525, hotTime: "19:00-23:00" },
-    { name: "Times City", lat: 21.0067, lng: 105.8653, hotTime: "17:00-20:00" }
-];
-
-function openRadar() {
-    HOT_SPOTS.forEach(spot => {
-        L.circleMarker([spot.lat, spot.lng], {
-            radius: 15, fillColor: '#f39c12', color: 'white', weight: 2, fillOpacity: 0.8
-        }).addTo(map).bindTooltip(`<b>${spot.name}</b><br>🔥 Giờ vàng: ${spot.hotTime}`).openTooltip();
-    });
-    showTab('home');
-    map.setZoom(12);
-    speak("Đã hiển thị điểm nóng khách hàng.");
-}
-
-function openSOS() {
-    if (confirm('🆘 GỬI TÍN HIỆU SOS?\nHệ thống sẽ gửi vị trí của bạn đến trung tâm hỗ trợ!')) {
-        db.ref('emergencies').push({
-            driverId: TX_ID, name: currentDriver?.name, phone: currentDriver?.phone,
-            lat: currentLat, lng: currentLng, timestamp: Date.now(), type: 'driver'
-        }).catch(() => {});
-        showToast('🆘 Đã gửi tín hiệu SOS!', 'error');
-        speak("Đã gửi tín hiệu cấp cứu.");
-    }
-}
-
-function openProfit() {
-    const history = JSON.parse(localStorage.getItem('driver_history') || '[]');
-    const total = history.reduce((sum, h) => sum + (h.cost || 0), 0);
-    showToast(`📊 Tổng doanh thu: ${total.toLocaleString()}đ`, 'info');
-}
-
-function showGoldenHours() {
-    const now = new Date();
-    const hour = now.getHours();
-    let msg = '';
-    if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
-        msg = '🌟 GIỜ VÀNG! Khách đang tăng cao, hãy tập trung khu vực trung tâm.';
-    } else if (hour >= 11 && hour <= 13) {
-        msg = '🍱 Giờ trưa, nhiều khách đi ăn uống.';
-    } else if (hour >= 21 && hour <= 23) {
-        msg = '🌙 Giờ đêm, cẩn thận an toàn, khách có nhu cầu cao.';
-    } else {
-        msg = '⏰ Giờ bình thường, có thể nghỉ ngơi hoặc di chuyển đến điểm nóng.';
-    }
-    showToast(msg, 'info');
-    speak(msg);
-}
-
-function startGoldenHoursAlert() {
-    goldenHoursInterval = setInterval(() => {
-        const hour = new Date().getHours();
-        if ((hour === 7 || hour === 17) && !isDriving) {
-            showToast('🌟 GIỜ VÀNG! Nhu cầu khách tăng cao!', 'success');
-            speak("Giờ vàng đã đến, hãy tập trung khu vực đông dân cư.");
+        if (!/^[0-9]{9,12}$/.test(cccd)) {
+            errorEl.textContent = '⚠️ CCCD/CMND phải 9-12 số';
+            errorEl.style.display = 'block';
+            return;
         }
-    }, 60000);
-}
+        if (!plate) {
+            errorEl.textContent = '⚠️ Vui lòng nhập biển số xe';
+            errorEl.style.display = 'block';
+            return;
+        }
+        if (!carModel) {
+            errorEl.textContent = '⚠️ Vui lòng nhập dòng xe';
+            errorEl.style.display = 'block';
+            return;
+        }
 
-// ==================== UI HELPERS ====================
-function startTrip() {
-    if (!checkCanAcceptOrder()) return;
-    isDriving = true;
-    totalKm = 0;
-    document.getElementById('km').innerText = '0.00';
-    document.getElementById('cost').innerText = '0';
-    document.getElementById('homePanel').style.display = 'none';
-    document.getElementById('tripPanel').style.display = 'block';
-    document.getElementById('mainBtn').style.display = 'none';
-    document.getElementById('nextStepBtn').innerHTML = 'ĐÃ ĐÓN KHÁCH';
-    tripStep = 'pickup';
-    speak("Bắt đầu chuyến đi. Hệ thống đang tìm kiếm khách hàng xung quanh.");
-    syncLocation();
-}
+        btn.disabled = true;
+        btnText.textContent = 'Đang xử lý...';
 
-function updateRate(val) {
-    currentRate = parseInt(val);
-    document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
-}
-
-function showTab(tabName, btn) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-
-    if (tabName === 'home') {
-        document.getElementById('homePanel').style.display = 'block';
-        document.getElementById('tripPanel').style.display = 'none';
-        document.getElementById('tabPackages').classList.remove('active');
-        document.getElementById('tabHistory').classList.remove('active');
-        document.getElementById('tabTools').classList.remove('active');
-        map.invalidateSize();
-    } else {
-        document.getElementById('homePanel').style.display = 'none';
-        document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.add('active');
-        if (tabName === 'history') loadHistory();
-        map.invalidateSize();
-    }
-}
-
-function closeModal(id) {
-    document.getElementById(id).style.display = 'none';
-}
-
-function showToast(msg, type) {
-    const toast = document.getElementById('toast');
-    toast.innerText = msg;
-    toast.style.background = type === 'error' ? '#d32f2f' : (type === 'success' ? '#00bfa5' : '#2c3e50');
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-function speak(text) {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'vi-VN';
-        utterance.rate = 1;
-        window.speechSynthesis.speak(utterance);
-    }
-}
-
-function playAlertSound() {
-    try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.2);
-    } catch(e) { console.warn('Audio error:', e); }
-}
-
-// ==================== CSS animation styles ====================
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes pulseRing {
-        0% { transform: scale(0.8); opacity: 0.7; }
-        100% { transform: scale(1.4); opacity: 0; }
-    }
-    @keyframes customerPulse {
-        0% { box-shadow: 0 0 0 0 rgba(211,47,47,0.7); }
-        70% { box-shadow: 0 0 0 15px rgba(211,47,47,0); }
-        100% { box-shadow: 0 0 0 0 rgba(211,47,47,0); }
-    }
-`;
-document.head.appendChild(style);
-
-// ==================== CHECK AUTH ON LOAD ====================
-window.onload = () => {
-    const savedDriver = localStorage.getItem('driver_data');
-    if (savedDriver) {
         try {
-            currentDriver = JSON.parse(savedDriver);
+            const snapshot = await db.ref('drivers').once('value');
+            const allDrivers = snapshot.val() || {};
+            const exists = Object.values(allDrivers).some(d => d.phone === phone);
+
+            if (exists) {
+                errorEl.textContent = '⚠️ Số điện thoại đã đăng ký! Vui lòng đăng nhập.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            const uid = 'driver_' + Date.now();
+            const newDriver = {
+                uid: uid,
+                name: fullname,
+                phone: phone,
+                cccd: cccd,
+                plate: plate,
+                carModel: carModel,
+                fuelType: fuelType,
+                carClass: carClass,
+                status: 'offline',
+                createdAt: Date.now(),
+                totalRides: 0,
+                rating: 5.0
+            };
+
+            await db.ref('drivers/' + uid).set(newDriver);
+
+            // Lưu thông tin vào localStorage
+            driverInfo = {
+                uid: uid,
+                name: fullname,
+                phone: phone,
+                plate: plate,
+                carModel: carModel,
+                fuelType: fuelType,
+                carClass: carClass
+            };
+            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
+
             document.getElementById('authScreen').style.display = 'none';
-            document.getElementById('driverName').innerText = currentDriver.name || 'Tài xế';
-            document.getElementById('driverId').innerText = `ID: ${TX_ID.slice(-8)}`;
+            showToast('✅ Đăng ký thành công! Chào ' + fullname, 'success');
+            setTimeout(initApp, 300);
+
+        } catch (error) {
+            errorEl.textContent = '⚠️ Lỗi: ' + error.message;
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btnText.textContent = 'ĐĂNG KÝ TÀI XẾ';
+        }
+    }
+
+    async function doLogin() {
+        const phone = document.getElementById('loginPhone').value.trim();
+        const btn = document.getElementById('btnLogin');
+        const btnText = document.getElementById('btnLoginText');
+        const errorEl = document.getElementById('loginError');
+
+        errorEl.style.display = 'none';
+
+        if (!/^0[0-9]{9}$/.test(phone)) {
+            errorEl.textContent = '⚠️ Số điện thoại không hợp lệ';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        btn.disabled = true;
+        btnText.textContent = 'Đang xử lý...';
+
+        try {
+            const snapshot = await db.ref('drivers').once('value');
+            const allDrivers = snapshot.val() || {};
+            const driver = Object.values(allDrivers).find(d => d.phone === phone);
+
+            if (!driver) {
+                errorEl.textContent = '⚠️ Số điện thoại chưa đăng ký!';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            driverInfo = {
+                uid: driver.uid,
+                name: driver.name,
+                phone: driver.phone,
+                plate: driver.plate,
+                carModel: driver.carModel,
+                fuelType: driver.fuelType,
+                carClass: driver.carClass
+            };
+            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
+
+            document.getElementById('authScreen').style.display = 'none';
+            showToast('✅ Đăng nhập thành công! Chào ' + driver.name, 'success');
+            setTimeout(initApp, 300);
+
+        } catch (error) {
+            errorEl.textContent = '⚠️ Lỗi: ' + error.message;
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btnText.textContent = 'ĐĂNG NHẬP';
+        }
+    }
+
+    function toggleAuth() {
+        const registerStep = document.getElementById('stepRegister');
+        const loginStep = document.getElementById('stepLogin');
+        const toggleBtn = document.getElementById('btnToggle');
+
+        if (registerStep.style.display !== 'none') {
+            registerStep.style.display = 'none';
+            loginStep.style.display = 'block';
+            toggleBtn.textContent = 'Chưa có tài khoản? Đăng ký';
+        } else {
+            registerStep.style.display = 'block';
+            loginStep.style.display = 'none';
+            toggleBtn.textContent = 'Đã có tài khoản? Đăng nhập';
+        }
+    }
+
+    // ==================== KHỞI TẠO APP ====================
+    function initApp() {
+        const savedDriver = localStorage.getItem('driverInfo');
+        if (savedDriver) {
+            driverInfo = JSON.parse(savedDriver);
+        }
+
+        // Hiển thị thông tin trên UI
+        document.getElementById('idShow').innerHTML = '🆔 ' + (driverInfo.uid ? driverInfo.uid.slice(-8) : '...');
+        document.getElementById('profileID').innerText = driverInfo.uid || '...';
+        document.getElementById('profileName').innerText = driverInfo.name || '...';
+        document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
+        document.getElementById('profilePlate').innerText = driverInfo.plate || '...';
+        document.getElementById('profileCarModel').innerText = driverInfo.carModel || '...';
+        document.getElementById('profileFuel').innerText = driverInfo.fuelType === 'xang' ? '⛽ Xăng' : '🔋 Điện';
+        document.getElementById('profileCarClass').innerText = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+
+        initMap();
+        startGPS();
+        startOrderListener();
+        renderHistory();
+        initCountdown();
+        syncDriverOnline(true);
+    }
+
+    function initMap() {
+        map = L.map('map', { zoomControl: false, attributionControl: false })
+            .setView([21.0285, 105.8542], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        window.addEventListener('resize', () => map.invalidateSize());
+    }
+
+    // ==================== GPS ====================
+    function startGPS() {
+        if (!('geolocation' in navigator)) {
+            showToast('⚠️ Không hỗ trợ GPS', 'error');
+            return;
+        }
+
+        navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy, heading } = pos.coords;
+                currentLat = latitude;
+                currentLng = longitude;
+                if (heading) currentHeading = Math.round(heading);
+
+                // Cập nhật UI GPS
+                const dot = document.getElementById('gpsDot');
+                const text = document.getElementById('gpsStatusText');
+                const accEl = document.getElementById('profileAccuracy');
+
+                if (accuracy <= 15) {
+                    dot.className = 'gps-dot good';
+                    text.innerText = `GPS: Tốt (±${Math.round(accuracy)}m)`;
+                } else if (accuracy <= 30) {
+                    dot.className = 'gps-dot weak';
+                    text.innerText = `GPS: Trung bình (±${Math.round(accuracy)}m)`;
+                } else {
+                    dot.className = 'gps-dot bad';
+                    text.innerText = `GPS: Yếu (±${Math.round(accuracy)}m)`;
+                }
+                if (accEl) accEl.innerText = Math.round(accuracy) + 'm';
+
+                // Tạo marker tài xế
+                if (!driverMarker) {
+                    const driverIcon = L.divIcon({
+                        html: `<div style="position: relative; width: 40px; height: 40px;">
+                                    <div style="position: absolute; width: 42px; height: 42px; border-radius: 50%; background-color: rgba(0,191,165,0.4); animation: smSpread 2s infinite;"></div>
+                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; transform: rotate(${currentHeading}deg);">
+                                        <div style="position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 10px solid #00bfa5;"></div>
+                                        <div style="width: 20px; height: 20px; background: #00bfa5; border: 3px solid white; border-radius: 50%;"></div>
+                                    </div>
+                                </div>`,
+                        className: '',
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20]
+                    });
+                    driverMarker = L.marker([latitude, longitude], { icon: driverIcon }).addTo(map);
+                    map.setView([latitude, longitude], 16);
+                } else {
+                    driverMarker.setLatLng([latitude, longitude]);
+                    const compass = document.querySelector('.sm-direction-wrapper');
+                    if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
+                }
+
+                // Tính km khi đang chạy chuyến
+                if (isRunning && lastPos && accuracy <= 30) {
+                    const d = lastPos.distanceTo(L.latLng(latitude, longitude)) / 1000;
+                    if (d > 0.01) {
+                        totalKm += d;
+                        document.getElementById('km').innerText = totalKm.toFixed(2);
+                        const cost = Math.round(totalKm * currentRate);
+                        document.getElementById('cost').innerText = cost.toLocaleString();
+                        document.getElementById('tripKmLive').innerText = totalKm.toFixed(2) + ' KM';
+                        document.getElementById('tripPrice').innerHTML = cost.toLocaleString() + 'đ';
+                    }
+                }
+
+                lastPos = L.latLng(latitude, longitude);
+                syncDriverLocation();
+            },
+            (err) => {
+                console.error('GPS error:', err);
+                document.getElementById('gpsStatusText').innerText = 'GPS: Lỗi';
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    function syncDriverLocation() {
+        if (!currentLat || !currentLng) return;
+        db.ref(`tai_xe_online/${driverInfo.uid}`).set({
+            lat: currentLat,
+            lng: currentLng,
+            heading: currentHeading,
+            status: isRunning ? 'busy' : 'ready',
+            lastUpdate: Date.now(),
+            plate: driverInfo.plate,
+            name: driverInfo.name
+        }).catch(() => {});
+    }
+
+    function syncDriverOnline(isOnline) {
+        if (!driverInfo.uid) return;
+        if (isOnline) {
+            db.ref(`tai_xe_online/${driverInfo.uid}`).set({
+                lat: currentLat || 0,
+                lng: currentLng || 0,
+                status: isRunning ? 'busy' : 'ready',
+                lastUpdate: Date.now(),
+                plate: driverInfo.plate,
+                name: driverInfo.name
+            }).catch(() => {});
+        } else {
+            db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(() => {});
+        }
+    }
+
+    // ==================== REALTIME ORDER LISTENER ====================
+    function startOrderListener() {
+        if (orderListener) {
+            db.ref('datxe').off();
+        }
+        orderListener = db.ref('datxe');
+
+        orderListener.on('child_added', (snapshot) => {
+            if (_isModalOpening || isRunning) return;
+            const order = snapshot.val();
+            const orderId = snapshot.key;
+            if (!order || order.status !== 'waiting') return;
+            if (_processedOrders.has(orderId)) return;
+            if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
+
+            _processedOrders.add(orderId);
+            showOrderModal(orderId, order);
+        });
+    }
+
+    function showOrderModal(orderId, order) {
+        _isModalOpening = true;
+        currentOrderId = orderId;
+        currentCustomerData = order;
+
+        document.getElementById('modalPhone').innerText = order.phone || '...';
+        document.getElementById('modalFrom').innerText = order.pickup || '...';
+        document.getElementById('modalTo').innerText = order.dropoff || '...';
+        document.getElementById('modalClientName').innerText = order.clientName || 'Khách vãng lai';
+        document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+
+        let countdown = 15;
+        document.getElementById('tp-modal-timer-val').innerText = countdown;
+        document.getElementById('orderModal').style.display = 'flex';
+
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(() => {
+            countdown--;
+            document.getElementById('tp-modal-timer-val').innerText = countdown;
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                declineOrder();
+            }
+        }, 1000);
+
+        // Âm thanh thông báo
+        if (navigator.vibrate) navigator.vibrate([500, 300, 500]);
+        speak("Có đơn đặt xe mới, vui lòng kiểm tra.");
+    }
+
+    function acceptOrder() {
+        clearInterval(countdownInterval);
+        document.getElementById('orderModal').style.display = 'none';
+
+        // Cập nhật trạng thái order
+        db.ref(`datxe/${currentOrderId}`).update({
+            status: 'driving',
+            driverId: driverInfo.uid,
+            driverName: driverInfo.name,
+            driverPhone: driverInfo.phone,
+            driverPlate: driverInfo.plate,
+            acceptedAt: Date.now()
+        }).then(() => {
+            // Hiển thị panel điều khiển chuyến đi
+            showTripPanel(currentCustomerData);
+            isRunning = true;
+            hasPickedUp = false;
+            totalKm = 0;
+            document.getElementById('km').innerText = '0.00';
+            document.getElementById('cost').innerText = '0';
+
+            // Tạo marker khách hàng
+            if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
+                createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+                drawRoute(currentLat, currentLng, currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+            }
+
+            syncDriverOnline(true);
+            speak("Đã nhận đơn, tiến hành di chuyển đến điểm đón khách.");
+            _isModalOpening = false;
+        }).catch(() => {
+            _isModalOpening = false;
+        });
+    }
+
+    function declineOrder() {
+        clearInterval(countdownInterval);
+        document.getElementById('orderModal').style.display = 'none';
+        _isModalOpening = false;
+        speak("Đã bỏ qua đơn hàng.");
+    }
+
+    // ==================== TRIP PANEL ====================
+    function showTripPanel(order) {
+        // Ẩn homeControls, hiện tripInfoPanel
+        document.getElementById('homeControls').style.display = 'none';
+        document.getElementById('tripInfoPanel').style.display = 'block';
+
+        // Hiển thị thông tin khách
+        document.getElementById('tripClientName').innerText = order.clientName || 'Khách hàng';
+        document.getElementById('tripClientPhone').innerText = order.phone || '...';
+        document.getElementById('tripFrom').innerText = order.pickup || '...';
+        document.getElementById('tripTo').innerText = order.dropoff || '...';
+
+        const price = order.estimatePrice || 0;
+        const km = order.estimateKm || 0;
+        document.getElementById('tripPrice').innerHTML = price > 0 ? price.toLocaleString() + 'đ' : 'Tính theo KM';
+        document.getElementById('tripEstKm').innerHTML = km > 0 ? km.toFixed(1) + ' km' : '';
+        document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+
+        // Lắng nghe khách hủy chuyến
+        listenForCustomerCancel(currentOrderId);
+        // Lắng nghe chat
+        listenForChat(currentOrderId);
+    }
+
+    function createCustomerMarker(lat, lng) {
+        if (customerMarker) map.removeLayer(customerMarker);
+        const icon = L.divIcon({
+            html: '<div style="width: 26px; height: 26px; background: #d32f2f; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(211,47,47,0.7); display: flex; align-items: center; justify-content: center; font-size: 12px; animation: pulseMarker 1.5s infinite;">🧍</div>',
+            className: '',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+        });
+        customerMarker = L.marker([lat, lng], { icon }).addTo(map);
+        customerMarker.bindTooltip(`<b>Khách: ${currentCustomerData?.clientName || 'Khách'}</b>`).openTooltip();
+
+        if (driverMarker) {
+            const bounds = L.featureGroup([driverMarker, customerMarker]).getBounds();
+            map.fitBounds(bounds.pad(0.3));
+        }
+    }
+
+    function drawRoute(fromLat, fromLng, toLat, toLng) {
+        if (routeLayer) map.removeLayer(routeLayer);
+        fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.routes?.[0]) {
+                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    routeLayer = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.8 }).addTo(map);
+                }
+            }).catch(() => {});
+    }
+
+    // ==================== XÁC NHẬN ĐÃ ĐÓN KHÁCH ====================
+    function confirmPickup() {
+        if (!currentOrderId || !currentCustomerData) return;
+
+        hasPickedUp = true;
+
+        // Ẩn nút "Đã đón khách" và "Chỉ đường", hiện nút "Kết thúc"
+        document.getElementById('tripActionButtons').style.display = 'none';
+        document.getElementById('endTripBtn').style.display = 'block';
+        document.getElementById('tripStatusText').innerText = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
+
+        // Cập nhật trạng thái order
+        db.ref(`datxe/${currentOrderId}`).update({
+            status: 'picked_up',
+            pickedUpAt: Date.now()
+        });
+
+        // Xóa marker khách, vẽ lại route đến điểm đến
+        if (customerMarker) map.removeLayer(customerMarker);
+        if (currentCustomerData.dropoffLat && currentCustomerData.dropoffLng) {
+            drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
+        } else {
+            // Geocode điểm đến
+            geocodeAddress(currentCustomerData.dropoff, (lat, lng) => {
+                drawRoute(currentLat, currentLng, lat, lng);
+            });
+        }
+
+        speak("Đã đón khách, bắt đầu hành trình.");
+        showToast("✅ Đã đón khách! Bắt đầu tính cước.", "success");
+    }
+
+    function geocodeAddress(address, callback) {
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
+            .then(res => res.json())
+            .then(data => {
+                if (data[0]) {
+                    callback(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                }
+            }).catch(() => {});
+    }
+
+    // ==================== CHỈ ĐƯỜNG ====================
+    function navigateToPickup() {
+        if (!currentCustomerData) return;
+        const lat = currentCustomerData.pickupLat;
+        const lng = currentCustomerData.pickupLng;
+        if (lat && lng) {
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${lat},${lng}&travelmode=driving`;
+            window.open(url, '_blank');
+        } else {
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`;
+            window.open(url, '_blank');
+        }
+    }
+
+    function navigateToDropoff() {
+        if (!currentCustomerData) return;
+        const lat = currentCustomerData.dropoffLat;
+        const lng = currentCustomerData.dropoffLng;
+        if (lat && lng) {
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${lat},${lng}&travelmode=driving`;
+            window.open(url, '_blank');
+        } else {
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.dropoff)}&travelmode=driving`;
+            window.open(url, '_blank');
+        }
+    }
+
+    // ==================== KẾT THÚC CHUYẾN ====================
+    function handleTrip() {
+        if (!isRunning) {
+            // Bắt đầu chuyến (chế độ chờ)
+            isRunning = true;
+            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--danger)";
+            document.getElementById('wishModal').style.display = 'flex';
+            totalKm = 0;
+            document.getElementById('km').innerText = "0.00";
+            document.getElementById('cost').innerText = "0";
+            requestWakeLock();
+            syncDriverOnline(true);
+            speak("Bắt đầu chuyến đi. Chúc thượng lộ bình an.");
+        } else {
+            // Kết thúc chuyến
+            const finalCost = Math.round(totalKm * currentRate);
+            const finalCostStr = finalCost.toLocaleString();
+
+            // Lưu lịch sử
+            saveHistory(totalKm, finalCostStr, finalCost);
+
+            // Cập nhật order thành completed
+            if (currentOrderId) {
+                db.ref(`datxe/${currentOrderId}`).update({
+                    status: 'completed',
+                    completedAt: Date.now(),
+                    actualKm: totalKm,
+                    actualPrice: finalCost
+                });
+            }
+
+            // Reset UI
+            isRunning = false;
+            hasPickedUp = false;
+            document.getElementById('tripInfoPanel').style.display = 'none';
+            document.getElementById('homeControls').style.display = 'block';
+            document.getElementById('mainBtn').innerText = "BẮT ĐẦU CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--accent)";
+            document.getElementById('tripActionButtons').style.display = 'flex';
+            document.getElementById('endTripBtn').style.display = 'none';
+
+            if (customerMarker) map.removeLayer(customerMarker);
+            if (routeLayer) map.removeLayer(routeLayer);
+            customerMarker = null;
+            routeLayer = null;
+            currentOrderId = null;
+            currentCustomerData = null;
+
+            if (wakeLock) { wakeLock.release(); wakeLock = null; }
+
+            document.getElementById('endSummary').innerHTML =
+                `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>
+                 Tổng: <b style="color: var(--primary); font-size: 20px;">${finalCostStr}đ</b>`;
+            document.getElementById('endModal').style.display = 'flex';
+
+            syncDriverOnline(true);
+            speak("Chuyến đi kết thúc. Cảm ơn quý khách.");
+        }
+    }
+
+    // ==================== LỊCH SỬ ====================
+    async function saveHistory(km, costLabel, costRaw) {
+        const now = Date.now();
+        const timeLabel = new Date().toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+        const tripData = {
+            km: parseFloat(km),
+            cost: costRaw,
+            costLabel: costLabel,
+            time: timeLabel,
+            timestamp: now,
+            rate: currentRate,
+            driverId: driverInfo.uid
+        };
+
+        // Lưu localStorage
+        let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        history.unshift(tripData);
+        localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
+
+        // Lưu Firebase
+        try {
+            await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData);
+        } catch (e) { console.warn('Firebase offline, saved locally'); }
+
+        renderHistory();
+    }
+
+    async function renderHistory() {
+        const list = document.getElementById('historyList');
+        if (!list) return;
+
+        try {
+            const snapshot = await db.ref(`trips/${driverInfo.uid}`).orderByChild('timestamp').limitToLast(50).once('value');
+            const data = snapshot.val();
+            if (data) {
+                const trips = Object.values(data).reverse();
+                if (trips.length > 0) {
+                    list.innerHTML = trips.map(h => `
+                        <div class="history-card">
+                            <div class="h-info">
+                                <b>${h.time}</b><br>
+                                <small>${h.km.toFixed(2)} KM</small>
+                            </div>
+                            <div class="h-price">${h.costLabel}đ</div>
+                        </div>
+                    `).join('');
+                    return;
+                }
+            }
+        } catch (e) {}
+
+        // Fallback localStorage
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        if (history.length === 0) {
+            list.innerHTML = '<div style="text-align:center; padding: 30px; color: #999;">Chưa có chuyến đi nào</div>';
+        } else {
+            list.innerHTML = history.map(h => `
+                <div class="history-card">
+                    <div class="h-info">
+                        <b>${h.time}</b><br>
+                        <small>${h.km.toFixed(2)} KM</small>
+                    </div>
+                    <div class="h-price">${h.costLabel}đ</div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // ==================== KHÁCH HỦY ====================
+    function listenForCustomerCancel(orderId) {
+        if (cancelListener) {
+            db.ref(`datxe/${cancelListener}/status`).off();
+        }
+        cancelListener = orderId;
+        db.ref(`datxe/${orderId}/status`).on('value', (snap) => {
+            const status = snap.val();
+            if (status === 'cancelled' && isRunning) {
+                showCancelBanner();
+            }
+        });
+    }
+
+    function showCancelBanner() {
+        document.getElementById('cancelBanner').style.display = 'block';
+        if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+        speak("Cảnh báo! Khách hàng đã hủy chuyến.");
+        showToast("⚠️ Khách hàng đã hủy chuyến!", "error");
+    }
+
+    function dismissCancelBanner() {
+        document.getElementById('cancelBanner').style.display = 'none';
+        if (isRunning) handleTrip();
+    }
+
+    // ==================== CHAT ====================
+    function listenForChat(orderId) {
+        if (chatListener) db.ref(`chat/${chatListener}`).off();
+        chatListener = orderId;
+        db.ref(`chat/${orderId}`).orderByChild('timestamp').on('child_added', (snap) => {
+            const msg = snap.val();
+            if (msg && msg.sender !== 'driver') {
+                appendChatMessage(msg);
+            }
+        });
+    }
+
+    function openChat() {
+        document.getElementById('chatOverlay').style.display = 'flex';
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages.children.length === 1 && chatMessages.children[0].style.textAlign === 'center') {
+            chatMessages.innerHTML = '';
+        }
+    }
+
+    function closeChat() {
+        document.getElementById('chatOverlay').style.display = 'none';
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text || !currentOrderId) return;
+
+        db.ref(`chat/${currentOrderId}`).push({
+            sender: 'driver',
+            from: 'driver',
+            senderName: driverInfo.name,
+            text: text,
+            timestamp: Date.now()
+        });
+
+        appendChatMessage({ text: text, sender: 'driver', timestamp: Date.now() });
+        input.value = '';
+    }
+
+    function appendChatMessage(msg) {
+        const container = document.getElementById('chatMessages');
+        if (container.children.length === 1 && container.children[0].style.textAlign === 'center') {
+            container.innerHTML = '';
+        }
+        const isMe = msg.sender === 'driver';
+        const time = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const div = document.createElement('div');
+        div.className = 'chat-message ' + (isMe ? 'sent' : 'received');
+        div.innerHTML = `${msg.text}<div style="font-size: 9px; opacity: 0.6; margin-top: 4px;">${time}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // ==================== GỌI ĐIỆN ====================
+    function callCustomer() {
+        const phone = document.getElementById('tripClientPhone').innerText;
+        if (phone && phone !== '...') {
+            window.location.href = 'tel:' + phone;
+        } else {
+            showToast('⚠️ Chưa có số điện thoại khách hàng', 'error');
+        }
+    }
+
+    // ==================== TIỆN ÍCH ====================
+    function updateRate(val) {
+        currentRate = parseInt(val);
+        document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
+    }
+
+    function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').then(lock => { wakeLock = lock; });
+        }
+    }
+
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'vi-VN';
+            window.speechSynthesis.speak(msg);
+        }
+    }
+
+    function showToast(msg, type) {
+        const toast = document.getElementById('txToast');
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    function showTab(tab, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+
+        if (tab === 'home') {
+            if (isRunning) {
+                document.getElementById('homeControls').style.display = 'none';
+                document.getElementById('tripInfoPanel').style.display = 'block';
+            } else {
+                document.getElementById('homeControls').style.display = 'block';
+                document.getElementById('tripInfoPanel').style.display = 'none';
+            }
+        } else {
+            document.getElementById('homeControls').style.display = 'none';
+            document.getElementById('tripInfoPanel').style.display = 'none';
+            document.getElementById('tab-' + tab).style.display = 'flex';
+            if (tab === 'lichsu') renderHistory();
+        }
+        setTimeout(() => map.invalidateSize(), 300);
+    }
+
+    function handlePayment(amount, plan) {
+        if (amount === 0) {
+            const nextWeek = Date.now() + (7 * 24 * 60 * 60 * 1000);
+            localStorage.setItem('tp_expiry', nextWeek);
+            db.ref(`drivers/${driverInfo.uid}`).update({ tp_expiry: nextWeek, active_plan: plan });
+            showToast('✅ Kích hoạt gói dùng thử 7 ngày thành công!', 'success');
+            initCountdown();
+        } else {
+            showToast('🔧 Chức năng thanh toán đang phát triển', 'error');
+        }
+    }
+
+    function initCountdown() {
+        const expiry = localStorage.getItem('tp_expiry');
+        if (expiry && parseInt(expiry) > Date.now()) {
+            const days = Math.floor((parseInt(expiry) - Date.now()) / (1000 * 60 * 60 * 24));
+            document.getElementById('planShow').innerHTML = `⭐ GÓI: ${days} ngày`;
+        } else {
+            document.getElementById('planShow').innerHTML = '⭐ GÓI: MIỄN PHÍ';
+        }
+    }
+
+    // ==================== ONLINE / OFFLINE ====================
+    window.addEventListener('online', () => {
+        document.getElementById('offlineBanner').style.display = 'none';
+        syncDriverOnline(true);
+        showToast('✅ Đã kết nối lại', 'success');
+    });
+    window.addEventListener('offline', () => {
+        document.getElementById('offlineBanner').style.display = 'block';
+        syncDriverOnline(false);
+    });
+
+    // ==================== KHỞI ĐỘNG ====================
+    window.onload = () => {
+        const savedDriver = localStorage.getItem('driverInfo');
+        if (savedDriver) {
+            driverInfo = JSON.parse(savedDriver);
+            document.getElementById('authScreen').style.display = 'none';
             initApp();
-        } catch(e) { localStorage.removeItem('driver_data'); }
-    }
-};
+        }
+    };
 
-window.addEventListener('beforeunload', () => {
-    if (isDriving && currentOrderId) {
-        db.ref(`datxe/${currentOrderId}`).update({ status: 'cancelled', cancelledBy: 'driver_offline' }).catch(() => {});
-    }
-    syncOnlineStatus(false);
-});
-
-window.addEventListener('online', () => {
-    document.getElementById('offlineBanner').style.display = 'none';
-    syncOnlineStatus(true);
-    syncLocation();
-});
-
-window.addEventListener('offline', () => {
-    document.getElementById('offlineBanner').style.display = 'block';
-});
-
-console.log('✅ TAXI PROMAX - APP TÀI XẾ đã sẵn sàng!');
-</script>
+    </script>
+    <style>
+        @keyframes smSpread {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes pulseMarker {
+            0% { box-shadow: 0 0 0 0 rgba(211,47,47,0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(211,47,47,0); }
+            100% { box-shadow: 0 0 0 0 rgba(211,47,47,0); }
+        }
+        .tp-badge-trial {
+            position: absolute;
+            top: -8px;
+            right: 10px;
+            background: #55efc4;
+            color: #00b894;
+            padding: 2px 6px;
+            border-radius: 5px;
+            font-size: 9px;
+        }
+        .chat-close:active, .btn-main:active, .p-btn:active, .trip-call-btn:active, .trip-nav-btn:active {
+            transform: scale(0.96);
+        }
+    </style>
 </body>
 </html>
