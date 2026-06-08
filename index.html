@@ -490,7 +490,7 @@
     <script>
     // ============================================================
     // TAXI PROMAX - APP TÀI XẾ (FULL VERSION)
-    // Version: 4.1 - ĐÃ SỬA: Cho phép dùng thử nhận đơn, tăng độ nhạy GPS
+    // Version: 4.0 - Đã bổ sung đầy đủ tính năng
     // ============================================================
 
     // ==================== FIREBASE ====================
@@ -628,7 +628,7 @@
         window.addEventListener('resize', () => map.invalidateSize());
     }
 
-    // ==================== GPS (ĐÃ TĂNG ĐỘ NHẠY) ====================
+    // ==================== GPS ====================
     function startGPS() {
         if (!('geolocation' in navigator)) { showToast('⚠️ Không hỗ trợ GPS'); return; }
         navigator.geolocation.watchPosition(
@@ -637,9 +637,8 @@
                 currentLat = latitude; currentLng = longitude;
                 if (heading) currentHeading = Math.round(heading);
                 const dot = document.getElementById('gpsDot'), text = document.getElementById('gpsStatusText');
-                // TĂNG ĐỘ NHẠY GPS: ngưỡng từ 15m/30m lên 25m/50m
-                if (accuracy <= 25) { dot.className = 'gps-dot good'; text.innerText = `GPS: Tốt (±${Math.round(accuracy)}m)`; }
-                else if (accuracy <= 50) { dot.className = 'gps-dot weak'; text.innerText = `GPS: TB (±${Math.round(accuracy)}m)`; }
+                if (accuracy <= 15) { dot.className = 'gps-dot good'; text.innerText = `GPS: Tốt (±${Math.round(accuracy)}m)`; }
+                else if (accuracy <= 30) { dot.className = 'gps-dot weak'; text.innerText = `GPS: TB (±${Math.round(accuracy)}m)`; }
                 else { dot.className = 'gps-dot bad'; text.innerText = `GPS: Yếu (±${Math.round(accuracy)}m)`; }
                 document.getElementById('profileAccuracy').innerText = Math.round(accuracy) + 'm';
 
@@ -648,6 +647,7 @@
                     const speedKmh = speed * 3.6;
                     lastSpeeds.push({ speed: speedKmh, time: Date.now() });
                     if (lastSpeeds.length > 10) lastSpeeds.shift();
+                    // Phát hiện tăng tốc đột ngột
                     if (lastSpeeds.length >= 3) {
                         let suddenAccel = false;
                         for (let i = 1; i < lastSpeeds.length; i++) {
@@ -674,8 +674,7 @@
                     if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
                 }
 
-                // TĂNG ĐỘ NHẠY GPS: tính km khi accuracy <= 50m (thay vì 30m)
-                if (isRunning && lastPos && accuracy <= 50) {
+                if (isRunning && lastPos && accuracy <= 30) {
                     const d = lastPos.distanceTo(L.latLng(latitude, longitude)) / 1000;
                     if (d > 0.01) {
                         totalKm += d;
@@ -794,7 +793,7 @@
         }, 3600000);
     }
 
-    // ==================== ORDER LISTENER (ĐÃ SỬA: CHO PHÉP DÙNG THỬ NHẬN ĐƠN) ====================
+    // ==================== ORDER LISTENER ====================
     function startOrderListener() {
         if (orderListener) db.ref('datxe').off();
         orderListener = db.ref('datxe');
@@ -803,15 +802,7 @@
             const order = snap.val(), orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
             if (_processedOrders.has(orderId)) return;
-            
-            // === SỬA: Nếu chưa đăng ký (dùng thử), mặc định loại xe 4 Chỗ để vẫn nhận đơn ===
-            if (!driverInfo.carClass) {
-                driverInfo.carClass = '4_seats';
-            }
-            
-            // Kiểm tra loại xe: nếu order yêu cầu 'both' hoặc trùng với loại xe tài xế
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
-            
             _processedOrders.add(orderId); _isModalOpening = true; currentOrderId = orderId; currentCustomerData = order;
             document.getElementById('modalPhone').innerText = order.phone || '...';
             document.getElementById('modalFrom').innerText = order.pickup || '...';
