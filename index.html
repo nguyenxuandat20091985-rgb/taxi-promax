@@ -109,7 +109,7 @@
         #offlineBanner { position: fixed; top: 0; left: 0; right: 0; z-index: 99999; background: var(--danger); color: white; text-align: center; padding: 8px; font-size: 11px; font-weight: 800; display: none; animation: slideDown 0.3s ease; }
         @keyframes slideDown { from{transform:translateY(-100%)} to{transform:translateY(0)} }
 
-        /* TRIP INFO PANEL - THÊM NÚT ĐÃ ĐÓN KHÁCH VÀ CHỈ ĐƯỜNG */
+        /* TRIP INFO PANEL - ĐÃ CẬP NHẬT ĐẦY ĐỦ 3 BƯỚC */
         #tripInfoPanel { display: none; }
         .trip-status-bar { display:flex; align-items:center; gap:8px; background:linear-gradient(135deg,var(--primary),#003d7a); color:white; border-radius:12px; padding:10px 14px; margin-bottom:10px; }
         .trip-status-dot { width:10px; height:10px; border-radius:50%; background:#00ff9d; animation:gpsBlink 1s infinite; flex-shrink:0; }
@@ -134,11 +134,13 @@
         .trip-price-val { font-size:20px; font-weight:900; color:var(--primary); }
         .trip-price-km { font-size:10px; color:#7f8c8d; font-weight:700; }
         
-        /* Action buttons - ĐÃ ĐÓN KHÁCH & CHỈ ĐƯỜNG */
+        /* Action buttons - 3 bước: Điều hướng → Đã đến → Đã đón khách */
         .trip-action-buttons { display: flex; gap: 10px; margin-bottom: 10px; }
         .trip-action-buttons button { flex: 1; padding: 12px; border-radius: 12px; font-size: 12px; font-weight: 800; border: none; cursor: pointer; transition: 0.2s; }
-        .btn-pickup { background: var(--accent); color: white; }
         .btn-nav { background: var(--primary); color: white; }
+        .btn-arrived { background: #ff9800; color: white; }
+        .btn-pickup { background: var(--accent); color: white; }
+        .trip-action-buttons button:active { transform: scale(0.96); }
         .trip-end-btn { width:100%; padding:14px; border-radius:14px; border:none; background:var(--danger); color:white; font-size:16px; font-weight:900; cursor:pointer; box-shadow:0 6px 20px rgba(211,47,47,0.3); }
 
         #txToast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:var(--dark); color:white; padding:10px 20px; border-radius:20px; font-size:12px; font-weight:800; z-index:9998; opacity:0; transition:opacity 0.3s; pointer-events:none; white-space:nowrap; box-shadow:0 4px 15px rgba(0,0,0,0.2); }
@@ -377,11 +379,11 @@
         </div>
     </div>
 
-    <!-- TRIP INFO PANEL -->
+    <!-- TRIP INFO PANEL - ĐÃ CẬP NHẬT 3 NÚT -->
     <div id="tripInfoPanel">
         <div class="trip-status-bar">
             <div class="trip-status-dot"></div>
-            <div class="trip-status-text" id="tripStatusText">🚗 ĐANG CHẠY CHUYẾN</div>
+            <div class="trip-status-text" id="tripStatusText">🚗 ĐANG ĐẾN ĐÓN KHÁCH</div>
             <div class="trip-km-live" id="tripKmLive">0.00 KM</div>
         </div>
 
@@ -424,10 +426,11 @@
             </div>
         </div>
 
-        <!-- Nút hành động: Đã đón khách + Chỉ đường -->
+        <!-- 3 nút chức năng: Điều hướng → Đã đến → Đã đón khách -->
         <div class="trip-action-buttons" id="tripActionButtons">
-            <button class="btn-pickup" id="pickupBtn" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button>
-            <button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button>
+            <button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 ĐIỀU HƯỚNG</button>
+            <button class="btn-arrived" id="arrivedBtn" onclick="confirmArrived()" style="display: none;">📍 ĐÃ ĐẾN ĐIỂM ĐÓN</button>
+            <button class="btn-pickup" id="pickupBtn" onclick="confirmPickup()" style="display: none;">✅ ĐÃ ĐÓN KHÁCH</button>
         </div>
 
         <button class="trip-end-btn" id="endTripBtn" onclick="handleTrip()" style="display: none;">
@@ -794,48 +797,49 @@
     }
 
     // ==================== ORDER LISTENER (ĐÃ SỬA - CHO PHÉP DÙNG THỬ NHẬN ĐƠN) ====================
-function startOrderListener() {
-    if (orderListener) db.ref('datxe').off();
-    orderListener = db.ref('datxe');
-    orderListener.on('child_added', (snap) => {
-        if (_isModalOpening || isRunning || isLocked) return;
-        const order = snap.val(), orderId = snap.key;
-        if (!order || order.status !== 'waiting') return;
-        if (_processedOrders.has(orderId)) return;
-        
-        // === SỬA: Nếu chưa đăng ký (dùng thử), mặc định loại xe 4 Chỗ để vẫn nhận đơn ===
-        if (!driverInfo.carClass) {
-            driverInfo.carClass = '4_seats';
-        }
-        
-        // Kiểm tra loại xe: nếu order yêu cầu 'both' hoặc trùng với loại xe tài xế
-        if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
-        
-        _processedOrders.add(orderId); 
-        _isModalOpening = true; 
-        currentOrderId = orderId; 
-        currentCustomerData = order;
-        
-        document.getElementById('modalPhone').innerText = order.phone || '...';
-        document.getElementById('modalFrom').innerText = order.pickup || '...';
-        document.getElementById('modalTo').innerText = order.dropoff || '...';
-        document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
-        document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
-        
-        let countdown = 15; 
-        document.getElementById('tp-modal-timer-val').innerText = countdown;
-        document.getElementById('orderModal').style.display = 'flex';
-        
-        if (countdownInterval) clearInterval(countdownInterval);
-        countdownInterval = setInterval(() => { 
-            countdown--; 
-            document.getElementById('tp-modal-timer-val').innerText = countdown; 
-            if (countdown <= 0) declineOrder(); 
-        }, 1000);
-        
-        speak("Có đơn đặt xe mới.");
-    });
-}
+    function startOrderListener() {
+        if (orderListener) db.ref('datxe').off();
+        orderListener = db.ref('datxe');
+        orderListener.on('child_added', (snap) => {
+            if (_isModalOpening || isRunning || isLocked) return;
+            const order = snap.val(), orderId = snap.key;
+            if (!order || order.status !== 'waiting') return;
+            if (_processedOrders.has(orderId)) return;
+            
+            // Nếu chưa đăng ký (dùng thử), mặc định loại xe 4 Chỗ để vẫn nhận đơn
+            if (!driverInfo.carClass) {
+                driverInfo.carClass = '4_seats';
+            }
+            
+            // Kiểm tra loại xe: nếu order yêu cầu 'both' hoặc trùng với loại xe tài xế
+            if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
+            
+            _processedOrders.add(orderId); 
+            _isModalOpening = true; 
+            currentOrderId = orderId; 
+            currentCustomerData = order;
+            
+            document.getElementById('modalPhone').innerText = order.phone || '...';
+            document.getElementById('modalFrom').innerText = order.pickup || '...';
+            document.getElementById('modalTo').innerText = order.dropoff || '...';
+            document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
+            document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+            
+            let countdown = 15; 
+            document.getElementById('tp-modal-timer-val').innerText = countdown;
+            document.getElementById('orderModal').style.display = 'flex';
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => { 
+                countdown--; 
+                document.getElementById('tp-modal-timer-val').innerText = countdown; 
+                if (countdown <= 0) declineOrder(); 
+            }, 1000);
+            
+            speak("Có đơn đặt xe mới.");
+        });
+    }
+
     function acceptOrder() {
         clearInterval(countdownInterval); closeModal('orderModal');
         if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
@@ -849,21 +853,94 @@ function startOrderListener() {
 
     function declineOrder() { clearInterval(countdownInterval); closeModal('orderModal'); _isModalOpening = false; speak("Đã bỏ qua đơn."); }
 
+    // ==================== HIỂN THỊ TRIP PANEL ====================
     function showTripPanel(order) {
         document.getElementById('homeControls').style.display = 'none';
         document.getElementById('tripInfoPanel').style.display = 'block';
+        
+        // Thông tin khách
         document.getElementById('tripClientName').innerText = order.clientName || 'Khách';
         document.getElementById('tripClientPhone').innerText = order.phone || '...';
         document.getElementById('tripFrom').innerText = order.pickup || '...';
         document.getElementById('tripTo').innerText = order.dropoff || '...';
-        const price = order.estimatePrice || 0, km = order.estimateKm || 0;
+        
+        // Giá & loại xe
+        const price = order.estimatePrice || 0;
+        const km = order.estimateKm || 0;
         document.getElementById('tripPrice').innerHTML = price > 0 ? price.toLocaleString() + 'đ' : 'Tính theo KM';
         document.getElementById('tripEstKm').innerHTML = km > 0 ? km.toFixed(1) + ' km' : '';
         document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-        document.getElementById('tripActionButtons').style.display = 'flex';
+        
+        // Chỉ hiện nút ĐIỀU HƯỚNG, ẩn 2 nút kia và nút kết thúc
+        document.getElementById('navToPickupBtn').style.display = 'flex';
+        document.getElementById('arrivedBtn').style.display = 'none';
+        document.getElementById('pickupBtn').style.display = 'none';
         document.getElementById('endTripBtn').style.display = 'none';
+        
         document.getElementById('tripStatusText').innerHTML = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
-        if (order.pickupLat && order.pickupLng) drawRoute(currentLat, currentLng, order.pickupLat, order.pickupLng);
+        
+        // Vẽ đường đến điểm đón
+        if (order.pickupLat && order.pickupLng) {
+            drawRoute(currentLat, currentLng, order.pickupLat, order.pickupLng);
+        }
+    }
+
+    // ==================== XÁC NHẬN ĐÃ ĐẾN ĐIỂM ĐÓN ====================
+    function confirmArrived() {
+        // Ẩn nút Điều hướng, hiện nút Đã đón khách
+        document.getElementById('navToPickupBtn').style.display = 'none';
+        document.getElementById('arrivedBtn').style.display = 'none';
+        document.getElementById('pickupBtn').style.display = 'flex';
+        
+        // Cập nhật trạng thái
+        document.getElementById('tripStatusText').innerHTML = '📍 ĐÃ ĐẾN ĐIỂM ĐÓN - ĐANG CHỜ KHÁCH';
+        
+        // Lưu lên Firebase để app khách biết
+        if (currentOrderId) {
+            db.ref(`datxe/${currentOrderId}`).update({
+                driverArrived: true,
+                driverArrivedAt: Date.now()
+            });
+        }
+        
+        // Thông báo
+        speak("Đã đến điểm đón khách. Đang chờ khách lên xe.");
+        showToast("📍 Đã đến điểm đón, đang chờ khách!");
+    }
+
+    // ==================== XÁC NHẬN ĐÃ ĐÓN KHÁCH ====================
+    function confirmPickup() {
+        hasPickedUp = true;
+        
+        // Ẩn nút Đã đón khách, hiện nút Kết thúc
+        document.getElementById('pickupBtn').style.display = 'none';
+        document.getElementById('endTripBtn').style.display = 'block';
+        
+        // Cập nhật trạng thái
+        document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
+        
+        // Xóa marker khách
+        if (customerMarker) map.removeLayer(customerMarker);
+        
+        // Vẽ lại đường đến điểm đến
+        if (currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng) {
+            drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
+        } else if (currentCustomerData?.dropoff) {
+            geocodeAddress(currentCustomerData.dropoff, (lat, lng) => {
+                drawRoute(currentLat, currentLng, lat, lng);
+            });
+        }
+        
+        // Cập nhật Firebase
+        if (currentOrderId) {
+            db.ref(`datxe/${currentOrderId}`).update({
+                status: 'picked_up',
+                pickedUpAt: Date.now()
+            });
+        }
+        
+        speak("Đã đón khách, bắt đầu hành trình.");
+        showToast("✅ Đã đón khách! Bắt đầu tính cước.");
     }
 
     function createCustomerMarker(lat, lng) {
@@ -882,19 +959,7 @@ function startOrderListener() {
             }}).catch(()=>{});
     }
 
-    // ==================== XÁC NHẬN ĐÃ ĐÓN KHÁCH ====================
-    function confirmPickup() {
-        hasPickedUp = true;
-        document.getElementById('tripActionButtons').style.display = 'none';
-        document.getElementById('endTripBtn').style.display = 'block';
-        document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
-        if (customerMarker) map.removeLayer(customerMarker);
-        if (currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng)
-            drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
-        else geocodeAddress(currentCustomerData.dropoff, (lat,lng) => drawRoute(currentLat, currentLng, lat, lng));
-        speak("Đã đón khách, bắt đầu hành trình.");
-    }
-
+    // ==================== ĐIỀU HƯỚNG ====================
     function navigateToPickup() {
         if (!currentCustomerData) return;
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
@@ -902,6 +967,7 @@ function startOrderListener() {
         } else {
             window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
         }
+        showToast("🧭 Đã mở Google Maps - Đang dẫn đường đến điểm đón");
     }
 
     function geocodeAddress(addr, cb) {
