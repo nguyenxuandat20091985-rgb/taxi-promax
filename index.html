@@ -667,12 +667,12 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+    <script>
     // ============================================================
-    // TAXI PROMAX - APP TÀI XẾ (FULL VERSION)
-    // Version: 5.0 - NÂNG CẤP 3 TAB NHƯ XANH SM
+    // TAXI PROMAX - APP TÀI XẾ (FULL VERSION - ĐÃ SỬA LỖI)
+    // Version: 5.1 - Sửa lỗi chuyển tab và điều hướng
     // ============================================================
 
-    // ==================== FIREBASE ====================
     const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
     if (!firebase.apps.length) firebase.initializeApp({ databaseURL: FIREBASE_URL });
     const db = firebase.database();
@@ -697,18 +697,16 @@
     let audioInterval = null;
     let _isModalOpening = false;
     let _processedOrders = new Set();
+    let currentTripTab = 'order';
     
-    // AI Detection
     let lastSpeeds = [];
     let fraudAlertShown = false;
     let isLocked = false;
 
-    // Thông tin tài xế
     let driverInfo = {
         uid: null, name: '', phone: '', plate: '', carModel: '', fuelType: 'xang', carClass: '4_seats'
     };
 
-    // Điểm nóng khách hàng (AI Heatmap)
     const HOTSPOTS = [
         { name: "Sân bay Quốc tế Vân Đồn", lat: 21.1179, lng: 107.4143, intensity: 0.9, timeSlots: [5,6,7,8,17,18,19,20] },
         { name: "Bến xe Bãi Cháy", lat: 20.9675, lng: 107.0500, intensity: 0.8, timeSlots: [7,8,9,16,17,18] },
@@ -821,7 +819,6 @@
                 else { dot.className = 'gps-dot bad'; text.innerText = `GPS: Yếu (±${Math.round(accuracy)}m)`; }
                 document.getElementById('profileAccuracy').innerText = Math.round(accuracy) + 'm';
 
-                // AI Gian lận: kiểm tra tốc độ bất thường
                 if (isRunning && speed !== null) {
                     const speedKmh = speed * 3.6;
                     lastSpeeds.push({ speed: speedKmh, time: Date.now() });
@@ -858,7 +855,6 @@
                         totalKm += d;
                         document.getElementById('km').innerText = totalKm.toFixed(2);
                         document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
-                        // Cập nhật live trên cả 2 tab
                         document.getElementById('tripKmLive').innerText = totalKm.toFixed(2) + ' KM';
                         document.getElementById('tripKmLiveJourney').innerText = totalKm.toFixed(2) + ' KM';
                         document.getElementById('tripPrice').innerHTML = Math.round(totalKm * currentRate).toLocaleString() + 'đ';
@@ -889,7 +885,7 @@
         else db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
     }
 
-    // ==================== AI HEATMAP & GỢI Ý ====================
+    // ==================== AI ====================
     let heatmapLayers = [];
     function openHeatmap() {
         if (heatmapLayers.length) heatmapLayers.forEach(l => map.removeLayer(l));
@@ -921,7 +917,7 @@
         }, 600000);
     }
 
-    // ==================== GÓI CƯỚC & HẾT HẠN ====================
+    // ==================== GÓI CƯỚC ====================
     async function handlePayment(amount, plan) {
         if (amount === 0) {
             const nextWeek = Date.now() + (7 * 24 * 60 * 60 * 1000);
@@ -1017,57 +1013,76 @@
     }
 
     function acceptOrder() {
-        clearInterval(countdownInterval); closeModal('orderModal');
-        if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+        clearInterval(countdownInterval); 
+        closeModal('orderModal');
+        if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) {
+            createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+        }
         showTripPanel(currentCustomerData);
-        db.ref(`datxe/${currentOrderId}`).update({ status: "driving", driverId: driverInfo.uid, driverName: driverInfo.name, driverPhone: driverInfo.phone, driverPlate: driverInfo.plate, acceptedAt: Date.now() });
-        isRunning = true; hasPickedUp = false; totalKm = 0;
-        document.getElementById('km').innerText = '0.00'; document.getElementById('cost').innerText = '0';
-        listenForCustomerCancel(); listenForChat();
-        _isModalOpening = false; speak("Đã nhận đơn.");
+        
+        // CHUYỂN VỀ TAB ĐƠN HÀNG
+        switchTripTab('order');
+        
+        db.ref(`datxe/${currentOrderId}`).update({ 
+            status: "driving", 
+            driverId: driverInfo.uid, 
+            driverName: driverInfo.name, 
+            driverPhone: driverInfo.phone, 
+            driverPlate: driverInfo.plate, 
+            acceptedAt: Date.now() 
+        });
+        isRunning = true; 
+        hasPickedUp = false; 
+        totalKm = 0;
+        document.getElementById('km').innerText = '0.00'; 
+        document.getElementById('cost').innerText = '0';
+        listenForCustomerCancel(); 
+        listenForChat();
+        _isModalOpening = false; 
+        speak("Đã nhận đơn.");
     }
 
     function declineOrder() { clearInterval(countdownInterval); closeModal('orderModal'); _isModalOpening = false; speak("Đã bỏ qua đơn."); }
 
     // ==================== TRIP PANEL VỚI 3 TAB ====================
-    let currentTripTab = 'order';
-
     function switchTripTab(tab) {
         currentTripTab = tab;
         
-        // Cập nhật class active cho tab
-        document.querySelectorAll('.trip-tab').forEach((btn, index) => {
-            btn.classList.remove('active');
-        });
-        if (tab === 'order') document.querySelectorAll('.trip-tab')[0].classList.add('active');
-        if (tab === 'journey') document.querySelectorAll('.trip-tab')[1].classList.add('active');
-        if (tab === 'complete') document.querySelectorAll('.trip-tab')[2].classList.add('active');
+        const tabs = document.querySelectorAll('.trip-tab');
+        if (tabs.length >= 3) {
+            tabs.forEach(btn => btn.classList.remove('active'));
+            if (tab === 'order') tabs[0].classList.add('active');
+            if (tab === 'journey') tabs[1].classList.add('active');
+            if (tab === 'complete') tabs[2].classList.add('active');
+        }
         
-        // Cập nhật nội dung
-        document.getElementById('tabOrder').classList.remove('active');
-        document.getElementById('tabJourney').classList.remove('active');
-        document.getElementById('tabComplete').classList.remove('active');
+        const tabOrder = document.getElementById('tabOrder');
+        const tabJourney = document.getElementById('tabJourney');
+        const tabComplete = document.getElementById('tabComplete');
         
-        if (tab === 'order') document.getElementById('tabOrder').classList.add('active');
-        if (tab === 'journey') document.getElementById('tabJourney').classList.add('active');
-        if (tab === 'complete') document.getElementById('tabComplete').classList.add('active');
+        if (tabOrder) tabOrder.classList.remove('active');
+        if (tabJourney) tabJourney.classList.remove('active');
+        if (tabComplete) tabComplete.classList.remove('active');
+        
+        if (tab === 'order' && tabOrder) tabOrder.classList.add('active');
+        if (tab === 'journey' && tabJourney) tabJourney.classList.add('active');
+        if (tab === 'complete' && tabComplete) tabComplete.classList.add('active');
     }
 
     function showTripPanel(order) {
         document.getElementById('homeControls').style.display = 'none';
         document.getElementById('tripInfoPanel').style.display = 'block';
         
-        // Reset về tab ĐƠN HÀNG
         switchTripTab('order');
         hasPickedUp = false;
         
-        // Cập nhật tab ĐƠN HÀNG
+        // Tab ĐƠN HÀNG
         document.getElementById('tripClientName').innerText = order.clientName || 'Khách';
         document.getElementById('tripClientPhone').innerText = order.phone || '...';
         document.getElementById('tripFrom').innerText = order.pickup || '...';
         document.getElementById('tripTo').innerText = order.dropoff || '...';
         
-        // Cập nhật tab HÀNH TRÌNH (để dùng sau)
+        // Tab HÀNH TRÌNH
         document.getElementById('tripClientNameJourney').innerText = order.clientName || 'Khách';
         document.getElementById('tripClientPhoneJourney').innerText = order.phone || '...';
         document.getElementById('tripFromJourney').innerText = order.pickup || '...';
@@ -1080,10 +1095,13 @@
         document.getElementById('tripEstKm').innerHTML = km > 0 ? km.toFixed(1) + ' km' : '';
         document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
         
-        // Chỉ hiển thị nút ĐIỀU HƯỚNG, ẩn các nút kia
-        document.getElementById('navToPickupBtn').style.display = 'flex';
-        document.getElementById('arrivedBtn').style.display = 'none';
-        document.getElementById('pickupBtn').style.display = 'none';
+        // Nút trong tab ĐƠN HÀNG
+        const navBtn = document.getElementById('navToPickupBtn');
+        const arrivedBtn = document.getElementById('arrivedBtn');
+        const pickupBtn = document.getElementById('pickupBtn');
+        if (navBtn) navBtn.style.display = 'flex';
+        if (arrivedBtn) arrivedBtn.style.display = 'none';
+        if (pickupBtn) pickupBtn.style.display = 'none';
         
         document.getElementById('tripStatusText').innerHTML = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
         
@@ -1093,10 +1111,12 @@
     }
 
     function confirmArrived() {
-        // Ẩn nút Điều hướng, hiện nút Đã đón khách
-        document.getElementById('navToPickupBtn').style.display = 'none';
-        document.getElementById('arrivedBtn').style.display = 'none';
-        document.getElementById('pickupBtn').style.display = 'flex';
+        const navBtn = document.getElementById('navToPickupBtn');
+        const arrivedBtn = document.getElementById('arrivedBtn');
+        const pickupBtn = document.getElementById('pickupBtn');
+        if (navBtn) navBtn.style.display = 'none';
+        if (arrivedBtn) arrivedBtn.style.display = 'none';
+        if (pickupBtn) pickupBtn.style.display = 'flex';
         
         document.getElementById('tripStatusText').innerHTML = '📍 ĐÃ ĐẾN ĐIỂM ĐÓN - ĐANG CHỜ KHÁCH';
         
@@ -1117,12 +1137,10 @@
         // Chuyển sang tab HÀNH TRÌNH
         switchTripTab('journey');
         
-        // Cập nhật trạng thái
         document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
         
         if (customerMarker) map.removeLayer(customerMarker);
         
-        // Vẽ lại đường đến điểm đến
         if (currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng) {
             drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
         } else if (currentCustomerData?.dropoff) {
@@ -1142,8 +1160,12 @@
         showToast("✅ Đã đón khách! Bắt đầu tính cước.");
     }
 
+    // ==================== ĐIỀU HƯỚNG (ĐÃ SỬA) ====================
     function navigateToPickup() {
-        if (!currentCustomerData) return;
+        if (!currentCustomerData) {
+            showToast("⚠️ Không có thông tin điểm đón");
+            return;
+        }
         let destination = "";
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
             destination = `${currentCustomerData.pickupLat},${currentCustomerData.pickupLng}`;
@@ -1159,7 +1181,10 @@
     }
 
     function navigateToDropoff() {
-        if (!currentCustomerData) return;
+        if (!currentCustomerData) {
+            showToast("⚠️ Không có thông tin điểm trả");
+            return;
+        }
         let destination = "";
         if (currentCustomerData.dropoffLat && currentCustomerData.dropoffLng) {
             destination = `${currentCustomerData.dropoffLat},${currentCustomerData.dropoffLng}`;
@@ -1186,11 +1211,9 @@
             });
         }
         
-        // Cập nhật tab HOÀN THÀNH
         document.getElementById('completePrice').innerHTML = finalCost.toLocaleString() + 'đ';
         document.getElementById('completeKm').innerHTML = totalKm.toFixed(1) + ' km';
         
-        // Chuyển sang tab HOÀN THÀNH
         switchTripTab('complete');
     }
 
@@ -1210,7 +1233,7 @@
         showToast("✅ Đã hoàn thành chuyến, sẵn sàng nhận đơn mới!");
     }
 
-    // ==================== CÁC HÀM CŨ GIỮ NGUYÊN ====================
+    // ==================== CÁC HÀM HỖ TRỢ ====================
     function createCustomerMarker(lat, lng) {
         if (customerMarker) map.removeLayer(customerMarker);
         const icon = L.divIcon({ html: "<div class='customer-marker'>🧍</div>", className: '', iconSize: [26,26], iconAnchor: [13,13] });
@@ -1232,7 +1255,6 @@
             .then(r=>r.json()).then(d=>{ if(d[0]) cb(parseFloat(d[0].lat), parseFloat(d[0].lon)); }).catch(()=>{});
     }
 
-    // ==================== KẾT THÚC CHUYẾN (CŨ - GIỮ CHO COMPATIBLE) ====================
     function handleTrip() {
         if (!isRunning) {
             isRunning = true; hasPickedUp = false; totalKm = 0;
@@ -1300,7 +1322,6 @@
     }
     function showCancelBanner() { document.getElementById('cancelBanner').style.display = 'block'; speak("Cảnh báo! Khách hàng đã hủy chuyến."); }
     function dismissCancelBanner() { document.getElementById('cancelBanner').style.display = 'none'; if (isRunning) { 
-        // Nếu đang chạy, kết thúc chuyến luôn
         if (hasPickedUp) {
             endTrip();
         } else {
@@ -1308,7 +1329,6 @@
         }
     }}
 
-    // ==================== AI ALERT ====================
     function showAIAlert(msg) { const alertDiv = document.getElementById('aiAlert'); document.getElementById('aiAlertText').innerText = msg; alertDiv.classList.add('show'); setTimeout(() => alertDiv.classList.remove('show'), 5000); }
 
     // ==================== TIỆN ÍCH ====================
@@ -1336,15 +1356,13 @@
     function openMaintenance() { showToast("🔧 Kiểm tra áp suất lốp trước khi khởi hành."); }
     function openProfit() { const history = JSON.parse(localStorage.getItem('trip_history') || '[]'); const total = history.reduce((s, h) => s + (typeof h.cost === 'number' ? h.cost : 0), 0); showToast(`💰 Tổng doanh thu: ${total.toLocaleString()}đ`); }
 
-    // ==================== ONLINE/OFFLINE ====================
     window.addEventListener('online', () => { document.getElementById('offlineBanner').style.display = 'none'; syncDriverOnline(true); showToast('✅ Đã kết nối lại'); });
     window.addEventListener('offline', () => { document.getElementById('offlineBanner').style.display = 'block'; syncDriverOnline(false); });
 
-    // ==================== KHỞI ĐỘNG ====================
     window.onload = () => {
         const saved = localStorage.getItem('driverInfo');
         if (saved) { driverInfo = JSON.parse(saved); document.getElementById('authScreen').style.display = 'none'; initApp(); }
     };
-    </script>
-</body>
+</script>
+    </body>
 </html>
