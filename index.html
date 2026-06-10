@@ -728,13 +728,29 @@
     let currentRideState = RideState.IDLE;
     let currentOrderData = null;
     let currentOrderId = null;
-    let totalKm = 0;
+    let totalDistance = 0;        // ĐÃ ĐỔI TÊN TỪ totalKm THÀNH totalDistance (GIỮ NGUYÊN tripId, customerInfo)
     let currentRate = 15000;
     let lastPos = null;
     let currentLat = null, currentLng = null;
     let currentHeading = 0;
     let isRunning = false;
     let hasPickedUp = false;
+    
+    // ==================== HÀM TÍNH KHOẢNG CÁCH ====================
+    /**
+    * Công thức Haversine tính khoảng cách (đơn vị: km)
+    */
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Bán kính trái đất (km)
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Khoảng cách tính bằng km
+    }
     
     // Bottom sheet state
     let sheetState = 'collapsed';
@@ -897,10 +913,10 @@
         
         if (currentRideState === RideState.PICKING_UP) {
             statusText.textContent = 'Đang đến đón';
-            kmText.textContent = totalKm.toFixed(1) + ' km';
+            kmText.textContent = totalDistance.toFixed(1) + ' km';
         } else if (currentRideState === RideState.EN_ROUTE) {
             statusText.textContent = 'Đang chạy';
-            kmText.textContent = totalKm.toFixed(1) + ' km';
+            kmText.textContent = totalDistance.toFixed(1) + ' km';
         }
     }
     
@@ -916,7 +932,7 @@
             <div class="trip-status-badge">
                 <div class="trip-status-dot"></div>
                 <div style="flex:1;">🚗 ĐANG ĐẾN ĐÓN KHÁCH</div>
-                <div class="trip-km-live">${totalKm.toFixed(1)} KM</div>
+                <div class="trip-km-live">${totalDistance.toFixed(1)} KM</div>
             </div>
             
             <div class="customer-card-sheet">
@@ -972,7 +988,7 @@
             <div class="trip-status-badge">
                 <div class="trip-status-dot"></div>
                 <div style="flex:1;">🚕 ĐANG CHẠY HÀNH TRÌNH</div>
-                <div class="trip-km-live" id="enrouteKmLive">${totalKm.toFixed(1)} KM</div>
+                <div class="trip-km-live" id="enrouteKmLive">${totalDistance.toFixed(1)} KM</div>
             </div>
             
             <div class="customer-card-sheet">
@@ -1000,9 +1016,9 @@
             <div class="price-card-sheet">
                 <div>
                     <div class="price-label-sheet">GIÁ HIỆN TẠI</div>
-                    <div class="price-value-sheet" id="enroutePrice">${Math.round(totalKm * currentRate).toLocaleString()}đ</div>
+                    <div class="price-value-sheet" id="enroutePrice">${Math.round(totalDistance * currentRate).toLocaleString()}đ</div>
                 </div>
-                <div class="price-km" id="enrouteKm">${totalKm.toFixed(1)} km</div>
+                <div class="price-km" id="enrouteKm">${totalDistance.toFixed(1)} km</div>
             </div>
             
             <div class="action-buttons-sheet">
@@ -1018,9 +1034,9 @@
                 const priceEl = document.getElementById('enroutePrice');
                 const kmEl = document.getElementById('enrouteKmLive');
                 const priceKmEl = document.getElementById('enrouteKm');
-                if (priceEl) priceEl.innerHTML = Math.round(totalKm * currentRate).toLocaleString() + 'đ';
-                if (kmEl) kmEl.innerHTML = totalKm.toFixed(1) + ' KM';
-                if (priceKmEl) priceKmEl.innerHTML = totalKm.toFixed(1) + ' km';
+                if (priceEl) priceEl.innerHTML = Math.round(totalDistance * currentRate).toLocaleString() + 'đ';
+                if (kmEl) kmEl.innerHTML = totalDistance.toFixed(1) + ' KM';
+                if (priceKmEl) priceKmEl.innerHTML = totalDistance.toFixed(1) + ' km';
                 updateMiniButton();
             }
         }, 1000);
@@ -1030,7 +1046,7 @@
         const container = document.getElementById('sheetContent');
         if (!container) return;
         
-        const finalCost = Math.round(totalKm * currentRate);
+        const finalCost = Math.round(totalDistance * currentRate);
         
         container.innerHTML = `
             <div style="text-align:center; padding:20px 0;">
@@ -1042,7 +1058,7 @@
                         <div class="price-label-sheet">TỔNG TIỀN</div>
                         <div class="price-value-sheet">${finalCost.toLocaleString()}đ</div>
                     </div>
-                    <div class="price-km">${totalKm.toFixed(1)} km</div>
+                    <div class="price-km">${totalDistance.toFixed(1)} km</div>
                 </div>
                 <button class="action-btn-sheet btn-end-sheet" onclick="backToHome()" style="background:var(--primary);">✖ ĐÓNG</button>
             </div>
@@ -1113,7 +1129,7 @@
             acceptedAt: Date.now()
         });
         
-        totalKm = 0;
+        totalDistance = 0;
         isRunning = true;
         hasPickedUp = false;
         document.getElementById('km').innerText = '0.00';
@@ -1179,10 +1195,10 @@
     }
     
     function completeTrip() {
-        const finalCost = Math.round(totalKm * currentRate);
-        saveHistory(totalKm, finalCost.toLocaleString(), finalCost);
+        const finalCost = Math.round(totalDistance * currentRate);
+        saveHistory(totalDistance, finalCost.toLocaleString(), finalCost);
         if (currentOrderId) {
-            db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', completedAt: Date.now(), actualKm: totalKm, actualPrice: finalCost });
+            db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', completedAt: Date.now(), actualKm: totalDistance, actualPrice: finalCost });
         }
         setRideState(RideState.COMPLETED);
         if (window.liveInterval) clearInterval(window.liveInterval);
@@ -1193,7 +1209,7 @@
         setRideState(RideState.IDLE);
         currentOrderId = null;
         currentOrderData = null;
-        totalKm = 0;
+        totalDistance = 0;
         isRunning = false;
         hasPickedUp = false;
         if (customerMarker) map.removeLayer(customerMarker);
@@ -1206,6 +1222,51 @@
     }
     
     // ==================== MAP & GPS ====================
+    // ==================== HÀM XỬ LÝ GPS VỚI BỘ LỌC NHIỄU ====================
+    /**
+    * Logic tích hợp trong vòng lặp cập nhật GPS
+    * Gọi hàm này mỗi khi nhận được tọa độ mới từ watchPosition
+    * TUYỆT ĐỐI KHÔNG LÀM THAY ĐỔI CÁC BIẾN tripId, customerInfo HIỆN CÓ
+    */
+    let lastLocation = null;  // Lưu vị trí trước đó để tính quãng đường
+    
+    function onLocationUpdate(newPosition) {
+        // 1. Bộ lọc nhiễu: Bỏ qua nếu GPS quá yếu (accuracy > 50m)
+        if (newPosition.coords.accuracy > 50) return;
+        
+        if (lastLocation && (currentRideState === RideState.PICKING_UP || currentRideState === RideState.EN_ROUTE)) {
+            const distance = calculateDistance(
+                lastLocation.latitude, lastLocation.longitude,
+                newPosition.coords.latitude, newPosition.coords.longitude
+            );
+            
+            // 2. Chỉ cộng dồn nếu quãng đường > 0.005km (5 mét) để tránh nhảy số khi xe dừng
+            if (distance > 0.005) {
+                totalDistance += distance;
+                // Cập nhật totalDistance vào state của app sau mỗi lần tính
+                document.getElementById('km').innerText = totalDistance.toFixed(2);
+                const currentFare = totalDistance * currentRate;
+                document.getElementById('cost').innerText = Math.round(currentFare).toLocaleString();
+                
+                // Cập nhật UI nếu đang hiển thị sheet
+                if (currentRideState === RideState.EN_ROUTE) {
+                    const priceEl = document.getElementById('enroutePrice');
+                    const kmEl = document.getElementById('enrouteKmLive');
+                    if (priceEl) priceEl.innerHTML = Math.round(totalDistance * currentRate).toLocaleString() + 'đ';
+                    if (kmEl) kmEl.innerHTML = totalDistance.toFixed(1) + ' KM';
+                } else if (currentRideState === RideState.PICKING_UP) {
+                    const kmLiveEl = document.querySelector('#tripSheet .trip-km-live');
+                    if (kmLiveEl) kmLiveEl.innerHTML = totalDistance.toFixed(1) + ' KM';
+                }
+                updateMiniButton();
+            }
+        }
+        lastLocation = {
+            latitude: newPosition.coords.latitude,
+            longitude: newPosition.coords.longitude
+        };
+    }
+    
     function initMap() {
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
@@ -1241,14 +1302,9 @@
                     if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
                 }
                 
-                if ((currentRideState === RideState.PICKING_UP || currentRideState === RideState.EN_ROUTE) && lastPos && accuracy <= 30) {
-                    const d = lastPos.distanceTo(L.latLng(latitude, longitude)) / 1000;
-                    if (d > 0.01) {
-                        totalKm += d;
-                        document.getElementById('km').innerText = totalKm.toFixed(2);
-                        document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
-                    }
-                }
+                // GỌI HÀM TÍNH TOÁN QUÃNG ĐƯỜNG
+                onLocationUpdate(pos);
+                
                 lastPos = L.latLng(latitude, longitude);
                 syncDriverLocation();
             },
