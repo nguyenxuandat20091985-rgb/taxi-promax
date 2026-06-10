@@ -186,6 +186,59 @@
         .ai-alert.show { display:flex; animation:slideUp 0.3s ease; }
         @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
         .ai-alert i { font-size:20px; }
+
+        /* ========== PHẦN THÊM MỚI: BÁO CÁO DOANH THU ========== */
+        .report-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 16px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .report-filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .filter-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--gray-bg, #f0f0f0);
+            border: 1px solid var(--gray-border, #ddd);
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        .report-stats {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            flex: 1;
+            background: var(--gray-bg, #f5f5f5);
+            border-radius: 14px;
+            padding: 12px;
+            text-align: center;
+        }
+        .stat-card .value {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--primary);
+        }
+        .stat-card .label {
+            font-size: 10px;
+            color: var(--text-secondary, #666);
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body oncontextmenu="return false;"> 
@@ -222,6 +275,7 @@
         <span id="aiAlertText">AI phát hiện gian lận</span>
     </div>
 
+    <!-- TAB VÍ TIỀN (ĐÃ THÊM BÁO CÁO DOANH THU) -->
     <div id="tab-vi" class="tab-content">
         <div class="p-header">
             <div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div>
@@ -250,6 +304,39 @@
                 <div class="p-btn">NẠP NGAY</div>
             </div>
         </div>
+        
+        <!-- PHẦN THÊM MỚI: BÁO CÁO DOANH THU -->
+        <div class="p-header" style="margin-top: 10px;">
+            <div style="font-size: 18px; font-weight: 800;">📊 BÁO CÁO DOANH THU</div>
+        </div>
+        
+        <div style="padding: 15px;">
+            <div class="report-filters">
+                <button class="filter-btn active" onclick="filterReport('day', this)">Hôm nay</button>
+                <button class="filter-btn" onclick="filterReport('week', this)">Tuần này</button>
+                <button class="filter-btn" onclick="filterReport('month', this)">Tháng này</button>
+                <button class="filter-btn" onclick="filterReport('year', this)">Năm nay</button>
+            </div>
+            
+            <div class="report-stats">
+                <div class="stat-card">
+                    <div class="value" id="reportRevenue">0đ</div>
+                    <div class="label">Doanh thu</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="reportTrips">0</div>
+                    <div class="label">Chuyến</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="reportAvg">0đ</div>
+                    <div class="label">Trung bình</div>
+                </div>
+            </div>
+            
+            <div id="reportDetail" style="font-size: 12px; color: var(--text-secondary, #666); text-align: center; padding: 10px;">
+                Chọn khoảng thời gian để xem báo cáo            </div>
+        </div>
+        
         <div class="tp-new-container">
             <div style="font-size: 11px; font-weight: 900; color: var(--dark); margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px;">CÔNG CỤ HỖ TRỢ TÀI XẾ</div>
             <div class="tp-grid-4">
@@ -292,6 +379,33 @@
 
     <div class="footer-panel">
         <div id="homeControls">
+            <!-- CHUYẾN VÃY GIỮ NGUYÊN -->
+            <div style="margin-bottom: 16px;">
+                <button id="streetHailBtn" class="btn-main" style="background: linear-gradient(135deg, #ff9800, #e65100); margin-bottom: 12px;" onclick="startStreetHail()">
+                    <i class="fas fa-hand-paper"></i> CHUYẾN VÃY
+                </button>
+            </div>
+            
+            <!-- CARD CHO LUỒNG APP (ẨN KHI CHƯA CÓ ĐƠN) -->
+            <div id="appOrderCard" style="background: var(--primary-light); border-radius: 16px; padding: 16px; margin-bottom: 16px; display: none;">
+                <div style="font-weight: 800; margin-bottom: 12px;">📱 ĐƠN TỪ ỨNG DỤNG</div>
+                <div style="margin-bottom: 8px;"><strong>Khách:</strong> <span id="appCustomerName">---</span></div>
+                <div style="margin-bottom: 8px;"><strong>Điểm đón:</strong> <span id="appPickup">---</span></div>
+                <div style="margin-bottom: 8px;"><strong>Điểm đến:</strong> <span id="appDropoff">---</span></div>
+                <div style="margin-bottom: 12px;"><strong>Giá:</strong> <span id="appPrice">0đ</span></div>
+                <button class="btn-main" style="background: var(--primary);" onclick="acceptAppOrder()">✅ NHẬN ĐƠN</button>
+            </div>
+            
+            <!-- CARD CHO LUỒNG CHUYẾN VÃY ĐẶT APP (ẨN KHI CHƯA CÓ) -->
+            <div id="streetToAppCard" style="background: var(--accent-light); border-radius: 16px; padding: 16px; margin-bottom: 16px; display: none;">
+                <div style="font-weight: 800; margin-bottom: 12px;">🔄 CHUYẾN VÃY ĐẶT APP</div>
+                <div style="margin-bottom: 8px;"><strong>Khách:</strong> <span id="streetAppName">---</span></div>
+                <div style="margin-bottom: 8px;"><strong>Điểm đón:</strong> <span id="streetAppPickup">---</span></div>
+                <div style="margin-bottom: 8px;"><strong>Điểm đến:</strong> <span id="streetAppDropoff">---</span></div>
+                <div style="margin-bottom: 12px;"><strong>Giá:</strong> <span id="streetAppPrice">0đ</span></div>
+                <button class="btn-main" style="background: var(--accent);" onclick="acceptStreetToApp()">✅ ĐÃ ĐÓN KHÁCH</button>
+            </div>
+            
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
                 <div style="display: flex; align-items: center;">
                     <span>GIÁ/KM</span>
@@ -538,6 +652,10 @@
         { name: "Trung tâm TP Hạ Long", lat: 20.9511, lng: 107.0800, intensity: 0.95, timeSlots: [8,9,10,11,17,18,19,20] }
     ];
 
+    // Biến cho 2 luồng mới
+    let pendingAppOrder = null;
+    let pendingStreetToApp = null;
+
     // ==================== AUTH ====================
     async function doRegister() {
         const fullname = document.getElementById('regFullname').value.trim();
@@ -620,6 +738,7 @@
         initMap(); startGPS(); startOrderListener(); renderHistory(); initCountdown(); syncDriverOnline(true);
         startAIHotspotChecker();
         startPackageExpiryChecker();
+        loadReport(); // Tải báo cáo ban đầu
     }
 
     function initMap() {
@@ -647,7 +766,6 @@
                     const speedKmh = speed * 3.6;
                     lastSpeeds.push({ speed: speedKmh, time: Date.now() });
                     if (lastSpeeds.length > 10) lastSpeeds.shift();
-                    // Phát hiện tăng tốc đột ngột
                     if (lastSpeeds.length >= 3) {
                         let suddenAccel = false;
                         for (let i = 1; i < lastSpeeds.length; i++) {
@@ -794,48 +912,49 @@
     }
 
     // ==================== ORDER LISTENER (ĐÃ SỬA - CHO PHÉP DÙNG THỬ NHẬN ĐƠN) ====================
-function startOrderListener() {
-    if (orderListener) db.ref('datxe').off();
-    orderListener = db.ref('datxe');
-    orderListener.on('child_added', (snap) => {
-        if (_isModalOpening || isRunning || isLocked) return;
-        const order = snap.val(), orderId = snap.key;
-        if (!order || order.status !== 'waiting') return;
-        if (_processedOrders.has(orderId)) return;
-        
-        // === SỬA: Nếu chưa đăng ký (dùng thử), mặc định loại xe 4 Chỗ để vẫn nhận đơn ===
-        if (!driverInfo.carClass) {
-            driverInfo.carClass = '4_seats';
-        }
-        
-        // Kiểm tra loại xe: nếu order yêu cầu 'both' hoặc trùng với loại xe tài xế
-        if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
-        
-        _processedOrders.add(orderId); 
-        _isModalOpening = true; 
-        currentOrderId = orderId; 
-        currentCustomerData = order;
-        
-        document.getElementById('modalPhone').innerText = order.phone || '...';
-        document.getElementById('modalFrom').innerText = order.pickup || '...';
-        document.getElementById('modalTo').innerText = order.dropoff || '...';
-        document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
-        document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
-        
-        let countdown = 15; 
-        document.getElementById('tp-modal-timer-val').innerText = countdown;
-        document.getElementById('orderModal').style.display = 'flex';
-        
-        if (countdownInterval) clearInterval(countdownInterval);
-        countdownInterval = setInterval(() => { 
-            countdown--; 
-            document.getElementById('tp-modal-timer-val').innerText = countdown; 
-            if (countdown <= 0) declineOrder(); 
-        }, 1000);
-        
-        speak("Có đơn đặt xe mới.");
-    });
-}
+    function startOrderListener() {
+        if (orderListener) db.ref('datxe').off();
+        orderListener = db.ref('datxe');
+        orderListener.on('child_added', (snap) => {
+            if (_isModalOpening || isRunning || isLocked) return;
+            const order = snap.val(), orderId = snap.key;
+            if (!order || order.status !== 'waiting') return;
+            if (_processedOrders.has(orderId)) return;
+            
+            // Nếu chưa đăng ký (dùng thử), mặc định loại xe 4 Chỗ để vẫn nhận đơn
+            if (!driverInfo.carClass) {
+                driverInfo.carClass = '4_seats';
+            }
+            
+            // Kiểm tra loại xe: nếu order yêu cầu 'both' hoặc trùng với loại xe tài xế
+            if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
+            
+            _processedOrders.add(orderId); 
+            _isModalOpening = true; 
+            currentOrderId = orderId; 
+            currentCustomerData = order;
+            
+            document.getElementById('modalPhone').innerText = order.phone || '...';
+            document.getElementById('modalFrom').innerText = order.pickup || '...';
+            document.getElementById('modalTo').innerText = order.dropoff || '...';
+            document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
+            document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+            
+            let countdown = 15; 
+            document.getElementById('tp-modal-timer-val').innerText = countdown;
+            document.getElementById('orderModal').style.display = 'flex';
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => { 
+                countdown--; 
+                document.getElementById('tp-modal-timer-val').innerText = countdown; 
+                if (countdown <= 0) declineOrder(); 
+            }, 1000);
+            
+            speak("Có đơn đặt xe mới.");
+        });
+    }
+    
     function acceptOrder() {
         clearInterval(countdownInterval); closeModal('orderModal');
         if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
@@ -848,6 +967,82 @@ function startOrderListener() {
     }
 
     function declineOrder() { clearInterval(countdownInterval); closeModal('orderModal'); _isModalOpening = false; speak("Đã bỏ qua đơn."); }
+
+    // ==================== LUỒNG APP (ẨN KHI CHƯA CÓ ĐƠN) ====================
+    function showAppOrder(order) {
+        pendingAppOrder = order;
+        document.getElementById('appCustomerName').innerText = order.clientName || 'Khách';
+        document.getElementById('appPickup').innerText = order.pickup || '...';
+        document.getElementById('appDropoff').innerText = order.dropoff || '...';
+        document.getElementById('appPrice').innerHTML = (order.estimatePrice || 0).toLocaleString() + 'đ';
+        document.getElementById('appOrderCard').style.display = 'block';
+        speak("Có đơn đặt xe mới từ ứng dụng.");
+        showToast("📱 Có đơn mới từ ứng dụng!");
+    }
+    
+    function acceptAppOrder() {
+        if (!pendingAppOrder) return;
+        currentCustomerData = pendingAppOrder;
+        currentOrderId = 'street_' + Date.now();
+        createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+        showTripPanel(currentCustomerData);
+        isRunning = true; hasPickedUp = false; totalKm = 0;
+        document.getElementById('km').innerText = '0.00'; document.getElementById('cost').innerText = '0';
+        document.getElementById('appOrderCard').style.display = 'none';
+        pendingAppOrder = null;
+        listenForCustomerCancel(); listenForChat();
+        speak("Đã nhận đơn từ ứng dụng.");
+        showToast("✅ Đã nhận đơn!");
+    }
+    
+    // ==================== LUỒNG CHUYẾN VÃY ĐẶT APP ====================
+    function showStreetToAppOrder(order) {
+        pendingStreetToApp = order;
+        document.getElementById('streetAppName').innerText = order.clientName || 'Khách';
+        document.getElementById('streetAppPickup').innerText = order.pickup || '...';
+        document.getElementById('streetAppDropoff').innerText = order.dropoff || '...';
+        document.getElementById('streetAppPrice').innerHTML = (order.estimatePrice || 0).toLocaleString() + 'đ';
+        document.getElementById('streetToAppCard').style.display = 'block';
+        speak("Có đơn đặt xe mới từ khách vẫy đặt app.");
+        showToast("🔄 Có đơn mới từ khách vẫy đặt app!");
+    }
+    
+    function acceptStreetToApp() {
+        if (!pendingStreetToApp) return;
+        currentCustomerData = pendingStreetToApp;
+        currentOrderId = 'street_app_' + Date.now();
+        createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+        showTripPanel(currentCustomerData);
+        isRunning = true; hasPickedUp = false; totalKm = 0;
+        document.getElementById('km').innerText = '0.00'; document.getElementById('cost').innerText = '0';
+        document.getElementById('streetToAppCard').style.display = 'none';
+        pendingStreetToApp = null;
+        listenForCustomerCancel(); listenForChat();
+        speak("Đã xác nhận đón khách, bắt đầu hành trình.");
+        showToast("✅ Đã xác nhận đón khách!");
+    }
+    
+    // ==================== CHUYẾN VÃY ====================
+    function startStreetHail() {
+        if (isRunning) {
+            showToast('⚠️ Đang có chuyến hoạt động');
+            return;
+        }
+        currentCustomerData = {
+            clientName: 'Khách vẫy',
+            phone: '...',
+            pickup: 'Vị trí hiện tại',
+            dropoff: 'Chưa xác định',
+            estimatePrice: 0,
+            estimateKm: 0
+        };
+        currentOrderId = 'street_' + Date.now();
+        showTripPanel(currentCustomerData);
+        isRunning = true; hasPickedUp = false; totalKm = 0;
+        document.getElementById('km').innerText = '0.00'; document.getElementById('cost').innerText = '0';
+        showToast('🚖 Chuyến vẫy đã bắt đầu');
+        speak("Bắt đầu chuyến vẫy.");
+    }
 
     function showTripPanel(order) {
         document.getElementById('homeControls').style.display = 'none';
@@ -921,7 +1116,9 @@ function startOrderListener() {
         } else {
             const finalCost = Math.round(totalKm * currentRate);
             saveHistory(totalKm, finalCost.toLocaleString(), finalCost);
-            if (currentOrderId) db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', completedAt: Date.now(), actualKm: totalKm, actualPrice: finalCost });
+            if (currentOrderId && !currentOrderId.startsWith('street_')) {
+                db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', completedAt: Date.now(), actualKm: totalKm, actualPrice: finalCost });
+            }
             isRunning = false; hasPickedUp = false;
             document.getElementById('tripInfoPanel').style.display = 'none';
             document.getElementById('homeControls').style.display = 'block';
@@ -934,6 +1131,7 @@ function startOrderListener() {
             document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
             document.getElementById('endModal').style.display = 'flex';
             speak("Chuyến đi kết thúc. Cảm ơn quý khách.");
+            loadReport(); // Cập nhật báo cáo sau khi kết thúc chuyến
         }
     }
 
@@ -944,6 +1142,7 @@ function startOrderListener() {
         history.unshift(tripData); localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
         try { await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
         renderHistory();
+        loadReport();
     }
 
     async function renderHistory() {
@@ -958,6 +1157,53 @@ function startOrderListener() {
         const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
         if (!history.length) list.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Chưa có chuyến đi nào</div>';
         else list.innerHTML = history.map(h => `<div class="history-card"><div class="h-info"><b>${h.time}</b><br><small>${h.km.toFixed(2)} KM</small></div><div class="h-price">${h.costLabel}đ</div></div>`).join('');
+    }
+
+    // ==================== BÁO CÁO DOANH THU ====================
+    let currentReportFilter = 'day';
+    
+    function loadReport() {
+        filterReport(currentReportFilter, null);
+    }
+    
+    function filterReport(period, btn) {
+        currentReportFilter = period;
+        if (btn) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+        
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        const now = new Date();
+        let filtered = [];
+        
+        if (period === 'day') {
+            filtered = history.filter(h => new Date(h.timestamp).toDateString() === now.toDateString());
+        } else if (period === 'week') {
+            const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+            filtered = history.filter(h => new Date(h.timestamp) >= weekStart);
+        } else if (period === 'month') {
+            filtered = history.filter(h => new Date(h.timestamp).getMonth() === now.getMonth() && new Date(h.timestamp).getFullYear() === now.getFullYear());
+        } else if (period === 'year') {
+            filtered = history.filter(h => new Date(h.timestamp).getFullYear() === now.getFullYear());
+        }
+        
+        const totalRevenue = filtered.reduce((s, h) => s + (h.cost || 0), 0);
+        const tripCount = filtered.length;
+        const avgRevenue = tripCount > 0 ? totalRevenue / tripCount : 0;
+        
+        document.getElementById('reportRevenue').innerHTML = totalRevenue.toLocaleString('vi-VN') + 'đ';
+        document.getElementById('reportTrips').innerHTML = tripCount;
+        document.getElementById('reportAvg').innerHTML = Math.round(avgRevenue).toLocaleString('vi-VN') + 'đ';
+        
+        const detailEl = document.getElementById('reportDetail');
+        if (detailEl) {
+            if (tripCount > 0) {
+                detailEl.innerHTML = `📊 Tổng cộng ${tripCount} chuyến, trung bình ${Math.round(avgRevenue).toLocaleString('vi-VN')}đ/chuyến`;
+            } else {
+                detailEl.innerHTML = `📊 Chưa có dữ liệu trong khoảng thời gian này`;
+            }
+        }
     }
 
     // ==================== CHAT & GỌI ====================
@@ -1016,6 +1262,7 @@ function startOrderListener() {
             document.getElementById('tripInfoPanel').style.display = 'none';
             document.getElementById('tab-' + tab).style.display = 'flex';
             if (tab === 'lichsu') renderHistory();
+            if (tab === 'vi') loadReport();
         }
     }
     function openSOS() { speak("Đang phát tín hiệu SOS."); showToast("🚨 Đã gửi tín hiệu cứu hộ!"); }
