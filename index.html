@@ -1099,9 +1099,24 @@
     // --- ORDER LISTENER ---
     function startOrderListener() {
         if (!isOnline) return;
-        if (orderListener) db.ref('datxe').off();
-        db.ref('datxe').on('child_added', (snap) => {
-            if (_isModalOpening || tripPhase) return;
+        // Tắt listener cũ nếu có
+        if (orderListener) { db.ref('datxe').off(); orderListener = null; }
+
+        /*
+         * BUG FIX 2a: Firebase child_added chỉ fire cho node MỚI được tạo SAU khi
+         * listener được attach. Nếu khách đặt xe trước khi tài xế mở app (hoặc
+         * listener bị off/on lại), đơn đó sẽ KHÔNG BAO GIỜ trigger child_added.
+         * GIẢI PHÁP: Quét value() một lần ngay khi attach để bắt đơn đang chờ,
+         * sau đó dùng child_added để bắt đơn mới theo thời gian thực.
+         *
+         * BUG FIX 2b: Điều kiện guard `if (tripPhase) return` block listener kể cả
+         * khi tripPhase = 'inprogress' do chạy vẫy (không có đơn thật). Tách biệt:
+         * chỉ block khi _isModalOpening hoặc đang có đơn thật (currentOrderData).
+         */
+        const shouldBlock = () => _isModalOpening || (currentOrderData !== null);
+
+        const processOrder = (snap) => {
+            if (shouldBlock()) return;
             const order = snap.val();
             const orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
@@ -1114,7 +1129,19 @@
             _isModalOpening = true;
             currentOrderData = { id: orderId, ...order };
             showOrderModal(orderId, order);
+        };
+
+        // Lần 1: quét toàn bộ đơn đang chờ (bắt đơn cũ đã có trong Firebase)
+        db.ref('datxe').orderByChild('status').equalTo('waiting').once('value', (snap) => {
+            if (!snap.exists() || shouldBlock()) return;
+            snap.forEach((child) => {
+                if (shouldBlock()) return; // dừng ngay nếu vừa nhận 1 đơn
+                processOrder(child);
+            });
         });
+
+        // Lần 2: lắng nghe đơn mới theo thời gian thực
+        orderListener = db.ref('datxe').on('child_added', processOrder);
     }
 
     function haversine(lat1, lng1, lat2, lng2) {
@@ -1264,6 +1291,10 @@
 
     function handleTrip() {
         if (!tripPhase) {
+            // BUG FIX 1: Chạy vẫy (không có đơn) → set tripPhase = 'inprogress'
+            // để GPS watcher đi vào nhánh tính km. Trước đó tripPhase = null
+            // nên điều kiện tripPhase === 'inprogress' không bao giờ đúng → km mãi = 0.
+            tripPhase = 'inprogress';
             isRunning = true;
             document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
             document.getElementById('mainBtn').style.background = "var(--danger)";
