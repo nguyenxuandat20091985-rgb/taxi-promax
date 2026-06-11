@@ -29,17 +29,10 @@
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
 
         /* ===== HEADER ===== */
-        /* FIX 1: Header chỉ còn badge ID và badge gói — đã bỏ online-toggle ra khỏi đây */
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 1000; pointer-events: none; }
         .badge { pointer-events: auto; background: var(--glass); padding: 8px 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 11px; font-weight: 800; color: var(--dark); border-left: 4px solid var(--primary); } 
 
-        /* ===== ONLINE TOGGLE — ĐÃ DI CHUYỂN XUỐNG FOOTER (góc dưới trái, cạnh GIÁ/KM) ===== */
-        /*
-         * FIX 1 - NGUYÊN NHÂN: .online-toggle nằm trong .header (top:10px) bị che bởi
-         * .gps-status-bar và .stats-bar chồng lên. 
-         * GIẢI PHÁP: Xóa khỏi .header, đặt lại vào #homeControls cạnh label "GIÁ/KM",
-         * giữ nguyên 100% onclick="toggleOnlineStatus()" — không đổi logic.
-         */
+        /* ===== ONLINE TOGGLE ===== */
         .online-toggle {
             pointer-events: auto;
             background: var(--glass);
@@ -222,18 +215,18 @@
         .modal-content { background: white; width: 88%; max-width: 340px; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
 
-        /* ===== BOTTOM SHEET ===== */
+        /* ===== BOTTOM SHEET - FIX: display: flex mặc định ===== */
         .floating-sheet {
             position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2005;
             border-radius: 24px 24px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.15);
             transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-            max-height: 80vh; display: none; flex-direction: column; overflow: hidden;
+            max-height: 80vh; display: flex; flex-direction: column; overflow: hidden;
         }
-        .floating-sheet.collapsed { transform: translateY(calc(100% - 80px)); }
+        .floating-sheet.collapsed { transform: translateY(calc(100% - 85px)); }
         .floating-sheet.expanded { transform: translateY(0); }
         .sheet-handle { width: 45px; height: 4px; background: #ddd; border-radius: 4px; margin: 12px auto; cursor: grab; }
         .sheet-handle:active { cursor: grabbing; background: var(--primary); }
-        .sheet-content { flex: 1; overflow-y: auto; padding: 0 16px 20px 16px; }
+        .sheet-content { flex: 1; overflow-y: auto; padding: 0 16px 20px 16px; max-height: calc(80vh - 40px); }
         
         /* Mini button */
         .mini-trip-btn {
@@ -251,7 +244,6 @@
         .trip-status-dot { width: 10px; height: 10px; border-radius: 50%; background: #00ff9d; animation: blinkGreen 1s infinite; }
         @keyframes blinkGreen { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
         
-        /* FIX 2: Màu badge theo từng trạng thái */
         .trip-status-badge.state-enroute   { background: linear-gradient(135deg, #0054a3, #003d7a); color: white; }
         .trip-status-badge.state-arrived   { background: linear-gradient(135deg, #ff9800, #e65100); color: white; }
         .trip-status-badge.state-inprogress{ background: linear-gradient(135deg, #00bfa5, #00897b); color: white; }
@@ -279,14 +271,7 @@
         .btn-pickup-sheet { background: var(--accent); }
         .btn-end-sheet    { background: var(--danger); }
 
-        /* ===== COMPLETION TOAST (3s pop-up sau khi hoàn thành) ===== */
-        /*
-         * FIX 2 - NGUYÊN NHÂN: completeTrip() chỉ dùng showToast() thông thường (3s, nhỏ, dễ bỏ qua).
-         * Không có bước "Đã đến điểm đón" và "Đã đón khách" riêng.
-         * GIẢI PHÁP: Thêm biến tripPhase (enroute → arrived → inprogress → completed),
-         * renderSheetUI() đọc phase để hiện đúng nút/màu/văn bản.
-         * Thêm completionToast nổi bật 3s, sau đó tự về trang chủ.
-         */
+        /* ===== COMPLETION TOAST ===== */
         .completion-toast {
             position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
             z-index: 20000; background: linear-gradient(135deg, #00b09b, #0054a3);
@@ -418,7 +403,7 @@
     <!-- OFFLINE BANNER -->
     <div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
 
-    <!-- HEADER: chỉ còn 2 badge, online-toggle đã chuyển xuống footer -->
+    <!-- HEADER -->
     <div class="header">
         <div class="badge" id="idShow">🆔 ĐANG QUÉT...</div>
         <div class="badge" style="color:var(--gold)" id="planShow">⭐ ĐANG ĐỒNG BỘ GÓI...</div>
@@ -460,7 +445,7 @@
         <div class="tool-item" onclick="openLockScreen()"><i class="fas fa-lock"></i><span>Khóa màn hình</span></div>
     </div>
 
-    <!-- BOTTOM SHEET -->
+    <!-- BOTTOM SHEET - Mặc định collapsed, sẽ hiện khi có đơn -->
     <div class="floating-sheet collapsed" id="tripSheet">
         <div class="sheet-handle" id="sheetHandle"></div>
         <div class="sheet-content" id="sheetContent"></div>
@@ -473,7 +458,7 @@
         <span id="miniKmText">0 km</span>
     </button>
 
-    <!-- COMPLETION TOAST (3s, tự ẩn) -->
+    <!-- COMPLETION TOAST -->
     <div class="completion-toast" id="completionToast">
         <div class="ct-label">✅ HOÀN THÀNH CHUYẾN ĐI</div>
         <div class="ct-amount" id="ctAmount">0đ</div>
@@ -589,10 +574,8 @@
     <!-- FOOTER -->
     <div class="footer-panel">
         <div id="homeControls">
-            <!-- FIX 1: online-toggle đặt ở đây, cạnh GIÁ/KM, không còn bị che -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <!-- ONLINE TOGGLE — GIỮ NGUYÊN onclick="toggleOnlineStatus()" -->
                     <div class="online-toggle" onclick="toggleOnlineStatus()">
                         <span>📡</span>
                         <div class="toggle-switch active" id="onlineToggle"></div>
@@ -744,7 +727,6 @@
     <script>
     // ============================================================
     // TAXI PROMAX - APP TÀI XẾ (FULL VERSION)
-    // ĐÃ BỔ SUNG ĐẦY ĐỦ TẤT CẢ TÍNH NĂNG
     // ============================================================
 
     // --- CONFIG ---
@@ -779,15 +761,6 @@
     let ratingListener = null;
     let _cancelListener = null;
     let currentFilter = 'day';
-
-    /*
-     * FIX 2 — THÊM BIẾN TRẠNG THÁI CHUYẾN ĐI
-     * tripPhase điều khiển toàn bộ quy trình:
-     *   'enroute'    — Đã nhận đơn, đang đến điểm đón
-     *   'arrived'    — Đã đến điểm đón, chờ đón khách
-     *   'inprogress' — Đã đón khách, đang chạy
-     *   null         — Không có chuyến
-     */
     let tripPhase = null;
 
     // --- AUTHENTICATION ---
@@ -920,7 +893,6 @@
                     marker.setIcon(createDriverIcon(currentHeading));
                 }
                 
-                // Chỉ tính km khi đang phase 'inprogress' (đã đón khách)
                 if (lastPos && tripPhase === 'inprogress' && accuracy <= 30) {
                     const distance = lastPos.distanceTo(L.latLng(latitude, longitude)) / 1000;
                     if (distance > 0.01) {
@@ -994,7 +966,7 @@
         if (sheetState === 'expanded' && diff > 0) {
             sheet.style.transform = `translateY(${Math.min(diff, window.innerHeight * 0.6)}px)`;
         } else if (sheetState === 'collapsed' && diff < 0) {
-            sheet.style.transform = `translateY(calc(100% - 80px + ${Math.max(diff, -window.innerHeight * 0.6)}px))`;
+            sheet.style.transform = `translateY(calc(100% - 85px + ${Math.max(diff, -window.innerHeight * 0.6)}px))`;
         }
     }
     function onTouchEnd(e) {
@@ -1013,29 +985,31 @@
             sheet.classList.add('expanded');
         }
     }
+    
+    // FIX QUAN TRỌNG: Đảm bảo sheet hiển thị đúng
     function expandSheet() {
         sheetState = 'expanded';
-        updateSheetTransform();
+        const sheet = document.getElementById('tripSheet');
+        sheet.classList.remove('collapsed');
+        sheet.classList.add('expanded');
         document.getElementById('miniTripBtn').classList.add('hidden');
         setTimeout(() => map?.invalidateSize(), 300);
     }
+    
     function collapseSheet() {
         sheetState = 'collapsed';
-        updateSheetTransform();
+        const sheet = document.getElementById('tripSheet');
+        sheet.classList.remove('expanded');
+        sheet.classList.add('collapsed');
         if (tripPhase) document.getElementById('miniTripBtn').classList.remove('hidden');
         setTimeout(() => map?.invalidateSize(), 300);
     }
 
-    /*
-     * FIX 2 — renderSheetUI: đọc tripPhase để hiển thị đúng trạng thái, nút bấm,
-     * và màu badge. Tất cả nút điều hướng/gọi/chat giữ nguyên không đổi.
-     */
     function renderSheetUI() {
         const container = document.getElementById('sheetContent');
         if (!container || !currentOrderData) return;
         const finalPrice = Math.round(totalDistance * currentRate * surgeMultiplier) + waitingFee;
 
-        // Xác định label và class badge theo phase
         let statusLabel, statusClass, actionBtnsHtml;
 
         if (tripPhase === 'enroute') {
@@ -1099,20 +1073,8 @@
     // --- ORDER LISTENER ---
     function startOrderListener() {
         if (!isOnline) return;
-        // Tắt listener cũ nếu có
         if (orderListener) { db.ref('datxe').off(); orderListener = null; }
 
-        /*
-         * BUG FIX 2a: Firebase child_added chỉ fire cho node MỚI được tạo SAU khi
-         * listener được attach. Nếu khách đặt xe trước khi tài xế mở app (hoặc
-         * listener bị off/on lại), đơn đó sẽ KHÔNG BAO GIỜ trigger child_added.
-         * GIẢI PHÁP: Quét value() một lần ngay khi attach để bắt đơn đang chờ,
-         * sau đó dùng child_added để bắt đơn mới theo thời gian thực.
-         *
-         * BUG FIX 2b: Điều kiện guard `if (tripPhase) return` block listener kể cả
-         * khi tripPhase = 'inprogress' do chạy vẫy (không có đơn thật). Tách biệt:
-         * chỉ block khi _isModalOpening hoặc đang có đơn thật (currentOrderData).
-         */
         const shouldBlock = () => _isModalOpening || (currentOrderData !== null);
 
         const processOrder = (snap) => {
@@ -1131,16 +1093,14 @@
             showOrderModal(orderId, order);
         };
 
-        // Lần 1: quét toàn bộ đơn đang chờ (bắt đơn cũ đã có trong Firebase)
         db.ref('datxe').orderByChild('status').equalTo('waiting').once('value', (snap) => {
             if (!snap.exists() || shouldBlock()) return;
             snap.forEach((child) => {
-                if (shouldBlock()) return; // dừng ngay nếu vừa nhận 1 đơn
+                if (shouldBlock()) return;
                 processOrder(child);
             });
         });
 
-        // Lần 2: lắng nghe đơn mới theo thời gian thực
         orderListener = db.ref('datxe').on('child_added', processOrder);
     }
 
@@ -1179,7 +1139,6 @@
             createCustomerMarker(currentOrderData.pickupLat, currentOrderData.pickupLng);
         }
 
-        // FIX 2: Bắt đầu phase đầu tiên — đang đến điểm đón
         tripPhase = 'enroute';
         isRunning = true;
         totalDistance = 0;
@@ -1189,12 +1148,13 @@
         document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
         document.getElementById('mainBtn').style.background = "var(--danger)";
         document.getElementById('homeControls').style.display = 'none';
-        if (document.getElementById('tripInfoPanel')) document.getElementById('tripInfoPanel').style.display = 'block';
 
         db.ref(`datxe/${currentOrderData.id}`).update({ status: "driving", driverId: currentUser?.uid, acceptedAt: Date.now() });
         listenForChat();
         listenForRating();
         txListenForCustomerCancel(currentOrderData.id);
+        
+        // FIX: expandSheet sẽ tự động hiển thị sheet
         expandSheet();
         renderSheetUI();
         speak("Đã nhận đơn. Đang đến điểm đón.");
@@ -1208,23 +1168,15 @@
         speak("Đã bỏ qua đơn hàng.");
     }
 
-    /*
-     * FIX 2 — markArrived: bước trung gian mới
-     * Phase enroute → arrived
-     */
     function markArrived() {
         tripPhase = 'arrived';
-        waitingStartTime = Date.now(); // bắt đầu đếm thời gian chờ từ đây
+        waitingStartTime = Date.now();
         db.ref(`datxe/${currentOrderData.id}`).update({ status: 'arrived', arrivedAt: Date.now() });
         renderSheetUI();
         speak("Đã đến điểm đón. Chờ đón khách.");
         showToast("📍 Đã đến điểm đón!");
     }
 
-    /*
-     * FIX 2 — confirmPickup: phase arrived → inprogress
-     * Bắt đầu tính km và cước từ đây
-     */
     function confirmPickup() {
         tripPhase = 'inprogress';
         waitingStartTime = null;
@@ -1237,9 +1189,6 @@
         showToast("✅ Đã đón khách! Bắt đầu tính cước.");
     }
 
-    /*
-     * FIX 2 — completeTrip: hiển thị completionToast 3s rồi tự về trang chủ
-     */
     function completeTrip() {
         const finalPrice = Math.round(totalDistance * currentRate * surgeMultiplier) + waitingFee;
         saveHistory(totalDistance, finalPrice.toLocaleString(), finalPrice);
@@ -1247,19 +1196,16 @@
             db.ref(`datxe/${currentOrderData.id}`).update({ status: 'completed', actualKm: totalDistance, actualPrice: finalPrice });
         }
 
-        // Hiện completion toast nổi bật 3s
         const toast = document.getElementById('completionToast');
         document.getElementById('ctAmount').innerText = finalPrice.toLocaleString() + 'đ';
-        // Reset animation fill bar
         const fill = document.getElementById('ctFill');
         fill.style.animation = 'none';
         toast.style.display = 'block';
-        void fill.offsetWidth; // reflow để restart animation
+        void fill.offsetWidth;
         fill.style.animation = 'fillBar 3s linear forwards';
 
         speak("Hoàn thành chuyến đi. Thu " + finalPrice.toLocaleString() + " đồng. Cảm ơn quý khách.");
 
-        // Reset sau 3s, tự về trang chủ
         setTimeout(() => {
             toast.style.display = 'none';
             _resetAfterTrip();
@@ -1277,8 +1223,9 @@
         document.getElementById('mainBtn').style.background = "var(--accent)";
         document.getElementById('homeControls').style.display = 'block';
         if (document.getElementById('tripInfoPanel')) document.getElementById('tripInfoPanel').style.display = 'none';
-        document.getElementById('tripSheet').style.display = 'none';
-        document.getElementById('miniTripBtn').classList.add('hidden');
+        
+        collapseSheet();
+        
         if (customerMarker) map.removeLayer(customerMarker);
         if (routeLayer) map.removeLayer(routeLayer);
         customerMarker = null;
@@ -1291,9 +1238,6 @@
 
     function handleTrip() {
         if (!tripPhase) {
-            // BUG FIX 1: Chạy vẫy (không có đơn) → set tripPhase = 'inprogress'
-            // để GPS watcher đi vào nhánh tính km. Trước đó tripPhase = null
-            // nên điều kiện tripPhase === 'inprogress' không bao giờ đúng → km mãi = 0.
             tripPhase = 'inprogress';
             isRunning = true;
             document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
@@ -1312,10 +1256,8 @@
         _resetAfterTrip();
     }
 
-    // --- NAVIGATE TO DROPOFF ---
     function navigateToDropoff() {
         if (!currentOrderData?.dropoffLat || !currentOrderData?.dropoffLng) {
-            // fallback: tìm theo địa chỉ nếu không có tọa độ
             const addr = encodeURIComponent(currentOrderData?.dropoff || '');
             window.open(`https://www.google.com/maps/search/?api=1&query=${addr}`, '_blank');
             return;
@@ -1514,7 +1456,6 @@
     }
 
     // --- SETTINGS ---
-    // GIỮ NGUYÊN handler gốc, không đổi
     function toggleOnlineStatus() {
         isOnline = !isOnline;
         const toggle = document.getElementById('onlineToggle');
