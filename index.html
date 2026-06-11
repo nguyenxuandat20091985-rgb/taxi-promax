@@ -215,18 +215,32 @@
         .modal-content { background: white; width: 88%; max-width: 340px; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .tp-countdown-wrapper { margin: 10px auto; width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--danger); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--danger); background: #fff5f5; }
 
-        /* ===== BOTTOM SHEET - FIX: display: flex mặc định ===== */
+        /* ===== BOTTOM SHEET ===== */
         .floating-sheet {
             position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 2005;
             border-radius: 24px 24px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.15);
             transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-            max-height: 80vh; display: flex; flex-direction: column; overflow: hidden;
+            max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
         }
-        .floating-sheet.collapsed { transform: translateY(calc(100% - 85px)); }
+        .floating-sheet.collapsed { transform: translateY(calc(100% - 80px)); }
         .floating-sheet.expanded { transform: translateY(0); }
-        .sheet-handle { width: 45px; height: 4px; background: #ddd; border-radius: 4px; margin: 12px auto; cursor: grab; }
-        .sheet-handle:active { cursor: grabbing; background: var(--primary); }
-        .sheet-content { flex: 1; overflow-y: auto; padding: 0 16px 20px 16px; max-height: calc(80vh - 40px); }
+        
+        /* FIX: Thanh kéo hình viên thuốc mỏng, mờ, có thể ấn */
+        .sheet-handle {
+            width: 45px;
+            height: 5px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin: 12px auto;
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        .sheet-handle:active {
+            cursor: grabbing;
+            background: rgba(0, 84, 163, 0.5);
+        }
+        
+        .sheet-content { flex: 1; overflow-y: auto; padding: 0 16px 20px 16px; max-height: calc(85vh - 50px); }
         
         /* Mini button */
         .mini-trip-btn {
@@ -445,7 +459,7 @@
         <div class="tool-item" onclick="openLockScreen()"><i class="fas fa-lock"></i><span>Khóa màn hình</span></div>
     </div>
 
-    <!-- BOTTOM SHEET - Mặc định collapsed, sẽ hiện khi có đơn -->
+    <!-- BOTTOM SHEET -->
     <div class="floating-sheet collapsed" id="tripSheet">
         <div class="sheet-handle" id="sheetHandle"></div>
         <div class="sheet-content" id="sheetContent"></div>
@@ -949,7 +963,7 @@
         }, 60000);
     }
 
-    // --- BOTTOM SHEET ---
+    // --- BOTTOM SHEET DRAG ---
     function initSheetDrag() {
         const sheet = document.getElementById('tripSheet');
         const handle = document.getElementById('sheetHandle');
@@ -966,7 +980,7 @@
         if (sheetState === 'expanded' && diff > 0) {
             sheet.style.transform = `translateY(${Math.min(diff, window.innerHeight * 0.6)}px)`;
         } else if (sheetState === 'collapsed' && diff < 0) {
-            sheet.style.transform = `translateY(calc(100% - 85px + ${Math.max(diff, -window.innerHeight * 0.6)}px))`;
+            sheet.style.transform = `translateY(calc(100% - 80px + ${Math.max(diff, -window.innerHeight * 0.6)}px))`;
         }
     }
     function onTouchEnd(e) {
@@ -977,6 +991,7 @@
     }
     function updateSheetTransform() {
         const sheet = document.getElementById('tripSheet');
+        sheet.style.transform = '';
         if (sheetState === 'collapsed') {
             sheet.classList.remove('expanded');
             sheet.classList.add('collapsed');
@@ -986,7 +1001,6 @@
         }
     }
     
-    // FIX QUAN TRỌNG: Đảm bảo sheet hiển thị đúng
     function expandSheet() {
         sheetState = 'expanded';
         const sheet = document.getElementById('tripSheet');
@@ -1154,7 +1168,6 @@
         listenForRating();
         txListenForCustomerCancel(currentOrderData.id);
         
-        // FIX: expandSheet sẽ tự động hiển thị sheet
         expandSheet();
         renderSheetUI();
         speak("Đã nhận đơn. Đang đến điểm đón.");
@@ -1189,6 +1202,7 @@
         showToast("✅ Đã đón khách! Bắt đầu tính cước.");
     }
 
+    // FIX: HOÀN THÀNH CHUYẾN - RESET ĐÚNG VỀ TRANG CHỦ ĐỂ NHẬN ĐƠN MỚI
     function completeTrip() {
         const finalPrice = Math.round(totalDistance * currentRate * surgeMultiplier) + waitingFee;
         saveHistory(totalDistance, finalPrice.toLocaleString(), finalPrice);
@@ -1206,56 +1220,54 @@
 
         speak("Hoàn thành chuyến đi. Thu " + finalPrice.toLocaleString() + " đồng. Cảm ơn quý khách.");
 
+        // Sau 3s, reset hoàn toàn về trạng thái ban đầu
         setTimeout(() => {
             toast.style.display = 'none';
-            _resetAfterTrip();
+            resetToHomeScreen();
         }, 3000);
     }
 
-    function _resetAfterTrip() {
+    // FIX: Hàm reset hoàn toàn về trang chủ để nhận đơn mới
+    function resetToHomeScreen() {
+        // Reset tất cả biến trạng thái
         tripPhase = null;
         isRunning = false;
         totalDistance = 0;
         waitingFee = 0;
         currentOrderData = null;
-
+        
+        // Reset UI
         document.getElementById('mainBtn').innerText = "BẮT ĐẦU CHUYẾN ĐI";
         document.getElementById('mainBtn').style.background = "var(--accent)";
         document.getElementById('homeControls').style.display = 'block';
-        if (document.getElementById('tripInfoPanel')) document.getElementById('tripInfoPanel').style.display = 'none';
+        document.getElementById('miniTripBtn').classList.add('hidden');
         
-        collapseSheet();
+        // Collapse sheet về trạng thái thu gọn
+        sheetState = 'collapsed';
+        const sheet = document.getElementById('tripSheet');
+        sheet.classList.remove('expanded');
+        sheet.classList.add('collapsed');
         
+        // Xóa marker cũ
         if (customerMarker) map.removeLayer(customerMarker);
         if (routeLayer) map.removeLayer(routeLayer);
         customerMarker = null;
         routeLayer = null;
-
+        
+        // Reset hiển thị giá
         updateDistanceUI();
+        
+        // Khởi động lại listener để nhận đơn mới
         startOrderListener();
+        
         showToast('🏠 Sẵn sàng nhận đơn mới!');
     }
 
-    function handleTrip() {
-        if (!tripPhase) {
-            tripPhase = 'inprogress';
-            isRunning = true;
-            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
-            document.getElementById('mainBtn').style.background = "var(--danger)";
-            document.getElementById('wishModal').style.display = 'flex';
-            totalDistance = 0;
-            updateDistanceUI();
-            startOrderListener();
-            speak("Bắt đầu chuyến đi.");
-        } else {
-            completeTrip();
-        }
-    }
-
     function bookAgain() {
-        _resetAfterTrip();
+        resetToHomeScreen();
     }
 
+    // --- NAVIGATION ---
     function navigateToDropoff() {
         if (!currentOrderData?.dropoffLat || !currentOrderData?.dropoffLng) {
             const addr = encodeURIComponent(currentOrderData?.dropoff || '');
@@ -1389,7 +1401,7 @@
 
     function dismissCancelBanner() {
         document.getElementById('cancelBanner').style.display = 'none';
-        if (tripPhase) completeTrip();
+        if (tripPhase) resetToHomeScreen();
     }
 
     // --- HISTORY & STATS ---
@@ -1487,7 +1499,6 @@
 
     function setRadius(value) { receiveRadius = parseInt(value); showToast(`📍 Đã đặt bán kính nhận đơn: ${value === '0' ? 'Toàn thành phố' : value + 'km'}`); }
 
-    // --- NAVIGATION ---
     function navigateToPickup() {
         if (!currentOrderData?.pickupLat || !currentOrderData?.pickupLng) { showToast('⚠️ Chưa có tọa độ điểm đón'); return; }
         const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentOrderData.pickupLat},${currentOrderData.pickupLng}&travelmode=driving`;
@@ -1558,6 +1569,22 @@
             else { document.getElementById('planShow').innerText = `⭐ GÓI: MIỄN PHÍ`; document.getElementById('profilePlan').innerText = 'Hết hạn'; }
         };
         check(); setInterval(check, 60000);
+    }
+
+    function handleTrip() {
+        if (!tripPhase) {
+            tripPhase = 'inprogress';
+            isRunning = true;
+            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--danger)";
+            document.getElementById('wishModal').style.display = 'flex';
+            totalDistance = 0;
+            updateDistanceUI();
+            startOrderListener();
+            speak("Bắt đầu chuyến đi.");
+        } else {
+            completeTrip();
+        }
     }
 
     // --- INIT ---
