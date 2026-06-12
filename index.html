@@ -1135,7 +1135,7 @@
     // ============================================================
 
     const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
-    const FCM_VAPID_KEY = "YOUR_FCM_VAPID_KEY_HERE"; // Thay bằng VAPID key thật từ Firebase Console
+    const FCM_VAPID_KEY = "YOUR_FCM_VAPID_KEY_HERE"; 
     if (!firebase.apps.length) firebase.initializeApp({ databaseURL: FIREBASE_URL });
     const db = firebase.database();
     let messaging = null;
@@ -1191,8 +1191,7 @@
         kalmanR: 0.1,
         stationaryCount: 0,
         isStationary: false,
-        // LEVEL 5.3: Bổ sung
-        layer: 'none',          // 'gps', 'wifi', 'bts', 'dr', 'none'
+        layer: 'none',          
         lastGpsTime: 0,
         gpsLostCount: 0,
         isGpsLost: false,
@@ -1223,14 +1222,14 @@
         ACTIVE_TRIP_DISTANCE: 'taxi_active_trip_distance',
         ACTIVE_TRIP_TYPE: 'taxi_active_trip_type',
         ACTIVE_TRIP_START_TIME: 'taxi_active_trip_start_time',
-        SYNC_QUEUE: 'taxi_sync_queue',        GPS_CACHE: 'taxi_gps_cache',
-        TRIP_BACKUP: 'taxi_trip_backup'
+        SYNC_QUEUE: 'taxi_sync_queue',
+        GPS_CACHE: 'taxi_gps_cache',        TRIP_BACKUP: 'taxi_trip_backup'
     };
 
-    // ===== LEVEL 5.3: ENCRYPTION KEY (Simple XOR - có thể nâng cấp AES) =====
+    // ===== LEVEL 5.3: ENCRYPTION KEY =====
     const ENCRYPTION_KEY = 'TAXIPROMAX_5.3_SECURE_KEY_2026';
 
-    // ===== LEVEL 5.3: SECURITY - Input Validation =====
+    // ===== LEVEL 5.3: SECURITY - Input Validation (ĐÃ SỬA) =====
     function validateInput(input, type) {
         if (input === null || input === undefined) return false;
         const str = String(input).trim();
@@ -1240,11 +1239,12 @@
             case 'phone':
                 return /^0[0-9]{9,10}$/.test(str);
             case 'cccd':
-                return /^[0-9]{9,12}$/.test(str);
+                return /^[0-9]{9}$|^[0-9]{12}$/.test(str);
             case 'plate':
-                return /^[0-9]{1,2}[A-Z]?-[0-9]{4,5}$/.test(str.replace(/\s/g, '')) || str.length >= 7;
+                const p = str.replace(/\s/g, '').toUpperCase();
+                return /^[0-9]{1,2}[A-Z0-9]{0,2}-[0-9]{3,5}(\.[0-9]{2})?$/.test(p) || p.length >= 7;
             case 'name':
-                return str.length >= 2 && str.length <= 50 && /^[a-zA-ZÀ-ỹ\s']+$/.test(str);
+                return str.length >= 2 && str.length <= 50 && /[a-zA-ZÀ-ỹĐđ]/.test(str);
             case 'text':
                 return str.length > 0 && str.length <= 500;
             case 'number':
@@ -1310,38 +1310,28 @@
             };
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
-                if (!db.objectStoreNames.contains('trips')) {
-                    db.createObjectStore('trips', { keyPath: 'id' });
-                }
-                if (!db.objectStoreNames.contains('chat')) {
-                    db.createObjectStore('chat', { keyPath: 'id', autoIncrement: true });
-                }
-                if (!db.objectStoreNames.contains('sync')) {
-                    db.createObjectStore('sync', { keyPath: 'id', autoIncrement: true });
-                }
-                if (!db.objectStoreNames.contains('gps_cache')) {
-                    db.createObjectStore('gps_cache', { keyPath: 'id' });
-                }            };
+                if (!db.objectStoreNames.contains('trips')) db.createObjectStore('trips', { keyPath: 'id' });
+                if (!db.objectStoreNames.contains('chat')) db.createObjectStore('chat', { keyPath: 'id', autoIncrement: true });
+                if (!db.objectStoreNames.contains('sync')) db.createObjectStore('sync', { keyPath: 'id', autoIncrement: true });
+                if (!db.objectStoreNames.contains('gps_cache')) db.createObjectStore('gps_cache', { keyPath: 'id' });
+            };
         });
     }
 
     function saveToIndexedDB(storeName, data) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             if (!indexedDBInstance) { resolve(false); return; }
-            try {
-                const tx = indexedDBInstance.transaction(storeName, 'readwrite');
+            try {                const tx = indexedDBInstance.transaction(storeName, 'readwrite');
                 const store = tx.objectStore(storeName);
                 store.put(data);
                 tx.oncomplete = () => resolve(true);
                 tx.onerror = () => resolve(false);
-            } catch(e) {
-                resolve(false);
-            }
+            } catch(e) { resolve(false); }
         });
     }
 
     function loadFromIndexedDB(storeName, key) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             if (!indexedDBInstance) { resolve(null); return; }
             try {
                 const tx = indexedDBInstance.transaction(storeName, 'readonly');
@@ -1349,28 +1339,12 @@
                 const request = store.get(key);
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => resolve(null);
-            } catch(e) {
-                resolve(null);
-            }
+            } catch(e) { resolve(null); }
         });
     }
 
-    function getAllFromIndexedDB(storeName) {
-        return new Promise((resolve, reject) => {
-            if (!indexedDBInstance) { resolve([]); return; }
-            try {
-                const tx = indexedDBInstance.transaction(storeName, 'readonly');
-                const store = tx.objectStore(storeName);
-                const request = store.getAll();
-                request.onsuccess = () => resolve(request.result || []);
-                request.onerror = () => resolve([]);
-            } catch(e) {
-                resolve([]);
-            }
-        });
-    }
-
-    function deleteFromIndexedDB(storeName, key) {        return new Promise((resolve, reject) => {
+    function deleteFromIndexedDB(storeName, key) {
+        return new Promise((resolve) => {
             if (!indexedDBInstance) { resolve(false); return; }
             try {
                 const tx = indexedDBInstance.transaction(storeName, 'readwrite');
@@ -1378,9 +1352,7 @@
                 store.delete(key);
                 tx.oncomplete = () => resolve(true);
                 tx.onerror = () => resolve(false);
-            } catch(e) {
-                resolve(false);
-            }
+            } catch(e) { resolve(false); }
         });
     }
 
@@ -1398,10 +1370,8 @@
         localStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(syncQueue));
     }
 
-    async function processSyncQueue() {
-        if (syncQueue.length === 0) return;
+    async function processSyncQueue() {        if (syncQueue.length === 0) return;
         const remaining = [];
-        
         for (const item of syncQueue) {
             try {
                 if (item.action === 'update_order') {
@@ -1416,996 +1386,77 @@
                 await deleteFromIndexedDB('sync', item.id);
             } catch(e) {
                 item.retryCount++;
-                if (item.retryCount < 5) {
-                    remaining.push(item);
-                } else {
-                    await deleteFromIndexedDB('sync', item.id);                }
+                if (item.retryCount < 5) remaining.push(item);
+                else await deleteFromIndexedDB('sync', item.id);
             }
         }
-        
         syncQueue = remaining;
         localStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(syncQueue));
     }
 
-    // ===== LEVEL 5.3: GPS MULTI-LAYER FILTER =====
-    function applyGpsFilter(lat, lng, accuracy, speed, timestamp, heading) {
-        const now = timestamp || Date.now();
+    // ===== LEVEL 5.3: AUTH LOADING STATE (MỚI) =====
+    function setAuthLoading(isLoading, type) {
+        const btnRegister = document.getElementById('btnRegister');
+        const btnLogin = document.getElementById('btnLogin');
+        const errorEl = type === 'register' ? document.getElementById('regError') : document.getElementById('loginError');
         
-        // 1. Accuracy filter - bỏ qua GPS quá kém
-        if (accuracy > 100) {
-            gpsFilterState.gpsLostCount++;
-            if (gpsFilterState.gpsLostCount > 5) {
-                gpsFilterState.isGpsLost = true;
-                updateGpsStatusDisplay('lost');
+        if (isLoading) {
+            if (type === 'register' && btnRegister) {
+                btnRegister.disabled = true;
+                btnRegister.innerText = 'ĐANG XỬ LÝ...';
+                btnRegister.style.opacity = '0.7';
+                btnRegister.style.cursor = 'not-allowed';
+            } else if (type === 'login' && btnLogin) {
+                btnLogin.disabled = true;
+                btnLogin.innerText = 'ĐANG XỬ LÝ...';
+                btnLogin.style.opacity = '0.7';
+                btnLogin.style.cursor = 'not-allowed';
             }
-            return null;
-        }
-        
-        // Reset GPS lost counter when good accuracy
-        gpsFilterState.gpsLostCount = 0;
-        gpsFilterState.isGpsLost = false;
-        
-        // 2. Speed filter - bỏ qua điểm có tốc độ vô lý (> 150 km/h)
-        const speedKmh = (speed || 0) * 3.6;
-        if (speedKmh > 150) return null;
-        
-        // 3. LEVEL 5.3: Mock GPS Detection
-        const mockResult = detectMockGPS(lat, lng, accuracy, speedKmh, now);
-        if (mockResult.isMock) {
-            gpsFilterState.isMockDetected = true;
-            gpsFilterState.mockCount++;
-            handleMockGPSDetection(mockResult.reason);
-            return null;
-        }
-        
-        // 4. LEVEL 5.3: Determine GPS Layer
-        let layer = 'gps';
-        if (accuracy <= 10) layer = 'gps';
-        else if (accuracy <= 30) layer = 'gps';
-        else if (accuracy <= 50) layer = 'wifi';
-        else if (accuracy <= 100) layer = 'bts';
-        else layer = 'none';
-        
-        gpsFilterState.layer = layer;
-        updateGpsLayerIndicator(layer);
-                // 5. Kalman filter đơn giản
-        if (gpsFilterState.kalmanLat === null) {
-            gpsFilterState.kalmanLat = lat;
-            gpsFilterState.kalmanLng = lng;
-            gpsFilterState.kalmanP = accuracy;
+            if (errorEl) errorEl.style.display = 'none';
         } else {
-            // Prediction
-            gpsFilterState.kalmanP += gpsFilterState.kalmanQ;
-            
-            // Update - dynamic R based on accuracy
-            const dynamicR = Math.max(0.1, accuracy / 100);
-            const K = gpsFilterState.kalmanP / (gpsFilterState.kalmanP + dynamicR);
-            gpsFilterState.kalmanLat += K * (lat - gpsFilterState.kalmanLat);
-            gpsFilterState.kalmanLng += K * (lng - gpsFilterState.kalmanLng);
-            gpsFilterState.kalmanP = (1 - K) * gpsFilterState.kalmanP;
-        }
-        
-        // 6. Stationary detection - chống trôi khi đứng yên
-        if (gpsFilterState.lastValidPos) {
-            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
-            const timeDiff = (now - gpsFilterState.lastValidTime) / 1000;
-            
-            if (dist < 0.005 && timeDiff < 10) {
-                gpsFilterState.stationaryCount++;
-                if (gpsFilterState.stationaryCount > 3) {
-                    gpsFilterState.isStationary = true;
-                }
-            } else {
-                gpsFilterState.stationaryCount = 0;
-                gpsFilterState.isStationary = false;
+            if (type === 'register' && btnRegister) {
+                btnRegister.disabled = false;
+                btnRegister.innerText = 'ĐĂNG KÝ TÀI XẾ';
+                btnRegister.style.opacity = '1';
+                btnRegister.style.cursor = 'pointer';
+            } else if (type === 'login' && btnLogin) {                btnLogin.disabled = false;
+                btnLogin.innerText = 'ĐĂNG NHẬP';
+                btnLogin.style.opacity = '1';
+                btnLogin.style.cursor = 'pointer';
             }
         }
-        
-        // 7. Distance threshold - chống nhảy GPS
-        if (gpsFilterState.lastValidPos) {
-            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
-            const timeDiff = (now - gpsFilterState.lastValidTime) / 1000;
-            
-            // Nếu di chuyển quá nhanh (> 100km/h) và accuracy kém, bỏ qua
-            if (timeDiff > 0 && (dist / timeDiff) * 3600 > 100 && accuracy > 30) {
-                return null;
-            }
-            
-            // Chống cộng dồn khi đứng yên
-            if (gpsFilterState.isStationary && dist < 0.01) {
-                return null;
-            }
-            
-            // LEVEL 5.3: Nếu khoảng cách quá lớn trong thời gian ngắn -> nghi ngờ GPS nhảy
-            if (timeDiff > 0 && timeDiff < 5 && dist > 0.5) {                if (accuracy > 20) {
-                    return null;
-                }
-            }
-        }
-        
-        // 8. LEVEL 5.3: Heading filter - chống xoay vô lý
-        if (heading !== undefined && heading !== null && !isNaN(heading)) {
-            gpsFilterState.headingBuffer.push(heading);
-            if (gpsFilterState.headingBuffer.length > 5) {
-                gpsFilterState.headingBuffer.shift();
-            }
-        }
-        
-        // 9. LEVEL 5.3: Update accuracy history
-        gpsFilterState.accuracyHistory.push(accuracy);
-        if (gpsFilterState.accuracyHistory.length > 10) {
-            gpsFilterState.accuracyHistory.shift();
-        }
-        
-        // 10. LEVEL 5.3: Update speed history
-        gpsFilterState.speedHistory.push(speedKmh);
-        if (gpsFilterState.speedHistory.length > 10) {
-            gpsFilterState.speedHistory.shift();
-        }
-        
-        gpsFilterState.lastValidPos = { lat: gpsFilterState.kalmanLat, lng: gpsFilterState.kalmanLng };
-        gpsFilterState.lastValidTime = now;
-        gpsFilterState.lastSpeed = speedKmh;
-        gpsFilterState.lastGpsTime = now;
-        gpsFilterState.recoveryMode = false;
-        
-        // 11. LEVEL 5.3: Update Dead Reckoning position
-        gpsFilterState.deadReckoningPos = { 
-            lat: gpsFilterState.kalmanLat, 
-            lng: gpsFilterState.kalmanLng,
-            heading: heading || gpsFilterState.lastHeading,
-            time: now
-        };
-        
-        return {
-            lat: gpsFilterState.kalmanLat,
-            lng: gpsFilterState.kalmanLng,
-            accuracy: accuracy,
-            speed: speedKmh,
-            layer: layer
-        };
     }
 
-    // ===== LEVEL 5.3: MOCK GPS DETECTION =====    function detectMockGPS(lat, lng, accuracy, speedKmh, timestamp) {
-        const result = { isMock: false, reason: '' };
-        
-        // Check 1: Accuracy quá tốt bất thường (< 1m liên tục)
-        if (accuracy < 1) {
-            result.isMock = true;
-            result.reason = 'accuracy_too_perfect';
-            return result;
-        }
-        
-        // Check 2: Vị trí nhảy quá xa trong thời gian rất ngắn
-        if (gpsFilterState.lastValidPos) {
-            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
-            const timeDiff = (timestamp - gpsFilterState.lastValidTime) / 1000;
-            
-            if (timeDiff > 0 && timeDiff < 2 && dist > 1) {
-                // Nhảy hơn 1km trong 2 giây -> teleport
-                result.isMock = true;
-                result.reason = 'teleport_detected';
-                return result;
-            }
-        }
-        
-        // Check 3: Tốc độ cao nhưng accuracy rất tốt (không thực tế)
-        if (speedKmh > 80 && accuracy < 3) {
-            result.isMock = true;
-            result.reason = 'speed_accuracy_mismatch';
-            return result;
-        }
-        
-        // Check 4: Vị trí không đổi nhưng tốc độ > 0
-        if (gpsFilterState.lastValidPos && speedKmh > 5) {
-            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
-            if (dist < 0.001) {
-                // Đứng yên nhưng báo tốc độ cao
-                result.isMock = true;
-                result.reason = 'stationary_with_speed';
-                return result;
-            }
-        }
-        
-        // Check 5: Nhiều điểm GPS cùng timestamp (spoofing)
-        const recentPoints = gpsFilterState.accuracyHistory.slice(-5);
-        if (recentPoints.length === 5) {
-            const allSame = recentPoints.every(a => a === recentPoints[0]);
-            if (allSame && recentPoints[0] < 5) {
-                result.isMock = true;
-                result.reason = 'spoofing_pattern';
-                return result;
-            }        }
-        
-        return result;
-    }
-
-    function handleMockGPSDetection(reason) {
-        console.warn('[MOCK GPS] Phát hiện GPS giả:', reason);
-        
-        // 1. Ghi log
-        const logEntry = {
-            timestamp: Date.now(),
-            reason: reason,
-            driverId: currentUser?.uid,
-            lat: currentLat,
-            lng: currentLng
+    // ===== LEVEL 5.3: MIGRATE OLD DRIVER DATA (MỚI) =====
+    function migrateDriverData(driver) {
+        if (!driver) return driver;
+        const defaults = {
+            fcmToken: null,
+            mockGpsCount: 0,
+            totalRides: driver.totalRides || 0,
+            rating: driver.rating || 5.0,
+            status: driver.status || 'offline',
+            fuelType: driver.fuelType || 'xang',
+            carClass: driver.carClass || '4_seats',
+            registeredAt: driver.createdAt ? new Date(driver.createdAt).toISOString() : new Date().toISOString()
         };
-        
-        let mockLogs = JSON.parse(localStorage.getItem('mock_gps_logs') || '[]');
-        mockLogs.push(logEntry);
-        if (mockLogs.length > 100) mockLogs = mockLogs.slice(-100);
-        localStorage.setItem('mock_gps_logs', JSON.stringify(mockLogs));
-        
-        // 2. Cảnh báo tài xế
-        showMockWarning();
-        
-        // 3. Gửi cảnh báo hệ thống
-        if (isOnline && currentUser) {
-            db.ref(`mock_gps_alerts/${currentUser.uid}/${Date.now()}`).set(logEntry).catch(() => {});
+        const migrated = { ...defaults, ...driver };
+        if (migrated.cccd && String(migrated.cccd).startsWith('ENC:')) {
+            try { migrated.cccdDecrypted = decryptCCCD(migrated.cccd); } 
+            catch(e) { migrated.cccdDecrypted = migrated.cccd; }
         } else {
-            addToSyncQueue('mock_gps_alert', logEntry);
+            migrated.cccdDecrypted = migrated.cccd;
         }
-        
-        // 4. Đánh dấu chuyến nếu đang chạy
-        if (currentOrderData?.id) {
-            db.ref(`datxe/${currentOrderData.id}/mockGpsDetected`).set(true).catch(() => {});
-        }
-        
-        // 5. Cập nhật UI
-        const dot = document.getElementById('gpsDot');
-        if (dot) dot.className = 'gps-dot mock';
-        const text = document.getElementById('gpsStatusText');
-        if (text) text.innerText = 'GPS: CẢNH BÁO GIẢ';
-        
-        showToast('⚠️ Phát hiện GPS giả! Đã ghi log.');
-        if (soundEnabled) speak('Cảnh báo phát hiện GPS giả');
+        return migrated;
     }
 
-    function showMockWarning() {
-        const banner = document.getElementById('mockWarningBanner');
-        if (banner) {            banner.classList.add('show');
-            setTimeout(() => banner.classList.remove('show'), 10000);
-        }
-    }
-
-    function dismissMockWarning() {
-        const banner = document.getElementById('mockWarningBanner');
-        if (banner) banner.classList.remove('show');
-    }
-
-    // ===== LEVEL 5.3: GPS LAYER INDICATOR UPDATE =====
-    function updateGpsLayerIndicator(layer) {
-        const layers = {
-            'gps': 'layerGps',
-            'wifi': 'layerWifi',
-            'bts': 'layerBts',
-            'dr': 'layerDr'
-        };
-        
-        Object.values(layers).forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('active');
-        });
-        
-        const activeId = layers[layer];
-        if (activeId) {
-            const el = document.getElementById(activeId);
-            if (el) el.classList.add('active');
-        }
-        
-        // Update profile
-        const profileLayer = document.getElementById('profileGpsLayer');
-        if (profileLayer) {
-            const layerNames = {
-                'gps': '🛰 GPS Vệ tinh',
-                'wifi': '📶 WiFi',
-                'bts': '📡 BTS',
-                'dr': '🧭 Dead Reckoning',
-                'none': '❌ Mất tín hiệu'
-            };
-            profileLayer.innerText = layerNames[layer] || '--';
-        }
-    }
-
-    // ===== LEVEL 5.3: GPS STATUS DISPLAY =====
-    function updateGpsStatusDisplay(status, accuracy) {
-        const dot = document.getElementById('gpsDot');
-        const text = document.getElementById('gpsStatusText');
-        
-        if (!dot || !text) return;        
-        switch(status) {
-            case 'good':
-                dot.className = 'gps-dot good';
-                text.innerText = `GPS TỐT (±${Math.round(accuracy)}m)`;
-                break;
-            case 'medium':
-                dot.className = 'gps-dot weak';
-                text.innerText = `GPS TRUNG BÌNH (±${Math.round(accuracy)}m)`;
-                break;
-            case 'weak':
-                dot.className = 'gps-dot bad';
-                text.innerText = `GPS YẾU (±${Math.round(accuracy)}m)`;
-                break;
-            case 'lost':
-                dot.className = 'gps-dot lost';
-                text.innerText = 'GPS MẤT TÍN HIỆU';
-                break;
-            case 'mock':
-                dot.className = 'gps-dot mock';
-                text.innerText = 'GPS GIẢ - CẢNH BÁO';
-                break;
-            default:
-                dot.className = 'gps-dot';
-                text.innerText = 'GPS: Đang tìm...';
-        }
-    }
-
-    // ===== LEVEL 5.3: DEAD RECKONING =====
-    function deadReckoning(lastLat, lastLng, heading, speedKmh, timeDeltaSec) {
-        if (!lastLat || !lastLng || !heading || !speedKmh || speedKmh < 1) {
-            return null;
-        }
-        
-        const distanceKm = (speedKmh * timeDeltaSec) / 3600;
-        if (distanceKm > 1) return null; // Không DR quá 1km
-        
-        const bearingRad = heading * Math.PI / 180;
-        const R = 6371;
-        const dLat = distanceKm / R * 180 / Math.PI;
-        const dLng = distanceKm / R * 180 / Math.PI / Math.cos(lastLat * Math.PI / 180);
-        
-        return {
-            lat: lastLat + dLat * Math.cos(bearingRad),
-            lng: lastLng + dLng * Math.sin(bearingRad),
-            confidence: Math.max(0, 1 - (timeDeltaSec / 30)) // Giảm độ tin cậy theo thời gian
-        };
-    }
-
-    // ===== LEVEL 5.3: SNAP TO ROAD (Simplified) =====    function snapToRoad(lat, lng) {
-        // Simplified snap-to-road: giữ nguyên tọa độ nhưng làm mượt
-        // Trong production, có thể gọi OSRM API:
-        // https://router.project-osrm.org/nearest/v1/driving/{lng},{lat}
-        
-        if (!gpsFilterState.snapToRoadEnabled) {
-            return { lat, lng, snapped: false };
-        }
-        
-        // Nếu có buffer, snap về vị trí gần nhất trong buffer
-        if (streetHailDistanceBuffer.length > 0) {
-            const lastPoint = streetHailDistanceBuffer[streetHailDistanceBuffer.length - 1];
-            const dist = haversine(lat, lng, lastPoint.lat, lastPoint.lng);
-            
-            // Nếu gần điểm trước đó (< 5m), giữ nguyên
-            if (dist < 0.005) {
-                return { lat: lastPoint.lat, lng: lastPoint.lng, snapped: true };
-            }
-        }
-        
-        return { lat, lng, snapped: false };
-    }
-
-    // ===== LEVEL 5.3: GPS RECOVERY =====
-    function recoverGPS() {
-        if (!gpsFilterState.isGpsLost) return null;
-        
-        gpsFilterState.recoveryMode = true;
-        gpsFilterState.recoveryCount++;
-        
-        // Thử dùng dead reckoning
-        if (gpsFilterState.deadReckoningPos && gpsFilterState.lastSpeed > 0) {
-            const timeSinceLastGps = (Date.now() - gpsFilterState.lastGpsTime) / 1000;
-            if (timeSinceLastGps < 30) { // Chỉ DR trong 30 giây
-                const dr = deadReckoning(
-                    gpsFilterState.deadReckoningPos.lat,
-                    gpsFilterState.deadReckoningPos.lng,
-                    gpsFilterState.deadReckoningPos.heading || gpsFilterState.lastHeading,
-                    gpsFilterState.lastSpeed,
-                    timeSinceLastGps
-                );
-                
-                if (dr && dr.confidence > 0.3) {
-                    updateGpsLayerIndicator('dr');
-                    return {
-                        lat: dr.lat,
-                        lng: dr.lng,
-                        accuracy: 50 + (timeSinceLastGps * 2),
-                        speed: gpsFilterState.lastSpeed,
-                        layer: 'dr',                        recovered: true
-                    };
-                }
-            }
-        }
-        
-        return null;
-    }
-
-    function resetGpsFilter() {
-        gpsFilterState = {
-            lastValidPos: null,
-            lastValidTime: 0,
-            lastSpeed: 0,
-            kalmanLat: null,
-            kalmanLng: null,
-            kalmanP: 100,
-            kalmanQ: 0.01,
-            kalmanR: 0.1,
-            stationaryCount: 0,
-            isStationary: false,
-            layer: 'none',
-            lastGpsTime: 0,
-            gpsLostCount: 0,
-            isGpsLost: false,
-            isMockDetected: false,
-            mockCount: 0,
-            lastHeading: 0,
-            headingBuffer: [],
-            snapToRoadEnabled: true,
-            deadReckoningPos: null,
-            recoveryMode: false,
-            recoveryCount: 0,
-            accuracyHistory: [],
-            speedHistory: []
-        };
-    }
-
-    // ===== LEVEL 5.3: WAKE LOCK & KEEP ALIVE NÂNG CẤP =====
-    async function requestWakeLock() {
-        try {
-            if ('wakeLock' in navigator) {
-                wakeLock = await navigator.wakeLock.request('screen');
-                wakeLock.addEventListener('release', () => {
-                    console.log('Wake Lock released');
-                    // Auto recovery
-                    if (isRunning) {
-                        setTimeout(requestWakeLock, 1000);
-                    }
-                });            }
-        } catch (err) {
-            console.error('Wake Lock error:', err);
-        }
-    }
-    
-    function releaseWakeLock() {
-        if (wakeLock) {
-            wakeLock.release();
-            wakeLock = null;
-        }
-    }
-    
-    function startHeartbeat() {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(() => {
-            // Giữ app alive khi chạy nền
-            if (isRunning && currentLat && currentLng) {
-                const data = {
-                    lat: currentLat, 
-                    lng: currentLng, 
-                    heading: currentHeading,
-                    status: tripPhase ? 'busy' : 'ready', 
-                    lastUpdate: Date.now(),
-                    speed: gpsFilterState.lastSpeed,
-                    layer: gpsFilterState.layer,
-                    isMock: gpsFilterState.isMockDetected
-                };
-                
-                if (isOnline) {
-                    db.ref(`tai_xe_online/${currentUser?.uid}`).set(data).catch(() => {
-                        addToSyncQueue('update_driver', { uid: currentUser?.uid, data: data });
-                    });
-                } else {
-                    addToSyncQueue('update_driver', { uid: currentUser?.uid, data: data });
-                }
-            }
-        }, 30000);
-    }
-    
-    function stopHeartbeat() {
-        if (heartbeatInterval) {
-            clearInterval(heartbeatInterval);
-            heartbeatInterval = null;
-        }
-    }
-
-    // ===== LEVEL 5.3: FOREGROUND SERVICE =====
-    function startForegroundService() {
-        const indicator = document.getElementById('fgServiceIndicator');        if (indicator) indicator.classList.add('active');
-        
-        // Register service worker for background sync
-        if ('serviceWorker' in navigator) {
-            initServiceWorker();
-        }
-        
-        // Request wake lock
-        requestWakeLock();
-        
-        // Start heartbeat
-        startHeartbeat();
-        
-        console.log('[FG SERVICE] Foreground service started');
-    }
-
-    function stopForegroundService() {
-        const indicator = document.getElementById('fgServiceIndicator');
-        if (indicator) indicator.classList.remove('active');
-        
-        releaseWakeLock();
-        stopHeartbeat();
-        
-        console.log('[FG SERVICE] Foreground service stopped');
-    }
-
-    // ===== LEVEL 5.3: SERVICE WORKER INIT =====
-    function initServiceWorker() {
-        if (!('serviceWorker' in navigator)) return;
-        
-        // Tạo service worker inline
-        const swCode = `
-            self.addEventListener('install', (event) => {
-                self.skipWaiting();
-            });
-            
-            self.addEventListener('activate', (event) => {
-                self.clients.claim();
-            });
-            
-            self.addEventListener('fetch', (event) => {
-                // Cache first strategy for static assets
-            });
-            
-            self.addEventListener('push', (event) => {
-                const data = event.data ? event.data.json() : {};
-                const title = data.title || 'Taxi ProMax';
-                const options = {
-                    body: data.body || 'Có thông báo mới',
-                    icon: data.icon || '/assets/logo.png',                    badge: '/assets/logo.png',
-                    vibrate: [200, 100, 200],
-                    data: data,
-                    actions: data.actions || []
-                };
-                event.waitUntil(self.registration.showNotification(title, options));
-            });
-            
-            self.addEventListener('notificationclick', (event) => {
-                event.notification.close();
-                event.waitUntil(
-                    clients.matchAll({type: 'window'}).then((clientList) => {
-                        for (const client of clientList) {
-                            if (client.url === '/' && 'focus' in client) {
-                                return client.focus();
-                            }
-                        }
-                        if (clients.openWindow) {
-                            return clients.openWindow('/');
-                        }
-                    })
-                );
-            });
-            
-            self.addEventListener('sync', (event) => {
-                if (event.tag === 'sync-queue') {
-                    event.waitUntil(syncQueueFromSW());
-                }
-            });
-            
-            async function syncQueueFromSW() {
-                // Background sync logic
-            }
-        `;
-        
-        const blob = new Blob([swCode], { type: 'application/javascript' });
-        const swUrl = URL.createObjectURL(blob);
-        
-        navigator.serviceWorker.register(swUrl).then((reg) => {
-            console.log('[SW] Service Worker registered');
-            initFCM(reg);
-        }).catch((err) => {
-            console.warn('[SW] Service Worker registration failed:', err);
-        });
-    }
-
-    // ===== LEVEL 5.3: FIREBASE CLOUD MESSAGING =====
-    function initFCM(swReg) {
-        try {
-            messaging = firebase.messaging();            
-            // Use the service worker registration
-            if (swReg) {
-                messaging.useServiceWorker(swReg);
-            }
-            
-            // Request permission
-            messaging.requestPermission().then(() => {
-                console.log('[FCM] Permission granted');
-                return messaging.getToken({ vapidKey: FCM_VAPID_KEY });
-            }).then((token) => {
-                console.log('[FCM] Token:', token);
-                // Save token to Firebase
-                if (currentUser) {
-                    db.ref(`fcm_tokens/${currentUser.uid}`).set({
-                        token: token,
-                        timestamp: Date.now(),
-                        platform: 'web'
-                    });
-                }
-                updatePushToggle(true);
-            }).catch((err) => {
-                console.warn('[FCM] Permission denied or error:', err);
-                showPushPermissionBanner();
-            });
-            
-            // Handle foreground messages
-            messaging.onMessage((payload) => {
-                console.log('[FCM] Foreground message:', payload);
-                handlePushNotification(payload);
-            });
-            
-            // Handle background messages (click)
-            messaging.onBackgroundMessage((payload) => {
-                console.log('[FCM] Background message:', payload);
-            });
-            
-        } catch(e) {
-            console.warn('[FCM] Init error:', e);
-        }
-    }
-
-    function handlePushNotification(payload) {
-        const { title, body, data } = payload.notification || payload;
-        
-        // Show in-app notification
-        showToast(`${title}: ${body}`);
-        
-        // Play sound
-        if (soundEnabled) {            speak(title);
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        }
-        
-        // Handle specific notification types
-        if (data) {
-            if (data.type === 'new_order') {
-                // Refresh order listener
-                if (isOnline) startOrderListener();
-            } else if (data.type === 'customer_cancel') {
-                // Show cancel banner
-                const banner = document.getElementById('cancelBanner');
-                if (banner) banner.style.display = 'block';
-            } else if (data.type === 'new_message') {
-                // Open chat if order is active
-                if (currentOrderData?.id === data.orderId) {
-                    openChat();
-                }
-            }
-        }
-    }
-
-    function requestNotificationPermission() {
-        if (!('Notification' in window)) {
-            showToast('⚠️ Trình duyệt không hỗ trợ thông báo');
-            return;
-        }
-        
-        Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') {
-                showToast('✅ Đã bật thông báo');
-                updatePushToggle(true);
-                closePushBanner();
-                
-                // Re-init FCM
-                if (messaging) {
-                    messaging.getToken({ vapidKey: FCM_VAPID_KEY }).then((token) => {
-                        if (currentUser) {
-                            db.ref(`fcm_tokens/${currentUser.uid}`).set({
-                                token: token,
-                                timestamp: Date.now(),
-                                platform: 'web'
-                            });
-                        }
-                    });
-                }
-            } else {
-                showToast('❌ Bạn đã từ chối thông báo');
-                updatePushToggle(false);
-            }        });
-    }
-
-    function showPushPermissionBanner() {
-        if (Notification.permission === 'default') {
-            const banner = document.getElementById('pushPermissionBanner');
-            if (banner) banner.classList.add('show');
-        } else if (Notification.permission === 'granted') {
-            updatePushToggle(true);
-        }
-    }
-
-    function closePushBanner() {
-        const banner = document.getElementById('pushPermissionBanner');
-        if (banner) banner.classList.remove('show');
-    }
-
-    function togglePushNotification() {
-        if (!('Notification' in window)) {
-            showToast('⚠️ Trình duyệt không hỗ trợ thông báo');
-            return;
-        }
-        
-        if (Notification.permission === 'granted') {
-            updatePushToggle(true);
-            showToast('🔔 Thông báo đã bật');
-        } else if (Notification.permission === 'denied') {
-            showToast('⚠️ Vui lòng bật thông báo trong cài đặt trình duyệt');
-            updatePushToggle(false);
-        } else {
-            requestNotificationPermission();
-        }
-    }
-
-    function updatePushToggle(enabled) {
-        const toggle = document.getElementById('pushToggle');
-        if (toggle) {
-            if (enabled) {
-                toggle.classList.add('active');
-            } else {
-                toggle.classList.remove('active');
-            }
-        }
-    }
-
-    // ===== LEVEL 5.3: ATOMIC LOCK NÂNG CẤP =====
-    async function tryAcceptOrder(orderId) {
-        const lockTimeout = 15000; // 15 seconds
-        const maxRetries = 3;
-        let attempt = 0;        
-        while (attempt < maxRetries) {
-            try {
-                const orderRef = db.ref(`datxe/${orderId}`);
-                const result = await orderRef.transaction((currentData) => {
-                    if (!currentData) return null;
-                    
-                    // Check if order is still waiting
-                    if (currentData.status !== 'waiting') return null;
-                    
-                    // Check if already locked by another driver
-                    if (currentData.driverId && currentData.driverId !== currentUser?.uid) {
-                        // Check if lock is expired
-                        if (currentData.lockedAt && (Date.now() - currentData.lockedAt) < lockTimeout) {
-                            return null; // Still locked by another
-                        }
-                    }
-                    
-                    // Lock the order
-                    currentData.status = 'locking';
-                    currentData.driverId = currentUser?.uid;
-                    currentData.lockedAt = Date.now();
-                    currentData.lockTimeout = lockTimeout;
-                    return currentData;
-                });
-                
-                if (result.committed && result.snapshot.val()) {
-                    const updatedData = result.snapshot.val();
-                    
-                    // Confirm acceptance
-                    await orderRef.update({
-                        status: 'driving',
-                        acceptedAt: Date.now(),
-                        tripType: tripType,
-                        lockedAt: null // Clear lock after confirmation
-                    });
-                    
-                    return { success: true, data: updatedData };
-                } else {
-                    return { success: false, reason: 'Đơn đã được tài xế khác nhận' };
-                }
-            } catch (error) {
-                console.error(`[ATOMIC LOCK] Attempt ${attempt + 1} error:`, error);
-                attempt++;
-                
-                if (attempt >= maxRetries) {
-                    return { success: false, reason: 'Lỗi kết nối. Vui lòng thử lại.' };
-                }
-                
-                // Wait before retry with exponential backoff                await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
-            }
-        }
-        
-        return { success: false, reason: 'Không thể nhận đơn' };
-    }
-
-    // ===== LEVEL 5.3: GPS BUFFER VÀ COMPENSATION =====
-    function addGpsPointToBuffer(lat, lng, timestamp, accuracy) {
-        if (accuracy > 30) return;
-        
-        // Snap to road trước khi thêm vào buffer
-        const snapped = snapToRoad(lat, lng);
-        
-        streetHailDistanceBuffer.push({ 
-            lat: snapped.lat, 
-            lng: snapped.lng, 
-            timestamp, 
-            accuracy,
-            snapped: snapped.snapped
-        });
-        
-        if (streetHailDistanceBuffer.length > 100) streetHailDistanceBuffer.shift();
-        
-        // Save to IndexedDB for recovery
-        saveToIndexedDB('gps_cache', {
-            id: 'current_buffer',
-            buffer: streetHailDistanceBuffer,
-            timestamp: Date.now()
-        });
-    }
-
-    function calculateCompensatedDistance() {
-        if (streetHailDistanceBuffer.length < 2) return 0;
-        let totalCompensated = 0;
-        let lastValidPoint = null;
-        
-        for (let i = 0; i < streetHailDistanceBuffer.length; i++) {
-            const currentPoint = streetHailDistanceBuffer[i];
-            if (lastValidPoint) {
-                const timeDiff = (currentPoint.timestamp - lastValidPoint.timestamp) / 1000;
-                if (timeDiff < 300 && timeDiff > 0) {
-                    const dist = haversine(lastValidPoint.lat, lastValidPoint.lng, currentPoint.lat, currentPoint.lng);
-                    const speedKmh = (dist / timeDiff) * 3600;
-                    
-                    // Chỉ tính nếu tốc độ hợp lệ
-                    if (speedKmh >= 0 && speedKmh <= 100) {
-                        // LEVEL 5.3: Không tính nếu accuracy quá kém
-                        if (currentPoint.accuracy <= 30 && lastValidPoint.accuracy <= 30) {
-                            totalCompensated += dist;                        }
-                    }
-                }
-            }
-            lastValidPoint = currentPoint;
-        }
-        return totalCompensated;
-    }
-
-    // ===== LEVEL 5.3: SAVE & RESTORE TRIP NÂNG CẤP =====
-    function saveActiveTripToStorage() {
-        if (!currentOrderData) {
-            Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-            return;
-        }
-        const tripToSave = {
-            id: currentOrderData.id,
-            clientName: currentOrderData.clientName,
-            phone: currentOrderData.phone,
-            pickup: currentOrderData.pickup,
-            dropoff: currentOrderData.dropoff,
-            pickupLat: currentOrderData.pickupLat,
-            pickupLng: currentOrderData.pickupLng,
-            dropoffLat: currentOrderData.dropoffLat,
-            dropoffLng: currentOrderData.dropoffLng,
-            fareEstimate: currentOrderData.fareEstimate,
-            status: currentOrderData.status
-        };
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP, JSON.stringify(tripToSave));
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_PHASE, tripPhase || '');
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_DISTANCE, totalDistance.toString());
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_TYPE, tripType || '');
-        if (streetHailStartTime) {
-            localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_START_TIME, streetHailStartTime.toString());
-        }
-        
-        // LEVEL 5.3: Backup to IndexedDB
-        saveToIndexedDB('trips', {
-            id: currentOrderData.id,
-            trip: tripToSave,
-            phase: tripPhase,
-            distance: totalDistance,
-            type: tripType,
-            startTime: streetHailStartTime,
-            timestamp: Date.now()
-        });
-        
-        // LEVEL 5.3: Backup GPS buffer
-        if (streetHailDistanceBuffer.length > 0) {
-            saveToIndexedDB('gps_cache', {                id: 'trip_' + currentOrderData.id,
-                buffer: streetHailDistanceBuffer,
-                distance: totalDistance,
-                timestamp: Date.now()
-            });
-        }
-    }
-    
-    async function restoreActiveTripFromStorage() {
-        // Try LocalStorage first
-        const savedTrip = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP);
-        let trip = null;
-        let savedPhase = null;
-        let savedDistance = 0;
-        let savedTripType = null;
-        let savedStartTime = null;
-        
-        if (savedTrip) {
-            try {
-                trip = JSON.parse(savedTrip);
-                savedPhase = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_PHASE);
-                savedDistance = parseFloat(localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_DISTANCE) || '0');
-                savedTripType = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_TYPE);
-                savedStartTime = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_START_TIME);
-            } catch(e) {
-                console.error('Parse LocalStorage trip error:', e);
-            }
-        }
-        
-        // LEVEL 5.3: Fallback to IndexedDB if LocalStorage empty
-        if (!trip) {
-            const idbTrip = await loadFromIndexedDB('trips', 'current');
-            if (idbTrip) {
-                trip = idbTrip.trip;
-                savedPhase = idbTrip.phase;
-                savedDistance = idbTrip.distance;
-                savedTripType = idbTrip.type;
-                savedStartTime = idbTrip.startTime;
-            }
-        }
-        
-        if (!trip) return false;
-        
-        try {
-            const snapshot = await db.ref(`datxe/${trip.id}`).once('value');
-            const orderInDb = snapshot.val();
-            
-            if (!orderInDb || orderInDb.status === 'completed' || orderInDb.status === 'cancelled') {
-                Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-                await deleteFromIndexedDB('trips', trip.id);                return false;
-            }
-            
-            currentOrderData = { id: trip.id, ...trip, ...orderInDb };
-            tripPhase = savedPhase || 'enroute';
-            totalDistance = savedDistance;
-            tripType = savedTripType;
-            
-            if (savedStartTime && tripType === 'STREET_HAIL') {
-                streetHailStartTime = parseInt(savedStartTime);
-            }
-            
-            // LEVEL 5.3: Restore GPS buffer from IndexedDB
-            const gpsCache = await loadFromIndexedDB('gps_cache', 'trip_' + trip.id);
-            if (gpsCache && gpsCache.buffer) {
-                streetHailDistanceBuffer = gpsCache.buffer;
-            }
-            
-            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
-            document.getElementById('mainBtn').style.background = "var(--danger)";
-            document.getElementById('homeControls').style.display = 'none';
-            document.getElementById('statsUI').classList.add('show');
-            
-            if (currentOrderData.pickupLat && currentOrderData.pickupLng && tripType === 'APP_BOOKING') {
-                createCustomerMarker(currentOrderData.pickupLat, currentOrderData.pickupLng);
-            }
-            
-            listenForChat();
-            listenForRating();
-            txListenForCustomerCancel(currentOrderData.id);
-            showSheet();
-            expandSheet();
-            renderSheetUI();
-            updateDistanceUI();
-            
-            // LEVEL 5.3: Start foreground service
-            startForegroundService();
-            
-            showToast(`🔄 Đã khôi phục chuyến đi: ${tripPhase}`);
-            return true;
-        } catch (e) {
-            console.error('Restore trip error:', e);
-            return false;
-        }
-    }
-
-    function calculateEstimatedFare(pickupLat, pickupLng, dropoffLat, dropoffLng) {
-        if (!pickupLat || !pickupLng || !dropoffLat || !dropoffLng) return null;
-        const distance = haversine(pickupLat, pickupLng, dropoffLat, dropoffLng);
-        const baseFare = 15000;        const perKm = currentRate;
-        const estimatedFare = Math.round(baseFare + distance * perKm);
-        return { distance: parseFloat(distance.toFixed(1)), fare: estimatedFare };
-    }
-
-    // ===== AUTHENTICATION NÂNG CẤP =====
+    // ===== LEVEL 5.3: AUTHENTICATION - ĐĂNG KÝ (ĐÃ SỬA) =====
     async function doRegister() {
+        console.log('[AUTH] === BẮT ĐẦU ĐĂNG KÝ ===');
+        const btn = document.getElementById('btnRegister');
+        const errEl = document.getElementById('regError');
+        errEl.style.display = 'none';
+        
         const name = document.getElementById('regName').value.trim();
         const phone = document.getElementById('regPhone').value.trim();
         const cccd = document.getElementById('regCccd').value.trim();
@@ -2413,107 +1464,129 @@
         const carModel = document.getElementById('regCarModel').value.trim();
         const fuelType = document.querySelector('input[name="fuelType"]:checked')?.value || 'xang';
         const carClass = document.querySelector('input[name="carClass"]:checked')?.value || '4_seats';
-        const errorEl = document.getElementById('regError');
-        
-        // LEVEL 5.3: Input Validation
-        if (!validateInput(name, 'name')) { 
-            errorEl.textContent = '⚠️ Họ tên không hợp lệ (2-50 ký tự, chỉ chữ)'; 
-            errorEl.style.display = 'block'; 
-            return; 
-        }
-        if (!validateInput(phone, 'phone')) { 
-            errorEl.textContent = '⚠️ Số điện thoại không hợp lệ'; 
-            errorEl.style.display = 'block'; 
-            return; 
-        }
-        if (!validateInput(cccd, 'cccd')) { 
-            errorEl.textContent = '⚠️ CCCD không hợp lệ (9-12 số)'; 
-            errorEl.style.display = 'block'; 
-            return; 
-        }
-        if (!validateInput(plate, 'plate')) { 
-            errorEl.textContent = '⚠️ Biển số xe không hợp lệ'; 
-            errorEl.style.display = 'block'; 
-            return; 
-        }
-        if (!validateInput(carModel, 'text')) {
-            errorEl.textContent = '⚠️ Vui lòng nhập dòng xe';
-            errorEl.style.display = 'block';
-            return;
-        }
-        
+
+        if (!validateInput(name, 'name')) { errEl.textContent = '⚠️ Họ tên không hợp lệ'; errEl.style.display = 'block'; console.error('[AUTH] Invalid name'); return; }
+        if (!validateInput(phone, 'phone')) { errEl.textContent = '⚠️ Số điện thoại không hợp lệ (10-11 số, bắt đầu bằng 0)'; errEl.style.display = 'block'; console.error('[AUTH] Invalid phone'); return; }
+        if (!validateInput(cccd, 'cccd')) { errEl.textContent = '⚠️ CCCD/CMND không hợp lệ (9 hoặc 12 số)'; errEl.style.display = 'block'; console.error('[AUTH] Invalid cccd'); return; }
+        if (!validateInput(plate, 'plate')) { errEl.textContent = '⚠️ Biển số xe không hợp lệ'; errEl.style.display = 'block'; console.error('[AUTH] Invalid plate'); return; }        if (!validateInput(carModel, 'text')) { errEl.textContent = '⚠️ Vui lòng nhập dòng xe'; errEl.style.display = 'block'; console.error('[AUTH] Invalid carModel'); return; }
+
+        if (!navigator.onLine) { errEl.textContent = '⚠️ Không có kết nối mạng'; errEl.style.display = 'block'; return; }
+
+        setAuthLoading(true, 'register');
+
         try {
-            const snapshot = await db.ref('drivers').once('value');
-            const allDrivers = snapshot.val() || {};
-            if (Object.values(allDrivers).some(d => d.phone === phone)) {
-                errorEl.textContent = '⚠️ Số điện thoại đã đăng ký!'; 
-                errorEl.style.display = 'block'; 
-                return;            }
-            
-            const uid = 'driver_' + Date.now();
-            const newDriver = { 
-                uid, 
-                name: escapeHtml(name), 
-                phone, 
-                cccd: encryptCCCD(cccd), // LEVEL 5.3: Encrypt CCCD
-                plate: escapeHtml(plate), 
-                carModel: escapeHtml(carModel), 
-                fuelType, 
-                carClass, 
-                status: 'offline', 
-                createdAt: Date.now(), 
-                totalRides: 0, 
+            console.log('[AUTH] Checking duplicate phone...');
+            const dupSnap = await db.ref('drivers').orderByChild('phone').equalTo(phone).once('value');
+            if (dupSnap.exists()) {
+                errEl.textContent = '⚠️ Số điện thoại đã được đăng ký!';
+                errEl.style.display = 'block';
+                console.warn('[AUTH] Phone already exists');
+                setAuthLoading(false, 'register');
+                return;
+            }
+
+            console.log('[AUTH] Generating UID...');
+            const newRef = db.ref('drivers').push();
+            const uid = newRef.key; 
+
+            const newDriver = {
+                uid: uid,
+                name: name,
+                phone: phone,
+                cccd: encryptCCCD(cccd),
+                plate: plate.toUpperCase(),
+                carModel: carModel,
+                fuelType: fuelType,
+                carClass: carClass,
+                status: 'offline',
+                createdAt: Date.now(),
+                totalRides: 0,
                 rating: 5.0,
                 fcmToken: null,
                 mockGpsCount: 0
             };
-            await db.ref('drivers/' + uid).set(newDriver);
+
+            console.log('[AUTH] Saving to Firebase...');
+            await newRef.set(newDriver);
+            console.log('[AUTH] Đăng ký thành công:', uid);
+
             currentUser = newDriver;
             localStorage.setItem('currentDriver', JSON.stringify(currentUser));
             document.getElementById('authScreen').style.display = 'none';
             showToast('✅ Đăng ký thành công! Chào ' + name);
             setTimeout(initApp, 300);
-        } catch (error) { 
-            errorEl.textContent = '⚠️ Lỗi: ' + error.message; 
-            errorEl.style.display = 'block'; 
+        } catch (error) {
+            console.error('[AUTH] LỖI ĐĂNG KÝ:', error);
+            let msg = 'Lỗi không xác định';            if (error.code === 'PERMISSION_DENIED') msg = 'Không có quyền ghi dữ liệu (Kiểm tra Firebase Rules)';
+            else if (error.message) msg = error.message;
+            errEl.textContent = '⚠️ Lỗi: ' + msg;
+            errEl.style.display = 'block';
+            setAuthLoading(false, 'register');
         }
     }
 
+    // ===== LEVEL 5.3: AUTHENTICATION - ĐĂNG NHẬP (ĐÃ SỬA) =====
     async function doLogin() {
+        console.log('[AUTH] === BẮT ĐẦU ĐĂNG NHẬP ===');
+        const btn = document.getElementById('btnLogin');
+        const errEl = document.getElementById('loginError');
+        errEl.style.display = 'none';
+
         const phone = document.getElementById('loginPhone').value.trim();
-        const errorEl = document.getElementById('loginError');
-        
-        // LEVEL 5.3: Input Validation
-        if (!validateInput(phone, 'phone')) { 
-            errorEl.textContent = '⚠️ Số điện thoại không hợp lệ'; 
-            errorEl.style.display = 'block'; 
-            return; 
+
+        if (!validateInput(phone, 'phone')) {
+            errEl.textContent = '⚠️ Số điện thoại không hợp lệ';
+            errEl.style.display = 'block';
+            console.error('[AUTH] Invalid phone');
+            return;
         }
-        
+
+        if (!navigator.onLine) {
+            errEl.textContent = '⚠️ Không có kết nối mạng';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        setAuthLoading(true, 'login');
+
         try {
-            const snapshot = await db.ref('drivers').once('value');
-            const allDrivers = snapshot.val() || {};
-            const driver = Object.values(allDrivers).find(d => d.phone === phone);
-            if (!driver) { 
-                errorEl.textContent = '⚠️ Số điện thoại chưa đăng ký!'; 
-                errorEl.style.display = 'block'; 
-                return;             }
+            console.log('[AUTH] Querying Firebase for phone:', phone);
+            const snap = await db.ref('drivers').orderByChild('phone').equalTo(phone).once('value');
+            
+            if (!snap.exists()) {
+                errEl.textContent = '⚠️ Số điện thoại chưa đăng ký!';
+                errEl.style.display = 'block';
+                console.warn('[AUTH] Phone not found');
+                setAuthLoading(false, 'login');
+                return;
+            }
+
+            const driverData = Object.values(snap.val())[0];
+            console.log('[AUTH] Driver found:', driverData.uid);
+
+            const driver = migrateDriverData(driverData);
+            console.log('[AUTH] Driver data migrated');
             currentUser = driver;
             localStorage.setItem('currentDriver', JSON.stringify(currentUser));
+            
             document.getElementById('authScreen').style.display = 'none';
             showToast('✅ Đăng nhập thành công! Chào ' + driver.name);
             setTimeout(initApp, 300);
-        } catch (error) { 
-            errorEl.textContent = '⚠️ Lỗi: ' + error.message; 
-            errorEl.style.display = 'block'; 
+
+        } catch (error) {
+            console.error('[AUTH] LỖI ĐĂNG NHẬP:', error);
+            let msg = 'Lỗi không xác định';
+            if (error.code === 'PERMISSION_DENIED') msg = 'Không có quyền đọc dữ liệu (Kiểm tra Firebase Rules)';
+            else if (error.message) msg = error.message;
+            errEl.textContent = '⚠️ Lỗi: ' + msg;
+            errEl.style.display = 'block';
+            setAuthLoading(false, 'login');
         }
     }
 
     function doLogout() {
-        // LEVEL 5.3: Cleanup before logout
         cleanupListeners();
         stopForegroundService();
-        
         localStorage.removeItem('currentDriver');
         currentUser = null;
         location.reload();
@@ -2532,32 +1605,23 @@
         }
     }
 
-    // ===== INIT APP NÂNG CẤP =====
+    // ===== INIT APP =====
     async function initApp() {
         if (!currentUser) return;
-        
-        // LEVEL 5.3: Init IndexedDB first
         await initIndexedDB();
-        
-        // LEVEL 5.3: Restore sync queue from localStorage
         const savedQueue = localStorage.getItem(STORAGE_KEYS.SYNC_QUEUE);
         if (savedQueue) {
-            try {
-                syncQueue = JSON.parse(savedQueue);
-            } catch(e) {
-                syncQueue = [];
-            }        }
+            try { syncQueue = JSON.parse(savedQueue); } catch(e) { syncQueue = []; }
+        }
         
         const namePart = currentUser.name.replace(/\s+/g, '').toUpperCase().slice(-4);
-        const driverId = currentUser.uid || ('PRO-' + namePart);
-        document.getElementById('idShow').innerHTML = '🆔 ' + driverId.slice(-8);
+        const driverId = currentUser.uid || ('PRO-' + namePart);        document.getElementById('idShow').innerHTML = '🆔 ' + driverId.slice(-8);
         document.getElementById('profileID').innerText = driverId;
         document.getElementById('profileName').innerText = currentUser.name || '...';
         document.getElementById('profilePhone').innerText = currentUser.phone || '...';
         document.getElementById('profilePlate').innerText = currentUser.plate || '...';
         document.getElementById('profileCarModel').innerText = currentUser.carModel || '...';
         
-        // Update profile cards
         document.getElementById('profileCardId').innerText = driverId.slice(-8);
         document.getElementById('profileCardPackage').innerText = 'MIỄN PHÍ';
         
@@ -2589,16 +1653,9 @@
         
         startGpsLogging();
         startHeartbeat();
-        
-        // LEVEL 5.3: Start foreground service
         startForegroundService();
-        
-        // LEVEL 5.3: Check push notification permission
         setTimeout(showPushPermissionBanner, 3000);
-                // LEVEL 5.3: Process sync queue if online
-        if (isOnline) {
-            processSyncQueue();
-        }
+        if (isOnline) processSyncQueue();
     }
     
     function startGpsLogging() {
@@ -2607,8 +1664,7 @@
             if (tripType === 'STREET_HAIL' && tripPhase === 'inprogress' && currentLat && currentLng) {
                 const accuracy = parseInt(document.getElementById('profileAccuracy')?.innerText) || 20;
                 addGpsPointToBuffer(currentLat, currentLng, Date.now(), accuracy);
-                const compensated = calculateCompensatedDistance();
-                if (compensated > totalDistance) {
+                const compensated = calculateCompensatedDistance();                if (compensated > totalDistance) {
                     totalDistance = compensated;
                     updateDistanceUI();
                 }
@@ -2629,43 +1685,36 @@
         });
     }
 
-    // ===== GPS NÂNG CẤP VỚI FILTER VÀ MULTI-LAYER =====
+    // ===== GPS NÂNG CẤP VỚI FILTER =====
     function startGPS() {
         if (!('geolocation' in navigator)) { 
             showToast('⚠️ Không hỗ trợ GPS'); 
             updateGpsStatusDisplay('lost');
             return; 
         }
-        const gpsOptions = {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        };
+        const gpsOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
         
         navigator.geolocation.watchPosition(
             (pos) => {
-                const { latitude, longitude, accuracy, heading, speed } = pos.coords;                const timestamp = pos.timestamp || Date.now();
+                const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+                const timestamp = pos.timestamp || Date.now();
                 
-                // LEVEL 5.3: Check for mocked property (Android Chrome)
                 if (pos.coords.mocked) {
                     handleMockGPSDetection('mocked_property');
                     return;
                 }
                 
-                // Apply GPS filter
                 const filtered = applyGpsFilter(latitude, longitude, accuracy, speed, timestamp, heading);
                 
                 if (!filtered) {
-                    // LEVEL 5.3: Try recovery if GPS lost
                     if (gpsFilterState.isGpsLost && isRunning) {
                         const recovered = recoverGPS();
                         if (recovered) {
                             currentLat = recovered.lat;
                             currentLng = recovered.lng;
                             updateMapMarker();
-                        }
-                    }
-                    return; // Bỏ qua điểm GPS kém
+                        }                    }
+                    return;
                 }
                 
                 currentLat = filtered.lat; 
@@ -2675,25 +1724,18 @@
                     gpsFilterState.lastHeading = currentHeading;
                 }
                 
-                // Update GPS status display
-                if (accuracy <= 15) {
-                    updateGpsStatusDisplay('good', accuracy);
-                } else if (accuracy <= 30) {
-                    updateGpsStatusDisplay('medium', accuracy);
-                } else {
-                    updateGpsStatusDisplay('weak', accuracy);
-                }
+                if (accuracy <= 15) updateGpsStatusDisplay('good', accuracy);
+                else if (accuracy <= 30) updateGpsStatusDisplay('medium', accuracy);
+                else updateGpsStatusDisplay('weak', accuracy);
                 
                 document.getElementById('profileAccuracy').innerText = Math.round(accuracy) + 'm';
-                
                 updateGPSCard(accuracy);
-                
                 updateMapMarker();
                 
-                // Update meter map if active
                 if (meterMap && meterMarker) {
                     meterMarker.setLatLng([currentLat, currentLng]);
-                    meterMap.setView([currentLat, currentLng], 16);                }
+                    meterMap.setView([currentLat, currentLng], 16);
+                }
                 
                 if (isRunning && tripPhase === 'inprogress') {
                     if (lastPos && accuracy <= 30 && !gpsFilterState.isStationary && !gpsFilterState.isMockDetected) {
@@ -2701,9 +1743,7 @@
                         if (distance > 0.005 && distance < 2) {
                             totalDistance += distance;
                             updateDistanceUI();
-                            if (tripType === 'STREET_HAIL') {
-                                addGpsPointToBuffer(currentLat, currentLng, Date.now(), accuracy);
-                            }
+                            if (tripType === 'STREET_HAIL') addGpsPointToBuffer(currentLat, currentLng, Date.now(), accuracy);
                         }
                     }
                     if (waitingStartTime && (Date.now() - waitingStartTime) > 300000) {
@@ -2718,42 +1758,20 @@
                 
                 if (isOnline && currentUser) {
                     db.ref(`tai_xe_online/${currentUser.uid}`).set({
-                        lat: currentLat, 
-                        lng: currentLng, 
-                        heading: currentHeading,
-                        status: tripPhase ? 'busy' : 'ready', 
-                        lastUpdate: Date.now(),
-                        speed: filtered.speed,
-                        layer: filtered.layer,
-                        accuracy: accuracy
+                        lat: currentLat, lng: currentLng, heading: currentHeading,
+                        status: tripPhase ? 'busy' : 'ready', lastUpdate: Date.now(),
+                        speed: filtered.speed, layer: filtered.layer, accuracy: accuracy
                     }).catch(() => {
-                        addToSyncQueue('update_driver', {
-                            uid: currentUser.uid,
-                            data: {
-                                lat: currentLat,
-                                lng: currentLng,
-                                heading: currentHeading,
-                                status: tripPhase ? 'busy' : 'ready',
-                                lastUpdate: Date.now(),
-                                speed: filtered.speed,
-                                layer: filtered.layer
-                            }
-                        });
-                    });
+                        addToSyncQueue('update_driver', { uid: currentUser.uid, data: { lat: currentLat, lng: currentLng, heading: currentHeading, status: tripPhase ? 'busy' : 'ready', lastUpdate: Date.now(), speed: filtered.speed, layer: filtered.layer } });                    });
                 }
             },
-            (err) => {                 console.error('GPS error:', err); 
+            (err) => { 
+                console.error('GPS error:', err); 
                 showToast('⚠️ Lỗi GPS: ' + err.message);
                 updateGpsStatusDisplay('lost');
-                
-                // LEVEL 5.3: Try recovery
                 if (isRunning) {
                     const recovered = recoverGPS();
-                    if (recovered) {
-                        currentLat = recovered.lat;
-                        currentLng = recovered.lng;
-                        updateMapMarker();
-                    }
+                    if (recovered) { currentLat = recovered.lat; currentLng = recovered.lng; updateMapMarker(); }
                 }
             },
             gpsOptions
@@ -2763,7 +1781,6 @@
 
     function updateMapMarker() {
         if (!currentLat || !currentLng) return;
-        
         if (!marker) {
             marker = L.marker([currentLat, currentLng], { icon: createDriverIcon(currentHeading) }).addTo(map);
             map.setView([currentLat, currentLng], 16);
@@ -2773,25 +1790,431 @@
         }
     }
 
+    function applyGpsFilter(lat, lng, accuracy, speed, timestamp, heading) {
+        const now = timestamp || Date.now();
+        if (accuracy > 100) {
+            gpsFilterState.gpsLostCount++;
+            if (gpsFilterState.gpsLostCount > 5) { gpsFilterState.isGpsLost = true; updateGpsStatusDisplay('lost'); }
+            return null;
+        }
+        gpsFilterState.gpsLostCount = 0;
+        gpsFilterState.isGpsLost = false;
+        
+        const speedKmh = (speed || 0) * 3.6;
+        if (speedKmh > 150) return null;
+        
+        const mockResult = detectMockGPS(lat, lng, accuracy, speedKmh, now);
+        if (mockResult.isMock) {
+            gpsFilterState.isMockDetected = true;
+            gpsFilterState.mockCount++;
+            handleMockGPSDetection(mockResult.reason);
+            return null;
+        }
+        
+        let layer = 'gps';        if (accuracy <= 10) layer = 'gps';
+        else if (accuracy <= 30) layer = 'gps';
+        else if (accuracy <= 50) layer = 'wifi';
+        else if (accuracy <= 100) layer = 'bts';
+        else layer = 'none';
+        gpsFilterState.layer = layer;
+        updateGpsLayerIndicator(layer);
+        
+        if (gpsFilterState.kalmanLat === null) {
+            gpsFilterState.kalmanLat = lat;
+            gpsFilterState.kalmanLng = lng;
+            gpsFilterState.kalmanP = accuracy;
+        } else {
+            gpsFilterState.kalmanP += gpsFilterState.kalmanQ;
+            const dynamicR = Math.max(0.1, accuracy / 100);
+            const K = gpsFilterState.kalmanP / (gpsFilterState.kalmanP + dynamicR);
+            gpsFilterState.kalmanLat += K * (lat - gpsFilterState.kalmanLat);
+            gpsFilterState.kalmanLng += K * (lng - gpsFilterState.kalmanLng);
+            gpsFilterState.kalmanP = (1 - K) * gpsFilterState.kalmanP;
+        }
+        
+        if (gpsFilterState.lastValidPos) {
+            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
+            const timeDiff = (now - gpsFilterState.lastValidTime) / 1000;
+            if (dist < 0.005 && timeDiff < 10) {
+                gpsFilterState.stationaryCount++;
+                if (gpsFilterState.stationaryCount > 3) gpsFilterState.isStationary = true;
+            } else {
+                gpsFilterState.stationaryCount = 0;
+                gpsFilterState.isStationary = false;
+            }
+        }
+        
+        if (gpsFilterState.lastValidPos) {
+            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
+            const timeDiff = (now - gpsFilterState.lastValidTime) / 1000;
+            if (timeDiff > 0 && (dist / timeDiff) * 3600 > 100 && accuracy > 30) return null;
+            if (gpsFilterState.isStationary && dist < 0.01) return null;
+            if (timeDiff > 0 && timeDiff < 5 && dist > 0.5 && accuracy > 20) return null;
+        }
+        
+        if (heading !== undefined && heading !== null && !isNaN(heading)) {
+            gpsFilterState.headingBuffer.push(heading);
+            if (gpsFilterState.headingBuffer.length > 5) gpsFilterState.headingBuffer.shift();
+        }
+        
+        gpsFilterState.accuracyHistory.push(accuracy);
+        if (gpsFilterState.accuracyHistory.length > 10) gpsFilterState.accuracyHistory.shift();
+        gpsFilterState.speedHistory.push(speedKmh);
+        if (gpsFilterState.speedHistory.length > 10) gpsFilterState.speedHistory.shift();        
+        gpsFilterState.lastValidPos = { lat: gpsFilterState.kalmanLat, lng: gpsFilterState.kalmanLng };
+        gpsFilterState.lastValidTime = now;
+        gpsFilterState.lastSpeed = speedKmh;
+        gpsFilterState.lastGpsTime = now;
+        gpsFilterState.recoveryMode = false;
+        gpsFilterState.deadReckoningPos = { lat: gpsFilterState.kalmanLat, lng: gpsFilterState.kalmanLng, heading: heading || gpsFilterState.lastHeading, time: now };
+        
+        return { lat: gpsFilterState.kalmanLat, lng: gpsFilterState.kalmanLng, accuracy: accuracy, speed: speedKmh, layer: layer };
+    }
+
+    function detectMockGPS(lat, lng, accuracy, speedKmh, timestamp) {
+        const result = { isMock: false, reason: '' };
+        if (accuracy < 1) { result.isMock = true; result.reason = 'accuracy_too_perfect'; return result; }
+        if (gpsFilterState.lastValidPos) {
+            const dist = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
+            const timeDiff = (timestamp - gpsFilterState.lastValidTime) / 1000;
+            if (timeDiff > 0 && timeDiff < 2 && dist > 1) { result.isMock = true; result.reason = 'teleport_detected'; return result; }
+            if (speedKmh > 80 && accuracy < 3) { result.isMock = true; result.reason = 'speed_accuracy_mismatch'; return result; }
+            if (speedKmh > 5) {
+                const dist2 = haversine(gpsFilterState.lastValidPos.lat, gpsFilterState.lastValidPos.lng, lat, lng);
+                if (dist2 < 0.001) { result.isMock = true; result.reason = 'stationary_with_speed'; return result; }
+            }
+        }
+        const recentPoints = gpsFilterState.accuracyHistory.slice(-5);
+        if (recentPoints.length === 5) {
+            const allSame = recentPoints.every(a => a === recentPoints[0]);
+            if (allSame && recentPoints[0] < 5) { result.isMock = true; result.reason = 'spoofing_pattern'; return result; }
+        }
+        return result;
+    }
+
+    function handleMockGPSDetection(reason) {
+        console.warn('[MOCK GPS] Phát hiện GPS giả:', reason);
+        const logEntry = { timestamp: Date.now(), reason: reason, driverId: currentUser?.uid, lat: currentLat, lng: currentLng };
+        let mockLogs = JSON.parse(localStorage.getItem('mock_gps_logs') || '[]');
+        mockLogs.push(logEntry);
+        if (mockLogs.length > 100) mockLogs = mockLogs.slice(-100);
+        localStorage.setItem('mock_gps_logs', JSON.stringify(mockLogs));
+        showMockWarning();
+        if (isOnline && currentUser) db.ref(`mock_gps_alerts/${currentUser.uid}/${Date.now()}`).set(logEntry).catch(() => {});
+        else addToSyncQueue('mock_gps_alert', logEntry);
+        if (currentOrderData?.id) db.ref(`datxe/${currentOrderData.id}/mockGpsDetected`).set(true).catch(() => {});
+        const dot = document.getElementById('gpsDot'); if (dot) dot.className = 'gps-dot mock';
+        const text = document.getElementById('gpsStatusText'); if (text) text.innerText = 'GPS: CẢNH BÁO GIẢ';
+        showToast('⚠️ Phát hiện GPS giả! Đã ghi log.');
+        if (soundEnabled) speak('Cảnh báo phát hiện GPS giả');
+    }
+
+    function showMockWarning() {        const banner = document.getElementById('mockWarningBanner');
+        if (banner) { banner.classList.add('show'); setTimeout(() => banner.classList.remove('show'), 10000); }
+    }
+
+    function dismissMockWarning() {
+        const banner = document.getElementById('mockWarningBanner');
+        if (banner) banner.classList.remove('show');
+    }
+
+    function updateGpsLayerIndicator(layer) {
+        const layers = { 'gps': 'layerGps', 'wifi': 'layerWifi', 'bts': 'layerBts', 'dr': 'layerDr' };
+        Object.values(layers).forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active'); });
+        const activeId = layers[layer];
+        if (activeId) { const el = document.getElementById(activeId); if (el) el.classList.add('active'); }
+        const profileLayer = document.getElementById('profileGpsLayer');
+        if (profileLayer) {
+            const layerNames = { 'gps': '🛰 GPS Vệ tinh', 'wifi': '📶 WiFi', 'bts': '📡 BTS', 'dr': '🧭 Dead Reckoning', 'none': '❌ Mất tín hiệu' };
+            profileLayer.innerText = layerNames[layer] || '--';
+        }
+    }
+
+    function updateGpsStatusDisplay(status, accuracy) {
+        const dot = document.getElementById('gpsDot');
+        const text = document.getElementById('gpsStatusText');
+        if (!dot || !text) return;
+        switch(status) {
+            case 'good': dot.className = 'gps-dot good'; text.innerText = `GPS TỐT (±${Math.round(accuracy)}m)`; break;
+            case 'medium': dot.className = 'gps-dot weak'; text.innerText = `GPS TRUNG BÌNH (±${Math.round(accuracy)}m)`; break;
+            case 'weak': dot.className = 'gps-dot bad'; text.innerText = `GPS YẾU (±${Math.round(accuracy)}m)`; break;
+            case 'lost': dot.className = 'gps-dot lost'; text.innerText = 'GPS MẤT TÍN HIỆU'; break;
+            case 'mock': dot.className = 'gps-dot mock'; text.innerText = 'GPS GIẢ - CẢNH BÁO'; break;
+            default: dot.className = 'gps-dot'; text.innerText = 'GPS: Đang tìm...';
+        }
+    }
+
+    function deadReckoning(lastLat, lastLng, heading, speedKmh, timeDeltaSec) {
+        if (!lastLat || !lastLng || !heading || !speedKmh || speedKmh < 1) return null;
+        const distanceKm = (speedKmh * timeDeltaSec) / 3600;
+        if (distanceKm > 1) return null;
+        const bearingRad = heading * Math.PI / 180;
+        const R = 6371;
+        const dLat = distanceKm / R * 180 / Math.PI;
+        const dLng = distanceKm / R * 180 / Math.PI / Math.cos(lastLat * Math.PI / 180);
+        return { lat: lastLat + dLat * Math.cos(bearingRad), lng: lastLng + dLng * Math.sin(bearingRad), confidence: Math.max(0, 1 - (timeDeltaSec / 30)) };
+    }
+
+    function snapToRoad(lat, lng) {
+        if (!gpsFilterState.snapToRoadEnabled) return { lat, lng, snapped: false };
+        if (streetHailDistanceBuffer.length > 0) {
+            const lastPoint = streetHailDistanceBuffer[streetHailDistanceBuffer.length - 1];            const dist = haversine(lat, lng, lastPoint.lat, lastPoint.lng);
+            if (dist < 0.005) return { lat: lastPoint.lat, lng: lastPoint.lng, snapped: true };
+        }
+        return { lat, lng, snapped: false };
+    }
+
+    function recoverGPS() {
+        if (!gpsFilterState.isGpsLost) return null;
+        gpsFilterState.recoveryMode = true;
+        gpsFilterState.recoveryCount++;
+        if (gpsFilterState.deadReckoningPos && gpsFilterState.lastSpeed > 0) {
+            const timeSinceLastGps = (Date.now() - gpsFilterState.lastGpsTime) / 1000;
+            if (timeSinceLastGps < 30) {
+                const dr = deadReckoning(gpsFilterState.deadReckoningPos.lat, gpsFilterState.deadReckoningPos.lng, gpsFilterState.deadReckoningPos.heading || gpsFilterState.lastHeading, gpsFilterState.lastSpeed, timeSinceLastGps);
+                if (dr && dr.confidence > 0.3) {
+                    updateGpsLayerIndicator('dr');
+                    return { lat: dr.lat, lng: dr.lng, accuracy: 50 + (timeSinceLastGps * 2), speed: gpsFilterState.lastSpeed, layer: 'dr', recovered: true };
+                }
+            }
+        }
+        return null;
+    }
+
+    function resetGpsFilter() {
+        gpsFilterState = { lastValidPos: null, lastValidTime: 0, lastSpeed: 0, kalmanLat: null, kalmanLng: null, kalmanP: 100, kalmanQ: 0.01, kalmanR: 0.1, stationaryCount: 0, isStationary: false, layer: 'none', lastGpsTime: 0, gpsLostCount: 0, isGpsLost: false, isMockDetected: false, mockCount: 0, lastHeading: 0, headingBuffer: [], snapToRoadEnabled: true, deadReckoningPos: null, recoveryMode: false, recoveryCount: 0, accuracyHistory: [], speedHistory: [] };
+    }
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', () => { if (isRunning) setTimeout(requestWakeLock, 1000); });
+            }
+        } catch (err) { console.error('Wake Lock error:', err); }
+    }
+    
+    function releaseWakeLock() { if (wakeLock) { wakeLock.release(); wakeLock = null; } }
+    
+    function startHeartbeat() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        heartbeatInterval = setInterval(() => {
+            if (isRunning && currentLat && currentLng) {
+                const data = { lat: currentLat, lng: currentLng, heading: currentHeading, status: tripPhase ? 'busy' : 'ready', lastUpdate: Date.now(), speed: gpsFilterState.lastSpeed, layer: gpsFilterState.layer, isMock: gpsFilterState.isMockDetected };
+                if (isOnline) db.ref(`tai_xe_online/${currentUser?.uid}`).set(data).catch(() => { addToSyncQueue('update_driver', { uid: currentUser?.uid, data: data }); });
+                else addToSyncQueue('update_driver', { uid: currentUser?.uid, data: data });
+            }
+        }, 30000);
+    }
+    
+    function stopHeartbeat() { if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; } }
+    function startForegroundService() {
+        const indicator = document.getElementById('fgServiceIndicator');
+        if (indicator) indicator.classList.add('active');
+        if ('serviceWorker' in navigator) initServiceWorker();
+        requestWakeLock();
+        startHeartbeat();
+    }
+
+    function stopForegroundService() {
+        const indicator = document.getElementById('fgServiceIndicator');
+        if (indicator) indicator.classList.remove('active');
+        releaseWakeLock();
+        stopHeartbeat();
+    }
+
+    function initServiceWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        const swCode = `self.addEventListener('install', (e) => self.skipWaiting()); self.addEventListener('activate', (e) => self.clients.claim()); self.addEventListener('push', (e) => { const d = e.data ? e.data.json() : {}; self.registration.showNotification(d.title || 'Taxi ProMax', { body: d.body || 'Có thông báo mới', icon: '/assets/logo.png', vibrate: [200, 100, 200], data: d }); }); self.addEventListener('notificationclick', (e) => { e.notification.close(); e.waitUntil(clients.matchAll({type: 'window'}).then(l => { for (const c of l) { if (c.url === '/' && 'focus' in c) return c.focus(); } if (clients.openWindow) return clients.openWindow('/'); })); });`;
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).then((reg) => { initFCM(reg); }).catch((err) => { console.warn('[SW] Failed:', err); });
+    }
+
+    function initFCM(swReg) {
+        try {
+            messaging = firebase.messaging();
+            if (swReg) messaging.useServiceWorker(swReg);
+            messaging.requestPermission().then(() => {
+                return messaging.getToken({ vapidKey: FCM_VAPID_KEY });
+            }).then((token) => {
+                if (currentUser) db.ref(`fcm_tokens/${currentUser.uid}`).set({ token: token, timestamp: Date.now(), platform: 'web' });
+                updatePushToggle(true);
+            }).catch((err) => { console.warn('[FCM] Error:', err); showPushPermissionBanner(); });
+            messaging.onMessage((payload) => { handlePushNotification(payload); });
+        } catch(e) { console.warn('[FCM] Init error:', e); }
+    }
+
+    function handlePushNotification(payload) {
+        const { title, body, data } = payload.notification || payload;
+        showToast(`${title}: ${body}`);
+        if (soundEnabled) { speak(title); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }
+        if (data) {
+            if (data.type === 'new_order' && isOnline) startOrderListener();
+            else if (data.type === 'customer_cancel') { const b = document.getElementById('cancelBanner'); if (b) b.style.display = 'block'; }
+            else if (data.type === 'new_message' && currentOrderData?.id === data.orderId) openChat();
+        }
+    }
+
+    function requestNotificationPermission() {
+        if (!('Notification' in window)) { showToast('⚠️ Trình duyệt không hỗ trợ thông báo'); return; }        Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') { showToast('✅ Đã bật thông báo'); updatePushToggle(true); closePushBanner(); if (messaging) messaging.getToken({ vapidKey: FCM_VAPID_KEY }).then((token) => { if (currentUser) db.ref(`fcm_tokens/${currentUser.uid}`).set({ token: token, timestamp: Date.now(), platform: 'web' }); }); }
+            else { showToast('❌ Bạn đã từ chối thông báo'); updatePushToggle(false); }
+        });
+    }
+
+    function showPushPermissionBanner() {
+        if (Notification.permission === 'default') { const b = document.getElementById('pushPermissionBanner'); if (b) b.classList.add('show'); }
+        else if (Notification.permission === 'granted') updatePushToggle(true);
+    }
+
+    function closePushBanner() { const b = document.getElementById('pushPermissionBanner'); if (b) b.classList.remove('show'); }
+    function updatePushToggle(enabled) { const t = document.getElementById('pushToggle'); if (t) { if (enabled) t.classList.add('active'); else t.classList.remove('active'); } }
+    function togglePushNotification() {
+        if (!('Notification' in window)) { showToast('⚠️ Trình duyệt không hỗ trợ thông báo'); return; }
+        if (Notification.permission === 'granted') { updatePushToggle(true); showToast('🔔 Thông báo đã bật'); }
+        else if (Notification.permission === 'denied') { showToast('⚠️ Vui lòng bật thông báo trong cài đặt trình duyệt'); updatePushToggle(false); }
+        else requestNotificationPermission();
+    }
+
+    async function tryAcceptOrder(orderId) {
+        const lockTimeout = 15000;
+        const maxRetries = 3;
+        let attempt = 0;
+        while (attempt < maxRetries) {
+            try {
+                const orderRef = db.ref(`datxe/${orderId}`);
+                const result = await orderRef.transaction((currentData) => {
+                    if (!currentData) return null;
+                    if (currentData.status !== 'waiting') return null;
+                    if (currentData.driverId && currentData.driverId !== currentUser?.uid) {
+                        if (currentData.lockedAt && (Date.now() - currentData.lockedAt) < lockTimeout) return null;
+                    }
+                    currentData.status = 'locking';
+                    currentData.driverId = currentUser?.uid;
+                    currentData.lockedAt = Date.now();
+                    currentData.lockTimeout = lockTimeout;
+                    return currentData;
+                });
+                if (result.committed && result.snapshot.val()) {
+                    const updatedData = result.snapshot.val();
+                    await orderRef.update({ status: 'driving', acceptedAt: Date.now(), tripType: tripType, lockedAt: null });
+                    return { success: true, data: updatedData };
+                } else {
+                    return { success: false, reason: 'Đơn đã được tài xế khác nhận' };
+                }
+            } catch (error) {
+                attempt++;
+                if (attempt >= maxRetries) return { success: false, reason: 'Lỗi kết nối. Vui lòng thử lại.' };
+                await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));            }
+        }
+        return { success: false, reason: 'Không thể nhận đơn' };
+    }
+
+    function addGpsPointToBuffer(lat, lng, timestamp, accuracy) {
+        if (accuracy > 30) return;
+        const snapped = snapToRoad(lat, lng);
+        streetHailDistanceBuffer.push({ lat: snapped.lat, lng: snapped.lng, timestamp, accuracy, snapped: snapped.snapped });
+        if (streetHailDistanceBuffer.length > 100) streetHailDistanceBuffer.shift();
+        saveToIndexedDB('gps_cache', { id: 'current_buffer', buffer: streetHailDistanceBuffer, timestamp: Date.now() });
+    }
+
+    function calculateCompensatedDistance() {
+        if (streetHailDistanceBuffer.length < 2) return 0;
+        let totalCompensated = 0;
+        let lastValidPoint = null;
+        for (let i = 0; i < streetHailDistanceBuffer.length; i++) {
+            const currentPoint = streetHailDistanceBuffer[i];
+            if (lastValidPoint) {
+                const timeDiff = (currentPoint.timestamp - lastValidPoint.timestamp) / 1000;
+                if (timeDiff < 300 && timeDiff > 0) {
+                    const dist = haversine(lastValidPoint.lat, lastValidPoint.lng, currentPoint.lat, currentPoint.lng);
+                    const speedKmh = (dist / timeDiff) * 3600;
+                    if (speedKmh >= 0 && speedKmh <= 100 && currentPoint.accuracy <= 30 && lastValidPoint.accuracy <= 30) {
+                        totalCompensated += dist;
+                    }
+                }
+            }
+            lastValidPoint = currentPoint;
+        }
+        return totalCompensated;
+    }
+
+    function saveActiveTripToStorage() {
+        if (!currentOrderData) { Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k)); return; }
+        const tripToSave = { id: currentOrderData.id, clientName: currentOrderData.clientName, phone: currentOrderData.phone, pickup: currentOrderData.pickup, dropoff: currentOrderData.dropoff, pickupLat: currentOrderData.pickupLat, pickupLng: currentOrderData.pickupLng, dropoffLat: currentOrderData.dropoffLat, dropoffLng: currentOrderData.dropoffLng, fareEstimate: currentOrderData.fareEstimate, status: currentOrderData.status };
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP, JSON.stringify(tripToSave));
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_PHASE, tripPhase || '');
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_DISTANCE, totalDistance.toString());
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_TYPE, tripType || '');
+        if (streetHailStartTime) localStorage.setItem(STORAGE_KEYS.ACTIVE_TRIP_START_TIME, streetHailStartTime.toString());
+        saveToIndexedDB('trips', { id: currentOrderData.id, trip: tripToSave, phase: tripPhase, distance: totalDistance, type: tripType, startTime: streetHailStartTime, timestamp: Date.now() });
+        if (streetHailDistanceBuffer.length > 0) saveToIndexedDB('gps_cache', { id: 'trip_' + currentOrderData.id, buffer: streetHailDistanceBuffer, distance: totalDistance, timestamp: Date.now() });
+    }
+    
+    async function restoreActiveTripFromStorage() {
+        const savedTrip = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP);
+        let trip = null, savedPhase = null, savedDistance = 0, savedTripType = null, savedStartTime = null;
+        if (savedTrip) {            try {
+                trip = JSON.parse(savedTrip);
+                savedPhase = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_PHASE);
+                savedDistance = parseFloat(localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_DISTANCE) || '0');
+                savedTripType = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_TYPE);
+                savedStartTime = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRIP_START_TIME);
+            } catch(e) { console.error('Parse LocalStorage trip error:', e); }
+        }
+        if (!trip) {
+            const idbTrip = await loadFromIndexedDB('trips', 'current');
+            if (idbTrip) { trip = idbTrip.trip; savedPhase = idbTrip.phase; savedDistance = idbTrip.distance; savedTripType = idbTrip.type; savedStartTime = idbTrip.startTime; }
+        }
+        if (!trip) return false;
+        try {
+            const snapshot = await db.ref(`datxe/${trip.id}`).once('value');
+            const orderInDb = snapshot.val();
+            if (!orderInDb || orderInDb.status === 'completed' || orderInDb.status === 'cancelled') {
+                Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+                await deleteFromIndexedDB('trips', trip.id);
+                return false;
+            }
+            currentOrderData = { id: trip.id, ...trip, ...orderInDb };
+            tripPhase = savedPhase || 'enroute';
+            totalDistance = savedDistance;
+            tripType = savedTripType;
+            if (savedStartTime && tripType === 'STREET_HAIL') streetHailStartTime = parseInt(savedStartTime);
+            const gpsCache = await loadFromIndexedDB('gps_cache', 'trip_' + trip.id);
+            if (gpsCache && gpsCache.buffer) streetHailDistanceBuffer = gpsCache.buffer;
+            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--danger)";
+            document.getElementById('homeControls').style.display = 'none';
+            document.getElementById('statsUI').classList.add('show');
+            if (currentOrderData.pickupLat && currentOrderData.pickupLng && tripType === 'APP_BOOKING') createCustomerMarker(currentOrderData.pickupLat, currentOrderData.pickupLng);
+            listenForChat(); listenForRating(); txListenForCustomerCancel(currentOrderData.id);
+            showSheet(); expandSheet(); renderSheetUI(); updateDistanceUI();
+            startForegroundService();
+            showToast(`🔄 Đã khôi phục chuyến đi: ${tripPhase}`);
+            return true;
+        } catch (e) { console.error('Restore trip error:', e); return false; }
+    }
+
+    function calculateEstimatedFare(pickupLat, pickupLng, dropoffLat, dropoffLng) {
+        if (!pickupLat || !pickupLng || !dropoffLat || !dropoffLng) return null;
+        const distance = haversine(pickupLat, pickupLng, dropoffLat, dropoffLng);
+        const baseFare = 15000;
+        const perKm = currentRate;
+        const estimatedFare = Math.round(baseFare + distance * perKm);
+        return { distance: parseFloat(distance.toFixed(1)), fare: estimatedFare };
+    }
     function updateGPSCard(accuracy) {
         const gpsCard = document.getElementById('profileCardGps');
         if (!gpsCard) return;
-        
-        if (accuracy < 50) {
-            gpsCard.className = 'card-value good';
-            gpsCard.innerText = `<${accuracy}m`;
-        } else if (accuracy < 500) {
-            gpsCard.className = 'card-value weak';
-            gpsCard.innerText = `${Math.round(accuracy)}m`;
-        } else {
-            gpsCard.className = 'card-value bad';
-            gpsCard.innerText = `>${Math.round(accuracy)}m`;
-        }
+        if (accuracy < 50) { gpsCard.className = 'card-value good'; gpsCard.innerText = `<${accuracy}m`; }
+        else if (accuracy < 500) { gpsCard.className = 'card-value weak'; gpsCard.innerText = `${Math.round(accuracy)}m`; }
+        else { gpsCard.className = 'card-value bad'; gpsCard.innerText = `>${Math.round(accuracy)}m`; }
     }
 
     function updateDistanceUI() {
         let finalPrice = 0;
-        if (tripType === 'APP_BOOKING' && currentOrderData?.fareEstimate) {            const baseFare = parseInt(currentOrderData.fareEstimate) || 0;
+        if (tripType === 'APP_BOOKING' && currentOrderData?.fareEstimate) {
+            const baseFare = parseInt(currentOrderData.fareEstimate) || 0;
             const estimatedDist = parseFloat(currentOrderData.estimatedDistance) || 0;
             const extraKm = Math.max(0, totalDistance - estimatedDist);
             finalPrice = Math.round(baseFare + (extraKm * currentRate * surgeMultiplier)) + waitingFee;
@@ -2805,13 +2228,9 @@
         const kmEl = document.getElementById('sheetKm');
         if (priceEl) priceEl.innerText = finalPrice.toLocaleString() + 'đ';
         if (kmEl) kmEl.innerText = totalDistance.toFixed(1) + ' km';
-        
-        if (tripType === 'STREET_HAIL' && tripPhase === 'inprogress') {
-            updateStreetHailMeter(finalPrice);
-        }
+        if (tripType === 'STREET_HAIL' && tripPhase === 'inprogress') updateStreetHailMeter(finalPrice);
     }
 
-    // ===== STREET HAIL METER =====
     function initMeterMap() {
         if (!meterMap) {
             meterMap = L.map('meterMap', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
@@ -2830,24 +2249,17 @@
         document.getElementById('meterRateDisplay').innerText = currentRate.toLocaleString() + 'đ';
         document.getElementById('meterGpsStatus').innerText = '--';
         document.getElementById('meterTripStatus').innerText = 'ĐANG CHẠY';
-        
         streetHailStartTime = Date.now();
         streetHailElapsedTime = 0;
-        
         setTimeout(() => initMeterMap(), 500);
-        
-        if (streetHailTimerInterval) clearInterval(streetHailTimerInterval);
-        streetHailTimerInterval = setInterval(() => {
-            streetHailElapsedTime++;
-            updateStreetHailTime();
-        }, 1000);    }
+        if (streetHailTimerInterval) clearInterval(streetHailTimerInterval);        streetHailTimerInterval = setInterval(() => { streetHailElapsedTime++; updateStreetHailTime(); }, 1000);
+    }
     
     function updateStreetHailTime() {
         const hours = Math.floor(streetHailElapsedTime / 3600);
         const minutes = Math.floor((streetHailElapsedTime % 3600) / 60);
         const seconds = streetHailElapsedTime % 60;
-        const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        document.getElementById('meterTime').innerText = timeStr;
+        document.getElementById('meterTime').innerText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
     function updateStreetHailMeter(fare) {
@@ -2892,11 +2304,8 @@
     function onTouchMove(e) {        sheetCurrentY = e.touches[0].clientY;
         const diff = sheetCurrentY - sheetStartY;
         const sheet = document.getElementById('tripSheet');
-        if (sheetState === 'expanded' && diff > 0) {
-            sheet.style.transform = `translateY(${Math.min(diff, window.innerHeight * 0.6)}px)`;
-        } else if (sheetState === 'collapsed' && diff < 0) {
-            sheet.style.transform = `translateY(calc(100% - 80px + ${Math.max(diff, -window.innerHeight * 0.6)}px))`;
-        }
+        if (sheetState === 'expanded' && diff > 0) sheet.style.transform = `translateY(${Math.min(diff, window.innerHeight * 0.6)}px)`;
+        else if (sheetState === 'collapsed' && diff < 0) sheet.style.transform = `translateY(calc(100% - 80px + ${Math.max(diff, -window.innerHeight * 0.6)}px))`;
     }
     function onTouchEnd(e) {
         const diff = sheetCurrentY - sheetStartY;
@@ -2907,23 +2316,12 @@
     function updateSheetTransform() {
         const sheet = document.getElementById('tripSheet');
         sheet.style.transform = '';
-        if (sheetState === 'collapsed') {
-            sheet.classList.remove('expanded');
-            sheet.classList.add('collapsed');
-        } else {
-            sheet.classList.remove('collapsed');
-            sheet.classList.add('expanded');
-        }
+        if (sheetState === 'collapsed') { sheet.classList.remove('expanded'); sheet.classList.add('collapsed'); }
+        else { sheet.classList.remove('collapsed'); sheet.classList.add('expanded'); }
     }
     
-    function showSheet() {
-        document.getElementById('tripSheet').classList.add('show');
-    }
-    
-    function hideSheet() {
-        document.getElementById('tripSheet').classList.remove('show', 'collapsed', 'expanded');
-    }
-    
+    function showSheet() { document.getElementById('tripSheet').classList.add('show'); }
+    function hideSheet() { document.getElementById('tripSheet').classList.remove('show', 'collapsed', 'expanded'); }
     function expandSheet() {
         sheetState = 'expanded';
         const sheet = document.getElementById('tripSheet');
@@ -2932,20 +2330,18 @@
         document.getElementById('miniTripBtn').classList.remove('show');
         setTimeout(() => map?.invalidateSize(), 300);
     }
-    
     function collapseSheet() {
         sheetState = 'collapsed';
         const sheet = document.getElementById('tripSheet');
         sheet.classList.remove('expanded');
         sheet.classList.add('collapsed');
-        if (tripPhase) document.getElementById('miniTripBtn').classList.add('show');        setTimeout(() => map?.invalidateSize(), 300);
+        if (tripPhase) document.getElementById('miniTripBtn').classList.add('show');
+        setTimeout(() => map?.invalidateSize(), 300);
     }
 
-    // ===== RENDER SHEET VỚI THANH 3 BƯỚC =====
     function renderSheetUI() {
         const container = document.getElementById('sheetContent');
         if (!container || !currentOrderData) return;
-        
         let finalPrice = 0;
         if (tripType === 'APP_BOOKING' && currentOrderData?.fareEstimate) {
             const baseFare = parseInt(currentOrderData.fareEstimate) || 0;
@@ -2954,20 +2350,10 @@
             finalPrice = Math.round(baseFare + (extraKm * currentRate * surgeMultiplier)) + waitingFee;
         } else {
             finalPrice = Math.round(totalDistance * currentRate * surgeMultiplier) + waitingFee;
-        }
-
-        let statusLabel, statusClass;
-        
-        if (tripPhase === 'enroute') {
-            statusLabel = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
-            statusClass = 'state-enroute';
-        } else if (tripPhase === 'arrived') {
-            statusLabel = '📍 ĐÃ ĐẾN — CHỜ ĐÓN KHÁCH';
-            statusClass = 'state-arrived';
-        } else if (tripPhase === 'inprogress') {
-            statusLabel = '🏃 ĐANG CHẠY — ' + totalDistance.toFixed(1) + ' KM';
-            statusClass = 'state-inprogress';
-        }
+        }        let statusLabel, statusClass;
+        if (tripPhase === 'enroute') { statusLabel = '🚗 ĐANG ĐẾN ĐÓN KHÁCH'; statusClass = 'state-enroute'; }
+        else if (tripPhase === 'arrived') { statusLabel = '📍 ĐÃ ĐẾN — CHỜ ĐÓN KHÁCH'; statusClass = 'state-arrived'; }
+        else if (tripPhase === 'inprogress') { statusLabel = '🏃 ĐANG CHẠY — ' + totalDistance.toFixed(1) + ' KM'; statusClass = 'state-inprogress'; }
 
         const step1Class = tripPhase === 'enroute' ? 'active' : (['arrived', 'inprogress'].includes(tripPhase) ? 'done' : '');
         const step2Class = tripPhase === 'arrived' ? 'active' : (tripPhase === 'inprogress' ? 'done' : '');
@@ -2975,108 +2361,24 @@
         const conn1Class = ['arrived', 'inprogress'].includes(tripPhase) ? 'done' : '';
         const conn2Class = tripPhase === 'inprogress' ? 'done' : '';
 
-        const stepBarHtml = `
-            <div class="step-progress-bar">
-                <div class="step-item ${step1Class}">
-                    <span class="step-icon">📍</span>
-                    <div>ĐẾN ĐÓN</div>
-                </div>
-                <div class="step-connector ${conn1Class}"></div>
-                <div class="step-item ${step2Class}">
-                    <span class="step-icon">✅</span>
-                    <div>ĐÓN KHÁCH</div>
-                </div>
-                <div class="step-connector ${conn2Class}"></div>
-                <div class="step-item ${step3Class}">                    <span class="step-icon">🏁</span>
-                    <div>HOÀN THÀNH</div>
-                </div>
-            </div>
-        `;
+        const stepBarHtml = `<div class="step-progress-bar"><div class="step-item ${step1Class}"><span class="step-icon">📍</span><div>ĐẾN ĐÓN</div></div><div class="step-connector ${conn1Class}"></div><div class="step-item ${step2Class}"><span class="step-icon">✅</span><div>ĐÓN KHÁCH</div></div><div class="step-connector ${conn2Class}"></div><div class="step-item ${step3Class}"><span class="step-icon">🏁</span><div>HOÀN THÀNH</div></div></div>`;
 
         let mainActionHtml = '';
-        if (tripPhase === 'enroute') {
-            mainActionHtml = `<button class="action-btn-main btn-arrived" onclick="markArrived()">📍 ĐÃ ĐẾN ĐIỂM ĐÓN</button>`;
-        } else if (tripPhase === 'arrived') {
-            mainActionHtml = `<button class="action-btn-main btn-pickup" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button>`;
-        } else if (tripPhase === 'inprogress') {
-            if (tripType === 'STREET_HAIL' && streetHailStartTime === null) {
-                mainActionHtml = `<button class="action-btn-main btn-start-meter" onclick="startStreetHailTrip()">▶ BẮT ĐẦU TÍNH CƯỚC</button>`;
-            } else {
-                mainActionHtml = `<button class="action-btn-main btn-complete" onclick="completeTrip()">🏁 HOÀN THÀNH CHUYẾN ĐI</button>`;
-            }
+        if (tripPhase === 'enroute') mainActionHtml = `<button class="action-btn-main btn-arrived" onclick="markArrived()">📍 ĐÃ ĐẾN ĐIỂM ĐÓN</button>`;
+        else if (tripPhase === 'arrived') mainActionHtml = `<button class="action-btn-main btn-pickup" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button>`;
+        else if (tripPhase === 'inprogress') {
+            if (tripType === 'STREET_HAIL' && streetHailStartTime === null) mainActionHtml = `<button class="action-btn-main btn-start-meter" onclick="startStreetHailTrip()">▶ BẮT ĐẦU TÍNH CƯỚC</button>`;
+            else mainActionHtml = `<button class="action-btn-main btn-complete" onclick="completeTrip()">🏁 HOÀN THÀNH CHUYẾN ĐI</button>`;
         }
 
-        const navigateIconHtml = currentOrderData?.pickupLat ? 
-            `<button class="action-icon" onclick="navigateToPickup()" style="background:var(--primary);color:white;" title="Chỉ đường đến điểm đón"><i class="fas fa-location-arrow"></i></button>` : '';
-        
-        const navigateDropoffHtml = (tripPhase === 'inprogress' && currentOrderData?.dropoffLat) ?
-            `<button class="action-icon" onclick="navigateToDropoff()" style="background:var(--accent);color:white;" title="Chỉ đường đến điểm trả"><i class="fas fa-flag-checkered"></i></button>` : '';
+        const navigateIconHtml = currentOrderData?.pickupLat ? `<button class="action-icon" onclick="navigateToPickup()" style="background:var(--primary);color:white;" title="Chỉ đường đến điểm đón"><i class="fas fa-location-arrow"></i></button>` : '';
+        const navigateDropoffHtml = (tripPhase === 'inprogress' && currentOrderData?.dropoffLat) ? `<button class="action-icon" onclick="navigateToDropoff()" style="background:var(--accent);color:white;" title="Chỉ đường đến điểm trả"><i class="fas fa-flag-checkered"></i></button>` : '';
 
         let tripTypeBadge = '';
-        if (tripType === 'APP_BOOKING') {
-            if (currentOrderData.dropoff) {
-                tripTypeBadge = '<span style="background:#0054a3; padding:2px 8px; border-radius:20px; font-size:10px;">📱 APP</span>';
-            } else {
-                tripTypeBadge = '<span style="background:#e65100; padding:2px 8px; border-radius:20px; font-size:10px;">📱 APP (No Dest)</span>';
-            }
-        } else if (tripType === 'STREET_HAIL') {
-            tripTypeBadge = '<span style="background:#7b1fa2; padding:2px 8px; border-radius:20px; font-size:10px;">🚕 VẪY</span>';
-        }
+        if (tripType === 'APP_BOOKING') tripTypeBadge = currentOrderData.dropoff ? '<span style="background:#0054a3; padding:2px 8px; border-radius:20px; font-size:10px;">📱 APP</span>' : '<span style="background:#e65100; padding:2px 8px; border-radius:20px; font-size:10px;">📱 APP (No Dest)</span>';
+        else if (tripType === 'STREET_HAIL') tripTypeBadge = '<span style="background:#7b1fa2; padding:2px 8px; border-radius:20px; font-size:10px;">🚕 VẪY</span>';
 
-        container.innerHTML = `
-            <div class="trip-status-badge ${statusClass}">
-                <div class="trip-status-dot"></div>
-                <div style="flex:1;">${statusLabel}</div>
-                ${tripTypeBadge}
-            </div>
-            
-            ${stepBarHtml}
-            
-            <div class="customer-card-sheet">
-                <div class="customer-avatar">🧑</div>
-                <div class="customer-info-sheet">
-                    <div class="customer-name-sheet">${escapeHtml(currentOrderData.clientName || (tripType === 'STREET_HAIL' ? 'Khách vẫy' : 'Khách hàng'))}</div>
-                    <div class="customer-phone-sheet">${escapeHtml(currentOrderData.phone || '...')}</div>                </div>
-                <div style="display:flex; gap:8px;">
-                    ${navigateIconHtml}
-                    ${navigateDropoffHtml}
-                    <button class="action-icon" onclick="conferenceCall()" style="background:var(--accent);color:white;"><i class="fas fa-phone-alt"></i></button>
-                    <button class="action-icon" onclick="openChat()" style="background:var(--primary);color:white;"><i class="fas fa-comment"></i></button>
-                    <button class="action-icon" onclick="shareTrip()" style="background:var(--gold);color:white;"><i class="fas fa-share-alt"></i></button>
-                </div>
-            </div>
-            <div class="route-card-sheet">
-                <div class="route-row-sheet">
-                    <div class="route-icon-sheet">📍</div>
-                    <div>
-                        <div class="route-label-sheet">ĐIỂM ĐÓN</div>
-                        <div class="route-address-sheet">${escapeHtml(currentOrderData.pickup || (tripType === 'STREET_HAIL' ? 'Vị trí hiện tại' : '...'))}</div>
-                    </div>
-                </div>
-                ${currentOrderData.dropoff ? `
-                <div style="border-top:1px dashed #dee2e6; margin:6px 0;"></div>
-                <div class="route-row-sheet">
-                    <div class="route-icon-sheet">🏁</div>
-                    <div>
-                        <div class="route-label-sheet">ĐIỂM ĐẾN</div>
-                        <div class="route-address-sheet">${escapeHtml(currentOrderData.dropoff)}</div>
-                    </div>
-                </div>` : ''}
-            </div>
-            
-            <div class="price-card-sheet">
-                <div>
-                    <div class="price-label-sheet">GIÁ HIỆN TẠI</div>
-                    <div class="price-value-sheet" id="sheetPrice">${finalPrice.toLocaleString()}đ</div>
-                </div>
-                <div class="price-km" id="sheetKm">${totalDistance.toFixed(1)} km</div>
-            </div>
-            
-            ${surgeMultiplier > 1 ? `<div style="background:#ff9800;color:white;padding:8px;border-radius:12px;text-align:center;margin-bottom:10px;">🔥 CAO ĐIỂM x${surgeMultiplier}</div>` : ''}
-            ${waitingFee > 0 ? `<div style="background:#ff5722;color:white;padding:8px;border-radius:12px;text-align:center;margin-bottom:10px;">⏱ Phí chờ: ${waitingFee.toLocaleString()}đ</div>` : ''}
-            
-            ${mainActionHtml}
-        `;
+        container.innerHTML = `<div class="trip-status-badge ${statusClass}"><div class="trip-status-dot"></div><div style="flex:1;">${statusLabel}</div>${tripTypeBadge}</div>${stepBarHtml}<div class="customer-card-sheet"><div class="customer-avatar">🧑</div><div class="customer-info-sheet"><div class="customer-name-sheet">${escapeHtml(currentOrderData.clientName || (tripType === 'STREET_HAIL' ? 'Khách vẫy' : 'Khách hàng'))}</div><div class="customer-phone-sheet">${escapeHtml(currentOrderData.phone || '...')}</div></div><div style="display:flex; gap:8px;">${navigateIconHtml}${navigateDropoffHtml}<button class="action-icon" onclick="conferenceCall()" style="background:var(--accent);color:white;"><i class="fas fa-phone-alt"></i></button><button class="action-icon" onclick="openChat()" style="background:var(--primary);color:white;"><i class="fas fa-comment"></i></button><button class="action-icon" onclick="shareTrip()" style="background:var(--gold);color:white;"><i class="fas fa-share-alt"></i></button></div></div><div class="route-card-sheet"><div class="route-row-sheet"><div class="route-icon-sheet">📍</div><div><div class="route-label-sheet">ĐIỂM ĐÓN</div><div class="route-address-sheet">${escapeHtml(currentOrderData.pickup || (tripType === 'STREET_HAIL' ? 'Vị trí hiện tại' : '...'))}</div></div></div>${currentOrderData.dropoff ? `<div style="border-top:1px dashed #dee2e6; margin:6px 0;"></div><div class="route-row-sheet"><div class="route-icon-sheet">🏁</div><div><div class="route-label-sheet">ĐIỂM ĐẾN</div><div class="route-address-sheet">${escapeHtml(currentOrderData.dropoff)}</div></div></div>` : ''}</div><div class="price-card-sheet"><div><div class="price-label-sheet">GIÁ HIỆN TẠI</div><div class="price-value-sheet" id="sheetPrice">${finalPrice.toLocaleString()}đ</div></div><div class="price-km" id="sheetKm">${totalDistance.toFixed(1)} km</div></div>${surgeMultiplier > 1 ? `<div style="background:#ff9800;color:white;padding:8px;border-radius:12px;text-align:center;margin-bottom:10px;">🔥 CAO ĐIỂM x${surgeMultiplier}</div>` : ''}${waitingFee > 0 ? `<div style="background:#ff5722;color:white;padding:8px;border-radius:12px;text-align:center;margin-bottom:10px;">⏱ Phí chờ: ${waitingFee.toLocaleString()}đ</div>` : ''}${mainActionHtml}`;
     }
 
     function startStreetHailTrip() {
@@ -3085,7 +2387,8 @@
         streetHailDistanceBuffer = [];
         const accuracy = parseInt(document.getElementById('profileAccuracy')?.innerText) || 20;
         addGpsPointToBuffer(currentLat, currentLng, Date.now(), accuracy);
-        lastValidGpsTime = Date.now();        lastValidGpsPos = { lat: currentLat, lng: currentLng };
+        lastValidGpsTime = Date.now();
+        lastValidGpsPos = { lat: currentLat, lng: currentLng };
         lastPos = null;
         totalDistance = 0;
         updateDistanceUI();
@@ -3095,77 +2398,44 @@
         saveActiveTripToStorage();
     }
 
-    // ===== ORDER LISTENER VỚI ATOMIC LOCK NÂNG CẤP =====
     function startOrderListener() {
-        if (!isOnline) return;
-        if (orderListener) { 
-            db.ref('datxe').off(); 
-            orderListener = null; 
-        }
-        
-        // BLOCK khi đang chạy bất kỳ chuyến nào
+        if (!isOnline) return;        if (orderListener) { db.ref('datxe').off(); orderListener = null; }
         const shouldBlock = () => _isModalOpening || (tripPhase !== null) || (tripType === 'STREET_HAIL' && isRunning);
-        
         const processOrder = (snap) => {
             if (shouldBlock()) return;
             const order = snap.val();
             const orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
             if (_processedOrders.has(orderId)) return;
-            
-            // LEVEL 5.3: Check if order is locked by another driver
             if (order.driverId && order.driverId !== currentUser?.uid) {
-                if (order.lockedAt && (Date.now() - order.lockedAt) < 15000) {
-                    return; // Still locked
-                }
+                if (order.lockedAt && (Date.now() - order.lockedAt) < 15000) return;
             }
-            
             if (receiveRadius > 0 && currentLat && currentLng && order.pickupLat && order.pickupLng) {
                 const distance = haversine(currentLat, currentLng, order.pickupLat, order.pickupLng);
                 if (distance > receiveRadius) return;
             }
             _processedOrders.add(orderId);
-            if (_processedOrders.size > 100) {
-                const first = _processedOrders.values().next().value;
-                _processedOrders.delete(first);
-            }
+            if (_processedOrders.size > 100) { const first = _processedOrders.values().next().value; _processedOrders.delete(first); }
             _isModalOpening = true;
-            
-            // AI PHÂN BIỆT 3 LOẠI CHUYẾN
             const hasDropoff = order.dropoffLat != null && order.dropoffLng != null && order.dropoff && order.dropoff.trim() !== '';
-            if (hasDropoff) {
-                tripType = 'APP_BOOKING';            } else if (order.pickupLat && order.pickupLng) {
-                tripType = 'APP_NO_DEST';
-            } else {
-                tripType = 'STREET_HAIL';
-            }
-            
+            if (hasDropoff) tripType = 'APP_BOOKING';
+            else if (order.pickupLat && order.pickupLng) tripType = 'APP_NO_DEST';
+            else tripType = 'STREET_HAIL';
             currentOrderData = { id: orderId, ...order, tripType: tripType };
-            
             if (hasDropoff && order.pickupLat && order.pickupLng && order.dropoffLat && order.dropoffLng) {
                 const estimate = calculateEstimatedFare(order.pickupLat, order.pickupLng, order.dropoffLat, order.dropoffLng);
-                if (estimate) {
-                    currentOrderData.estimatedDistance = estimate.distance;
-                    currentOrderData.fareEstimate = estimate.fare;
-                }
+                if (estimate) { currentOrderData.estimatedDistance = estimate.distance; currentOrderData.fareEstimate = estimate.fare; }
             } else {
                 currentOrderData.pickup = order.pickup || 'Vị trí hiện tại';
-                currentOrderData.dropoff = null;
-                currentOrderData.dropoffLat = null;
-                currentOrderData.dropoffLng = null;
+                currentOrderData.dropoff = null; currentOrderData.dropoffLat = null; currentOrderData.dropoffLng = null;
                 currentOrderData.clientName = currentOrderData.clientName || 'Khách vẫy';
-                currentOrderData.fareEstimate = null;
-                currentOrderData.estimatedDistance = null;
+                currentOrderData.fareEstimate = null; currentOrderData.estimatedDistance = null;
             }
-            
             showOrderModal(orderId, currentOrderData);
         };
         db.ref('datxe').orderByChild('status').equalTo('waiting').once('value', (snap) => {
             if (!snap.exists() || shouldBlock()) return;
-            snap.forEach((child) => {
-                if (shouldBlock()) return;
-                processOrder(child);
-            });
+            snap.forEach((child) => { if (shouldBlock()) return; processOrder(child); });
         });
         orderListener = db.ref('datxe').on('child_added', processOrder);
     }
@@ -3178,43 +2448,27 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function showOrderModal(orderId, order) {
-        document.getElementById('modalPhone').innerText = order.phone || '...';
+    function showOrderModal(orderId, order) {        document.getElementById('modalPhone').innerText = order.phone || '...';
         document.getElementById('modalFrom').innerText = order.pickup || 'Chưa xác định';
         document.getElementById('modalClientName').innerText = order.clientName || 'Khách hàng';
         document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
-                const badge = document.getElementById('orderTypeBadge');
+        const badge = document.getElementById('orderTypeBadge');
         const toRow = document.getElementById('modalToRow');
         const estimatePriceEl = document.getElementById('modalEstimatePrice');
-        
         if (order.tripType === 'APP_BOOKING') {
-            badge.className = 'order-type-badge app';
-            badge.innerText = '📱 ĐƠN APP';
-            document.getElementById('modalTo').innerText = order.dropoff || 'Chưa xác định';
-            toRow.style.display = 'flex';
-            
-            if (order.fareEstimate) {
-                estimatePriceEl.innerText = order.fareEstimate.toLocaleString() + 'đ';
-                estimatePriceEl.style.color = 'var(--primary)';
-            } else {
-                estimatePriceEl.innerText = 'Đang tính...';
-            }
+            badge.className = 'order-type-badge app'; badge.innerText = '📱 ĐƠN APP';
+            document.getElementById('modalTo').innerText = order.dropoff || 'Chưa xác định'; toRow.style.display = 'flex';
+            if (order.fareEstimate) { estimatePriceEl.innerText = order.fareEstimate.toLocaleString() + 'đ'; estimatePriceEl.style.color = 'var(--primary)'; }
+            else { estimatePriceEl.innerText = 'Đang tính...'; }
         } else if (order.tripType === 'APP_NO_DEST') {
-            badge.className = 'order-type-badge app-nodest';
-            badge.innerText = '📱 APP (Chưa có điểm đến)';
-            document.getElementById('modalTo').innerText = 'Chưa xác định (tính theo GPS)';
-            toRow.style.display = 'flex';
-            estimatePriceEl.innerText = 'Tính theo đồng hồ (' + currentRate.toLocaleString() + 'đ/km)';
-            estimatePriceEl.style.color = '#e65100';
+            badge.className = 'order-type-badge app-nodest'; badge.innerText = '📱 APP (Chưa có điểm đến)';
+            document.getElementById('modalTo').innerText = 'Chưa xác định (tính theo GPS)'; toRow.style.display = 'flex';
+            estimatePriceEl.innerText = 'Tính theo đồng hồ (' + currentRate.toLocaleString() + 'đ/km)'; estimatePriceEl.style.color = '#e65100';
         } else {
-            badge.className = 'order-type-badge vay';
-            badge.innerText = '🚕 CHUYẾN VẪY';
-            document.getElementById('modalTo').innerText = 'Chưa xác định';
-            toRow.style.display = 'flex';
-            estimatePriceEl.innerText = 'Tính theo đồng hồ (' + currentRate.toLocaleString() + 'đ/km)';
-            estimatePriceEl.style.color = '#7b1fa2';
+            badge.className = 'order-type-badge vay'; badge.innerText = '🚕 CHUYẾN VẪY';
+            document.getElementById('modalTo').innerText = 'Chưa xác định'; toRow.style.display = 'flex';
+            estimatePriceEl.innerText = 'Tính theo đồng hồ (' + currentRate.toLocaleString() + 'đ/km)'; estimatePriceEl.style.color = '#7b1fa2';
         }
-        
         let countdown = 15;
         document.getElementById('tp-modal-timer-val').innerText = countdown;
         document.getElementById('orderModal').style.display = 'flex';
@@ -3230,9 +2484,7 @@
 
     async function acceptCustomer() {
         clearInterval(countdownInterval);
-        
-        // LEVEL 5.3: ATOMIC LOCK NÂNG CẤP
-        const result = await tryAcceptOrder(currentOrderData.id);        
+        const result = await tryAcceptOrder(currentOrderData.id);
         if (!result.success) {
             document.getElementById('orderModal').style.display = 'none';
             _isModalOpening = false;
@@ -3240,16 +2492,12 @@
             speak(result.reason);
             return;
         }
-        
         document.getElementById('orderModal').style.display = 'none';
         _isModalOpening = false;
-        if (currentOrderData?.pickupLat && currentOrderData?.pickupLng && tripType !== 'STREET_HAIL') {
-            createCustomerMarker(currentOrderData.pickupLat, currentOrderData.pickupLng);
-        }
+        if (currentOrderData?.pickupLat && currentOrderData?.pickupLng && tripType !== 'STREET_HAIL') createCustomerMarker(currentOrderData.pickupLat, currentOrderData.pickupLng);
         tripPhase = 'enroute';
         isRunning = true;
-        totalDistance = 0;
-        waitingFee = 0;
+        totalDistance = 0;        waitingFee = 0;
         lastPos = null;
         resetGpsFilter();
         document.getElementById('statsUI').classList.add('show');
@@ -3257,31 +2505,16 @@
         document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
         document.getElementById('mainBtn').style.background = "var(--danger)";
         document.getElementById('homeControls').style.display = 'none';
-        
-        listenForChat();
-        listenForRating();
-        txListenForCustomerCancel(currentOrderData.id);
-        saveActiveTripToStorage();
-        showSheet();
-        expandSheet();
-        renderSheetUI();
-        
-        // LEVEL 5.3: Start foreground service
+        listenForChat(); listenForRating(); txListenForCustomerCancel(currentOrderData.id);
+        saveActiveTripToStorage(); showSheet(); expandSheet(); renderSheetUI();
         startForegroundService();
-        
-        if (tripType === 'APP_BOOKING') {
-            speak("Đã nhận đơn. Đang đến điểm đón.");
-            showToast("✅ Đã nhận đơn! Đang đến điểm đón.");
-        } else if (tripType === 'APP_NO_DEST') {
-            speak("Đã nhận đơn app. Chưa có điểm đến.");
-            showToast("✅ Đã nhận đơn! Chưa có điểm đến.");
-        } else {
-            speak("Đã nhận chuyến vẫy.");
-            showToast("✅ Đã nhận chuyến vẫy!");
-        }
+        if (tripType === 'APP_BOOKING') { speak("Đã nhận đơn. Đang đến điểm đón."); showToast("✅ Đã nhận đơn! Đang đến điểm đón."); }
+        else if (tripType === 'APP_NO_DEST') { speak("Đã nhận đơn app. Chưa có điểm đến."); showToast("✅ Đã nhận đơn! Chưa có điểm đến."); }
+        else { speak("Đã nhận chuyến vẫy."); showToast("✅ Đã nhận chuyến vẫy!"); }
     }
 
-    function declineCustomer() {        clearInterval(countdownInterval);
+    function declineCustomer() {
+        clearInterval(countdownInterval);
         document.getElementById('orderModal').style.display = 'none';
         _isModalOpening = false;
         speak("Đã bỏ qua đơn hàng.");
@@ -3290,25 +2523,10 @@
     function markArrived() {
         tripPhase = 'arrived';
         waitingStartTime = Date.now();
-        
-        if (isOnline) {
-            db.ref(`datxe/${currentOrderData.id}`).update({ status: 'arrived', arrivedAt: Date.now() }).catch(() => {
-                addToSyncQueue('update_order', {
-                    orderId: currentOrderData.id,
-                    updates: { status: 'arrived', arrivedAt: Date.now() }
-                });
-            });
-        } else {
-            addToSyncQueue('update_order', {
-                orderId: currentOrderData.id,
-                updates: { status: 'arrived', arrivedAt: Date.now() }
-            });
-        }
-        
-        renderSheetUI();
-        saveActiveTripToStorage();
-        speak("Đã đến điểm đón. Chờ đón khách.");
-        showToast("📍 Đã đến điểm đón!");
+        if (isOnline) db.ref(`datxe/${currentOrderData.id}`).update({ status: 'arrived', arrivedAt: Date.now() }).catch(() => { addToSyncQueue('update_order', { orderId: currentOrderData.id, updates: { status: 'arrived', arrivedAt: Date.now() } }); });
+        else addToSyncQueue('update_order', { orderId: currentOrderData.id, updates: { status: 'arrived', arrivedAt: Date.now() } });
+        renderSheetUI(); saveActiveTripToStorage();
+        speak("Đã đến điểm đón. Chờ đón khách."); showToast("📍 Đã đến điểm đón!");
     }
 
     function confirmPickup() {
@@ -3320,30 +2538,15 @@
         totalDistance = 0;
         resetGpsFilter();
         updateDistanceUI();
-        
-        if (isOnline) {
-            db.ref(`datxe/${currentOrderData.id}`).update({ status: 'picked_up', pickedUpAt: Date.now() }).catch(() => {
-                addToSyncQueue('update_order', {
-                    orderId: currentOrderData.id,
-                    updates: { status: 'picked_up', pickedUpAt: Date.now() }
-                });
-            });
-        } else {
-            addToSyncQueue('update_order', {
-                orderId: currentOrderData.id,                updates: { status: 'picked_up', pickedUpAt: Date.now() }
-            });
-        }
-        
-        renderSheetUI();
-        saveActiveTripToStorage();
-        speak("Đã đón khách. Bắt đầu tính cước.");
-        showToast("✅ Đã đón khách! Đang tính cước theo đồng hồ.");
+        if (isOnline) db.ref(`datxe/${currentOrderData.id}`).update({ status: 'picked_up', pickedUpAt: Date.now() }).catch(() => { addToSyncQueue('update_order', { orderId: currentOrderData.id, updates: { status: 'picked_up', pickedUpAt: Date.now() } }); });
+        else addToSyncQueue('update_order', { orderId: currentOrderData.id, updates: { status: 'picked_up', pickedUpAt: Date.now() } });
+        renderSheetUI(); saveActiveTripToStorage();
+        speak("Đã đón khách. Bắt đầu tính cước."); showToast("✅ Đã đón khách! Đang tính cước theo đồng hồ.");
     }
 
     function completeTrip() {
         let finalPrice = 0;
-        if (tripType === 'APP_BOOKING' && currentOrderData?.fareEstimate) {
-            const baseFare = parseInt(currentOrderData.fareEstimate) || 0;
+        if (tripType === 'APP_BOOKING' && currentOrderData?.fareEstimate) {            const baseFare = parseInt(currentOrderData.fareEstimate) || 0;
             const estimatedDist = parseFloat(currentOrderData.estimatedDistance) || 0;
             const extraKm = Math.max(0, totalDistance - estimatedDist);
             finalPrice = Math.round(baseFare + (extraKm * currentRate * surgeMultiplier)) + waitingFee;
@@ -3351,55 +2554,26 @@
             finalPrice = Math.round(totalDistance * currentRate * surgeMultiplier) + waitingFee;
         }
         saveHistory(totalDistance, finalPrice.toLocaleString(), finalPrice);
-        
         if (currentOrderData?.id) {
-            const updateData = { 
-                status: 'completed', 
-                actualKm: totalDistance, 
-                actualPrice: finalPrice,
-                tripType: tripType,
-                completedAt: Date.now()
-            };
-            
-            if (isOnline) {
-                db.ref(`datxe/${currentOrderData.id}`).update(updateData).catch(() => {
-                    addToSyncQueue('update_order', {
-                        orderId: currentOrderData.id,
-                        updates: updateData
-                    });
-                });
-            } else {
-                addToSyncQueue('update_order', {
-                    orderId: currentOrderData.id,
-                    updates: updateData
-                });
-            }
+            const updateData = { status: 'completed', actualKm: totalDistance, actualPrice: finalPrice, tripType: tripType, completedAt: Date.now() };
+            if (isOnline) db.ref(`datxe/${currentOrderData.id}`).update(updateData).catch(() => { addToSyncQueue('update_order', { orderId: currentOrderData.id, updates: updateData }); });
+            else addToSyncQueue('update_order', { orderId: currentOrderData.id, updates: updateData });
         }
-        
         const toast = document.getElementById('completionToast');
         document.getElementById('ctAmount').innerText = finalPrice.toLocaleString() + 'đ';
         const fill = document.getElementById('ctFill');
-        fill.style.animation = 'none';        toast.style.display = 'block';
+        fill.style.animation = 'none';
+        toast.style.display = 'block';
         void fill.offsetWidth;
         fill.style.animation = 'fillBar 3s linear forwards';
         speak("Hoàn thành chuyến đi. Thu " + finalPrice.toLocaleString() + " đồng.");
-        setTimeout(() => {
-            toast.style.display = 'none';
-            resetToHomeScreen();
-        }, 3000);
+        setTimeout(() => { toast.style.display = 'none'; resetToHomeScreen(); }, 3000);
     }
 
     function resetToHomeScreen() {
         Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-        tripPhase = null;
-        isRunning = false;
-        totalDistance = 0;
-        waitingFee = 0;
-        currentOrderData = null;
-        tripType = null;
-        streetHailStartTime = null;
-        streetHailDistanceBuffer = [];
-        lastPos = null;
+        tripPhase = null; isRunning = false; totalDistance = 0; waitingFee = 0; currentOrderData = null; tripType = null;
+        streetHailStartTime = null; streetHailDistanceBuffer = []; lastPos = null;
         if (streetHailTimerInterval) clearInterval(streetHailTimerInterval);
         document.getElementById('streetHailMeter').classList.remove('show');
         document.getElementById('mainBtn').innerText = "BẮT ĐẦU CHUYẾN ĐI";
@@ -3407,18 +2581,12 @@
         document.getElementById('homeControls').style.display = 'block';
         document.getElementById('miniTripBtn').classList.remove('show');
         document.getElementById('statsUI').classList.remove('show');
-        sheetState = 'collapsed';
-        hideSheet();
+        sheetState = 'collapsed'; hideSheet();
         if (customerMarker) map.removeLayer(customerMarker);
         if (routeLayer) map.removeLayer(routeLayer);
-        customerMarker = null;
-        routeLayer = null;
-        resetGpsFilter();
-        updateDistanceUI();
-        
-        // LEVEL 5.3: Stop foreground service if not running
+        customerMarker = null; routeLayer = null;
+        resetGpsFilter(); updateDistanceUI();
         stopForegroundService();
-        
         if (isOnline) startOrderListener();
         showToast('🏠 Sẵn sàng nhận đơn mới!');
     }
@@ -3427,8 +2595,8 @@
 
     function navigateToDropoff() {
         if (!currentOrderData?.dropoffLat || !currentOrderData?.dropoffLng) {
-            const addr = encodeURIComponent(currentOrderData?.dropoff || '');
-            window.open(`https://www.google.com/maps/search/?api=1&query=${addr}`, '_blank');            return;
+            const addr = encodeURIComponent(currentOrderData?.dropoff || '');            window.open(`https://www.google.com/maps/search/?api=1&query=${addr}`, '_blank');
+            return;
         }
         const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentOrderData.dropoffLat},${currentOrderData.dropoffLng}&travelmode=driving`;
         window.open(url, '_blank');
@@ -3436,10 +2604,7 @@
     }
 
     function navigateToPickup() {
-        if (!currentOrderData?.pickupLat || !currentOrderData?.pickupLng) { 
-            showToast('⚠️ Chưa có tọa độ điểm đón'); 
-            return; 
-        }
+        if (!currentOrderData?.pickupLat || !currentOrderData?.pickupLng) { showToast('⚠️ Chưa có tọa độ điểm đón'); return; }
         const url = `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentOrderData.pickupLat},${currentOrderData.pickupLng}&travelmode=driving`;
         window.open(url, '_blank');
         showToast('🧭 Đã mở Google Maps đến điểm đón');
@@ -3453,14 +2618,7 @@
             const msg = snap.val();
             if (msg && msg.sender !== 'driver') {
                 appendChatMessage(msg);
-                
-                // LEVEL 5.3: Save to IndexedDB for offline
-                saveToIndexedDB('chat', {
-                    orderId: currentOrderData.id,
-                    message: msg,
-                    timestamp: Date.now()
-                });
-                
+                saveToIndexedDB('chat', { orderId: currentOrderData.id, message: msg, timestamp: Date.now() });
                 if (soundEnabled) speak("Có tin nhắn mới từ khách hàng");
             }
         });
@@ -3477,61 +2635,19 @@
     function sendChatMessage() {
         const input = document.getElementById('chatInput');
         const text = input.value.trim();
-        if (!text || !currentOrderData?.id) return;        
-        // LEVEL 5.3: Input validation
-        if (!validateInput(text, 'text')) {
-            showToast('⚠️ Tin nhắn không hợp lệ');
-            return;
-        }
-        
-        const msgData = { 
-            sender: 'driver', 
-            senderName: currentUser?.name, 
-            text: escapeHtml(text), 
-            timestamp: Date.now() 
-        };
-        
-        if (isOnline) {
-            db.ref(`chat/${currentOrderData.id}`).push(msgData).catch(() => {
-                addToSyncQueue('send_chat', {
-                    orderId: currentOrderData.id,
-                    message: msgData
-                });
-            });
-        } else {
-            addToSyncQueue('send_chat', {
-                orderId: currentOrderData.id,
-                message: msgData
-            });
-        }
-        
+        if (!text || !currentOrderData?.id) return;
+        if (!validateInput(text, 'text')) { showToast('⚠️ Tin nhắn không hợp lệ'); return; }
+        const msgData = { sender: 'driver', senderName: currentUser?.name, text: escapeHtml(text), timestamp: Date.now() };
+        if (isOnline) db.ref(`chat/${currentOrderData.id}`).push(msgData).catch(() => { addToSyncQueue('send_chat', { orderId: currentOrderData.id, message: msgData }); });
+        else addToSyncQueue('send_chat', { orderId: currentOrderData.id, message: msgData });
         appendChatMessage({ text: text, sender: 'driver', timestamp: Date.now() });
         input.value = '';
     }
 
-    function sendQuickMessage(msg) {
-        if (!currentOrderData?.id) return;
-        
-        const msgData = { 
-            sender: 'driver', 
-            senderName: currentUser?.name, 
-            text: msg, 
-            timestamp: Date.now() 
-        };
-        
-        if (isOnline) {
-            db.ref(`chat/${currentOrderData.id}`).push(msgData).catch(() => {
-                addToSyncQueue('send_chat', {
-                    orderId: currentOrderData.id,
-                    message: msgData
-                });
-            });
-        } else {            addToSyncQueue('send_chat', {
-                orderId: currentOrderData.id,
-                message: msgData
-            });
-        }
-        
+    function sendQuickMessage(msg) {        if (!currentOrderData?.id) return;
+        const msgData = { sender: 'driver', senderName: currentUser?.name, text: msg, timestamp: Date.now() };
+        if (isOnline) db.ref(`chat/${currentOrderData.id}`).push(msgData).catch(() => { addToSyncQueue('send_chat', { orderId: currentOrderData.id, message: msgData }); });
+        else addToSyncQueue('send_chat', { orderId: currentOrderData.id, message: msgData });
         appendChatMessage({ text: msg, sender: 'driver', timestamp: Date.now() });
     }
 
@@ -3549,10 +2665,7 @@
 
     function conferenceCall() {
         const phone = currentOrderData?.phone;
-        if (!phone || phone === '...') { 
-            showToast('⚠️ Chưa có số điện thoại khách hàng'); 
-            return; 
-        }
+        if (!phone || phone === '...') { showToast('⚠️ Chưa có số điện thoại khách hàng'); return; }
         document.getElementById('conferenceModal').style.display = 'flex';
         document.getElementById('conferenceText').textContent = 'Đang gọi khách hàng...';
         setTimeout(() => { window.location.href = 'tel:' + phone; }, 500);
@@ -3570,12 +2683,9 @@
 
     function shareTrip() {
         const text = `🚖 Tôi đang chạy chuyến Taxi ProMax\n📍 https://maps.google.com/?q=${currentLat},${currentLng}\n👥 Khách: ${currentOrderData?.clientName || 'Khách hàng'}`;
-        if (navigator.share) {
-            navigator.share({ title: 'Chia sẻ chuyến đi', text });
-        } else {
-            navigator.clipboard.writeText(text);
-            showToast('✅ Đã sao chép thông tin chuyến đi');
-        }    }
+        if (navigator.share) navigator.share({ title: 'Chia sẻ chuyến đi', text });
+        else { navigator.clipboard.writeText(text); showToast('✅ Đã sao chép thông tin chuyến đi'); }
+    }
 
     function listenForRating() {
         if (!currentOrderData?.id) return;
@@ -3583,17 +2693,13 @@
         ratingListener = currentOrderData.id;
         db.ref(`ratings/${currentOrderData.id}`).on('value', (snap) => {
             const rating = snap.val();
-            if (rating && rating.overall) showRatingModal(rating.overall, rating.comment);
-        });
+            if (rating && rating.overall) showRatingModal(rating.overall, rating.comment);        });
     }
 
     function showRatingModal(score, comment) {
         document.getElementById('ratingModal').style.display = 'flex';
         const stars = document.querySelectorAll('#ratingStars .rating-star');
-        stars.forEach((star, i) => {
-            if (i < score) star.classList.add('active');
-            else star.classList.remove('active');
-        });
+        stars.forEach((star, i) => { if (i < score) star.classList.add('active'); else star.classList.remove('active'); });
         document.getElementById('ratingComment').value = comment || '';
         let ratings = JSON.parse(localStorage.getItem('driver_ratings') || '[]');
         ratings.push(score);
@@ -3624,45 +2730,19 @@
     async function saveHistory(km, costLabel, costRaw) {
         const now = Date.now();
         const timeLabel = new Date().toLocaleString('vi-VN');
-        const tripData = {             km: parseFloat(km), 
-            cost: costRaw, 
-            costLabel, 
-            time: timeLabel, 
-            timestamp: now, 
-            rate: currentRate,
-            tripType: tripType,
-            orderId: currentOrderData?.id
-        };
+        const tripData = { km: parseFloat(km), cost: costRaw, costLabel, time: timeLabel, timestamp: now, rate: currentRate, tripType: tripType, orderId: currentOrderData?.id };
         let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
         history.unshift(tripData);
         localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
-        
-        // LEVEL 5.3: Save to IndexedDB
-        saveToIndexedDB('trips', {
-            id: 'history_' + now,
-            tripData: tripData,
-            timestamp: now
-        });
-        
+        saveToIndexedDB('trips', { id: 'history_' + now, tripData: tripData, timestamp: now });
         if (isOnline) {
-            try { 
-                await db.ref(`trips/${currentUser?.uid}/${now}`).set(tripData); 
-            } catch(e) {
-                addToSyncQueue('save_trip', {
-                    timestamp: now,
-                    tripData: tripData
-                });
-            }
+            try { await db.ref(`trips/${currentUser?.uid}/${now}`).set(tripData); } 
+            catch(e) { addToSyncQueue('save_trip', { timestamp: now, tripData: tripData }); }
         } else {
-            addToSyncQueue('save_trip', {
-                timestamp: now,
-                tripData: tripData
-            });
+            addToSyncQueue('save_trip', { timestamp: now, tripData: tripData });
         }
-        
         renderHistory();
     }
-
     async function renderHistory() {
         const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
         const now = new Date();
@@ -3673,7 +2753,8 @@
         weekStart.setDate(today.getDate() - dayOfWeek);
         const weekStartTime = weekStart.getTime();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        const dayRevenue = history.filter(h => h.timestamp >= dayStart).reduce((s, h) => s + (h.cost || 0), 0);        const weekRevenue = history.filter(h => h.timestamp >= weekStartTime).reduce((s, h) => s + (h.cost || 0), 0);
+        const dayRevenue = history.filter(h => h.timestamp >= dayStart).reduce((s, h) => s + (h.cost || 0), 0);
+        const weekRevenue = history.filter(h => h.timestamp >= weekStartTime).reduce((s, h) => s + (h.cost || 0), 0);
         const monthRevenue = history.filter(h => h.timestamp >= monthStart).reduce((s, h) => s + (h.cost || 0), 0);
         document.getElementById('dayRevenue').innerHTML = dayRevenue.toLocaleString() + 'đ';
         document.getElementById('weekRevenue').innerHTML = weekRevenue.toLocaleString() + 'đ';
@@ -3709,27 +2790,9 @@
     function submitReport() {
         const reason = document.getElementById('reportReason').value;
         const desc = document.getElementById('reportDesc').value;
-        
-        // LEVEL 5.3: Input validation
-        if (!validateInput(desc, 'text')) {
-            showToast('⚠️ Vui lòng nhập mô tả');
-            return;
-        }
-        
-        const reportData = { 
-            driverId: currentUser?.uid, 
-            reason, 
-            description: escapeHtml(desc), 
-            timestamp: Date.now() 
-        };
-                if (isOnline) {
-            db.ref('reports').push(reportData).catch(() => {
-                addToSyncQueue('submit_report', reportData);
-            });
-        } else {
-            addToSyncQueue('submit_report', reportData);
-        }
-        
+        if (!validateInput(desc, 'text')) { showToast('⚠️ Vui lòng nhập mô tả'); return; }
+        const reportData = { driverId: currentUser?.uid, reason, description: escapeHtml(desc), timestamp: Date.now() };        if (isOnline) db.ref('reports').push(reportData).catch(() => { addToSyncQueue('submit_report', reportData); });
+        else addToSyncQueue('submit_report', reportData);
         showToast('✅ Đã gửi báo cáo!');
         closeReportModal();
         document.getElementById('reportDesc').value = '';
@@ -3743,10 +2806,7 @@
             toggle.classList.add('active');
             text.innerText = 'Online';
             startOrderListener();
-            
-            // LEVEL 5.3: Process sync queue
             processSyncQueue();
-            
             showToast('✅ Đã chuyển sang trạng thái Online');
         } else {
             toggle.classList.remove('active');
@@ -3759,19 +2819,12 @@
     function toggleSound() {
         soundEnabled = !soundEnabled;
         const toggle = document.getElementById('soundToggle');
-        if (soundEnabled) {
-            toggle.classList.add('active');
-            showToast('🔊 Đã bật âm thanh thông báo');
-        } else {
-            toggle.classList.remove('active');
-            showToast('🔇 Đã tắt âm thanh thông báo');
-        }
+        if (soundEnabled) { toggle.classList.add('active'); showToast('🔊 Đã bật âm thanh thông báo'); }
+        else { toggle.classList.remove('active'); showToast('🔇 Đã tắt âm thanh thông báo'); }
     }
 
-    function setRadius(value) { 
-        receiveRadius = parseInt(value); 
-        showToast(`📍 Đã đặt bán kính nhận đơn: ${value === '0' ? 'Toàn thành phố' : value + 'km'}`); 
-    }
+    function setRadius(value) { receiveRadius = parseInt(value); showToast(`📍 Đã đặt bán kính nhận đơn: ${value === '0' ? 'Toàn thành phố' : value + 'km'}`); }
+
     function createCustomerMarker(lat, lng) {
         if (customerMarker) map.removeLayer(customerMarker);
         const icon = L.divIcon({ html: "<div class='customer-marker'>🧍</div>", className: '', iconSize: [26, 26], iconAnchor: [13, 13] });
@@ -3779,11 +2832,7 @@
         if (marker) map.fitBounds(L.featureGroup([marker, customerMarker]).getBounds().pad(0.3));
     }
 
-    function updateRate(v) { 
-        currentRate = parseInt(v); 
-        document.getElementById('rateLabel').innerText = currentRate.toLocaleString(); 
-        updateDistanceUI(); 
-    }
+    function updateRate(v) { currentRate = parseInt(v); document.getElementById('rateLabel').innerText = currentRate.toLocaleString(); updateDistanceUI(); }
     
     function showTab(tab, btn) {
         document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
@@ -3791,8 +2840,7 @@
         if (btn) btn.classList.add('active');
         const statsUI = document.getElementById('statsUI');
         const mainHeader = document.getElementById('mainHeader');
-        if (tab === 'home') {
-            document.getElementById('homeControls').style.display = 'block';
+        if (tab === 'home') {            document.getElementById('homeControls').style.display = 'block';
             statsUI.style.display = isRunning ? 'flex' : 'none';
             mainHeader.style.display = 'flex';
             setTimeout(() => map.invalidateSize(), 300);
@@ -3820,11 +2868,7 @@
 
     function tpOpenRadar() {
         showToast('📡 Đang hiển thị điểm nóng khách hàng');
-        const hotspots = [            { name: "Trung tâm thành phố", lat: 21.0285, lng: 105.8542 },
-            { name: "Bến xe Mỹ Đình", lat: 21.0085, lng: 105.7892 },
-            { name: "Sân bay Nội Bài", lat: 21.2142, lng: 105.8075 },
-            { name: "Khu đô thị Times City", lat: 21.0015, lng: 105.8625 }
-        ];
+        const hotspots = [ { name: "Trung tâm thành phố", lat: 21.0285, lng: 105.8542 }, { name: "Bến xe Mỹ Đình", lat: 21.0085, lng: 105.7892 }, { name: "Sân bay Nội Bài", lat: 21.2142, lng: 105.8075 }, { name: "Khu đô thị Times City", lat: 21.0015, lng: 105.8625 } ];
         hotspots.forEach(s => { L.circleMarker([s.lat, s.lng], { radius: 15, fillColor: '#ff9800', color: '#fff', fillOpacity: 0.7 }).addTo(map).bindTooltip(`🔥 ${s.name}`).openTooltip(); });
     }
     function tpOpenSOS() { showToast('🚨 Đã gửi tín hiệu SOS đến trung tâm cứu hộ!'); speak("SOS đã được gửi, hỗ trợ sẽ đến ngay"); }
@@ -3845,39 +2889,17 @@
         if (!tripPhase) {
             tripType = 'STREET_HAIL';
             tripPhase = 'inprogress';
-            isRunning = true;
-            streetHailStartTime = null;
-            currentOrderData = {
-                id: 'street_' + Date.now(),
-                clientName: 'Khách vẫy',
-                phone: '...',
-                pickup: 'Vị trí hiện tại',
-                dropoff: null,
-                pickupLat: currentLat,
-                pickupLng: currentLng,
-                dropoffLat: null,
-                dropoffLng: null,
-                status: 'driving',
-                tripType: 'STREET_HAIL',
-                fareEstimate: null
-            };
+            isRunning = true;            streetHailStartTime = null;
+            currentOrderData = { id: 'street_' + Date.now(), clientName: 'Khách vẫy', phone: '...', pickup: 'Vị trí hiện tại', dropoff: null, pickupLat: currentLat, pickupLng: currentLng, dropoffLat: null, dropoffLng: null, status: 'driving', tripType: 'STREET_HAIL', fareEstimate: null };
             document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
             document.getElementById('mainBtn').style.background = "var(--danger)";
             document.getElementById('homeControls').style.display = 'none';
             document.getElementById('wishModal').style.display = 'flex';
-            totalDistance = 0;
-            lastPos = null;
-            streetHailDistanceBuffer = [];
+            totalDistance = 0; lastPos = null; streetHailDistanceBuffer = [];
             resetGpsFilter();
-            document.getElementById('statsUI').classList.add('show');            updateDistanceUI();
-            showSheet();
-            expandSheet();
-            renderSheetUI();
-            saveActiveTripToStorage();
-            
-            // LEVEL 5.3: Start foreground service
-            startForegroundService();
-            
+            document.getElementById('statsUI').classList.add('show');
+            updateDistanceUI(); showSheet(); expandSheet(); renderSheetUI();
+            saveActiveTripToStorage(); startForegroundService();
             speak("Bắt đầu chuyến vẫy. Nhấn BẮT ĐẦU CHUYẾN để tính cước.");
             showToast("🚕 Chuyến vẫy đã sẵn sàng!");
         } else if (tripType === 'STREET_HAIL' && streetHailStartTime === null) {
@@ -3887,122 +2909,50 @@
         }
     }
 
-    // ===== LEVEL 5.3: CLEANUP LISTENERS =====
     function cleanupListeners() {
-        if (orderListener) {
-            db.ref('datxe').off();
-            orderListener = null;
-        }
-        if (chatListener) {
-            db.ref(`chat/${chatListener}`).off();
-            chatListener = null;
-        }
-        if (ratingListener) {
-            db.ref(`ratings/${ratingListener}`).off();
-            ratingListener = null;
-        }
-        if (_cancelListener) {
-            db.ref(`datxe/${_cancelListener}/status`).off();
-            _cancelListener = null;
-        }
-        if (gpsLogInterval) {
-            clearInterval(gpsLogInterval);
-            gpsLogInterval = null;
-        }
-        if (heartbeatInterval) {
-            clearInterval(heartbeatInterval);
-            heartbeatInterval = null;
-        }
-        if (streetHailTimerInterval) {
-            clearInterval(streetHailTimerInterval);
-            streetHailTimerInterval = null;
-        }
-        if (countdownInterval) {
-            clearInterval(countdownInterval);            countdownInterval = null;
-        }
-        
-        console.log('[CLEANUP] All listeners cleaned up');
+        if (orderListener) { db.ref('datxe').off(); orderListener = null; }
+        if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
+        if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
+        if (_cancelListener) { db.ref(`datxe/${_cancelListener}/status`).off(); _cancelListener = null; }
+        if (gpsLogInterval) { clearInterval(gpsLogInterval); gpsLogInterval = null; }
+        if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+        if (streetHailTimerInterval) { clearInterval(streetHailTimerInterval); streetHailTimerInterval = null; }
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     }
 
-    // ===== LEVEL 5.3: MEMORY LEAK CHECK =====
     function checkMemoryLeak() {
-        // Check for excessive listeners
         const listenerCount = (orderListener ? 1 : 0) + (chatListener ? 1 : 0) + (ratingListener ? 1 : 0) + (_cancelListener ? 1 : 0);
-        if (listenerCount > 10) {
-            console.warn('[MEMORY] Excessive listeners detected:', listenerCount);
-            cleanupListeners();
-        }
-        
-        // Check for excessive buffer size
-        if (streetHailDistanceBuffer.length > 200) {
-            streetHailDistanceBuffer = streetHailDistanceBuffer.slice(-100);
-        }
-        
-        // Check for excessive processed orders
-        if (_processedOrders.size > 200) {
-            const arr = Array.from(_processedOrders);
-            _processedOrders = new Set(arr.slice(-100));
-        }
+        if (listenerCount > 10) { console.warn('[MEMORY] Excessive listeners detected:', listenerCount); cleanupListeners(); }
+        if (streetHailDistanceBuffer.length > 200) streetHailDistanceBuffer = streetHailDistanceBuffer.slice(-100);
+        if (_processedOrders.size > 200) { const arr = Array.from(_processedOrders); _processedOrders = new Set(arr.slice(-100)); }
     }
-
-    // Run memory check every 5 minutes
     setInterval(checkMemoryLeak, 300000);
 
-    // ===== VISIBILITY CHANGE - KEEP ALIVE =====
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            if (isRunning) {
-                requestWakeLock();
-            }
-            // LEVEL 5.3: Process sync queue when app becomes visible
-            if (isOnline) {
-                processSyncQueue();
-            }
+            if (isRunning) requestWakeLock();
+            if (isOnline) processSyncQueue();
         } else {
-            // LEVEL 5.3: Save state before going to background
-            if (isRunning) {
-                saveActiveTripToStorage();
-            }
+            if (isRunning) saveActiveTripToStorage();
         }
     });
 
-    // ===== LEVEL 5.3: ONLINE/OFFLINE EVENTS =====
-    window.addEventListener('online', () => {         document.getElementById('offlineBanner').style.display = 'none'; 
-        if (isOnline) {
-            startOrderListener();
-            processSyncQueue();
-        }
+    window.addEventListener('online', () => { 
+        document.getElementById('offlineBanner').style.display = 'none';         if (isOnline) { startOrderListener(); processSyncQueue(); }
         showToast('✅ Đã kết nối lại'); 
     });
     
     window.addEventListener('offline', () => { 
         document.getElementById('offlineBanner').style.display = 'block'; 
         showToast('📵 Mất kết nối mạng'); 
-        
-        // LEVEL 5.3: Save current state
-        if (isRunning) {
-            saveActiveTripToStorage();
-        }
+        if (isRunning) saveActiveTripToStorage();
     });
 
-    // ===== LEVEL 5.3: BEFORE UNLOAD - SAVE STATE =====
-    window.addEventListener('beforeunload', () => {
-        if (isRunning) {
-            saveActiveTripToStorage();
-        }
-    });
-
-    // ===== LEVEL 5.3: PAGE HIDE (iOS) =====
-    window.addEventListener('pagehide', () => {
-        if (isRunning) {
-            saveActiveTripToStorage();
-        }
-    });
+    window.addEventListener('beforeunload', () => { if (isRunning) saveActiveTripToStorage(); });
+    window.addEventListener('pagehide', () => { if (isRunning) saveActiveTripToStorage(); });
 
     window.onload = async () => {
-        // LEVEL 5.3: Init IndexedDB first
         await initIndexedDB();
-        
         const saved = localStorage.getItem('currentDriver');
         if (saved) { 
             try {
@@ -4016,4 +2966,5 @@
         }
     };
     </script>
-</body></html>
+</body>
+</html>
