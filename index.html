@@ -694,15 +694,15 @@
                     <label style="display: flex; align-items: center; gap: 5px; background:#334155; padding:10px; border-radius:12px; flex:1;"><input type="radio" name="carClass" value="4_seats" checked> 🚗 4 Chỗ</label>
                     <label style="display: flex; align-items: center; gap: 5px; background:#334155; padding:10px; border-radius:12px; flex:1;"><input type="radio" name="carClass" value="7_seats"> 🚙 7 Chỗ</label>
                 </div>
-                <button class="auth-btn" id="btnRegister" onclick="doRegister()">ĐĂNG KÝ TÀI XẾ</button>
+                <button class="auth-btn" id="btnRegister" onclick="window.doRegister()">ĐĂNG KÝ TÀI XẾ</button>
                 <div class="auth-error" id="regError"></div>
             </div>
             <div id="stepLogin" style="display:none;">
                 <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
-                <button class="auth-btn" id="btnLogin" onclick="doLogin()">ĐĂNG NHẬP</button>
+                <button class="auth-btn" id="btnLogin" onclick="window.doLogin()">ĐĂNG NHẬP</button>
                 <div class="auth-error" id="loginError"></div>
             </div>
-            <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">Đã có tài khoản? Đăng nhập</button>
+            <button class="auth-toggle" id="btnToggle" onclick="window.toggleAuth()">Đã có tài khoản? Đăng nhập</button>
         </div>    </div>
 
     <div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
@@ -2951,18 +2951,89 @@
     window.addEventListener('beforeunload', () => { if (isRunning) saveActiveTripToStorage(); });
     window.addEventListener('pagehide', () => { if (isRunning) saveActiveTripToStorage(); });
 
+    // ===== FIX: Export functions to global scope =====
+    window.doRegister = doRegister;
+    window.doLogin = doLogin;
+    window.toggleAuth = toggleAuth;
+    window.expandSheet = expandSheet;
+    window.collapseSheet = collapseSheet;
+    window.markArrived = markArrived;
+    window.confirmPickup = confirmPickup;
+    window.completeTrip = completeTrip;
+    window.startStreetHailTrip = startStreetHailTrip;
+    window.endStreetHailTrip = endStreetHailTrip;
+    window.acceptCustomer = acceptCustomer;
+    window.declineCustomer = declineCustomer;
+    window.navigateToPickup = navigateToPickup;
+    window.navigateToDropoff = navigateToDropoff;
+    window.conferenceCall = conferenceCall;
+    window.addSupportToCall = addSupportToCall;
+    window.endConferenceCall = endConferenceCall;
+    window.shareTrip = shareTrip;
+    window.openChat = openChat;
+    window.closeChat = closeChat;
+    window.sendQuickMessage = sendQuickMessage;
+    window.sendChatMessage = sendChatMessage;
+    window.closeRatingModal = closeRatingModal;
+    window.openLockScreen = openLockScreen;
+    window.closeLockScreen = closeLockScreen;
+    window.openReportModal = openReportModal;
+    window.closeReportModal = closeReportModal;
+    window.submitReport = submitReport;
+    window.toggleOnlineStatus = toggleOnlineStatus;
+    window.toggleSound = toggleSound;
+    window.togglePushNotification = togglePushNotification;
+    window.setRadius = setRadius;
+    window.updateRate = updateRate;
+    window.showTab = showTab;
+    window.closeModal = closeModal;
+    window.bookAgain = bookAgain;
+    window.filterHistory = filterHistory;
+    window.viewTripDetail = viewTripDetail;
+    window.dismissCancelBanner = dismissCancelBanner;
+    window.dismissMockWarning = dismissMockWarning;
+    window.requestNotificationPermission = requestNotificationPermission;
+    window.closePushBanner = closePushBanner;
+    window.tpOpenRadar = tpOpenRadar;
+    window.tpOpenSOS = tpOpenSOS;
+    window.tpOpenMaintenance = tpOpenMaintenance;
+    window.tpOpenProfit = tpOpenProfit;
+    window.tpHandlePayment = tpHandlePayment;
+    window.handleTrip = handleTrip;
+    window.speak = speak;
+    window.showToast = showToast;
+
     window.onload = async () => {
         await initIndexedDB();
         const saved = localStorage.getItem('currentDriver');
         if (saved) { 
             try {
                 currentUser = JSON.parse(saved); 
-                document.getElementById('authScreen').style.display = 'none'; 
-                initApp(); 
+                // Check if user still exists in Firebase when online
+                if (navigator.onLine) {
+                    const snap = await db.ref(`drivers/${currentUser.uid}`).once('value');
+                    if (snap.exists()) {
+                        document.getElementById('authScreen').style.display = 'none'; 
+                        initApp();
+                    } else {
+                        // User no longer exists in Firebase
+                        localStorage.removeItem('currentDriver');
+                        currentUser = null;
+                        document.getElementById('authScreen').style.display = 'flex';
+                    }
+                } else {
+                    // Offline mode - trust localStorage
+                    document.getElementById('authScreen').style.display = 'none'; 
+                    initApp();
+                    showToast('⚠️ Đang hoạt động ngoại tuyến');
+                }
             } catch(e) {
                 console.error('Parse currentDriver error:', e);
                 localStorage.removeItem('currentDriver');
+                document.getElementById('authScreen').style.display = 'flex';
             }
+        } else {
+            document.getElementById('authScreen').style.display = 'flex';
         }
     };
     </script>
