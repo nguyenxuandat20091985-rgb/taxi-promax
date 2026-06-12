@@ -694,15 +694,15 @@
                     <label style="display: flex; align-items: center; gap: 5px; background:#334155; padding:10px; border-radius:12px; flex:1;"><input type="radio" name="carClass" value="4_seats" checked> 🚗 4 Chỗ</label>
                     <label style="display: flex; align-items: center; gap: 5px; background:#334155; padding:10px; border-radius:12px; flex:1;"><input type="radio" name="carClass" value="7_seats"> 🚙 7 Chỗ</label>
                 </div>
-                <button class="auth-btn" id="btnRegister" onclick="doRegister()">ĐĂNG KÝ TÀI XẾ</button>
+                <button class="auth-btn" id="btnRegister">ĐĂNG KÝ TÀI XẾ</button>
                 <div class="auth-error" id="regError"></div>
             </div>
             <div id="stepLogin" style="display:none;">
                 <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
-                <button class="auth-btn" id="btnLogin" onclick="doLogin()">ĐĂNG NHẬP</button>
+                <button class="auth-btn" id="btnLogin">ĐĂNG NHẬP</button>
                 <div class="auth-error" id="loginError"></div>
             </div>
-            <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">Đã có tài khoản? Đăng nhập</button>
+            <button class="auth-toggle" id="btnToggle">Đã có tài khoản? Đăng nhập</button>
         </div>    </div>
 
     <div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
@@ -2405,7 +2405,12 @@
     }
 
     // ===== AUTHENTICATION NÂNG CẤP =====
+    // THÊM LOG ĐỂ DEBUG
+    console.log("🔧 Auth functions loaded - Register & Login ready");
+    
     async function doRegister() {
+        console.log("🔘 REGISTER CLICK - Function called");
+        
         const name = document.getElementById('regName').value.trim();
         const phone = document.getElementById('regPhone').value.trim();
         const cccd = document.getElementById('regCccd').value.trim();
@@ -2414,6 +2419,8 @@
         const fuelType = document.querySelector('input[name="fuelType"]:checked')?.value || 'xang';
         const carClass = document.querySelector('input[name="carClass"]:checked')?.value || '4_seats';
         const errorEl = document.getElementById('regError');
+        
+        console.log("📝 Register data:", { name, phone, cccd, plate, carModel, fuelType, carClass });
         
         // LEVEL 5.3: Input Validation
         if (!validateInput(name, 'name')) { 
@@ -2443,6 +2450,18 @@
         }
         
         try {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+            
+            console.log("🔥 Checking Firebase connection...");
+            
+            // Kiểm tra Firebase trước
+            if (!db) {
+                errorEl.textContent = '⚠️ Lỗi: Firebase chưa sẵn sàng. Vui lòng thử lại.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            
             const snapshot = await db.ref('drivers').once('value');
             const allDrivers = snapshot.val() || {};
             if (Object.values(allDrivers).some(d => d.phone === phone)) {
@@ -2474,14 +2493,19 @@
             showToast('✅ Đăng ký thành công! Chào ' + name);
             setTimeout(initApp, 300);
         } catch (error) { 
+            console.error("❌ Register error:", error);
             errorEl.textContent = '⚠️ Lỗi: ' + error.message; 
             errorEl.style.display = 'block'; 
         }
     }
 
     async function doLogin() {
+        console.log("🔘 LOGIN CLICK - Function called");
+        
         const phone = document.getElementById('loginPhone').value.trim();
         const errorEl = document.getElementById('loginError');
+        
+        console.log("📝 Login phone:", phone);
         
         // LEVEL 5.3: Input Validation
         if (!validateInput(phone, 'phone')) { 
@@ -2491,6 +2515,17 @@
         }
         
         try {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+            
+            console.log("🔥 Checking Firebase connection...");
+            
+            if (!db) {
+                errorEl.textContent = '⚠️ Lỗi: Firebase chưa sẵn sàng. Vui lòng thử lại.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            
             const snapshot = await db.ref('drivers').once('value');
             const allDrivers = snapshot.val() || {};
             const driver = Object.values(allDrivers).find(d => d.phone === phone);
@@ -2504,6 +2539,7 @@
             showToast('✅ Đăng nhập thành công! Chào ' + driver.name);
             setTimeout(initApp, 300);
         } catch (error) { 
+            console.error("❌ Login error:", error);
             errorEl.textContent = '⚠️ Lỗi: ' + error.message; 
             errorEl.style.display = 'block'; 
         }
@@ -2531,6 +2567,54 @@
             toggle.textContent = 'Đã có tài khoản? Đăng nhập';
         }
     }
+
+    // ===== KHỞI TẠO SỰ KIỆN SAU KHI DOM LOAD =====
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("📄 DOM fully loaded - Binding events");
+        
+        // Gắn sự kiện cho nút Đăng ký
+        const registerBtn = document.getElementById('btnRegister');
+        if (registerBtn) {
+            // Xóa onclick cũ nếu có
+            registerBtn.removeAttribute('onclick');
+            // Gắn event listener mới
+            registerBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log("🔘 REGISTER CLICK - Event listener triggered");
+                doRegister();
+            });
+            console.log("✅ Register button bound");
+        } else {
+            console.error("❌ Register button not found!");
+        }
+        
+        // Gắn sự kiện cho nút Đăng nhập
+        const loginBtn = document.getElementById('btnLogin');
+        if (loginBtn) {
+            // Xóa onclick cũ nếu có
+            loginBtn.removeAttribute('onclick');
+            // Gắn event listener mới
+            loginBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log("🔘 LOGIN CLICK - Event listener triggered");
+                doLogin();
+            });
+            console.log("✅ Login button bound");
+        } else {
+            console.error("❌ Login button not found!");
+        }
+        
+        // Gắn sự kiện cho toggle button
+        const toggleBtn = document.getElementById('btnToggle');
+        if (toggleBtn) {
+            toggleBtn.removeAttribute('onclick');
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleAuth();
+            });
+            console.log("✅ Toggle button bound");
+        }
+    });
 
     // ===== INIT APP NÂNG CẤP =====
     async function initApp() {
@@ -3834,8 +3918,8 @@
         const check = () => {
             const expiry = localStorage.getItem('tp_expiry');
             const now = Date.now();
-            if (expiry && parseInt(expiry) > now) { const days = Math.floor((parseInt(expiry) - now) / 86400000); document.getElementById('tp-cd-val').innerText = days + "n"; document.getElementById('planShow').innerHTML = `⭐ GÓI: PRO`; document.getElementById('profilePlan').innerHTML = 'PRO'; document.getElementById('profileExpiry').innerHTML = new Date(parseInt(expiry)).toLocaleDateString('vi-VN'); }
-            else { document.getElementById('planShow').innerHTML = `⭐ GÓI: MIỄN PHÍ`; document.getElementById('profilePlan').innerHTML = 'Hết hạn'; }
+            if (expiry && parseInt(expiry) > now) { const days = Math.floor((parseInt(expiry) - now) / 86400000); document.getElementById('tp-cd-val').innerText = days + "n"; document.getElementById('planShow').innerText = `⭐ GÓI: PRO`; document.getElementById('profilePlan').innerText = 'PRO'; document.getElementById('profileExpiry').innerText = new Date(parseInt(expiry)).toLocaleDateString('vi-VN'); }
+            else { document.getElementById('planShow').innerText = `⭐ GÓI: MIỄN PHÍ`; document.getElementById('profilePlan').innerText = 'Hết hạn'; }
         };
         check(); setInterval(check, 60000);
     }
@@ -4015,5 +4099,4 @@
         }
     };
     </script>
-</body>
-</html>
+</body></html>
