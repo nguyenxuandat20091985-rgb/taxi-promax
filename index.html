@@ -186,6 +186,14 @@
         .ai-alert.show { display:flex; animation:slideUp 0.3s ease; }
         @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
         .ai-alert i { font-size:20px; }
+
+        /* Confirm Dialog */
+        .confirm-dialog { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:16000; display:none; align-items:center; justify-content:center; }
+        .confirm-content { background:white; border-radius:24px; padding:24px; width:85%; max-width:320px; text-align:center; }
+        .confirm-buttons { display:flex; gap:12px; margin-top:20px; }
+        .confirm-buttons button { flex:1; padding:12px; border-radius:12px; border:none; font-weight:800; cursor:pointer; }
+        .btn-confirm { background:var(--danger); color:white; }
+        .btn-cancel { background:#95a5a6; color:white; }
     </style>
 </head>
 <body oncontextmenu="return false;"> 
@@ -350,6 +358,18 @@
         </div>
     </div> 
 
+    <!-- CONFIRM DIALOG -->
+    <div class="confirm-dialog" id="confirmDialog">
+        <div class="confirm-content">
+            <div style="font-size:18px; font-weight:900; margin-bottom:12px;">🏁 XÁC NHẬN</div>
+            <div id="confirmMessage" style="margin-bottom:16px;">Bạn có chắc chắn muốn kết thúc chuyến đi?</div>
+            <div class="confirm-buttons">
+                <button class="btn-cancel" onclick="closeConfirmDialog()">HỦY</button>
+                <button class="btn-confirm" id="confirmOkBtn">HOÀN THÀNH</button>
+            </div>
+        </div>
+    </div>
+
     <!-- TOAST -->
     <div id="txToast"></div>
 
@@ -430,7 +450,7 @@
             <button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button>
         </div>
 
-        <button class="trip-end-btn" id="endTripBtn" onclick="handleTrip()" style="display: none;">
+        <button class="trip-end-btn" id="endTripBtn" onclick="showConfirmComplete()" style="display: none;">
             🏁 KẾT THÚC CHUYẾN ĐI
         </button>
     </div>
@@ -489,8 +509,8 @@
 
     <script>
     // ============================================================
-    // TAXI PROMAX - APP TÀI XẾ (FULL VERSION)
-    // Version: 4.0 - Đã bổ sung đầy đủ tính năng
+    // TAXI PROMAX - APP TÀI XẾ (FULL VERSION - HOÀN CHỈNH)
+    // Version: 5.0 - Đã bổ sung đầy đủ tất cả hàm còn thiếu
     // ============================================================
 
     // ==================== FIREBASE ====================
@@ -514,8 +534,6 @@
     let cancelListener = null;
     let wakeLock = null;
     let countdownInterval = null;
-    let audioCtx = null;
-    let audioInterval = null;
     let _isModalOpening = false;
     let _processedOrders = new Set();
     
@@ -523,6 +541,7 @@
     let lastSpeeds = [];
     let fraudAlertShown = false;
     let isLocked = false;
+    let pendingCompleteCallback = null;
 
     // Thông tin tài xế
     let driverInfo = {
@@ -537,6 +556,26 @@
         { name: "Chợ Đêm Cái Rồng", lat: 20.9800, lng: 107.0900, intensity: 0.85, timeSlots: [18,19,20,21,22] },
         { name: "Trung tâm TP Hạ Long", lat: 20.9511, lng: 107.0800, intensity: 0.95, timeSlots: [8,9,10,11,17,18,19,20] }
     ];
+
+    // ==================== CONFIRM DIALOG ====================
+    function showConfirmDialog(message, onConfirm) {
+        const dialog = document.getElementById('confirmDialog');
+        document.getElementById('confirmMessage').innerText = message;
+        const confirmBtn = document.getElementById('confirmOkBtn');
+        const newBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+        newBtn.onclick = () => { dialog.style.display = 'none'; onConfirm(); };
+        document.querySelector('.btn-cancel').onclick = () => { dialog.style.display = 'none'; };
+        dialog.style.display = 'flex';
+    }
+    
+    function closeConfirmDialog() { 
+        document.getElementById('confirmDialog').style.display = 'none'; 
+    }
+    
+    function showConfirmComplete() {
+        showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', () => completeTrip());
+    }
 
     // ==================== AUTH ====================
     async function doRegister() {
@@ -588,4 +627,590 @@
         try {
             const snapshot = await db.ref('drivers').once('value');
             const allDrivers = snapshot.val() || {};
-            const driver = Object.values(allDrivers).find(d => d
+            const driver = Object.values(allDrivers).find(d => d.phone === phone);
+            if (!driver) { errorEl.textContent = '⚠️ Số điện thoại chưa đăng ký!'; errorEl.style.display = 'block'; return; }
+            driverInfo = { uid: driver.uid, name: driver.name, phone: driver.phone, plate: driver.plate, carModel: driver.carModel, fuelType: driver.fuelType, carClass: driver.carClass };
+            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
+            document.getElementById('authScreen').style.display = 'none';
+            showToast('✅ Đăng nhập thành công! Chào ' + driver.name);
+            setTimeout(initApp, 300);
+        } catch (error) { errorEl.textContent = '⚠️ Lỗi: ' + error.message; errorEl.style.display = 'block'; }
+        finally { btn.disabled = false; btnText.textContent = 'ĐĂNG NHẬP'; }
+    }
+
+    function toggleAuth() {
+        const reg = document.getElementById('stepRegister'), log = document.getElementById('stepLogin'), toggle = document.getElementById('btnToggle');
+        if (reg.style.display !== 'none') { reg.style.display = 'none'; log.style.display = 'block'; toggle.textContent = 'Chưa có tài khoản? Đăng ký'; }
+        else { reg.style.display = 'block'; log.style.display = 'none'; toggle.textContent = 'Đã có tài khoản? Đăng nhập'; }
+    }
+
+    // ==================== KHỞI TẠO ====================
+    function initApp() {
+        const saved = localStorage.getItem('driverInfo');
+        if (saved) driverInfo = JSON.parse(saved);
+        document.getElementById('idShow').innerHTML = '🆔 ' + (driverInfo.uid?.slice(-8) || '...');
+        document.getElementById('profileID').innerText = driverInfo.uid || '...';
+        document.getElementById('profileName').innerText = driverInfo.name || '...';
+        document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
+        document.getElementById('profilePlate').innerText = driverInfo.plate || '...';
+        document.getElementById('profileCarModel').innerText = driverInfo.carModel || '...';
+        document.getElementById('profileFuel').innerText = driverInfo.fuelType === 'xang' ? '⛽ Xăng' : '🔋 Điện';
+        document.getElementById('profileCarClass').innerText = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+        initMap(); 
+        startGPS(); 
+        startOrderListener(); 
+        renderHistory(); 
+        initCountdown(); 
+        syncDriverOnline(true);
+        startAIHotspotChecker();
+        startPackageExpiryChecker();
+    }
+
+    function initMap() {
+        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        window.addEventListener('resize', () => map.invalidateSize());
+    }
+
+    // ==================== GPS ====================
+    function startGPS() {
+        if (!('geolocation' in navigator)) { showToast('⚠️ Không hỗ trợ GPS'); return; }
+        navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+                currentLat = latitude; currentLng = longitude;
+                if (heading) currentHeading = Math.round(heading);
+                const dot = document.getElementById('gpsDot'), text = document.getElementById('gpsStatusText');
+                if (accuracy <= 15) { dot.className = 'gps-dot good'; text.innerText = `GPS: Tốt (±${Math.round(accuracy)}m)`; }
+                else if (accuracy <= 30) { dot.className = 'gps-dot weak'; text.innerText = `GPS: TB (±${Math.round(accuracy)}m)`; }
+                else { dot.className = 'gps-dot bad'; text.innerText = `GPS: Yếu (±${Math.round(accuracy)}m)`; }
+                document.getElementById('profileAccuracy').innerText = Math.round(accuracy) + 'm';
+
+                // AI Gian lận: kiểm tra tốc độ bất thường
+                if (isRunning && speed !== null) {
+                    const speedKmh = speed * 3.6;
+                    lastSpeeds.push({ speed: speedKmh, time: Date.now() });
+                    if (lastSpeeds.length > 10) lastSpeeds.shift();
+                    if (lastSpeeds.length >= 3) {
+                        let suddenAccel = false;
+                        for (let i = 1; i < lastSpeeds.length; i++) {
+                            if (lastSpeeds[i].speed - lastSpeeds[i-1].speed > 30) suddenAccel = true;
+                        }
+                        if (suddenAccel && !fraudAlertShown && !isLocked) {
+                            fraudAlertShown = true;
+                            showAIAlert("⚠️ AI phát hiện tăng tốc đột ngột! Chú ý an toàn.");
+                            setTimeout(() => { fraudAlertShown = false; }, 30000);
+                        }
+                    }
+                }
+
+                if (!driverMarker) {
+                    const icon = L.divIcon({
+                        html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${currentHeading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
+                        className: '', iconSize: [40,40], iconAnchor: [20,20]
+                    });
+                    driverMarker = L.marker([latitude, longitude], { icon }).addTo(map);
+                    map.setView([latitude, longitude], 16);
+                } else {
+                    driverMarker.setLatLng([latitude, longitude]);
+                    const compass = document.getElementById('compass');
+                    if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
+                }
+
+                if (isRunning && lastPos && accuracy <= 30) {
+                    const d = lastPos.distanceTo(L.latLng(latitude, longitude)) / 1000;
+                    if (d > 0.01) {
+                        totalKm += d;
+                        document.getElementById('km').innerText = totalKm.toFixed(2);
+                        document.getElementById('cost').innerText = Math.round(totalKm * currentRate).toLocaleString();
+                        document.getElementById('tripKmLive').innerText = totalKm.toFixed(2) + ' KM';
+                        document.getElementById('tripPrice').innerHTML = Math.round(totalKm * currentRate).toLocaleString() + 'đ';
+                    }
+                }
+                lastPos = L.latLng(latitude, longitude);
+                syncDriverLocation();
+            },
+            (err) => { console.error('GPS error:', err); document.getElementById('gpsStatusText').innerText = 'GPS: Lỗi'; },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    function syncDriverLocation() {
+        if (!currentLat || !currentLng || !driverInfo.uid) return;
+        db.ref(`tai_xe_online/${driverInfo.uid}`).set({
+            lat: currentLat, lng: currentLng, heading: currentHeading,
+            status: isRunning ? 'busy' : 'ready', lastUpdate: Date.now(),
+            plate: driverInfo.plate, name: driverInfo.name
+        }).catch(()=>{});
+    }
+
+    function syncDriverOnline(isOnline) {
+        if (!driverInfo.uid) return;
+        if (isOnline) syncDriverLocation();
+        else db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
+    }
+
+    // ==================== HÀM VẼ ĐƯỜNG VÀ GEOCODE ====================
+    function drawRoute(fromLat, fromLng, toLat, toLng) {
+        if (routeLayer) map.removeLayer(routeLayer);
+        if (!fromLat || !fromLng || !toLat || !toLng) return;
+        fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
+            .then(r => r.json())
+            .then(data => { 
+                if (data.routes?.[0]) {
+                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    routeLayer = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.8 }).addTo(map);
+                    map.fitBounds(routeLayer.getBounds().pad(0.2));
+                }
+            })
+            .catch(() => {});
+    }
+
+    function geocodeAddress(address, callback) {
+        if (!address) return;
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
+            .then(r => r.json())
+            .then(data => { 
+                if (data && data[0]) {
+                    callback(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                }
+            })
+            .catch(() => {});
+    }
+
+    // ==================== AI HEATMAP & GỢI Ý ====================
+    let heatmapLayers = [];
+    function openHeatmap() {
+        if (heatmapLayers.length) heatmapLayers.forEach(l => map.removeLayer(l));
+        heatmapLayers = [];
+        const currentHour = new Date().getHours();
+        HOTSPOTS.forEach(spot => {
+            const isActive = spot.timeSlots.includes(currentHour);
+            const radius = isActive ? 18 : 8;
+            const color = isActive ? '#ff4444' : '#ffaa44';
+            const marker = L.circleMarker([spot.lat, spot.lng], {
+                radius: radius, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.7
+            }).addTo(map);
+            marker.bindTooltip(`<b>${spot.name}</b><br>${isActive ? '🔥 Đang cao điểm' : '⏰ Sắp cao điểm'}`).openTooltip();
+            heatmapLayers.push(marker);
+        });
+        showToast('🔥 Đã hiển thị điểm nóng khách hàng (màu đỏ: đang cao điểm)');
+        if (lastPos) map.flyTo(lastPos, 13);
+    }
+
+    function startAIHotspotChecker() {
+        setInterval(() => {
+            const hour = new Date().getHours();
+            const activeSpots = HOTSPOTS.filter(s => s.timeSlots.includes(hour));
+            if (activeSpots.length && !isRunning && !_isModalOpening) {
+                const nearest = activeSpots[0];
+                showToast(`🔥 Gợi ý: Khu vực ${nearest.name} đang có nhu cầu cao!`);
+                speak(`Khu vực ${nearest.name} đang có nhiều khách.`);
+            }
+        }, 600000);
+    }
+
+    function showAIAlert(msg) { 
+        const alertDiv = document.getElementById('aiAlert'); 
+        document.getElementById('aiAlertText').innerText = msg; 
+        alertDiv.classList.add('show'); 
+        setTimeout(() => alertDiv.classList.remove('show'), 5000); 
+    }
+
+    // ==================== GÓI CƯỚC & HẾT HẠN ====================
+    async function handlePayment(amount, plan) {
+        if (amount === 0) {
+            const nextWeek = Date.now() + (7 * 24 * 60 * 60 * 1000);
+            localStorage.setItem('tp_expiry', nextWeek);
+            await db.ref(`drivers/${driverInfo.uid}`).update({ tp_expiry: nextWeek, active_plan: plan });
+            isLocked = false;
+            showToast('✅ Kích hoạt gói dùng thử 7 ngày!');
+            initCountdown();
+        } else showToast('🔧 Thanh toán đang phát triển');
+    }
+
+    function initCountdown() {
+        const check = async () => {
+            try {
+                const snap = await db.ref(`drivers/${driverInfo.uid}`).once('value');
+                const d = snap.val();
+                const planShow = document.getElementById('planShow');
+                const now = Date.now();
+                if (d && d.tp_expiry && parseInt(d.tp_expiry) > now) {
+                    const expiry = parseInt(d.tp_expiry);
+                    planShow.innerText = `⭐ GÓI: ${d.active_plan || 'PROMAX'}`;
+                    planShow.style.color = "#0054a3";
+                    const days = Math.floor((expiry - now) / (86400000));
+                    document.getElementById('tp-cd-val').innerText = days + "n";
+                    document.getElementById('profilePlan').innerText = d.active_plan || 'TRIAL';
+                    document.getElementById('profileExpiry').innerText = new Date(expiry).toLocaleDateString('vi-VN');
+                } else {
+                    planShow.innerText = "⭐ GÓI: MIỄN PHÍ";
+                    planShow.style.color = "var(--danger)";
+                    document.getElementById('profilePlan').innerText = 'Hết hạn';
+                    document.getElementById('profileExpiry').innerText = 'Hết hạn';
+                    if (!isLocked && !isRunning) { isLocked = true; showToast('⚠️ Gói cước đã hết hạn! Vui lòng gia hạn để nhận đơn.'); }
+                }
+            } catch(e) {}
+        };
+        check(); setInterval(check, 60000);
+    }
+
+    function startPackageExpiryChecker() {
+        setInterval(async () => {
+            try {
+                const snap = await db.ref(`drivers/${driverInfo.uid}`).once('value');
+                const d = snap.val();
+                if (d && d.tp_expiry) {
+                    const remaining = parseInt(d.tp_expiry) - Date.now();
+                    if (remaining > 0 && remaining < 86400000) {
+                        const hours = Math.floor(remaining / 3600000);
+                        if (hours <= 24 && hours > 0) showToast(`⚠️ Gói cước còn ${hours} giờ, hãy gia hạn!`);
+                    } else if (remaining <= 0) {
+                        isLocked = true;
+                    }
+                }
+            } catch(e) {}
+        }, 3600000);
+    }
+
+    // ==================== ORDER LISTENER ====================
+    function startOrderListener() {
+        if (orderListener) db.ref('datxe').off();
+        orderListener = db.ref('datxe');
+        orderListener.on('child_added', (snap) => {
+            if (_isModalOpening || isRunning || isLocked) return;
+            const order = snap.val(), orderId = snap.key;
+            if (!order || order.status !== 'waiting') return;
+            if (_processedOrders.has(orderId)) return;
+            
+            if (!driverInfo.carClass) driverInfo.carClass = '4_seats';
+            if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
+            
+            _processedOrders.add(orderId); 
+            _isModalOpening = true; 
+            currentOrderId = orderId; 
+            currentCustomerData = order;
+            
+            document.getElementById('modalPhone').innerText = order.phone || '...';
+            document.getElementById('modalFrom').innerText = order.pickup || '...';
+            document.getElementById('modalTo').innerText = order.dropoff || '...';
+            document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
+            document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+            
+            let countdown = 15; 
+            document.getElementById('tp-modal-timer-val').innerText = countdown;
+            document.getElementById('orderModal').style.display = 'flex';
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => { 
+                countdown--; 
+                document.getElementById('tp-modal-timer-val').innerText = countdown; 
+                if (countdown <= 0) declineOrder(); 
+            }, 1000);
+            
+            speak("Có đơn đặt xe mới.");
+        });
+    }
+    
+    function acceptOrder() {
+        clearInterval(countdownInterval); 
+        closeModal('orderModal');
+        if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) 
+            createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
+        showTripPanel(currentCustomerData);
+        db.ref(`datxe/${currentOrderId}`).update({ status: "driving", driverId: driverInfo.uid, driverName: driverInfo.name, driverPhone: driverInfo.phone, driverPlate: driverInfo.plate, acceptedAt: Date.now() });
+        isRunning = true; 
+        hasPickedUp = false; 
+        totalKm = 0;
+        document.getElementById('km').innerText = '0.00'; 
+        document.getElementById('cost').innerText = '0';
+        listenForCustomerCancel(); 
+        listenForChat();
+        _isModalOpening = false; 
+        speak("Đã nhận đơn.");
+        requestWakeLock();
+    }
+
+    function declineOrder() { 
+        clearInterval(countdownInterval); 
+        closeModal('orderModal'); 
+        _isModalOpening = false; 
+        speak("Đã bỏ qua đơn."); 
+    }
+
+    function showTripPanel(order) {
+        document.getElementById('homeControls').style.display = 'none';
+        document.getElementById('tripInfoPanel').style.display = 'block';
+        document.getElementById('tripClientName').innerText = order.clientName || 'Khách';
+        document.getElementById('tripClientPhone').innerText = order.phone || '...';
+        document.getElementById('tripFrom').innerText = order.pickup || '...';
+        document.getElementById('tripTo').innerText = order.dropoff || '...';
+        const price = order.estimatePrice || 0, km = order.estimateKm || 0;
+        document.getElementById('tripPrice').innerHTML = price > 0 ? price.toLocaleString() + 'đ' : 'Tính theo KM';
+        document.getElementById('tripEstKm').innerHTML = km > 0 ? km.toFixed(1) + ' km' : '';
+        document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+        document.getElementById('tripActionButtons').style.display = 'flex';
+        document.getElementById('endTripBtn').style.display = 'none';
+        document.getElementById('tripStatusText').innerHTML = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
+        if (order.pickupLat && order.pickupLng) 
+            drawRoute(currentLat, currentLng, order.pickupLat, order.pickupLng);
+    }
+
+    function createCustomerMarker(lat, lng) {
+        if (customerMarker) map.removeLayer(customerMarker);
+        const icon = L.divIcon({ html: "<div class='customer-marker'>🧍</div>", className: '', iconSize: [26,26], iconAnchor: [13,13] });
+        customerMarker = L.marker([lat, lng], { icon }).addTo(map);
+        if (driverMarker) { 
+            const bounds = L.featureGroup([driverMarker, customerMarker]).getBounds(); 
+            map.fitBounds(bounds.pad(0.3)); 
+        }
+    }
+
+    // ==================== XÁC NHẬN ĐÃ ĐÓN KHÁCH ====================
+    function confirmPickup() {
+        hasPickedUp = true;
+        document.getElementById('tripActionButtons').style.display = 'none';
+        document.getElementById('endTripBtn').style.display = 'block';
+        document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
+        if (customerMarker) map.removeLayer(customerMarker);
+        if (currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng)
+            drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
+        else if (currentCustomerData?.dropoff)
+            geocodeAddress(currentCustomerData.dropoff, (lat,lng) => drawRoute(currentLat, currentLng, lat, lng));
+        speak("Đã đón khách, bắt đầu hành trình.");
+    }
+
+    function navigateToPickup() {
+        if (!currentCustomerData) return;
+        if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentCustomerData.pickupLat},${currentCustomerData.pickupLng}&travelmode=driving`, '_blank');
+        } else {
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
+        }
+    }
+
+    // ==================== KẾT THÚC CHUYẾN ====================
+    function completeTrip() {
+        const finalCost = Math.round(totalKm * currentRate);
+        saveHistory(totalKm, finalCost.toLocaleString(), finalCost);
+        if (currentOrderId) db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', completedAt: Date.now(), actualKm: totalKm, actualPrice: finalCost });
+        isRunning = false; hasPickedUp = false;
+        document.getElementById('tripInfoPanel').style.display = 'none';
+        document.getElementById('homeControls').style.display = 'block';
+        document.getElementById('mainBtn').innerText = "BẮT ĐẦU CHUYẾN ĐI";
+        document.getElementById('mainBtn').style.background = "var(--accent)";
+        if (customerMarker) map.removeLayer(customerMarker);
+        if (routeLayer) map.removeLayer(routeLayer);
+        customerMarker = null; routeLayer = null; currentOrderId = null; currentCustomerData = null;
+        if (wakeLock) { wakeLock.release(); wakeLock = null; }
+        document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b>`;
+        document.getElementById('endModal').style.display = 'flex';
+        speak("Chuyến đi kết thúc. Cảm ơn quý khách.");
+        totalKm = 0;
+        document.getElementById('km').innerText = '0.00';
+        document.getElementById('cost').innerText = '0';
+    }
+
+    function handleTrip() {
+        if (!isRunning) {
+            isRunning = true; hasPickedUp = false; totalKm = 0;
+            document.getElementById('mainBtn').innerText = "KẾT THÚC CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--danger)";
+            document.getElementById('wishModal').style.display = 'flex';
+            requestWakeLock();
+            speak("Bắt đầu chuyến đi.");
+        } else {
+            showConfirmComplete();
+        }
+    }
+
+    async function saveHistory(km, costLabel, costRaw) {
+        const now = Date.now(), timeLabel = new Date().toLocaleString('vi-VN');
+        const tripData = { km: parseFloat(km), cost: costRaw, costLabel, time: timeLabel, timestamp: now, rate: currentRate, driverId: driverInfo.uid };
+        let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        history.unshift(tripData); localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
+        try { await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
+        renderHistory();
+    }
+
+    async function renderHistory() {
+        const list = document.getElementById('historyList');
+        try {
+            const snap = await db.ref(`trips/${driverInfo.uid}`).orderByChild('timestamp').limitToLast(50).once('value');
+            const data = snap.val();
+            if (data) { const trips = Object.values(data).reverse();
+                if (trips.length) { list.innerHTML = trips.map(h => `<div class="history-card"><div class="h-info"><b>${h.time}</b><br><small>${h.km.toFixed(2)} KM</small></div><div class="h-price">${h.costLabel}đ</div></div>`).join(''); return; }
+            }
+        } catch(e) {}
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        if (!history.length) list.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Chưa có chuyến đi nào</div>';
+        else list.innerHTML = history.map(h => `<div class="history-card"><div class="h-info"><b>${h.time}</b><br><small>${h.km.toFixed(2)} KM</small></div><div class="h-price">${h.costLabel}đ</div></div>`).join('');
+    }
+
+    // ==================== CHAT & GỌI ====================
+    function listenForChat() {
+        if (chatListener) db.ref(`chat/${chatListener}`).off();
+        chatListener = currentOrderId;
+        db.ref(`chat/${currentOrderId}`).orderByChild('timestamp').on('child_added', (snap) => {
+            const msg = snap.val();
+            if (msg && msg.sender !== 'driver') appendChatMessage(msg);
+        });
+    }
+
+    function openChat() { 
+        document.getElementById('chatOverlay').style.display = 'flex'; 
+        const cm = document.getElementById('chatMessages'); 
+        if (cm.children.length === 1 && cm.children[0].style.textAlign === 'center') cm.innerHTML = ''; 
+    }
+    
+    function closeChat() { 
+        document.getElementById('chatOverlay').style.display = 'none'; 
+    }
+    
+    function sendChatMessage() { 
+        const input = document.getElementById('chatInput'), text = input.value.trim(); 
+        if (!text || !currentOrderId) return;
+        db.ref(`chat/${currentOrderId}`).push({ sender: 'driver', from: 'driver', senderName: driverInfo.name, text, timestamp: Date.now() });
+        appendChatMessage({ text, sender: 'driver', timestamp: Date.now() }); 
+        input.value = '';
+    }
+    
+    function appendChatMessage(msg) { 
+        const container = document.getElementById('chatMessages');
+        if (container.children.length === 1 && container.children[0].style.textAlign === 'center') container.innerHTML = '';
+        const isMe = msg.sender === 'driver'; 
+        const time = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+        const div = document.createElement('div'); 
+        div.className = 'chat-message ' + (isMe ? 'sent' : 'received');
+        div.innerHTML = `${msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;">${time}</div>`;
+        container.appendChild(div); 
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function callCustomer() { 
+        const phone = document.getElementById('tripClientPhone').innerText; 
+        if (phone && phone !== '...') window.location.href = 'tel:' + phone; 
+        else showToast('⚠️ Chưa có số điện thoại'); 
+    }
+
+    // ==================== KHÁCH HỦY ====================
+    function listenForCustomerCancel() {
+        if (cancelListener) db.ref(`datxe/${cancelListener}/status`).off();
+        cancelListener = currentOrderId;
+        db.ref(`datxe/${currentOrderId}/status`).on('value', (snap) => { 
+            if (snap.val() === 'cancelled' && isRunning) showCancelBanner(); 
+        });
+    }
+    
+    function showCancelBanner() { 
+        document.getElementById('cancelBanner').style.display = 'block'; 
+        speak("Cảnh báo! Khách hàng đã hủy chuyến."); 
+    }
+    
+    function dismissCancelBanner() { 
+        document.getElementById('cancelBanner').style.display = 'none'; 
+        if (isRunning) {
+            isRunning = false;
+            document.getElementById('tripInfoPanel').style.display = 'none';
+            document.getElementById('homeControls').style.display = 'block';
+            document.getElementById('mainBtn').innerText = "BẮT ĐẦU CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--accent)";
+            if (wakeLock) { wakeLock.release(); wakeLock = null; }
+            totalKm = 0;
+            document.getElementById('km').innerText = '0.00';
+            document.getElementById('cost').innerText = '0';
+        }
+    }
+
+    // ==================== TIỆN ÍCH ====================
+    function updateRate(v) { 
+        currentRate = parseInt(v); 
+        document.getElementById('rateLabel').innerText = currentRate.toLocaleString(); 
+    }
+    
+    function requestWakeLock() { 
+        if ('wakeLock' in navigator) 
+            navigator.wakeLock.request('screen').then(l => { wakeLock = l; }).catch(()=>{}); 
+    }
+    
+    function speak(text) { 
+        if ('speechSynthesis' in window) { 
+            window.speechSynthesis.cancel(); 
+            const msg = new SpeechSynthesisUtterance(text); 
+            msg.lang = 'vi-VN'; 
+            window.speechSynthesis.speak(msg); 
+        } 
+    }
+    
+    function showToast(msg) { 
+        const toast = document.getElementById('txToast'); 
+        toast.innerText = msg; 
+        toast.classList.add('show'); 
+        setTimeout(() => toast.classList.remove('show'), 3000); 
+    }
+    
+    function closeModal(id) { 
+        document.getElementById(id).style.display = 'none'; 
+    }
+    
+    function showTab(tab, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        if (tab === 'home') {
+            if (isRunning) { 
+                document.getElementById('homeControls').style.display = 'none'; 
+                document.getElementById('tripInfoPanel').style.display = 'block'; 
+            } else { 
+                document.getElementById('homeControls').style.display = 'block'; 
+                document.getElementById('tripInfoPanel').style.display = 'none'; 
+            }
+            setTimeout(() => map.invalidateSize(), 300);
+        } else {
+            document.getElementById('homeControls').style.display = 'none';
+            document.getElementById('tripInfoPanel').style.display = 'none';
+            document.getElementById('tab-' + tab).style.display = 'flex';
+            if (tab === 'lichsu') renderHistory();
+        }
+    }
+    
+    function openSOS() { 
+        speak("Đang phát tín hiệu SOS."); 
+        showToast("🚨 Đã gửi tín hiệu cứu hộ!"); 
+    }
+    
+    function openMaintenance() { 
+        showToast("🔧 Kiểm tra áp suất lốp trước khi khởi hành."); 
+    }
+    
+    function openProfit() { 
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]'); 
+        const total = history.reduce((s, h) => s + (typeof h.cost === 'number' ? h.cost : 0), 0); 
+        showToast(`💰 Tổng doanh thu: ${total.toLocaleString()}đ`); 
+    }
+
+    // ==================== ONLINE/OFFLINE ====================
+    window.addEventListener('online', () => { 
+        document.getElementById('offlineBanner').style.display = 'none'; 
+        syncDriverOnline(true); 
+        showToast('✅ Đã kết nối lại'); 
+    });
+    
+    window.addEventListener('offline', () => { 
+        document.getElementById('offlineBanner').style.display = 'block'; 
+        syncDriverOnline(false); 
+    });
+
+    // ==================== KHỞI ĐỘNG ====================
+    window.onload = () => {
+        const saved = localStorage.getItem('driverInfo');
+        if (saved) { 
+            driverInfo = JSON.parse(saved); 
+            document.getElementById('authScreen').style.display = 'none'; 
+            initApp(); 
+        }
+    };
+    </script>
+</body>
+</html>
