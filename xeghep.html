@@ -17,7 +17,7 @@
 
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f0f4f8; margin: 0; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f0f4f8; margin: 0; overflow-x: hidden; }
         .gradient-bg { background: linear-gradient(135deg, #0054a3 0%, #00bfa5 100%); }
         .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transition: all 0.2s; }
         .card-shadow:active { transform: scale(0.98); }
@@ -63,13 +63,12 @@
         .input-wrapper { position: relative; }
         
         .tab-switcher { display: flex; background: #f1f5f9; border-radius: 12px; padding: 4px; margin-bottom: 12px; }
-        .tab-switcher button { flex: 1; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .tab-switcher button { flex: 1; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; transition: all 0.2s; border: none; background: transparent; }
         .tab-switcher button.active { background: white; color: #0054a3; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         
         .accuracy-circle { border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.1); }
         
-        /* Fix cho màn hình mobile */
-        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .btn-disabled { opacity: 0.6; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -83,36 +82,40 @@
                 <p class="text-gray-500 text-sm">Đặt xe thông minh - Tiên đoán điểm đến</p>
             </div>
             <div id="loginForm">
-                <input type="tel" id="loginPhone" placeholder="Số điện thoại" class="w-full p-3 border rounded-xl mb-3 text-center text-lg" maxlength="10">
-                <button onclick="doLogin()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold text-lg">Đăng nhập / Đăng ký</button>
+                <input type="tel" id="loginPhone" placeholder="Số điện thoại" class="w-full p-3 border rounded-xl mb-3 text-center text-lg" autocomplete="tel">
+                <button id="loginBtn" onclick="handleLogin()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold text-lg">Đăng nhập / Đăng ký</button>
             </div>
             <div id="regForm" style="display:none;">
-                <input type="text" id="regName" placeholder="Họ và tên" class="w-full p-3 border rounded-xl mb-3">
-                <input type="tel" id="regPhone" placeholder="Số điện thoại" class="w-full p-3 border rounded-xl mb-3" maxlength="10">
-                <button onclick="doRegister()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold">Đăng ký</button>
+                <input type="text" id="regName" placeholder="Họ và tên" class="w-full p-3 border rounded-xl mb-3" autocomplete="name">
+                <input type="tel" id="regPhone" placeholder="Số điện thoại" class="w-full p-3 border rounded-xl mb-3" autocomplete="tel" readonly>
+                <button id="registerBtn" onclick="handleRegister()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold">Đăng ký</button>
             </div>
             <p class="text-center text-xs text-gray-400 mt-4">Bằng việc đăng nhập, bạn đồng ý với Điều khoản sử dụng</p>
         </div>
     </div>
 
     <!-- MAIN APP -->
-    <div id="mainApp" style="display:none;">        <div class="gradient-bg px-5 pt-12 pb-6 rounded-b-3xl shadow-lg">
-            <div class="flex justify-between items-center">
+    <div id="mainApp" style="display:none;">
+        <div class="gradient-bg px-5 pt-12 pb-6 rounded-b-3xl shadow-lg">            <div class="flex justify-between items-center">
                 <div>
                     <h1 class="text-2xl font-bold text-white"><i class="fas fa-taxi mr-2"></i> Taxi Promax</h1>
                     <p class="text-blue-100 text-sm mt-1" id="welcomeUser">Chào khách!</p>
                 </div>
-                <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-full text-white text-sm transition"><i class="fas fa-door-open"></i></button>
+                <button onclick="handleLogout()" class="bg-white/20 px-3 py-2 rounded-full text-white text-sm">🚪</button>
             </div>
         </div>
 
-        <button id="fabBookBtn" class="fixed bottom-28 right-4 z-30 gradient-bg text-white rounded-full p-4 shadow-2xl animate-bounce hover:scale-110 transition">
+        <button id="fabBookBtn" class="fixed bottom-28 right-4 z-30 gradient-bg text-white rounded-full p-4 shadow-2xl animate-bounce">
             <i class="fas fa-plus text-xl"></i>
         </button>
 
         <div class="flex gap-2 px-4 -mt-4 mb-3">
-            <button id="tabListBtn" class="flex-1 py-3 rounded-2xl font-bold text-sm shadow-md" style="background:#00bfa5; color:white;"><i class="fas fa-list mr-1"></i> Chuyến của tôi</button>
-            <button id="tabMapBtn" class="flex-1 py-3 rounded-2xl font-bold text-sm bg-white text-gray-600 shadow-sm"><i class="fas fa-map-marked-alt mr-1"></i> Bản đồ</button>
+            <button id="tabListBtn" class="flex-1 py-3 rounded-2xl font-bold text-sm shadow-md" style="background:#00bfa5; color:white;" onclick="switchTab('myrides')">
+                <i class="fas fa-list mr-1"></i> Chuyến của tôi
+            </button>
+            <button id="tabMapBtn" class="flex-1 py-3 rounded-2xl font-bold text-sm bg-white text-gray-600 shadow-sm" onclick="switchTab('map')">
+                <i class="fas fa-map-marked-alt mr-1"></i> Bản đồ
+            </button>
         </div>
 
         <div id="myRidesView" class="px-4 pb-28">
@@ -128,7 +131,9 @@
 
         <div id="mapView" class="hidden relative" style="height: calc(100vh - 140px);">
             <div id="map" class="absolute inset-0 z-0"></div>
-            <button id="locateBtn" class="absolute bottom-32 right-4 z-10 bg-white rounded-full p-3 shadow-lg hover:scale-110 transition"><i class="fas fa-location-arrow text-blue-600"></i></button>
+            <button id="locateBtn" class="absolute bottom-32 right-4 z-10 bg-white rounded-full p-3 shadow-lg">
+                <i class="fas fa-location-arrow text-blue-600"></i>
+            </button>
             
             <div id="trackingPanel" class="tracking-panel hide">
                 <div class="flex items-center gap-3">
@@ -140,29 +145,46 @@
                     <a href="#" id="trackCallBtn" class="bg-green-500 text-white px-3 py-2 rounded-full text-xs">📞 Gọi</a>
                 </div>
                 <div class="distance-progress my-2"><div id="distanceFill" class="distance-fill"></div></div>
-                <div class="flex justify-between text-xs mb-2">
-                    <span><i class="fas fa-map-marker-alt text-red-500"></i> <span id="trackDistanceText">Đang tính...</span></span>
+                <div class="flex justify-between text-xs mb-2">                    <span><i class="fas fa-map-marker-alt text-red-500"></i> <span id="trackDistanceText">Đang tính...</span></span>
                     <span id="trackEta" class="font-bold text-blue-600"></span>
                 </div>
                 <div class="flex gap-2">
-                    <button id="chatWithDriverBtn" class="flex-1 py-2 gradient-bg rounded-xl text-white text-sm font-bold">💬 Nhắn tin</button>                    <button id="cancelTripBtn" class="flex-1 py-2 bg-red-50 text-red-500 rounded-xl text-sm font-bold">Hủy chuyến</button>
+                    <button id="chatWithDriverBtn" class="flex-1 py-2 gradient-bg rounded-xl text-white text-sm font-bold">💬 Nhắn tin</button>
+                    <button id="cancelTripBtn" class="flex-1 py-2 bg-red-50 text-red-500 rounded-xl text-sm font-bold">Hủy chuyến</button>
                 </div>
             </div>
         </div>
 
-        <div class="bottom-nav fixed bottom-0 left-0 right-0 py-2 px-4 flex justify-around z-20 rounded-t-3xl shadow-2xl safe-area-bottom">
-            <div class="nav-item flex flex-col items-center py-1 active" onclick="switchTab('myrides')"><i class="fas fa-list text-xl"></i><span class="text-[10px]">Chuyến</span></div>
-            <div class="nav-item flex flex-col items-center py-1" onclick="switchTab('map')"><i class="fas fa-map-marked-alt text-xl"></i><span class="text-[10px]">Bản đồ</span></div>
-            <div class="nav-item flex flex-col items-center py-1" onclick="openBookingModal()"><i class="fas fa-plus-circle text-2xl text-blue-600 -mt-4"></i><span class="text-[10px] mt-1">Đặt xe</span></div>
-            <div class="nav-item flex flex-col items-center py-1" onclick="showHelp()"><i class="fas fa-question-circle text-xl"></i><span class="text-[10px]">Trợ giúp</span></div>
-            <div class="nav-item flex flex-col items-center py-1" onclick="logout()"><i class="fas fa-sign-out-alt text-xl"></i><span class="text-[10px]">Đăng xuất</span></div>
+        <div class="bottom-nav fixed bottom-0 left-0 right-0 py-2 px-4 flex justify-around z-20 rounded-t-3xl shadow-2xl">
+            <div class="nav-item flex flex-col items-center py-1 active" onclick="switchTab('myrides')">
+                <i class="fas fa-list text-xl"></i>
+                <span class="text-[10px]">Chuyến</span>
+            </div>
+            <div class="nav-item flex flex-col items-center py-1" onclick="switchTab('map')">
+                <i class="fas fa-map-marked-alt text-xl"></i>
+                <span class="text-[10px]">Bản đồ</span>
+            </div>
+            <div class="nav-item flex flex-col items-center py-1" onclick="openBookingModal()">
+                <i class="fas fa-plus-circle text-2xl text-blue-600 -mt-4"></i>
+                <span class="text-[10px] mt-1">Đặt xe</span>
+            </div>
+            <div class="nav-item flex flex-col items-center py-1" onclick="showHelp()">
+                <i class="fas fa-question-circle text-xl"></i>
+                <span class="text-[10px]">Trợ giúp</span>
+            </div>
+            <div class="nav-item flex flex-col items-center py-1" onclick="handleLogout()">
+                <i class="fas fa-sign-out-alt text-xl"></i>
+                <span class="text-[10px]">Đăng xuất</span>
+            </div>
         </div>
     </div>
 
     <!-- MODAL ĐẶT XE -->
     <div id="bookingModal" class="modal-overlay">
         <div class="modal-content p-5">
-            <div class="gradient-bg -mx-5 -mt-5 px-5 py-3 mb-4 rounded-t-3xl"><h3 class="text-white font-bold text-center">📍 Đặt Xe Thông Minh</h3></div>
+            <div class="gradient-bg -mx-5 -mt-5 px-5 py-3 mb-4 rounded-t-3xl">
+                <h3 class="text-white font-bold text-center">📍 Đặt Xe Thông Minh</h3>
+            </div>
             
             <div class="mb-3">
                 <div class="text-xs text-gray-500 mb-2 font-bold">🎯 Gợi ý cho bạn</div>
@@ -172,7 +194,6 @@
                     <div class="chip" onclick="setSuggestion('✈️ Sân bay', 'dropoff')">✈️ Sân bay</div>
                 </div>
             </div>
-
             <div class="input-wrapper mb-3">
                 <input type="text" id="bookPickup" placeholder="📍 Điểm đón (hoặc chọn trên bản đồ)" class="w-full p-3 border rounded-xl bg-gray-50 text-sm" autocomplete="off">
                 <div id="pickupList" class="autocomplete-list"></div>
@@ -186,7 +207,10 @@
             <div class="grid grid-cols-2 gap-2 mb-3">
                 <input type="datetime-local" id="bookDeparture" class="p-3 border rounded-xl bg-gray-50 text-sm">
                 <select id="bookSeats" class="p-3 border rounded-xl bg-gray-50 text-sm">
-                    <option value="1">1 ghế</option><option value="2">2 ghế</option><option value="3">3 ghế</option><option value="4">4 ghế</option>
+                    <option value="1">1 ghế</option>
+                    <option value="2">2 ghế</option>
+                    <option value="3">3 ghế</option>
+                    <option value="4">4 ghế</option>
                 </select>
             </div>
             
@@ -194,13 +218,14 @@
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 text-sm font-bold">💰 Giá ước tính:</span>
                     <span id="estPrice" class="font-bold text-blue-600 text-xl">-- đ</span>
-                </div>                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
                     <span>🛣️ <span id="estDistance">--</span> km</span>
                     <span>⏱️ <span id="estDuration">--</span> phút</span>
                 </div>
             </div>
             
-            <button id="bookRideBtn" class="w-full gradient-bg text-white py-3 rounded-xl font-bold text-lg shadow-lg">🚖 Tìm tài xế</button>
+            <button id="bookRideBtn" onclick="handleBookRide()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold text-lg shadow-lg">🚖 Tìm tài xế</button>
             <button onclick="closeBookingModal()" class="w-full mt-2 py-2 text-gray-500 text-sm">Hủy</button>
         </div>
     </div>
@@ -218,15 +243,17 @@
                 <i class="fas fa-star" data-val="4"></i>
                 <i class="fas fa-star" data-val="5"></i>
             </div>
-            <textarea id="ratingComment" placeholder="Góp ý thêm cho tài xế..." class="w-full p-3 border rounded-xl text-sm mb-4" rows="2"></textarea>
-            <button onclick="submitRating()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold">Gửi đánh giá</button>
+            <textarea id="ratingComment" placeholder="Góp ý thêm cho tài xế..." class="w-full p-3 border rounded-xl text-sm mb-4" rows="2"></textarea>            <button onclick="submitRating()" class="w-full gradient-bg text-white py-3 rounded-xl font-bold">Gửi đánh giá</button>
         </div>
     </div>
 
     <!-- CHAT MODAL -->
     <div id="chatModal" class="modal-overlay">
         <div class="modal-content" style="height: 70vh; display: flex; flex-direction: column;">
-            <div class="gradient-bg px-4 py-3 flex justify-between rounded-t-3xl"><span class="font-bold text-white">💬 Nhắn với tài xế</span><button onclick="closeChatModal()" class="text-white text-xl">&times;</button></div>
+            <div class="gradient-bg px-4 py-3 flex justify-between rounded-t-3xl">
+                <span class="font-bold text-white">💬 Nhắn với tài xế</span>
+                <button onclick="closeChatModal()" class="text-white text-xl">&times;</button>
+            </div>
             <div id="chatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50 flex flex-col"></div>
             <div class="p-2 border-t flex gap-2 bg-white rounded-b-3xl">
                 <input id="chatInput" class="flex-1 p-2 border rounded-full text-sm" placeholder="Nhập tin nhắn...">
@@ -238,38 +265,37 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        // ==================== FIREBASE ====================
+        // ==================== FIREBASE CONFIGURATION ====================
         const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
-        let appInitialized = false;
-        
         if (!firebase.apps.length) {
-            firebase.initializeApp({ databaseURL: FIREBASE_URL });        }
-        const db = firebase.database();
+            firebase.initializeApp({ databaseURL: FIREBASE_URL });
+        }
+        const database = firebase.database();
 
-        // ==================== BIẾN TOÀN CỤC ====================
+        // ==================== GLOBAL VARIABLES ====================
         let currentUser = null;
         let currentBooking = null;
-        let map = null;
+        let mapInstance = null;
         let driverMarker = null;
         let customerMarker = null;
         let accuracyCircle = null;
         let routeLine = null;
-        let driverLocListener = null;
+        let driverLocationListener = null;
         let bookingListener = null;
         let chatListener = null;
-        let isBooking = false;
+        let isProcessingAuth = false;
+        let isBookingInProgress = false;
         let currentRidesTab = 'active';
-        let appLoaded = false;
         
-        let currentLat = 21.0285, currentLng = 105.8542;
+        let currentLatitude = 21.0285;
+        let currentLongitude = 105.8542;
         let currentAccuracy = 100;
         let mapClickMode = 'pickup';
-        let selectedPickup = { address: '', lat: null, lng: null };
-        let selectedDropoff = { address: '', lat: null, lng: null };
-        let currentRating = 0;
+        let selectedPickupLocation = { address: '', latitude: null, longitude: null };
+        let selectedDropoffLocation = { address: '', latitude: null, longitude: null };        let currentRatingValue = 0;
         let userLocationHistory = [];
 
-        // ==================== HÀM TIỆN ÍCH ====================
+        // ==================== UTILITY FUNCTIONS ====================
         function showToast(message, isError = false) {
             const toastElement = document.getElementById('toast');
             toastElement.innerText = message;
@@ -280,7 +306,7 @@
             }, 3000);
         }
 
-        function escapeHtml(text) {
+        function escapeHtmlContent(text) {
             if (!text) return '';
             return text.replace(/[&<>"']/g, function(match) {
                 const escapeMap = {
@@ -293,113 +319,127 @@
                 return escapeMap[match];
             });
         }
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
+
+        function debounceFunction(func, waitTime) {
+            let timeoutId;
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(function() {
+                    func.apply(context, args);
+                }, waitTime);
             };
         }
 
-        function getCurrentLocation() {
-            return new Promise((resolve) => {
+        function getCurrentDeviceLocation() {
+            return new Promise(function(resolve) {
                 if ('geolocation' in navigator) {
                     navigator.geolocation.getCurrentPosition(
-                        (position) => { 
-                            currentLat = position.coords.latitude; 
-                            currentLng = position.coords.longitude; 
+                        function(position) {
+                            currentLatitude = position.coords.latitude;
+                            currentLongitude = position.coords.longitude;
                             currentAccuracy = position.coords.accuracy;
-                            resolve({ lat: currentLat, lng: currentLng, accuracy: currentAccuracy }); 
+                            resolve({ 
+                                latitude: currentLatitude,                                 longitude: currentLongitude, 
+                                accuracy: currentAccuracy 
+                            });
                         },
-                        (error) => {
-                            console.error('Geolocation error:', error);
-                            resolve({ lat: currentLat, lng: currentLng, accuracy: currentAccuracy });
+                        function(error) {
+                            console.warn('Geolocation error:', error);
+                            resolve({ 
+                                latitude: currentLatitude, 
+                                longitude: currentLongitude, 
+                                accuracy: currentAccuracy 
+                            });
                         }
                     );
                 } else {
-                    resolve({ lat: currentLat, lng: currentLng, accuracy: currentAccuracy });
+                    resolve({ 
+                        latitude: currentLatitude, 
+                        longitude: currentLongitude, 
+                        accuracy: currentAccuracy 
+                    });
                 }
             });
         }
 
-        function haversine(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
+        function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+            const earthRadius = 6371;
+            const deltaLat = (lat2 - lat1) * Math.PI / 180;
+            const deltaLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) + 
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
+                      Math.sin(deltaLon/2) * Math.sin(deltaLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            return earthRadius * c;
         }
 
-        // ==================== TIÊN ĐOÁN THÔNG MINH ====================
-        async function loadUserHistory() {
+        // ==================== SMART PREDICTION FUNCTIONS ====================
+        async function loadUserLocationHistory() {
             if (!currentUser) return;
             try {
-                const snapshot = await db.ref('location_history/' + currentUser.id).once('value');                userLocationHistory = snapshot.val() || [];
+                const snapshot = await database.ref('location_history/' + currentUser.id).once('value');
+                userLocationHistory = snapshot.val() || [];
                 updateSmartSuggestions();
             } catch (error) {
-                console.error('Error loading history:', error);
+                console.error('Error loading location history:', error);
             }
         }
 
         function updateSmartSuggestions() {
             const container = document.getElementById('smartSuggestions');
-            let html = '';
-            
-            html += '<div class="chip" onclick="setSuggestion(\'🏠 Nhà\', \'pickup\')">🏠 Nhà</div>';
-            html += '<div class="chip" onclick="setSuggestion(\'🏢 Cơ quan\', \'pickup\')">🏢 Cơ quan</div>';
-            html += '<div class="chip" onclick="setSuggestion(\'✈️ Sân bay\', \'dropoff\')">✈️ Sân bay</div>';
+            let htmlContent = '';
+                        htmlContent += '<div class="chip" onclick="setSuggestion(\'🏠 Nhà\', \'pickup\')">🏠 Nhà</div>';
+            htmlContent += '<div class="chip" onclick="setSuggestion(\'🏢 Cơ quan\', \'pickup\')">🏢 Cơ quan</div>';
+            htmlContent += '<div class="chip" onclick="setSuggestion(\'✈️ Sân bay\', \'dropoff\')">✈️ Sân bay</div>';
             
             if (userLocationHistory.length > 0) {
-                const recent = userLocationHistory.slice(-3).reverse();
-                recent.forEach(function(loc) {
-                    const shortName = loc.address.split(',')[0];
-                    html += '<div class="chip" onclick="setSuggestion(\'' + escapeHtml(loc.address) + '\', \'dropoff\')">📍 ' + escapeHtml(shortName) + '</div>';
+                const recentLocations = userLocationHistory.slice(-3).reverse();
+                recentLocations.forEach(function(location) {
+                    const shortName = location.address.split(',')[0];
+                    htmlContent += '<div class="chip" onclick="setSuggestion(\'' + escapeHtmlContent(location.address) + '\', \'dropoff\')">📍 ' + escapeHtmlContent(shortName) + '</div>';
                 });
             }
             
-            container.innerHTML = html;
+            container.innerHTML = htmlContent;
         }
 
-        async function saveLocationToHistory(address, lat, lng) {
+        async function saveLocationToHistory(address, latitude, longitude) {
             if (!currentUser || !address) return;
             
             const exists = userLocationHistory.find(function(loc) {
-                return Math.abs(loc.lat - lat) < 0.0001 && Math.abs(loc.lng - lng) < 0.0001;
+                return Math.abs(loc.latitude - latitude) < 0.0001 && Math.abs(loc.longitude - longitude) < 0.0001;
             });
             
             if (!exists) {
-                userLocationHistory.push({ address: address, lat: lat, lng: lng, timestamp: Date.now() });
-                if (userLocationHistory.length > 20) {
-                    userLocationHistory = userLocationHistory.slice(-20);
-                }
+                userLocationHistory.push({ 
+                    address: address, 
+                    latitude: latitude, 
+                    longitude: longitude, 
+                    timestamp: Date.now() 
+                });
                 try {
-                    await db.ref('location_history/' + currentUser.id).set(userLocationHistory);
+                    await database.ref('location_history/' + currentUser.id).set(userLocationHistory);
                     updateSmartSuggestions();
                 } catch (error) {
-                    console.error('Error saving history:', error);
+                    console.error('Error saving location:', error);
                 }
             }
         }
 
-        // ==================== AUTOCOMPLETE & OSRM ====================
+        // ==================== AUTOCOMPLETE & ROUTING ====================
         async function searchAddress(query, targetListId, field) {
-            const listElement = document.getElementById(targetListId);            if (query.length < 3) { 
-                listElement.style.display = 'none'; 
-                return; 
+            const listElement = document.getElementById(targetListId);
+            if (query.length < 3) {
+                listElement.style.display = 'none';
+                return;
             }
             
             try {
                 const response = await fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) + '&format=json&addressdetails=1&limit=5&countrycodes=vn');
                 const data = await response.json();
-                
-                listElement.innerHTML = '';
+                                listElement.innerHTML = '';
                 
                 const historyMatches = userLocationHistory.filter(function(loc) {
                     return loc.address.toLowerCase().includes(query.toLowerCase());
@@ -408,14 +448,14 @@
                 historyMatches.forEach(function(loc) {
                     const div = document.createElement('div');
                     div.className = 'autocomplete-item recent';
-                    div.innerHTML = '<i class="fas fa-history"></i> <span>' + escapeHtml(loc.address) + '</span>';
+                    div.innerHTML = '<i class="fas fa-history"></i> <span>' + escapeHtmlContent(loc.address) + '</span>';
                     div.onclick = function() {
                         document.getElementById(field === 'pickup' ? 'bookPickup' : 'bookDropoff').value = loc.address;
                         if (field === 'pickup') {
-                            selectedPickup = { address: loc.address, lat: loc.lat, lng: loc.lng };
-                            if (customerMarker) customerMarker.setLatLng([loc.lat, loc.lng]);
+                            selectedPickupLocation = { address: loc.address, latitude: loc.latitude, longitude: loc.longitude };
+                            if (customerMarker) customerMarker.setLatLng([loc.latitude, loc.longitude]);
                         } else {
-                            selectedDropoff = { address: loc.address, lat: loc.lat, lng: loc.lng };
+                            selectedDropoffLocation = { address: loc.address, latitude: loc.latitude, longitude: loc.longitude };
                         }
                         listElement.style.display = 'none';
                         calculateRoute();
@@ -427,34 +467,45 @@
                     data.forEach(function(item) {
                         const div = document.createElement('div');
                         div.className = 'autocomplete-item';
-                        div.innerHTML = '<i class="fas fa-map-marker-alt"></i> <span>' + escapeHtml(item.display_name) + '</span>';
+                        div.innerHTML = '<i class="fas fa-map-marker-alt"></i> <span>' + escapeHtmlContent(item.display_name) + '</span>';
                         div.onclick = function() {
                             document.getElementById(field === 'pickup' ? 'bookPickup' : 'bookDropoff').value = item.display_name;
                             if (field === 'pickup') {
-                                selectedPickup = { address: item.display_name, lat: parseFloat(item.lat), lng: parseFloat(item.lon) };
-                                if (customerMarker) customerMarker.setLatLng([selectedPickup.lat, selectedPickup.lng]);
+                                selectedPickupLocation = { 
+                                    address: item.display_name, 
+                                    latitude: parseFloat(item.lat), 
+                                    longitude: parseFloat(item.lon) 
+                                };
+                                if (customerMarker) customerMarker.setLatLng([parseFloat(item.lat), parseFloat(item.lon)]);
                             } else {
-                                selectedDropoff = { address: item.display_name, lat: parseFloat(item.lat), lng: parseFloat(item.lon) };
+                                selectedDropoffLocation = { 
+                                    address: item.display_name, 
+                                    latitude: parseFloat(item.lat), 
+                                    longitude: parseFloat(item.lon) 
+                                };
                             }
                             listElement.style.display = 'none';
                             calculateRoute();
                         };
-                        listElement.appendChild(div);                    });
-                    listElement.style.display = 'block';
+                        listElement.appendChild(div);
+                    });                    listElement.style.display = 'block';
                 } else if (historyMatches.length === 0) {
                     listElement.style.display = 'none';
                 }
-            } catch (error) { 
+            } catch (error) {
                 console.error('Search error:', error);
             }
         }
 
         async function calculateRoute() {
-            if (!selectedPickup.lat || !selectedDropoff.lat) return;
+            if (!selectedPickupLocation.latitude || !selectedDropoffLocation.latitude) return;
             
             document.getElementById('estPrice').innerText = 'Đang tính...';
             try {
-                const url = 'https://router.project-osrm.org/route/v1/driving/' + selectedPickup.lng + ',' + selectedPickup.lat + ';' + selectedDropoff.lng + ',' + selectedDropoff.lat + '?overview=full&geometries=geojson';
+                const url = 'https://router.project-osrm.org/route/v1/driving/' + 
+                    selectedPickupLocation.longitude + ',' + selectedPickupLocation.latitude + ';' + 
+                    selectedDropoffLocation.longitude + ',' + selectedDropoffLocation.latitude + 
+                    '?overview=full&geometries=geojson';
                 const response = await fetch(url);
                 const data = await response.json();
                 
@@ -468,13 +519,13 @@
                     document.getElementById('estDuration').innerText = durationMin;
                     document.getElementById('estPrice').innerText = price.toLocaleString() + 'đ';
                     
-                    if (routeLine) map.removeLayer(routeLine);
-                    const coords = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-                    routeLine = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.7 }).addTo(map);
-                    map.fitBounds(routeLine.getBounds().pad(0.2));
+                    if (routeLine) mapInstance.removeLayer(routeLine);
+                    const coordinates = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+                    routeLine = L.polyline(coordinates, { color: '#0054a3', weight: 5, opacity: 0.7 }).addTo(mapInstance);
+                    mapInstance.fitBounds(routeLine.getBounds().pad(0.2));
                 }
             } catch (error) {
-                console.error('OSRM Error:', error);
+                console.error('Route calculation error:', error);
                 document.getElementById('estPrice').innerText = 'Lỗi tính giá';
             }
         }
@@ -484,237 +535,223 @@
             searchAddress(value, field === 'pickup' ? 'pickupList' : 'dropoffList', field);
         }
 
-        // ==================== AUTH - ĐÃ SỬA LỖI ĐĂNG NHẬP 2 LẦN ====================
-        function doLogin() {
-            const phoneInput = document.getElementById('loginPhone').value.trim();
-            if (!phoneInput || phoneInput.length < 9) { 
-                alert('Vui lòng nhập số điện thoại hợp lệ');                 return; 
+        // ==================== AUTHENTICATION FUNCTIONS ====================
+        function handleLogin() {
+            if (isProcessingAuth) return;            
+            const phone = document.getElementById('loginPhone').value.trim();
+            if (!phone || phone.length < 9) {
+                alert('Vui lòng nhập số điện thoại hợp lệ');
+                return;
             }
             
-            const phone = phoneInput.replace(/\D/g, '');
+            isProcessingAuth = true;
+            const loginButton = document.getElementById('loginBtn');
+            loginButton.innerHTML = '<span class="loading-spinner"></span> Đang xử lý...';
+            loginButton.classList.add('btn-disabled');
             
-            db.ref('customers').orderByChild('phone').equalTo(phone).once('value', function(snapshot) {
+            database.ref('customers').orderByChild('phone').equalTo(phone).once('value', function(snapshot) {
                 if (snapshot.exists()) {
-                    let userData = null;
+                    let user = null;
                     snapshot.forEach(function(childSnapshot) {
-                        userData = { id: childSnapshot.key };
-                        Object.assign(userData, childSnapshot.val());
+                        user = { id: childSnapshot.key, ...childSnapshot.val() };
                     });
-                    
-                    if (userData) {
-                        currentUser = userData;
-                        localStorage.setItem('xg_user', JSON.stringify(userData));
-                        initializeApp();
-                    }
+                    currentUser = user;
+                    localStorage.setItem('xg_user', JSON.stringify(user));
+                    showMainApplication();
                 } else {
                     document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('regForm').style.display = 'block';
                     document.getElementById('regPhone').value = phone;
                 }
-            }).catch(function(error) {
+                
+                isProcessingAuth = false;
+                loginButton.innerHTML = 'Đăng nhập / Đăng ký';
+                loginButton.classList.remove('btn-disabled');
+            }, function(error) {
                 console.error('Login error:', error);
-                alert('Có lỗi xảy ra. Vui lòng thử lại.');
+                showToast('Lỗi đăng nhập: ' + error.message, true);
+                isProcessingAuth = false;
+                loginButton.innerHTML = 'Đăng nhập / Đăng ký';
+                loginButton.classList.remove('btn-disabled');
             });
         }
 
-        function doRegister() {
-            const nameInput = document.getElementById('regName').value.trim();
-            const phoneInput = document.getElementById('regPhone').value.trim();
+        function handleRegister() {
+            if (isProcessingAuth) return;
             
-            if (!nameInput || !phoneInput) { 
-                alert('Vui lòng nhập đầy đủ thông tin'); 
-                return; 
+            const name = document.getElementById('regName').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
+            
+            if (!name || !phone) {
+                alert('Vui lòng nhập đầy đủ thông tin');
+                return;
             }
+                        isProcessingAuth = true;
+            const registerButton = document.getElementById('registerBtn');
+            registerButton.innerHTML = '<span class="loading-spinner"></span> Đang đăng ký...';
+            registerButton.classList.add('btn-disabled');
             
-            const phone = phoneInput.replace(/\D/g, '');
-            const newUser = { 
-                name: nameInput, 
-                phone: phone, 
-                createdAt: Date.now(),
-                rating: 0,
-                totalTrips: 0
-            };
-            
-            db.ref('customers').push(newUser).then(function(ref) {
-                currentUser = { id: ref.key };
-                Object.assign(currentUser, newUser);                localStorage.setItem('xg_user', JSON.stringify(currentUser));
-                initializeApp();
+            const newUser = { name: name, phone: phone, createdAt: Date.now() };
+            database.ref('customers').push(newUser).then(function(ref) {
+                currentUser = { id: ref.key, ...newUser };
+                localStorage.setItem('xg_user', JSON.stringify(currentUser));
+                showMainApplication();
+                
+                isProcessingAuth = false;
+                registerButton.innerHTML = 'Đăng ký';
+                registerButton.classList.remove('btn-disabled');
             }).catch(function(error) {
-                console.error('Register error:', error);
-                alert('Có lỗi xảy ra. Vui lòng thử lại.');
+                console.error('Registration error:', error);
+                showToast('Lỗi đăng ký: ' + error.message, true);
+                isProcessingAuth = false;
+                registerButton.innerHTML = 'Đăng ký';
+                registerButton.classList.remove('btn-disabled');
             });
         }
 
-        function initializeApp() {
-            if (appLoaded) return;
-            appLoaded = true;
-            
+        function showMainApplication() {
             document.getElementById('authScreen').style.display = 'none';
             document.getElementById('mainApp').style.display = 'block';
             document.getElementById('welcomeUser').innerHTML = 'Chào ' + (currentUser.name || currentUser.phone);
-            
-            loadUserHistory();
+            loadUserLocationHistory();
             loadMyBookings();
-            initMap();
+            initializeMap();
             setupRealtimeListener();
         }
 
-        function logout() {
-            if (driverLocListener) {
-                driverLocListener.off();
-                driverLocListener = null;
-            }
-            if (bookingListener) {
-                bookingListener.off();
-                bookingListener = null;
-            }
-            if (chatListener) {
-                chatListener.off();
-                chatListener = null;
-            }
-            
+        function handleLogout() {
+            if (driverLocationListener) driverLocationListener.off();
+            if (bookingListener) bookingListener.off();
+            if (chatListener) chatListener.off();
             localStorage.removeItem('xg_user');
             currentUser = null;
-            appLoaded = false;
-            
-            document.getElementById('mainApp').style.display = 'none';
-            document.getElementById('authScreen').style.display = 'flex';
-            document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('regForm').style.display = 'none';
-            document.getElementById('loginPhone').value = '';
-            document.getElementById('regName').value = '';
-            document.getElementById('regPhone').value = '';
-            
-            if (map) {
-                map.remove();                map = null;
-            }
+            currentBooking = null;
+            location.reload();
         }
 
-        // ==================== ĐẶT XE ====================
-        async function bookRide() {
-            if (!currentUser) { 
-                showToast('Vui lòng đăng nhập', true); 
-                return; 
+        // ==================== BOOKING FUNCTIONS ====================
+        async function handleBookRide() {
+            if (!currentUser) {
+                showToast('Vui lòng đăng nhập', true);
+                return;
             }
-            if (isBooking) return;
-            if (!selectedPickup.lat || !selectedDropoff.lat) { 
-                showToast('Vui lòng chọn chính xác Điểm đón và Điểm đến', true); 
-                return; 
+            if (isBookingInProgress) return;            if (!selectedPickupLocation.latitude || !selectedDropoffLocation.latitude) {
+                showToast('Vui lòng chọn chính xác Điểm đón và Điểm đến từ gợi ý', true);
+                return;
             }
             
-            isBooking = true;
+            isBookingInProgress = true;
             const bookButton = document.getElementById('bookRideBtn');
-            const originalText = bookButton.innerHTML;
             bookButton.innerHTML = '<span class="loading-spinner"></span> Đang tìm...';
-            bookButton.disabled = true;
+            bookButton.classList.add('btn-disabled');
             
             closeBookingModal();
-            showToast('🔍 Đang tìm tài xế gần nhất...');
+            showToast(' Đang tìm tài xế gần nhất...');
             
             const departureTime = document.getElementById('bookDeparture').value;
             const seats = parseInt(document.getElementById('bookSeats').value);
-            const priceText = document.getElementById('estPrice').innerText.replace(/[^\d]/g, '');
-            const distance = parseFloat(document.getElementById('estDistance').innerText);
+            const estPriceText = document.getElementById('estPrice').innerText.replace(/[^\d]/g, '');
+            const estDistance = parseFloat(document.getElementById('estDistance').innerText);
 
-            const newBooking = {
-                customerId: currentUser.id, 
-                customerName: currentUser.name, 
+            const tempBooking = {
+                customerId: currentUser.id,
+                customerName: currentUser.name,
                 customerPhone: currentUser.phone,
-                pickup: selectedPickup.address, 
-                dropoff: selectedDropoff.address, 
-                pickupLat: selectedPickup.lat, 
-                pickupLng: selectedPickup.lng,
-                dropoffLat: selectedDropoff.lat, 
-                dropoffLng: selectedDropoff.lng,
-                departureTime: departureTime.replace('T', ' ') + ':00', 
+                pickup: selectedPickupLocation.address,
+                dropoff: selectedDropoffLocation.address,
+                pickupLat: selectedPickupLocation.latitude,
+                pickupLng: selectedPickupLocation.longitude,
+                dropoffLat: selectedDropoffLocation.latitude,
+                dropoffLng: selectedDropoffLocation.longitude,
+                departureTime: departureTime.replace('T', ' ') + ':00',
                 seats: seats,
-                estPrice: parseInt(priceText) || 0, 
-                estDistance: distance || 0,
-                driverId: null, 
-                driverName: 'Đang chờ...', 
+                estPrice: parseInt(estPriceText),
+                estDistance: estDistance,
+                driverId: null,
+                driverName: 'Đang chờ...',
                 driverPhone: '',
-                status: 'waiting', 
-                createdAt: Date.now(), 
-                rating: null            };
+                status: 'waiting',
+                createdAt: Date.now(),
+                rating: null
+            };
             
             try {
-                const bookingRef = await db.ref('xg_bookings').push(newBooking);
+                const bookingRef = await database.ref('xg_bookings').push(tempBooking);
                 const bookingId = bookingRef.key;
                 
-                await saveLocationToHistory(selectedPickup.address, selectedPickup.lat, selectedPickup.lng);
-                await saveLocationToHistory(selectedDropoff.address, selectedDropoff.lat, selectedDropoff.lng);
+                await saveLocationToHistory(selectedPickupLocation.address, selectedPickupLocation.latitude, selectedPickupLocation.longitude);
+                await saveLocationToHistory(selectedDropoffLocation.address, selectedDropoffLocation.latitude, selectedDropoffLocation.longitude);
                 
-                const driversSnapshot = await db.ref('tai_xe_online').once('value');
-                const drivers = driversSnapshot.val();
-                let assignedDriver = null;
-                
+                const driversSnap = await database.ref('tai_xe_online').once('value');
+                const drivers = driversSnap.val();
+                let assignedDriver = null;                
                 if (drivers) {
                     let driverList = [];
-                    for (let driverId in drivers) {
-                        const driver = drivers[driverId];
-                        if (driver.status === 'ready' && driver.lat && driver.lng) {
-                            const dist = haversine(selectedPickup.lat, selectedPickup.lng, driver.lat, driver.lng);
-                            if (dist < 15) {
-                                driverList.push({ id: driverId, data: driver, distance: dist });
-                            }
+                    for (let id in drivers) {
+                        const d = drivers[id];
+                        if (d.status === 'ready' && d.lat && d.lng) {
+                            const dist = calculateHaversineDistance(
+                                selectedPickupLocation.latitude, 
+                                selectedPickupLocation.longitude, 
+                                d.lat, 
+                                d.lng
+                            );
+                            if (dist < 15) driverList.push({ id: id, ...d, distance: dist });
                         }
                     }
                     driverList.sort(function(a, b) { return a.distance - b.distance; });
                     
                     if (driverList.length > 0) {
                         assignedDriver = driverList[0];
-                        await db.ref('tai_xe_online/' + assignedDriver.id).update({ 
+                        await database.ref('tai_xe_online/' + assignedDriver.id).update({ 
                             status: 'busy', 
                             currentBookingId: bookingId 
                         });
-                        await db.ref('xg_bookings/' + bookingId).update({
+                        await database.ref('xg_bookings/' + bookingId).update({
                             driverId: assignedDriver.id,
-                            driverName: assignedDriver.data.name || 'Tài xế',
-                            driverPhone: assignedDriver.data.phone || '',
+                            driverName: assignedDriver.name || 'Tài xế',
+                            driverPhone: assignedDriver.phone || '',
                             status: 'accepted'
                         });
                     }
                 }
                 
                 if (assignedDriver) {
-                    showToast('✅ Tài xế ' + assignedDriver.data.name + ' đã nhận chuyến!');
+                    showToast('✅ Tài xế ' + assignedDriver.name + ' đã nhận chuyến!');
                 } else {
-                    showToast('✅ Đã gửi yêu cầu, đang chờ tài xế...');
+                    showToast('✅ Đã gửi yêu cầu, đang chờ tài xế nhận chuyến...');
                 }
                 
                 loadMyBookings();
-                
-            } catch (error) {                console.error('Booking error:', error);
-                showToast('Có lỗi xảy ra. Vui lòng thử lại.', true);
-            } finally {
-                isBooking = false;
-                bookButton.innerHTML = originalText;
-                bookButton.disabled = false;
-                selectedPickup = { address: '', lat: null, lng: null };
-                selectedDropoff = { address: '', lat: null, lng: null };
+            } catch (error) {
+                console.error('Booking error:', error);
+                showToast('Lỗi đặt xe: ' + error.message, true);
             }
-        }
+            
+            isBookingInProgress = false;
+            bookButton.innerHTML = ' Tìm tài xế';
+            bookButton.classList.remove('btn-disabled');
+            
+            selectedPickupLocation = { address: '', latitude: null, longitude: null };
+            selectedDropoffLocation = { address: '', latitude: null, longitude: null };        }
 
-        // ==================== TẢI DANH SÁCH CHUYẾN ====================
+        // ==================== BOOKINGS LIST FUNCTIONS ====================
         async function loadMyBookings() {
             if (!currentUser) return;
             
             try {
-                const snapshot = await db.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id).once('value');
+                const snapshot = await database.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id).once('value');
                 const data = snapshot.val();
                 const container = document.getElementById('myRidesList');
                 
-                if (!data) { 
-                    container.innerHTML = '<div class="text-center text-gray-400 py-10">📭 Chưa có chuyến nào</div>'; 
-                    return; 
+                if (!data) {
+                    container.innerHTML = '<div class="text-center text-gray-400 py-10">📭 Chưa có chuyến nào</div>';
+                    return;
                 }
                 
-                let bookings = [];
-                snapshot.forEach(function(childSnapshot) {
-                    bookings.push({ id: childSnapshot.key });
-                    Object.assign(bookings[bookings.length - 1], childSnapshot.val());
+                let bookings = Object.entries(data).map(function(entry) {
+                    return { id: entry[0], ...entry[1] };
                 });
-                
                 bookings.sort(function(a, b) { return b.createdAt - a.createdAt; });
                 
                 const activeStatuses = ['waiting', 'accepted', 'on_the_way', 'arrived', 'in_progress'];
@@ -725,43 +762,43 @@
                 
                 if (displayBookings.length === 0) {
                     container.innerHTML = '<div class="text-center text-gray-400 py-10">' + 
-                        (currentRidesTab === 'active' ? '📭 Không có chuyến đang hoạt động' : '📜 Chưa có lịch sử') + 
+                        (currentRidesTab === 'active' ? '📭 Không có chuyến nào đang hoạt động' : '📜 Chưa có lịch sử chuyến đi') + 
                         '</div>';
                     return;
                 }
                 
                 let html = '';
-                displayBookings.forEach(function(booking) {
-                    const statusMap = { 
-                        waiting: { text: '⏳ Đang tìm', color: 'yellow' },                         accepted: { text: '✅ Đã nhận', color: 'blue' }, 
+                for (let i = 0; i < displayBookings.length; i++) {
+                    const b = displayBookings[i];
+                    const statusMap = {
+                        waiting: { text: '⏳ Đang tìm', color: 'yellow' },
+                        accepted: { text: '✅ Đã nhận', color: 'blue' },
                         on_the_way: { text: '🚐 Đang đến đón', color: 'purple' },
                         arrived: { text: '📍 Đã đến đón', color: 'indigo' },
                         in_progress: { text: '🛣️ Đang di chuyển', color: 'cyan' },
-                        completed: { text: '🏁 Hoàn thành', color: 'green' }, 
-                        cancelled: { text: '❌ Đã hủy', color: 'red' } 
+                        completed: { text: '🏁 Hoàn thành', color: 'green' },
+                        cancelled: { text: ' Đã hủy', color: 'red' }
                     };
-                    const status = statusMap[booking.status] || { text: booking.status, color: 'gray' };
-                    const showTrack = activeStatuses.includes(booking.status) && booking.status !== 'waiting';
+                    const st = statusMap[b.status] || { text: b.status, color: 'gray' };
+                    const showTrack = activeStatuses.includes(b.status) && b.status !== 'waiting';
                     
-                    html += '<div class="bg-white rounded-2xl p-4 card-shadow">';
-                    html += '<div class="flex justify-between items-start mb-1">';
+                    html += '<div class="bg-white rounded-2xl p-4 card-shadow">';                    html += '<div class="flex justify-between items-start mb-1">';
                     html += '<div class="text-sm font-bold text-gray-800">' + 
-                            escapeHtml(booking.pickup.split(',')[0]) + 
-                            ' <i class="fas fa-arrow-right text-xs text-gray-400"></i> ' + 
-                            escapeHtml(booking.dropoff.split(',')[0]) + '</div>';
-                    html += '<span class="text-' + status.color + '-600 bg-' + status.color + '-50 px-2 py-0.5 rounded-full text-[10px] font-bold">' + status.text + '</span>';
+                        escapeHtmlContent(b.pickup.split(',')[0]) + 
+                        ' <i class="fas fa-arrow-right text-xs text-gray-400"></i> ' + 
+                        escapeHtmlContent(b.dropoff.split(',')[0]) + '</div>';
+                    html += '<span class="text-' + st.color + '-600 bg-' + st.color + '-50 px-2 py-0.5 rounded-full text-[10px] font-bold">' + st.text + '</span>';
                     html += '</div>';
-                    html += '<div class="text-xs text-gray-500"><i class="far fa-clock"></i> ' + booking.departureTime + ' | 💰 ' + (booking.estPrice || 0).toLocaleString() + 'đ</div>';
+                    html += '<div class="text-xs text-gray-500"><i class="far fa-clock"></i> ' + b.departureTime + ' | 💰 ' + (b.estPrice ? b.estPrice.toLocaleString() : '0') + 'đ</div>';
                     html += '<div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">';
-                    html += '<span class="text-xs font-bold text-gray-700">🚐 ' + escapeHtml(booking.driverName || 'Đang tìm...') + '</span>';
+                    html += '<span class="text-xs font-bold text-gray-700">🚐 ' + escapeHtmlContent(b.driverName || 'Đang tìm...') + '</span>';
                     if (showTrack) {
-                        html += '<button onclick="startTrackingFromBooking(\'' + booking.id + '\')" class="text-blue-600 text-xs font-bold"><i class="fas fa-map-marked-alt"></i> Theo dõi</button>';
+                        html += '<button onclick="startTrackingFromBooking(\'' + b.id + '\')" class="text-blue-600 text-xs font-bold"><i class="fas fa-map-marked-alt"></i> Theo dõi</button>';
                     }
-                    html += '</div></div>';
-                });
-                
+                    html += '</div>';
+                    html += '</div>';
+                }
                 container.innerHTML = html;
-                
             } catch (error) {
                 console.error('Load bookings error:', error);
             }
@@ -769,44 +806,39 @@
 
         function switchRidesTab(tab) {
             currentRidesTab = tab;
-            document.getElementById('activeTripsTab').className = tab === 'active' ? 'active' : '';
-            document.getElementById('historyTripsTab').className = tab === 'history' ? 'active' : '';
+            document.getElementById('activeTripsTab').classList.toggle('active', tab === 'active');
+            document.getElementById('historyTripsTab').classList.toggle('active', tab === 'history');
             loadMyBookings();
         }
 
         // ==================== REALTIME & TRACKING ====================
         function setupRealtimeListener() {
-            if (bookingListener) {
-                bookingListener.off();
-            }
-            
-            bookingListener = db.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id);
+            if (bookingListener) bookingListener.off();
+            bookingListener = database.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id);
             bookingListener.on('child_changed', function(snapshot) {
-                const updatedBooking = snapshot.val();                loadMyBookings();
+                const updated = snapshot.val();
+                loadMyBookings();
                 
                 if (currentBooking && currentBooking.id === snapshot.key) {
-                    if (updatedBooking.status === 'accepted') {
-                        showToast('🚖 Tài xế ' + updatedBooking.driverName + ' đã nhận chuyến!');
-                        startTracking({ id: snapshot.key });
-                        Object.assign(currentBooking, updatedBooking);
-                    } else if (updatedBooking.status === 'completed') {
+                    if (updated.status === 'accepted') {
+                        showToast(' Tài xế ' + updated.driverName + ' đã nhận chuyến!');
+                        startTracking({ id: snapshot.key, ...updated });
+                    } else if (updated.status === 'completed') {
                         stopTracking();
                         showRatingModal();
-                    } else if (updatedBooking.status === 'cancelled') {
+                    } else if (updated.status === 'cancelled') {
                         showToast('❌ Chuyến đi đã bị hủy', true);
                         stopTracking();
-                    } else {
-                        Object.assign(currentBooking, updatedBooking);
                     }
-                }
-            });
+                    currentBooking = { id: snapshot.key, ...updated };
+                }            });
         }
 
         async function startTrackingFromBooking(bookingId) {
             try {
-                const snapshot = await db.ref('xg_bookings/' + bookingId).once('value');
+                const snapshot = await database.ref('xg_bookings/' + bookingId).once('value');
                 if (snapshot.val()) {
-                    startTracking({ id: bookingId });
+                    startTracking({ id: bookingId, ...snapshot.val() });
                 }
             } catch (error) {
                 console.error('Start tracking error:', error);
@@ -819,25 +851,20 @@
             const panel = document.getElementById('trackingPanel');
             panel.classList.remove('hide');
             document.getElementById('trackDriverName').innerText = booking.driverName || 'Tài xế';
-            document.getElementById('trackCallBtn').href = 'tel:' + (booking.driverPhone || '');
+            document.getElementById('trackCallBtn').href = 'tel:' + booking.driverPhone;
             
-            if (driverLocListener) {
-                driverLocListener.off();
-            }
-            
-            if (booking.driverId) {
-                driverLocListener = db.ref('tai_xe_online/' + booking.driverId);
-                driverLocListener.on('value', function(snapshot) {
-                    const location = snapshot.val();
-                    if (location && location.lat && location.lng) {
-                        updateDriverOnMap(location.lat, location.lng);
-                    }                });
-            }
+            if (driverLocationListener) driverLocationListener.off();
+            driverLocationListener = database.ref('tai_xe_online/' + booking.driverId);
+            driverLocationListener.on('value', function(snapshot) {
+                const loc = snapshot.val();
+                if (loc && loc.lat && loc.lng) {
+                    updateDriverOnMap(loc.lat, loc.lng);
+                }
+            });
         }
 
         function updateDriverOnMap(lat, lng) {
             if (!currentBooking) return;
-            
             if (!driverMarker) {
                 const icon = L.divIcon({ 
                     html: '<div class="driver-marker">🚐</div>', 
@@ -845,105 +872,85 @@
                     iconSize: [44, 44], 
                     iconAnchor: [22, 22] 
                 });
-                driverMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
+                driverMarker = L.marker([lat, lng], { icon: icon }).addTo(mapInstance);
             } else {
                 driverMarker.setLatLng([lat, lng]);
             }
             
-            const distance = haversine(lat, lng, currentBooking.pickupLat, currentBooking.pickupLng);
-            document.getElementById('trackDistanceText').innerText = 'Cách bạn ' + distance.toFixed(1) + ' km';
-            document.getElementById('trackEta').innerText = '~' + Math.round(distance * 2) + ' phút';
-            
-            const percent = Math.min(100, (distance / 10) * 100);
+            const dist = calculateHaversineDistance(lat, lng, currentBooking.pickupLat, currentBooking.pickupLng);
+            document.getElementById('trackDistanceText').innerText = 'Cách bạn ' + dist.toFixed(1) + ' km';
+            document.getElementById('trackEta').innerText = '~' + Math.round(dist * 2) + ' phút';
+                        const percent = Math.min(100, (dist / 10) * 100);
             document.getElementById('distanceFill').style.width = (100 - percent) + '%';
             
-            if (routeLine) {
-                map.removeLayer(routeLine);
-            }
+            if (routeLine) mapInstance.removeLayer(routeLine);
             routeLine = L.polyline([[lat, lng], [currentBooking.pickupLat, currentBooking.pickupLng]], { 
                 color: '#00bfa5', 
                 weight: 4, 
                 dashArray: '8,8' 
-            }).addTo(map);
-            map.fitBounds(L.latLngBounds([[lat, lng], [currentBooking.pickupLat, currentBooking.pickupLng]]).pad(0.3));
+            }).addTo(mapInstance);
+            mapInstance.fitBounds(L.latLngBounds([[lat, lng], [currentBooking.pickupLat, currentBooking.pickupLng]]).pad(0.3));
         }
         
         function stopTracking() {
-            if (driverLocListener) {
-                driverLocListener.off();
-                driverLocListener = null;
-            }
-            if (driverMarker) { 
-                map.removeLayer(driverMarker); 
-                driverMarker = null; 
-            }
-            if (routeLine) { 
-                map.removeLayer(routeLine); 
-                routeLine = null; 
-            }            document.getElementById('trackingPanel').classList.add('hide');
+            if (driverLocationListener) driverLocationListener.off();
+            if (driverMarker) { mapInstance.removeLayer(driverMarker); driverMarker = null; }
+            if (routeLine) { mapInstance.removeLayer(routeLine); routeLine = null; }
+            document.getElementById('trackingPanel').classList.add('hide');
             currentBooking = null;
         }
 
-        // ==================== ĐÁNH GIÁ ====================
+        // ==================== RATING FUNCTIONS ====================
         function showRatingModal() {
             document.getElementById('ratingModal').style.display = 'flex';
-            currentRating = 0;
-            const stars = document.querySelectorAll('#starContainer i');
-            stars.forEach(function(star) {
+            currentRatingValue = 0;
+            document.querySelectorAll('#starContainer i').forEach(function(star) {
                 star.classList.remove('active');
             });
         }
 
         document.getElementById('starContainer').addEventListener('click', function(e) {
             if (e.target.tagName === 'I') {
-                currentRating = parseInt(e.target.getAttribute('data-val'));
-                const stars = document.querySelectorAll('#starContainer i');
-                stars.forEach(function(star, index) {
-                    if (index < currentRating) {
-                        star.classList.add('active');
-                    } else {
-                        star.classList.remove('active');
-                    }
+                currentRatingValue = parseInt(e.target.getAttribute('data-val'));
+                document.querySelectorAll('#starContainer i').forEach(function(star, index) {
+                    if (index < currentRatingValue) star.classList.add('active');
+                    else star.classList.remove('active');
                 });
             }
         });
 
         async function submitRating() {
-            if (!currentBooking || currentRating === 0) { 
-                showToast('Vui lòng chọn số sao', true); 
-                return; 
+            if (!currentBooking || currentRatingValue === 0) {
+                showToast('Vui lòng chọn số sao', true);
+                return;
             }
             const comment = document.getElementById('ratingComment').value;
-            
             try {
-                await db.ref('xg_bookings/' + currentBooking.id + '/rating').set({
-                    score: currentRating,
+                await database.ref('xg_bookings/' + currentBooking.id + '/rating').set({
+                    score: currentRatingValue,
                     comment: comment,
-                    timestamp: Date.now()
-                });
+                    timestamp: Date.now()                });
                 showToast('Cảm ơn bạn đã đánh giá! ⭐');
                 document.getElementById('ratingModal').style.display = 'none';
             } catch (error) {
                 console.error('Rating error:', error);
+                showToast('Lỗi gửi đánh giá', true);
             }
         }
 
-        // ==================== CHAT ====================
-        function openChatWithDriver() {            if (!currentBooking) return;
+        // ==================== CHAT FUNCTIONS ====================
+        function openChatWithDriver() {
+            if (!currentBooking) return;
             document.getElementById('chatModal').style.display = 'flex';
             document.getElementById('chatMessages').innerHTML = '';
-            
-            if (chatListener) {
-                chatListener.off();
-            }
-            
-            chatListener = db.ref('chat_xg/' + currentBooking.id);
+            if (chatListener) chatListener.off();
+            chatListener = database.ref('chat_xg/' + currentBooking.id);
             chatListener.on('child_added', function(snapshot) {
-                const message = snapshot.val();
-                const isMe = message.sender === 'customer';
+                const msg = snapshot.val();
+                const isMe = msg.sender === 'customer';
                 const div = document.createElement('div');
                 div.className = 'chat-bubble ' + (isMe ? 'sent self-end' : 'self-start');
-                div.innerHTML = '<div class="text-xs opacity-70">' + escapeHtml(message.senderName) + '</div><div>' + escapeHtml(message.text) + '</div>';
+                div.innerHTML = '<div class="text-xs opacity-70">' + escapeHtmlContent(msg.senderName) + '</div><div>' + escapeHtmlContent(msg.text) + '</div>';
                 document.getElementById('chatMessages').appendChild(div);
                 document.getElementById('chatMessages').scrollTop = 999999;
             });
@@ -953,77 +960,69 @@
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
             if (!text || !currentBooking) return;
-            
-            db.ref('chat_xg/' + currentBooking.id).push({ 
-                sender: 'customer', 
-                senderName: currentUser.name, 
-                text: text, 
-                timestamp: Date.now() 
+            database.ref('chat_xg/' + currentBooking.id).push({
+                sender: 'customer',
+                senderName: currentUser.name,
+                text: text,
+                timestamp: Date.now()
             });
             input.value = '';
         }
         
         function closeChatModal() {
             document.getElementById('chatModal').style.display = 'none';
-            if (chatListener) {
-                chatListener.off();
-                chatListener = null;
-            }
+            if (chatListener) chatListener.off();
         }
 
-        // ==================== BẢN ĐỒ ====================
-        function initMap() {
-            if (map) return;
-            
-            map = L.map('map').setView([currentLat, currentLng], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);            
+        // ==================== MAP FUNCTIONS ====================
+        function initializeMap() {
+            if (mapInstance) return;
+            mapInstance = L.map('map').setView([currentLatitude, currentLongitude], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mapInstance);            
             const customerIcon = L.divIcon({ 
                 html: '<div class="customer-marker">📍</div>', 
                 className: '', 
                 iconSize: [36, 36], 
                 iconAnchor: [18, 18] 
             });
-            customerMarker = L.marker([currentLat, currentLng], { icon: customerIcon }).addTo(map);
+            customerMarker = L.marker([currentLatitude, currentLongitude], { icon: customerIcon }).addTo(mapInstance);
             
-            accuracyCircle = L.circle([currentLat, currentLng], {
+            accuracyCircle = L.circle([currentLatitude, currentLongitude], {
                 radius: currentAccuracy,
                 color: '#3b82f6',
                 fillColor: '#3b82f6',
                 fillOpacity: 0.1,
                 weight: 2
-            }).addTo(map);
+            }).addTo(mapInstance);
             
-            getCurrentLocation().then(function(loc) { 
-                map.setView([loc.lat, loc.lng], 15); 
-                customerMarker.setLatLng([loc.lat, loc.lng]);
-                accuracyCircle.setLatLng([loc.lat, loc.lng]);
+            getCurrentDeviceLocation().then(function(loc) {
+                mapInstance.setView([loc.latitude, loc.longitude], 15);
+                customerMarker.setLatLng([loc.latitude, loc.longitude]);
+                accuracyCircle.setLatLng([loc.latitude, loc.longitude]);
                 accuracyCircle.setRadius(loc.accuracy);
             });
 
-            map.on('click', async function(e) {
+            mapInstance.on('click', async function(e) {
                 const lat = e.latlng.lat;
                 const lng = e.latlng.lng;
                 showToast('Đang lấy địa chỉ...');
-                
                 try {
                     const response = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json');
                     const data = await response.json();
                     if (data && data.display_name) {
                         if (mapClickMode === 'pickup') {
                             document.getElementById('bookPickup').value = data.display_name;
-                            selectedPickup = { address: data.display_name, lat: lat, lng: lng };
+                            selectedPickupLocation = { address: data.display_name, latitude: lat, longitude: lng };
                             customerMarker.setLatLng([lat, lng]);
                             mapClickMode = 'dropoff';
                         } else {
                             document.getElementById('bookDropoff').value = data.display_name;
-                            selectedDropoff = { address: data.display_name, lat: lat, lng: lng };
+                            selectedDropoffLocation = { address: data.display_name, latitude: lat, longitude: lng };
                             mapClickMode = 'pickup';
                         }
                         calculateRoute();
                     }
-                } catch (error) { 
+                } catch (error) {
                     console.error('Reverse geocode error:', error);
                 }
             });
@@ -1034,84 +1033,59 @@
             const listBtn = document.getElementById('tabListBtn');
             const mapBtn = document.getElementById('tabMapBtn');
             const navItems = document.querySelectorAll('.nav-item');
-            
-            navItems.forEach(function(item) {
-                item.classList.remove('active');
-            });
+            navItems.forEach(function(n) { n.classList.remove('active'); });
 
             if (tab === 'myrides') {
-                listView.classList.remove('hidden'); 
+                listView.classList.remove('hidden');
                 mapView.classList.add('hidden');
-                listBtn.style.background = '#00bfa5'; 
+                listBtn.style.background = '#00bfa5';
                 listBtn.style.color = 'white';
-                mapBtn.style.background = 'white'; 
+                mapBtn.style.background = 'white';
                 mapBtn.style.color = '#6c757d';
-                if (navItems[0]) navItems[0].classList.add('active');
+                navItems[0].classList.add('active');
                 loadMyBookings();
             } else {
-                listView.classList.add('hidden'); 
+                listView.classList.add('hidden');
                 mapView.classList.remove('hidden');
-                mapBtn.style.background = '#00bfa5'; 
+                mapBtn.style.background = '#00bfa5';
                 mapBtn.style.color = 'white';
-                listBtn.style.background = 'white'; 
+                listBtn.style.background = 'white';
                 listBtn.style.color = '#6c757d';
-                if (navItems[1]) navItems[1].classList.add('active');
-                if (!map) {
-                    initMap();
-                } else {
-                    setTimeout(function() {
-                        map.invalidateSize();
-                    }, 100);
-                }
+                navItems[1].classList.add('active');
+                if (!mapInstance) initializeMap();
+                else setTimeout(function() { mapInstance.invalidateSize(); }, 100);
             }
         }
 
-        function openBookingModal() { 
-            document.getElementById('bookingModal').style.display = 'flex'; 
+        function openBookingModal() {
+            document.getElementById('bookingModal').style.display = 'flex';
             const now = new Date();
-            const localDatetime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-            document.getElementById('bookDeparture').value = localDatetime;
+            document.getElementById('bookDeparture').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
             document.getElementById('estDistance').innerText = '--';
             document.getElementById('estDuration').innerText = '--';
             document.getElementById('estPrice').innerText = '-- đ';
             mapClickMode = 'pickup';
         }
-                function closeBookingModal() { 
-            document.getElementById('bookingModal').style.display = 'none'; 
+        
+        function closeBookingModal() {
+            document.getElementById('bookingModal').style.display = 'none';
         }
         
-        function showHelp() { 
-            alert('🚖 Hướng dẫn sử dụng:\n\n1. Bấm nút + để đặt xe\n2. Hệ thống tự động gợi ý địa điểm dựa trên lịch sử\n3. Gõ địa chỉ và CHỌN từ danh sách gợi ý\n4. Chạm vào Bản đồ để chọn điểm đón/trả\n5. Theo dõi tài xế thời gian thực\n6. Nhắn tin hoặc gọi cho tài xế\n\n🎯 Tiên đoán thông minh - Đặt xe nhanh chóng!');
+        function showHelp() {
+            alert('🚖 Hướng dẫn:\n1. Bấm nút + để đặt xe\n2. Hệ thống tự động gợi ý địa điểm dựa trên lịch sử của bạn\n3. Gõ địa chỉ và CHỌN từ danh sách gợi ý\n4. Hoặc chạm trực tiếp lên Bản đồ để ghim điểm đón/trả\n5. Theo dõi tài xế thời gian thực với vầng quang định vị\n\n🎯 Tiên đoán thông minh - Đặt xe nhanh chóng!');
         }
 
-        // ==================== KHỞI TẠO ỨNG DỤNG ====================
-        function initializeAppOnLoad() {
-            if (appInitialized) return;
-            appInitialized = true;
-            
-            const savedUser = localStorage.getItem('xg_user');
-            if (savedUser) {
-                try {
-                    const userData = JSON.parse(savedUser);
-                    if (userData && userData.id) {
-                        currentUser = userData;
-                        initializeApp();
-                    } else {
-                        localStorage.removeItem('xg_user');
-                    }
-                } catch (error) {
-                    console.error('Parse user error:', error);
-                    localStorage.removeItem('xg_user');
-                }
-            }
+        // ==================== INITIALIZATION ====================
+        const savedUser = localStorage.getItem('xg_user');        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            showMainApplication();
         }
 
-        // Event listeners
-        document.getElementById('bookPickup').addEventListener('input', debounce(function(e) {
+        document.getElementById('bookPickup').addEventListener('input', debounceFunction(function(e) {
             searchAddress(e.target.value, 'pickupList', 'pickup');
         }, 1000));
         
-        document.getElementById('bookDropoff').addEventListener('input', debounce(function(e) {
+        document.getElementById('bookDropoff').addEventListener('input', debounceFunction(function(e) {
             searchAddress(e.target.value, 'dropoffList', 'dropoff');
         }, 1000));
         
@@ -1123,31 +1097,21 @@
         });
 
         document.getElementById('fabBookBtn').addEventListener('click', openBookingModal);
-        document.getElementById('bookRideBtn').addEventListener('click', bookRide);
         document.getElementById('chatWithDriverBtn').addEventListener('click', openChatWithDriver);
-                document.getElementById('cancelTripBtn').addEventListener('click', function() {
+        document.getElementById('cancelTripBtn').addEventListener('click', function() {
             if (currentBooking && confirm('Bạn có chắc muốn hủy chuyến?')) {
-                db.ref('xg_bookings/' + currentBooking.id).update({ status: 'cancelled' });
+                database.ref('xg_bookings/' + currentBooking.id).update({ status: 'cancelled' });
                 stopTracking();
             }
         });
-        
         document.getElementById('locateBtn').addEventListener('click', function() {
-            getCurrentLocation().then(function(loc) { 
-                map.setView([loc.lat, loc.lng], 15); 
-                customerMarker.setLatLng([loc.lat, loc.lng]);
-                accuracyCircle.setLatLng([loc.lat, loc.lng]);
+            getCurrentDeviceLocation().then(function(loc) {
+                mapInstance.setView([loc.latitude, loc.longitude], 15);
+                customerMarker.setLatLng([loc.latitude, loc.longitude]);
+                accuracyCircle.setLatLng([loc.latitude, loc.longitude]);
                 accuracyCircle.setRadius(loc.accuracy);
-                showToast('Đã cập nhật vị trí');
             });
         });
-
-        // Khởi tạo ứng dụng khi trang web tải xong
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeAppOnLoad);
-        } else {
-            initializeAppOnLoad();
-        }
     </script>
 </body>
 </html>
