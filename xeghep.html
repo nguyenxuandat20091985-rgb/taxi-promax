@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Taxi Promax - Đặt Xe Ghép</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -14,70 +13,57 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; background: #f5f7fb; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f7fb; }
         .gradient-bg { background: linear-gradient(135deg, #0066cc 0%, #00b4aa 100%); }
-        .gradient-text { background: linear-gradient(135deg, #0066cc, #00b4aa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .shadow-elegant { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); }
-        .shadow-card { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03); }
-        .btn-primary { background: linear-gradient(135deg, #0066cc, #00b4aa); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-primary { background: linear-gradient(135deg, #0066cc, #00b4aa); transition: all 0.2s; }
         .btn-primary:active { transform: scale(0.96); opacity: 0.9; }
-        .driver-marker { width: 48px; height: 48px; background: #00b4aa; border: 3px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 0 4px rgba(0, 180, 170, 0.3); animation: markerPulse 1.5s infinite; }
-        @keyframes markerPulse { 0% { box-shadow: 0 0 0 0 rgba(0, 180, 170, 0.5); } 70% { box-shadow: 0 0 0 16px rgba(0, 180, 170, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 180, 170, 0); } }
+        .driver-marker { width: 48px; height: 48px; background: #00b4aa; border: 3px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 0 4px rgba(0,180,170,0.3); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(0,180,170,0.5); } 70% { box-shadow: 0 0 0 15px rgba(0,180,170,0); } 100% { box-shadow: 0 0 0 0 rgba(0,180,170,0); } }
         .customer-marker { width: 40px; height: 40px; background: #e74c3c; border: 3px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(12px); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(12px); z-index: 1000; display: none; align-items: center; justify-content: center; }
         .modal-container { background: white; border-radius: 40px; width: 90%; max-width: 400px; overflow: hidden; animation: modalSlide 0.3s ease; }
         @keyframes modalSlide { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-custom { position: fixed; bottom: 100px; left: 20px; right: 20px; background: #1e293b; color: white; padding: 14px 20px; border-radius: 60px; font-size: 13px; font-weight: 500; text-align: center; z-index: 1100; opacity: 0; transition: opacity 0.3s; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
         .toast-custom.show { opacity: 1; }
-        .tracking-panel { position: fixed; bottom: 24px; left: 16px; right: 16px; background: white; border-radius: 32px; padding: 18px; z-index: 100; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2); border-left: 4px solid #00b4aa; transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1); }
+        .tracking-panel { position: fixed; bottom: 24px; left: 16px; right: 16px; background: white; border-radius: 32px; padding: 18px; z-index: 100; box-shadow: 0 12px 40px rgba(0,0,0,0.15); border-left: 4px solid #00b4aa; transition: transform 0.35s; }
         .tracking-panel.hide { transform: translateY(150%); }
         .progress-bar { height: 5px; background: #e2e8f0; border-radius: 10px; overflow: hidden; }
         .progress-fill { height: 100%; background: linear-gradient(90deg, #0066cc, #00b4aa); width: 0%; transition: width 0.3s; }
         .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 22px; font-size: 13px; line-height: 1.4; }
         .chat-bubble.sent { background: linear-gradient(135deg, #0066cc, #00b4aa); color: white; align-self: flex-end; border-bottom-right-radius: 6px; }
         .chat-bubble.received { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 6px; }
-        .bottom-nav { background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(20px); border-top: 1px solid rgba(0, 0, 0, 0.05); }
+        .bottom-nav { background: rgba(255,255,255,0.96); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.05); }
         .nav-item { transition: all 0.2s; cursor: pointer; }
         .nav-item.active { color: #00b4aa; }
         .nav-item:active { transform: scale(0.92); }
         .booking-card { background: white; border-radius: 24px; transition: all 0.2s; border: 1px solid #eef2f6; }
-        .booking-card:active { transform: scale(0.98); background: #fafcfc; }
+        .booking-card:active { transform: scale(0.98); }
         .status-badge { padding: 4px 12px; border-radius: 30px; font-size: 10px; font-weight: 600; }
         .status-waiting { background: #fef3c7; color: #d97706; }
         .status-accepted { background: #dbeafe; color: #2563eb; }
         .status-arrived { background: #e0e7ff; color: #4338ca; }
         .status-completed { background: #d1fae5; color: #059669; }
         .status-cancelled { background: #fee2e2; color: #dc2626; }
-        .chip-suggestion { background: white; padding: 8px 16px; border-radius: 40px; font-size: 12px; font-weight: 500; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border: 1px solid #eef2f6; transition: all 0.2s; }
-        .chip-suggestion:active { transform: scale(0.94); background: #f8fafc; }
-        .rating-star { font-size: 24px; cursor: pointer; transition: 0.1s; color: #cbd5e1; }
-        .rating-star.active { color: #fbbf24; }
-        .rating-star:active { transform: scale(1.2); }
+        .chip { background: white; padding: 8px 16px; border-radius: 40px; font-size: 12px; font-weight: 500; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border: 1px solid #eef2f6; transition: all 0.2s; }
+        .chip:active { transform: scale(0.94); background: #f8fafc; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #00b4aa; box-shadow: 0 0 0 3px rgba(0, 180, 170, 0.1); }
+        input:focus, select:focus { outline: none; border-color: #00b4aa; box-shadow: 0 0 0 3px rgba(0,180,170,0.1); }
     </style>
 </head>
 <body>
 
     <!-- AUTH SCREEN -->
     <div id="authScreen" class="fixed inset-0 z-50 flex items-center justify-center" style="background: linear-gradient(135deg, #0f172a, #1e1b4b);">
-        <div class="w-11/12 max-w-md bg-white/95 backdrop-blur rounded-3xl p-6 shadow-2xl animate__animated animate__fadeInUp">
+        <div class="w-11/12 max-w-md bg-white rounded-3xl p-6 shadow-2xl">
             <div class="text-center mb-6">
                 <div class="w-20 h-20 gradient-bg rounded-2xl flex items-center justify-center text-4xl mx-auto mb-3 shadow-lg">🚖</div>
                 <h1 class="text-2xl font-bold text-gray-800">TAXI PROMAX</h1>
                 <p class="text-gray-500 text-sm">Đặt xe ghép - Tiết kiệm - An toàn</p>
             </div>
-            <div id="loginForm">
-                <input type="tel" id="loginPhone" placeholder="Số điện thoại" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-center text-lg bg-gray-50">
-                <button onclick="doLogin()" class="w-full btn-primary text-white py-3 rounded-xl font-bold text-lg shadow-md">Đăng nhập / Đăng ký</button>
-            </div>
-            <div id="regForm" style="display:none;">
-                <input type="text" id="regName" placeholder="Họ và tên" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50">
-                <input type="tel" id="regPhone" placeholder="Số điện thoại" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50">
-                <button onclick="doRegister()" class="w-full btn-primary text-white py-3 rounded-xl font-bold shadow-md">Đăng ký</button>
-            </div>
-            <p class="text-center text-xs text-gray-400 mt-4">Bằng việc đăng nhập, bạn đồng ý với Điều khoản</p>
+            <input type="tel" id="authPhone" placeholder="Số điện thoại" class="w-full p-3 border border-gray-200 rounded-xl mb-3 text-center text-lg bg-gray-50">
+            <input type="text" id="authName" placeholder="Họ và tên" class="w-full p-3 border border-gray-200 rounded-xl mb-4 bg-gray-50">
+            <button onclick="doAuth()" class="w-full btn-primary text-white py-3 rounded-xl font-bold text-lg shadow-md">Tiếp tục</button>
+            <p class="text-center text-xs text-gray-400 mt-4">Nhập số điện thoại để đăng nhập / đăng ký</p>
         </div>
     </div>
 
@@ -95,7 +81,7 @@
         </div>
 
         <!-- Nút đặt xe nổi -->
-        <button id="fabBookBtn" class="fixed bottom-28 right-4 z-30 btn-primary text-white rounded-full p-4 shadow-2xl" style="box-shadow: 0 8px 24px rgba(0, 180, 170, 0.4);">
+        <button id="fabBookBtn" class="fixed bottom-28 right-4 z-30 btn-primary text-white rounded-full p-4 shadow-2xl" style="box-shadow: 0 8px 24px rgba(0,180,170,0.4);">
             <i class="fas fa-plus text-xl"></i>
         </button>
 
@@ -109,11 +95,11 @@
             </button>
         </div>
 
-        <!-- DANH SÁCH CHUYẾN ĐÃ ĐẶT -->
+        <!-- DANH SÁCH CHUYẾN -->
         <div id="myRidesView" class="px-4 pb-28">
             <div class="flex justify-between items-center mb-3">
                 <span class="text-xs font-semibold text-gray-500"><i class="fas fa-history mr-1"></i> Lịch sử đặt xe</span>
-                <button onclick="loadMyBookings()" class="text-[#00b4aa] text-xs"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+                <button onclick="loadBookings()" class="text-[#00b4aa] text-xs"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
             </div>
             <div id="myRidesList" class="space-y-3">
                 <div class="text-center text-gray-400 py-10">
@@ -124,7 +110,7 @@
             </div>
         </div>
 
-        <!-- BẢN ĐỒ + THEO DÕI -->
+        <!-- BẢN ĐỒ -->
         <div id="mapView" class="hidden relative" style="height: calc(100vh - 160px);">
             <div id="map" class="absolute inset-0 z-0"></div>
             <button id="locateBtn" class="absolute bottom-32 right-4 z-10 bg-white rounded-full p-3 shadow-lg active:scale-95 transition">
@@ -148,7 +134,7 @@
                 </div>
                 <div class="flex gap-3">
                     <button id="closeTrackingBtn" class="flex-1 py-2.5 bg-gray-100 rounded-xl text-gray-600 font-semibold text-sm active:scale-95 transition">Đóng</button>
-                    <button id="chatWithDriverBtn" class="flex-1 py-2.5 btn-primary rounded-xl text-white font-semibold text-sm active:scale-95 transition">💬 Nhắn tin</button>
+                    <button id="chatDriverBtn" class="flex-1 py-2.5 btn-primary rounded-xl text-white font-semibold text-sm active:scale-95 transition">💬 Nhắn tin</button>
                 </div>
             </div>
         </div>
@@ -180,24 +166,20 @@
             <div class="gradient-bg -mx-5 -mt-5 px-5 py-4 mb-5">
                 <h3 class="text-white font-bold text-lg"><i class="fas fa-taxi mr-2"></i> Đặt xe ghép</h3>
             </div>
-            
-            <!-- Gợi ý thông minh -->
-            <div class="mb-3">
-                <div class="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-                    <div class="chip-suggestion" onclick="setSuggestion('Sân bay Tân Sơn Nhất')">✈️ Sân bay TSN</div>
-                    <div class="chip-suggestion" onclick="setSuggestion('Bến xe Miền Đông')">🚌 Bến xe Miền Đông</div>
-                    <div class="chip-suggestion" onclick="setSuggestion('Landmark 81')">🏙️ Landmark 81</div>
-                    <div class="chip-suggestion" onclick="setSuggestion('Phú Mỹ Hưng')">🌇 Phú Mỹ Hưng</div>
-                    <div class="chip-suggestion" onclick="setSuggestion('Đại học Quốc gia')">🎓 ĐHQG TP.HCM</div>
-                </div>
+            <div class="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-3">
+                <div class="chip" onclick="setSuggestion('pickup', 'Sân bay Tân Sơn Nhất')">✈️ Sân bay TSN</div>
+                <div class="chip" onclick="setSuggestion('pickup', 'Bến xe Miền Đông')">🚌 Bến xe Miền Đông</div>
+                <div class="chip" onclick="setSuggestion('pickup', 'Landmark 81')">🏙️ Landmark 81</div>
+                <div class="chip" onclick="setSuggestion('pickup', 'Phú Mỹ Hưng')">🌇 Phú Mỹ Hưng</div>
+                <div class="chip" onclick="setSuggestion('dropoff', 'Sân bay Tân Sơn Nhất')">✈️ Sân bay TSN</div>
+                <div class="chip" onclick="setSuggestion('dropoff', 'Bến xe Miền Đông')">🚌 Bến xe Miền Đông</div>
             </div>
-            
-            <input type="text" id="bookPickup" placeholder="📍 Điểm đón" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50 text-base">
-            <input type="text" id="bookDropoff" placeholder="🏁 Điểm đến" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50 text-base">
+            <input type="text" id="bookPickup" placeholder="📍 Điểm đón" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50">
+            <input type="text" id="bookDropoff" placeholder="🏁 Điểm đến" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50">
             <input type="datetime-local" id="bookDeparture" class="w-full p-3 border border-gray-200 rounded-xl mb-3 bg-gray-50">
             <div class="grid grid-cols-2 gap-3 mb-4">
                 <select id="bookSeats" class="w-full p-3 border border-gray-200 rounded-xl bg-gray-50">
-                    <option value="1">1 ghế</option><option value="2">2 ghế</option><option value="3" selected>3 ghế</option><option value="4">4 ghế</option>
+                    <option value="1">1 ghế</option><option value="2">2 ghế</option><option value="3" selected>3 ghế</option><option value="4">4 ghế</option><option value="5">5 ghế</option><option value="6">6 ghế</option>
                 </select>
                 <select id="bookCarType" class="w-full p-3 border border-gray-200 rounded-xl bg-gray-50">
                     <option value="4_seats">🚗 4 chỗ</option>
@@ -211,33 +193,12 @@
                 </div>
                 <div class="flex justify-between text-xs text-gray-400 mt-1">
                     <span>📏 Khoảng cách: <span id="estDistance">--</span> km</span>
-                    <span>⏱️ Thời gian: <span id="estDuration">--</span> phút</span>
                 </div>
             </div>
-            <button onclick="bookRide()" class="w-full btn-primary text-white py-3.5 rounded-xl font-bold text-lg shadow-md flex items-center justify-center gap-2">
+            <button onclick="bookRide()" class="w-full btn-primary text-white py-3.5 rounded-xl font-bold text-lg flex items-center justify-center gap-2">
                 <i class="fas fa-search"></i> Tìm tài xế gần nhất
             </button>
             <button onclick="closeBookingModal()" class="w-full mt-2 py-2 text-gray-500 text-sm font-medium">Hủy</button>
-        </div>
-    </div>
-
-    <!-- MODAL ĐÁNH GIÁ -->
-    <div id="ratingModal" class="modal-overlay">
-        <div class="modal-container p-5 text-center">
-            <div class="gradient-bg -mx-5 -mt-5 px-5 py-4 mb-4">
-                <h3 class="text-white font-bold">🎉 Đánh giá chuyến đi</h3>
-            </div>
-            <p class="text-gray-600 mb-2">Bạn cảm thấy thế nào về tài xế?</p>
-            <div class="flex justify-center gap-2 my-4" id="ratingStars">
-                <i class="far fa-star rating-star" data-rating="1"></i>
-                <i class="far fa-star rating-star" data-rating="2"></i>
-                <i class="far fa-star rating-star" data-rating="3"></i>
-                <i class="far fa-star rating-star" data-rating="4"></i>
-                <i class="far fa-star rating-star" data-rating="5"></i>
-            </div>
-            <textarea id="ratingComment" placeholder="Nhận xét của bạn (không bắt buộc)" class="w-full p-3 border border-gray-200 rounded-xl mb-4 bg-gray-50 text-sm" rows="2"></textarea>
-            <button onclick="submitRating()" class="w-full btn-primary text-white py-3 rounded-xl font-bold">Gửi đánh giá</button>
-            <button onclick="closeRatingModal()" class="w-full mt-2 py-2 text-gray-500 text-sm">Để sau</button>
         </div>
     </div>
 
@@ -246,7 +207,7 @@
         <div class="modal-container" style="height: 70vh; display: flex; flex-direction: column;">
             <div class="gradient-bg px-5 py-4 flex justify-between items-center">
                 <div class="flex items-center gap-2"><i class="fas fa-comment-dots text-white"></i><span class="font-bold text-white">Nhắn với tài xế</span></div>
-                <button onclick="closeChatModal()" class="text-white text-2xl leading-none">&times;</button>
+                <button onclick="closeChatModal()" class="text-white text-2xl">&times;</button>
             </div>
             <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50"></div>
             <div class="p-3 bg-white border-t flex gap-2">
@@ -259,7 +220,7 @@
     <div id="toast" class="toast-custom"></div>
 
     <script>
-        // ==================== FIREBASE ====================
+        // ==================== FIREBASE CONFIG ====================
         const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
         if (!firebase.apps.length) firebase.initializeApp({ databaseURL: FIREBASE_URL });
         const db = firebase.database();
@@ -274,24 +235,42 @@
         let routeLine = null;
         let currentChatBookingId = null;
         let chatListener = null;
-        let orderListener = null;
-        let pendingRatingBooking = null;
+        let bookingListener = null;
         
         let currentLat = 10.8231, currentLng = 106.6297;
+
+        // ==================== HÀM TIỆN ÍCH ====================
+        function showToast(msg, isErr = false) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.background = isErr ? '#e74c3c' : '#1e293b';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function escapeHtml(s) {
+            if (!s) return '';
+            return String(s).replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]));
+        }
 
         // Lấy vị trí hiện tại
         function getCurrentLocation() {
             return new Promise((resolve) => {
                 if ('geolocation' in navigator) {
                     navigator.geolocation.getCurrentPosition(
-                        (pos) => { currentLat = pos.coords.latitude; currentLng = pos.coords.longitude; resolve({ lat: currentLat, lng: currentLng }); },
-                        () => resolve({ lat: currentLat, lng: currentLng })
+                        (pos) => { 
+                            currentLat = pos.coords.latitude; 
+                            currentLng = pos.coords.longitude; 
+                            resolve({ lat: currentLat, lng: currentLng }); 
+                        },
+                        () => resolve({ lat: currentLat, lng: currentLng }),
+                        { enableHighAccuracy: true, timeout: 10000 }
                     );
                 } else resolve({ lat: currentLat, lng: currentLng });
             });
         }
 
-        // Haversine
+        // Tính khoảng cách Haversine
         function haversine(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -300,19 +279,21 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // Geocode
+        // Geocode địa chỉ
         async function geocode(address) {
             if (!address) return null;
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`);
                 const data = await res.json();
-                if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-            } catch(e) {}
+                if (data && data[0]) {
+                    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                }
+            } catch(e) { console.warn('Geocode error:', e); }
             return null;
         }
 
-        // Ước tính khoảng cách và giá
-        async function estimateRide() {
+        // Ước tính giá
+        async function estimatePrice() {
             const pickup = document.getElementById('bookPickup').value.trim();
             const dropoff = document.getElementById('bookDropoff').value.trim();
             if (!pickup || !dropoff) return;
@@ -323,90 +304,89 @@
                 const dist = haversine(p1.lat, p1.lng, p2.lat, p2.lng);
                 const price = Math.round(dist * 12000 + 15000);
                 document.getElementById('estDistance').innerText = dist.toFixed(1);
-                document.getElementById('estDuration').innerText = Math.round(dist * 2);
                 document.getElementById('estPrice').innerHTML = price.toLocaleString() + 'đ';
             }
         }
 
-        // Đăng nhập
-        function doLogin() {
-            const phone = document.getElementById('loginPhone').value.trim();
-            if (!phone || phone.length < 9) { showToast('Nhập số điện thoại hợp lệ', true); return; }
+        // ==================== AUTH ====================
+        function doAuth() {
+            const phone = document.getElementById('authPhone').value.trim();
+            const name = document.getElementById('authName').value.trim();
+            
+            if (!phone || phone.length < 9) {
+                showToast('Vui lòng nhập số điện thoại hợp lệ', true);
+                return;
+            }
+            
+            const finalName = name || 'Quý khách';
+            
+            // Kiểm tra user đã tồn tại trong Firebase chưa
             db.ref('customers').orderByChild('phone').equalTo(phone).once('value', (snap) => {
                 if (snap.exists()) {
                     let user = null;
                     snap.forEach((s) => { user = { id: s.key, ...s.val() }; });
                     currentUser = user;
-                    localStorage.setItem('xg_user', JSON.stringify(user));
-                    document.getElementById('authScreen').style.display = 'none';
-                    document.getElementById('mainApp').style.display = 'block';
-                    document.getElementById('welcomeUser').innerHTML = `👋 Chào ${user.name || user.phone}`;
-                    loadMyBookings();
-                    initMap();
-                    showToast('Đăng nhập thành công!');
                 } else {
-                    document.getElementById('loginForm').style.display = 'none';
-                    document.getElementById('regForm').style.display = 'block';
-                    document.getElementById('regPhone').value = phone;
+                    // Tạo user mới
+                    const newUser = { name: finalName, phone: phone, createdAt: Date.now() };
+                    const newRef = db.ref('customers').push(newUser);
+                    currentUser = { id: newRef.key, ...newUser };
                 }
-            });
-        }
-
-        function doRegister() {
-            const name = document.getElementById('regName').value.trim();
-            const phone = document.getElementById('regPhone').value.trim();
-            if (!name || !phone) { showToast('Nhập đầy đủ thông tin', true); return; }
-            const newUser = { name, phone, createdAt: Date.now(), totalRides: 0, rating: 5 };
-            db.ref('customers').push(newUser).then((ref) => {
-                currentUser = { id: ref.key, ...newUser };
+                
                 localStorage.setItem('xg_user', JSON.stringify(currentUser));
                 document.getElementById('authScreen').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
-                document.getElementById('welcomeUser').innerHTML = `👋 Chào ${name}`;
-                loadMyBookings();
+                document.getElementById('welcomeUser').innerHTML = `👋 Chào ${currentUser.name}`;
+                loadBookings();
                 initMap();
-                showToast('Đăng ký thành công!');
+                showToast('Đăng nhập thành công!');
             });
         }
 
         function logout() {
             if (watchInterval) clearInterval(watchInterval);
-            if (orderListener) orderListener.off();
+            if (bookingListener) bookingListener.off();
+            if (chatListener) chatListener.off();
             localStorage.removeItem('xg_user');
             currentUser = null;
             document.getElementById('authScreen').style.display = 'flex';
             document.getElementById('mainApp').style.display = 'none';
-            document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('regForm').style.display = 'none';
-            document.getElementById('loginPhone').value = '';
+            document.getElementById('authPhone').value = '';
+            document.getElementById('authName').value = '';
         }
 
-        function showToast(msg, isErr = false) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.style.background = isErr ? '#e74c3c' : '#1e293b';
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
-        }
-
-        // ĐẶT XE - TỰ ĐỘNG TÌM TÀI XẾ GẦN NHẤT
+        // ==================== ĐẶT XE ====================
         async function bookRide() {
+            if (!currentUser) { showToast('Vui lòng đăng nhập', true); return; }
+            
             const pickup = document.getElementById('bookPickup').value.trim();
             const dropoff = document.getElementById('bookDropoff').value.trim();
             const departureTime = document.getElementById('bookDeparture').value;
             const seats = parseInt(document.getElementById('bookSeats').value);
             const carType = document.getElementById('bookCarType').value;
             
-            if (!pickup || !dropoff || !departureTime) { showToast('Vui lòng nhập đầy đủ thông tin', true); return; }
+            if (!pickup || !dropoff || !departureTime) {
+                showToast('Vui lòng nhập đầy đủ thông tin', true);
+                return;
+            }
             
             showToast('🔍 Đang tìm tài xế gần nhất...');
             closeBookingModal();
             
+            // Lấy vị trí khách hàng
             const customerLoc = await getCurrentLocation();
+            
+            // Geocode điểm đón và điểm đến
             const pickupGeo = await geocode(pickup);
             const dropoffGeo = await geocode(dropoff);
-            const distance = pickupGeo && dropoffGeo ? haversine(pickupGeo.lat, pickupGeo.lng, dropoffGeo.lat, dropoffGeo.lng) : 5;
-            const estPrice = Math.round(distance * 12000 + 15000);
+            
+            if (!pickupGeo) {
+                showToast('Không xác định được điểm đón, vui lòng nhập chính xác hơn', true);
+                return;
+            }
+            
+            const estDistance = pickupGeo && dropoffGeo ? haversine(pickupGeo.lat, pickupGeo.lng, dropoffGeo.lat, dropoffGeo.lng) : 5;
+            const estPrice = Math.round(estDistance * 12000 + 15000);
             
             // Tìm tài xế online gần nhất
             const driversSnap = await db.ref('tai_xe_online').once('value');
@@ -414,22 +394,19 @@
             let nearestDriver = null;
             let minDist = Infinity;
             
-            for (let id in drivers) {
-                const d = drivers[id];
-                if (d.online !== true && d.online !== undefined) continue;
-                if (d.status === 'busy') continue;
-                if (d.lat && d.lng) {
-                    const dist = haversine(customerLoc.lat, customerLoc.lng, d.lat, d.lng);
-                    if (dist < minDist && dist < 15) {
-                        minDist = dist;
-                        nearestDriver = { id, ...d, distance: dist };
+            if (drivers) {
+                for (let id in drivers) {
+                    const d = drivers[id];
+                    if (d.online !== true && d.online !== undefined) continue;
+                    if (d.status === 'busy') continue;
+                    if (d.lat && d.lng) {
+                        const dist = haversine(customerLoc.lat, customerLoc.lng, d.lat, d.lng);
+                        if (dist < minDist && dist < 15) {
+                            minDist = dist;
+                            nearestDriver = { id, ...d, distance: dist };
+                        }
                     }
                 }
-            }
-            
-            if (!nearestDriver) {
-                showToast('⚠️ Hiện không có tài xế nào gần bạn. Vui lòng thử lại sau!', true);
-                return;
             }
             
             // Tạo booking
@@ -439,19 +416,19 @@
                 customerPhone: currentUser.phone,
                 pickup: pickup,
                 dropoff: dropoff,
-                pickupLat: pickupGeo?.lat || null,
-                pickupLng: pickupGeo?.lng || null,
+                pickupLat: pickupGeo.lat,
+                pickupLng: pickupGeo.lng,
                 dropoffLat: dropoffGeo?.lat || null,
                 dropoffLng: dropoffGeo?.lng || null,
                 departureTime: departureTime.replace('T', ' ') + ':00',
                 seats: seats,
                 carType: carType,
                 estPrice: estPrice,
-                estDistance: distance,
-                driverId: nearestDriver.id,
-                driverName: nearestDriver.name || 'Tài xế',
-                driverPhone: nearestDriver.phone || '',
-                status: 'waiting',
+                estDistance: estDistance,
+                driverId: nearestDriver?.id || null,
+                driverName: nearestDriver?.name || 'Đang tìm tài xế',
+                driverPhone: nearestDriver?.phone || '',
+                status: nearestDriver ? 'accepted' : 'waiting',
                 createdAt: Date.now(),
                 customerLat: customerLoc.lat,
                 customerLng: customerLoc.lng
@@ -460,82 +437,88 @@
             const bookingRef = await db.ref('xg_bookings').push(booking);
             booking.id = bookingRef.key;
             
-            // Gửi thông báo cho tài xế
-            await db.ref(`driver_notifications/${nearestDriver.id}`).push({
-                type: 'new_booking',
-                bookingId: booking.id,
-                customerName: currentUser.name,
-                customerPhone: currentUser.phone,
-                pickup: pickup,
-                dropoff: dropoff,
-                seats: seats,
-                estPrice: estPrice,
-                timestamp: Date.now()
-            });
-            
-            showToast(`✅ Đã đặt xe thành công! Tài xế ${nearestDriver.name} sẽ đến đón bạn.`);
-            loadMyBookings();
-            startTracking(booking);
-        }
-        
-        // Tải danh sách booking
-        async function loadMyBookings() {
-            if (!currentUser) return;
-            const snap = await db.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id).once('value');
-            const data = snap.val();
-            const container = document.getElementById('myRidesList');
-            if (!data) { container.innerHTML = '<div class="text-center text-gray-400 py-10"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p class="text-sm">Bạn chưa có chuyến nào</p><p class="text-xs mt-1">Bấm nút + để đặt xe</p></div>'; return; }
-            
-            let bookings = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-            bookings.sort((a,b) => b.createdAt - a.createdAt);
-            
-            let html = '';
-            for (let b of bookings) {
-                const statusMap = { waiting: '⏳ Đang tìm', accepted: '✅ Đã nhận', arrived: '📍 Đã đến đón', completed: '🏁 Hoàn thành', cancelled: '❌ Đã hủy' };
-                const statusText = statusMap[b.status] || b.status;
-                const statusClass = { waiting: 'status-waiting', accepted: 'status-accepted', arrived: 'status-arrived', completed: 'status-completed', cancelled: 'status-cancelled' }[b.status] || 'status-waiting';
-                const showTrack = b.status === 'accepted' || b.status === 'arrived';
-                const showRating = b.status === 'completed' && !b.rated;
-                
-                html += `
-                    <div class="booking-card p-4">
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="flex-1">
-                                <div class="font-semibold text-gray-800 text-sm">${escapeHtml(b.pickup)} → ${escapeHtml(b.dropoff)}</div>
-                                <div class="text-xs text-gray-400 mt-1"><i class="far fa-clock"></i> ${b.departureTime} | ${b.seats} ghế</div>
-                            </div>
-                            <span class="status-badge ${statusClass}">${statusText}</span>
-                        </div>
-                        <div class="flex justify-between items-center mt-3">
-                            <div class="text-xs text-gray-500"><i class="fas fa-user-circle"></i> ${b.driverName || 'Đang tìm...'}</div>
-                            <div class="flex gap-2">
-                                ${showTrack ? `<button onclick="startTrackingFromBooking('${b.id}')" class="text-[#00b4aa] text-xs font-semibold"><i class="fas fa-map-marked-alt"></i> Theo dõi</button>` : ''}
-                                ${showRating ? `<button onclick="openRatingModal('${b.id}', '${b.driverId}')" class="text-yellow-500 text-xs font-semibold"><i class="fas fa-star"></i> Đánh giá</button>` : ''}
-                                ${b.status === 'waiting' ? `<button onclick="cancelBooking('${b.id}')" class="text-red-500 text-xs font-semibold"><i class="fas fa-times"></i> Hủy</button>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
+            // Nếu có tài xế, thông báo cho tài xế
+            if (nearestDriver) {
+                await db.ref(`driver_notifications/${nearestDriver.id}`).push({
+                    type: 'new_booking',
+                    bookingId: booking.id,
+                    customerName: currentUser.name,
+                    customerPhone: currentUser.phone,
+                    pickup: pickup,
+                    dropoff: dropoff,
+                    seats: seats,
+                    estPrice: estPrice,
+                    timestamp: Date.now()
+                });
+                showToast(`✅ Đã đặt xe thành công! Tài xế ${nearestDriver.name} sẽ đến đón bạn.`);
+                startTracking(booking);
+            } else {
+                showToast('✅ Đã gửi yêu cầu, đang chờ tài xế nhận chuyến...');
             }
-            container.innerHTML = html;
             
-            // Lắng nghe thay đổi trạng thái realtime
-            if (orderListener) orderListener.off();
-            orderListener = db.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id);
-            orderListener.on('child_changed', (snap) => {
-                const updated = snap.val();
-                if (updated.status === 'completed' && !updated.rated && currentBooking?.id === snap.key) {
-                    openRatingModal(snap.key, updated.driverId);
+            loadBookings();
+        }
+        
+        // ==================== QUẢN LÝ BOOKING ====================
+        function loadBookings() {
+            if (!currentUser) return;
+            
+            db.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id).once('value', (snap) => {
+                const data = snap.val();
+                const container = document.getElementById('myRidesList');
+                
+                if (!data) {
+                    container.innerHTML = '<div class="text-center text-gray-400 py-10"><i class="fas fa-inbox text-4xl mb-2 opacity-50"></i><p class="text-sm">Bạn chưa có chuyến nào</p><p class="text-xs mt-1">Bấm nút + để đặt xe</p></div>';
+                    return;
                 }
-                loadMyBookings();
-                if (currentBooking && currentBooking.id === snap.key && updated.status === 'completed') {
-                    stopTracking();
-                    showToast('🎉 Chuyến đi đã hoàn thành! Cảm ơn bạn.');
+                
+                let bookings = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+                bookings.sort((a,b) => b.createdAt - a.createdAt);
+                
+                let html = '';
+                for (let b of bookings) {
+                    const statusMap = { waiting: '⏳ Đang tìm', accepted: '✅ Đã nhận', arrived: '📍 Đã đến đón', completed: '🏁 Hoàn thành', cancelled: '❌ Đã hủy' };
+                    const statusText = statusMap[b.status] || b.status;
+                    const statusClass = { waiting: 'status-waiting', accepted: 'status-accepted', arrived: 'status-arrived', completed: 'status-completed', cancelled: 'status-cancelled' }[b.status] || 'status-waiting';
+                    const showTrack = b.status === 'accepted' || b.status === 'arrived';
+                    const showCancel = b.status === 'waiting' || b.status === 'accepted';
+                    
+                    html += `
+                        <div class="booking-card p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex-1">
+                                    <div class="font-semibold text-gray-800 text-sm">${escapeHtml(b.pickup)} → ${escapeHtml(b.dropoff)}</div>
+                                    <div class="text-xs text-gray-400 mt-1"><i class="far fa-clock"></i> ${b.departureTime} | ${b.seats} ghế</div>
+                                </div>
+                                <span class="status-badge ${statusClass} px-2 py-1 rounded-full text-xs font-semibold">${statusText}</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-3">
+                                <div class="text-xs text-gray-500"><i class="fas fa-user-circle"></i> ${escapeHtml(b.driverName)}</div>
+                                <div class="flex gap-2">
+                                    ${showTrack ? `<button onclick="startTrackingFromId('${b.id}')" class="text-[#00b4aa] text-xs font-semibold"><i class="fas fa-map-marked-alt"></i> Theo dõi</button>` : ''}
+                                    ${showCancel ? `<button onclick="cancelBooking('${b.id}')" class="text-red-500 text-xs font-semibold"><i class="fas fa-times"></i> Hủy</button>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                container.innerHTML = html;
+            });
+            
+            // Lắng nghe thay đổi realtime
+            if (bookingListener) bookingListener.off();
+            bookingListener = db.ref('xg_bookings').orderByChild('customerId').equalTo(currentUser.id);
+            bookingListener.on('child_changed', (snap) => {
+                const updated = snap.val();
+                loadBookings();
+                if (currentBooking && currentBooking.id === snap.key && updated.status === 'accepted') {
+                    showToast(`🚖 Tài xế ${updated.driverName} đã nhận chuyến!`);
+                    startTracking({ id: snap.key, ...updated });
                 }
             });
         }
         
-        async function startTrackingFromBooking(bookingId) {
+        async function startTrackingFromId(bookingId) {
             const snap = await db.ref(`xg_bookings/${bookingId}`).once('value');
             const booking = snap.val();
             if (booking) startTracking({ id: bookingId, ...booking });
@@ -549,31 +532,40 @@
             document.getElementById('trackDriverName').innerHTML = `<i class="fas fa-user-circle"></i> ${booking.driverName}`;
             document.getElementById('trackRoute').innerHTML = `${booking.pickup} → ${booking.dropoff}`;
             document.getElementById('trackCallBtn').href = `tel:${booking.driverPhone}`;
+            
             if (watchInterval) clearInterval(watchInterval);
-            watchDriverLocation(booking.driverId, booking.pickup);
+            watchDriverLocation(booking);
         }
         
-        function watchDriverLocation(driverId, pickupAddress) {
-            if (!driverId) return;
+        function watchDriverLocation(booking) {
+            if (!booking.driverId) return;
+            
             watchInterval = setInterval(async () => {
-                const snap = await db.ref(`tai_xe_online/${driverId}`).once('value');
-                const loc = snap.val();
-                if (loc && loc.lat && loc.lng) {
+                const snap = await db.ref(`tai_xe_online/${booking.driverId}`).once('value');
+                const driverLoc = snap.val();
+                
+                if (driverLoc && driverLoc.lat && driverLoc.lng && booking.customerLat && booking.customerLng) {
                     if (!driverMarker) {
-                        const icon = L.divIcon({ html: '<div class="driver-marker flex items-center justify-center">🚐</div>', className: '', iconSize: [48,48], iconAnchor: [24,24] });
-                        driverMarker = L.marker([loc.lat, loc.lng], { icon }).addTo(map);
-                    } else driverMarker.setLatLng([loc.lat, loc.lng]);
-                    
-                    const pickupCoord = await geocode(pickupAddress);
-                    if (pickupCoord && currentBooking?.pickupLat && currentBooking?.pickupLng) {
-                        const dist = haversine(loc.lat, loc.lng, currentBooking.pickupLat, currentBooking.pickupLng);
-                        document.getElementById('distanceRemain').innerHTML = `Còn ${dist.toFixed(1)} km`;
-                        const percent = Math.min(100, (dist / 10) * 100);
-                        document.getElementById('distanceFill').style.width = `${100 - percent}%`;
-                        if (routeLine) map.removeLayer(routeLine);
-                        routeLine = L.polyline([[loc.lat, loc.lng], [currentBooking.pickupLat, currentBooking.pickupLng]], { color: '#00b4aa', weight: 4, dashArray: '8,8' }).addTo(map);
-                        map.fitBounds(L.latLngBounds([[loc.lat, loc.lng], [currentBooking.pickupLat, currentBooking.pickupLng]]).pad(0.2));
+                        const icon = L.divIcon({ 
+                            html: '<div class="driver-marker flex items-center justify-center">🚐</div>', 
+                            className: '', iconSize: [48,48], iconAnchor: [24,24] 
+                        });
+                        driverMarker = L.marker([driverLoc.lat, driverLoc.lng], { icon }).addTo(map);
+                    } else {
+                        driverMarker.setLatLng([driverLoc.lat, driverLoc.lng]);
                     }
+                    
+                    const dist = haversine(driverLoc.lat, driverLoc.lng, booking.customerLat, booking.customerLng);
+                    document.getElementById('distanceRemain').innerHTML = `Còn ${dist.toFixed(1)} km`;
+                    const percent = Math.min(100, (dist / 10) * 100);
+                    document.getElementById('distanceFill').style.width = `${100 - percent}%`;
+                    
+                    if (routeLine) map.removeLayer(routeLine);
+                    routeLine = L.polyline([[driverLoc.lat, driverLoc.lng], [booking.customerLat, booking.customerLng]], { 
+                        color: '#00b4aa', weight: 4, dashArray: '8,8' 
+                    }).addTo(map);
+                    
+                    map.fitBounds(L.latLngBounds([[driverLoc.lat, driverLoc.lng], [booking.customerLat, booking.customerLng]]).pad(0.2));
                 }
             }, 3000);
         }
@@ -588,68 +580,31 @@
         
         async function cancelBooking(bookingId) {
             if (confirm('Bạn có chắc muốn hủy chuyến này?')) {
+                const snap = await db.ref(`xg_bookings/${bookingId}`).once('value');
+                const booking = snap.val();
+                if (booking && booking.driverId) {
+                    await db.ref(`tai_xe_online/${booking.driverId}`).update({ status: 'ready', orderId: null });
+                }
                 await db.ref(`xg_bookings/${bookingId}`).update({ status: 'cancelled', cancelledAt: Date.now() });
                 showToast('Đã hủy chuyến');
-                loadMyBookings();
+                loadBookings();
+                if (currentBooking && currentBooking.id === bookingId) stopTracking();
             }
         }
         
-        // Đánh giá
-        let selectedRating = 0;
-        let ratingBookingId = null;
-        let ratingDriverId = null;
-        
-        function openRatingModal(bookingId, driverId) {
-            ratingBookingId = bookingId;
-            ratingDriverId = driverId;
-            selectedRating = 0;
-            document.querySelectorAll('.rating-star').forEach(star => {
-                star.classList.remove('active');
-                star.classList.add('far');
-                star.classList.remove('fas');
-            });
-            document.getElementById('ratingComment').value = '';
-            document.getElementById('ratingModal').style.display = 'flex';
-            
-            document.querySelectorAll('.rating-star').forEach(star => {
-                star.onclick = () => {
-                    const rating = parseInt(star.dataset.rating);
-                    selectedRating = rating;
-                    document.querySelectorAll('.rating-star').forEach(s => {
-                        const r = parseInt(s.dataset.rating);
-                        if (r <= rating) {
-                            s.classList.add('active', 'fas');
-                            s.classList.remove('far');
-                        } else {
-                            s.classList.remove('active', 'fas');
-                            s.classList.add('far');
-                        }
-                    });
-                };
-            });
-        }
-        
-        async function submitRating() {
-            if (selectedRating === 0) { showToast('Vui lòng chọn số sao', true); return; }
-            const comment = document.getElementById('ratingComment').value.trim();
-            await db.ref(`xg_bookings/${ratingBookingId}`).update({ rated: true, rating: selectedRating, ratingComment: comment, ratedAt: Date.now() });
-            await db.ref(`drivers/${ratingDriverId}/ratings`).push({ customerId: currentUser.id, rating: selectedRating, comment: comment, timestamp: Date.now() });
-            showToast('Cảm ơn bạn đã đánh giá!');
-            closeRatingModal();
-            loadMyBookings();
-        }
-        
-        function closeRatingModal() { document.getElementById('ratingModal').style.display = 'none'; }
-        
-        // Chat
+        // ==================== CHAT ====================
         function openChatWithDriver() {
             if (!currentBooking) { showToast('Chưa có chuyến nào được chọn', true); return; }
             currentChatBookingId = currentBooking.id;
             document.getElementById('chatModal').style.display = 'flex';
             document.getElementById('chatMessages').innerHTML = '';
-            if (chatListener) db.ref(`chat_xg/${currentChatBookingId}`).off();
+            
+            if (chatListener) chatListener.off();
             chatListener = db.ref(`chat_xg/${currentChatBookingId}`);
-            chatListener.on('child_added', (snap) => { appendChat(snap.val()); });
+            chatListener.on('child_added', (snap) => {
+                const msg = snap.val();
+                if (msg) appendChat(msg);
+            });
         }
         
         function appendChat(msg) {
@@ -668,7 +623,6 @@
             if (!text || !currentChatBookingId) return;
             const msg = { sender: 'customer', senderName: currentUser.name, text, timestamp: Date.now() };
             db.ref(`chat_xg/${currentChatBookingId}`).push(msg);
-            appendChat(msg);
             input.value = '';
         }
         
@@ -677,80 +631,102 @@
             if (chatListener) { chatListener.off(); chatListener = null; }
         }
         
-        // Map
+        // ==================== BẢN ĐỒ ====================
         function initMap() {
             if (map) return;
             map = L.map('map').setView([currentLat, currentLng], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-            const customerIcon = L.divIcon({ html: '<div class="customer-marker flex items-center justify-center">📍</div>', className: '', iconSize: [40,40], iconAnchor: [20,20] });
-            customerMarker = L.marker([currentLat, currentLng], { icon: customerIcon }).addTo(map);
-            getCurrentLocation().then(loc => { map.setView([loc.lat, loc.lng], 15); customerMarker.setLatLng([loc.lat, loc.lng]); });
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org">OSM</a>'
+            }).addTo(map);
+            
+            const icon = L.divIcon({ 
+                html: '<div class="customer-marker flex items-center justify-center">📍</div>', 
+                className: '', iconSize: [40,40], iconAnchor: [20,20] 
+            });
+            customerMarker = L.marker([currentLat, currentLng], { icon }).addTo(map);
+            
+            getCurrentLocation().then(loc => {
+                map.setView([loc.lat, loc.lng], 15);
+                customerMarker.setLatLng([loc.lat, loc.lng]);
+            });
         }
         
         function locateMe() {
-            getCurrentLocation().then(loc => { map.setView([loc.lat, loc.lng], 15); customerMarker.setLatLng([loc.lat, loc.lng]); showToast('Đã cập nhật vị trí'); });
+            getCurrentLocation().then(loc => {
+                map.setView([loc.lat, loc.lng], 15);
+                customerMarker.setLatLng([loc.lat, loc.lng]);
+                showToast('Đã cập nhật vị trí của bạn');
+            });
         }
         
-        // UI
+        // ==================== UI ====================
         function switchTab(tab) {
             const listView = document.getElementById('myRidesView');
             const mapView = document.getElementById('mapView');
             const listBtn = document.getElementById('tabListBtn');
             const mapBtn = document.getElementById('tabMapBtn');
+            
             if (tab === 'myrides') {
-                listView.classList.remove('hidden'); mapView.classList.add('hidden');
-                listBtn.style.background = '#00b4aa'; listBtn.style.color = 'white';
-                mapBtn.style.background = 'white'; mapBtn.style.color = '#6c757d';
-                stopTracking(); loadMyBookings();
+                listView.classList.remove('hidden');
+                mapView.classList.add('hidden');
+                listBtn.style.background = '#00b4aa';
+                listBtn.style.color = 'white';
+                mapBtn.style.background = 'white';
+                mapBtn.style.color = '#6c757d';
+                stopTracking();
+                loadBookings();
             } else {
-                listView.classList.add('hidden'); mapView.classList.remove('hidden');
-                mapBtn.style.background = '#00b4aa'; mapBtn.style.color = 'white';
-                listBtn.style.background = 'white'; listBtn.style.color = '#6c757d';
-                if (!map) initMap(); else { map.invalidateSize(); }
+                listView.classList.add('hidden');
+                mapView.classList.remove('hidden');
+                mapBtn.style.background = '#00b4aa';
+                mapBtn.style.color = 'white';
+                listBtn.style.background = 'white';
+                listBtn.style.color = '#6c757d';
+                if (!map) initMap();
+                else map.invalidateSize();
             }
         }
         
-        function refreshData() { loadMyBookings(); showToast('Đã làm mới dữ liệu'); }
-        function showHelp() { alert('🚖 HƯỚNG DẪN SỬ DỤNG\n\n1. Bấm nút + để đặt xe\n2. Nhập điểm đón, điểm đến, giờ đi\n3. Hệ thống tự tìm tài xế gần nhất\n4. Theo dõi tài xế trên bản đồ\n5. Nhắn tin, gọi điện trực tiếp\n6. Đánh giá tài xế sau chuyến đi'); }
-        function openBookingModal() { 
-            document.getElementById('bookingModal').style.display = 'flex'; 
+        function refreshData() { loadBookings(); showToast('Đã làm mới dữ liệu'); }
+        
+        function showHelp() {
+            alert('🚖 HƯỚNG DẪN SỬ DỤNG\n\n1. Bấm nút + để đặt xe\n2. Nhập điểm đón, điểm đến, giờ đi\n3. Hệ thống tự tìm tài xế gần nhất\n4. Theo dõi tài xế trên bản đồ\n5. Nhắn tin, gọi điện trực tiếp với tài xế\n6. Hủy chuyến nếu cần');
+        }
+        
+        function openBookingModal() {
+            document.getElementById('bookingModal').style.display = 'flex';
             const now = new Date();
             const localDatetime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
             document.getElementById('bookDeparture').value = localDatetime;
-            document.getElementById('bookPickup').value = '';
-            document.getElementById('bookDropoff').value = '';
             document.getElementById('estDistance').innerHTML = '--';
-            document.getElementById('estDuration').innerHTML = '--';
             document.getElementById('estPrice').innerHTML = '--đ';
         }
+        
         function closeBookingModal() { document.getElementById('bookingModal').style.display = 'none'; }
-        function setSuggestion(place) {
-            const pickup = document.getElementById('bookPickup');
-            if (pickup.value.trim() === '') pickup.value = place;
-            else document.getElementById('bookDropoff').value = place;
-            estimateRide();
+        
+        function setSuggestion(field, value) {
+            document.getElementById(field === 'pickup' ? 'bookPickup' : 'bookDropoff').value = value;
+            estimatePrice();
         }
         
-        function escapeHtml(s) { return s ? String(s).replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])) : ''; }
-        
-        // Khôi phục session
-        const saved = localStorage.getItem('xg_user');
-        if (saved) {
-            currentUser = JSON.parse(saved);
+        // ==================== KHỞI TẠO ====================
+        const savedUser = localStorage.getItem('xg_user');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
             document.getElementById('authScreen').style.display = 'none';
             document.getElementById('mainApp').style.display = 'block';
-            document.getElementById('welcomeUser').innerHTML = `👋 Chào ${currentUser.name || currentUser.phone}`;
-            loadMyBookings();
+            document.getElementById('welcomeUser').innerHTML = `👋 Chào ${currentUser.name}`;
+            loadBookings();
             initMap();
         }
         
         // Gán sự kiện
         document.getElementById('fabBookBtn')?.addEventListener('click', openBookingModal);
         document.getElementById('closeTrackingBtn')?.addEventListener('click', stopTracking);
-        document.getElementById('chatWithDriverBtn')?.addEventListener('click', openChatWithDriver);
+        document.getElementById('chatDriverBtn')?.addEventListener('click', openChatWithDriver);
         document.getElementById('locateBtn')?.addEventListener('click', locateMe);
-        document.getElementById('bookPickup')?.addEventListener('input', estimateRide);
-        document.getElementById('bookDropoff')?.addEventListener('input', estimateRide);
+        document.getElementById('bookPickup')?.addEventListener('input', estimatePrice);
+        document.getElementById('bookDropoff')?.addEventListener('input', estimatePrice);
     </script>
 </body>
 </html>
