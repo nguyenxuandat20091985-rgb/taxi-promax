@@ -2,76 +2,471 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taxi Promax - Tiện Chuyến</title>
-    <!-- Tailwind CSS cho giao diện đẹp -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Taxi Promax - Xe Ghép</title>
+    <!-- Tailwind CSS + Font Awesome -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDK -->
-    <script type="module" src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <style>
+        * {
+            user-select: none; /* tránh chọn nhầm trên mobile nhưng vẫn copy được text */
+        }
+        body {
+            background: #f0f4f8;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+        }
+        .card-hover {
+            transition: all 0.2s ease;
+        }
+        .card-hover:active {
+            transform: scale(0.99);
+        }
+        .bg-taxi-blue {
+            background-color: #0a5c8e;
+        }
+        .text-taxi-blue {
+            color: #0a5c8e;
+        }
+        .border-taxi-blue {
+            border-color: #0a5c8e;
+        }
+        .btn-primary {
+            background-color: #0a5c8e;
+            transition: all 0.2s;
+        }
+        .btn-primary:active {
+            background-color: #08466b;
+            transform: scale(0.97);
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0a5c8e;
+            border-radius: 10px;
+        }
+        input, select, textarea {
+            font-size: 16px; /* tránh zoom iOS */
+        }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans p-4">
+<body class="pb-24 antialiased">
 
-    <!-- Header -->
-    <header class="mb-6">
-        <h1 class="text-2xl font-bold text-blue-900">Xe Tiện Chuyến</h1>
-        <p class="text-gray-600">Kết nối nhanh - Chi phí thấp</p>
-    </header>
-
-    <!-- Form Đăng chuyến (Ẩn/Hiện bằng JS) -->
-    <div id="driver-form" class="bg-white p-6 rounded-2xl shadow-lg mb-6">
-        <h2 class="font-semibold mb-4">Đăng chuyến mới</h2>
-        <input type="text" id="route" placeholder="VD: Quảng Yên - Móng Cái" class="w-full p-3 border rounded-lg mb-2">
-        <div class="grid grid-cols-2 gap-2">
-            <select id="vehicle" class="p-3 border rounded-lg">
-                <option value="4-xang">4 chỗ Xăng</option>
-                <option value="4-dien">4 chỗ Điện</option>
-            </select>
-            <input type="number" id="seats" placeholder="Ghế trống" class="p-3 border rounded-lg">
+    <!-- HEADER -->
+    <div class="bg-taxi-blue shadow-lg rounded-b-3xl px-5 pt-8 pb-5 sticky top-0 z-10">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-white tracking-tight">
+                    <i class="fas fa-people-arrows mr-2"></i> Xe Ghép
+                </h1>
+                <p class="text-blue-100 text-sm mt-1">Chia sẻ chuyến đi, tiết kiệm chi phí</p>
+            </div>
+            <div class="bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs font-semibold">
+                <i class="fas fa-taxi mr-1"></i> Taxi Promax
+            </div>
         </div>
-        <button onclick="postRide()" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-xl font-bold">Đăng chuyến</button>
     </div>
 
-    <!-- Danh sách chuyến xe -->
-    <div id="ride-list" class="space-y-4">
-        <!-- Chuyến xe sẽ được render ở đây -->
+    <!-- TABS: Tài Xế & Hành Khách -->
+    <div class="max-w-3xl mx-auto px-4 mt-4">
+        <div class="flex bg-gray-200 p-1 rounded-2xl shadow-inner">
+            <button id="tabDriverBtn" class="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-taxi-blue text-white shadow-md">
+                <i class="fas fa-truck-moving"></i> Tài xế - Đăng chuyến
+            </button>
+            <button id="tabPassengerBtn" class="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 text-gray-600">
+                <i class="fas fa-users"></i> Hành khách - Tìm xe
+            </button>
+        </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-
-        // Cấu hình Firebase (Anh thay bằng config của anh)
-        const firebaseConfig = { /* Copy từ Firebase Console */ };
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        // Đăng chuyến
-        window.postRide = () => {
-            const rideData = {
-                route: document.getElementById('route').value,
-                vehicle: document.getElementById('vehicle').value,
-                seats: document.getElementById('seats').value,
-                timestamp: Date.now()
-            };
-            push(ref(db, 'shared_rides'), rideData);
-            alert("Đã đăng chuyến!");
-        };
-
-        // Lấy danh sách chuyến
-        onValue(ref(db, 'shared_rides'), (snapshot) => {
-            const list = document.getElementById('ride-list');
-            list.innerHTML = '';
-            snapshot.forEach((child) => {
-                const ride = child.val();
-                list.innerHTML += `
-                    <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-500">
-                        <h3 class="font-bold text-lg">${ride.route}</h3>
-                        <p class="text-sm text-gray-500">Loại xe: ${ride.vehicle} | Còn: ${ride.seats} chỗ</p>
-                        <button class="mt-2 w-full text-blue-600 border border-blue-600 py-2 rounded-lg font-semibold">Liên hệ tài xế</button>
+    <!-- ======================= GIAO DIỆN TÀI XẾ ======================= -->
+    <div id="driverPanel" class="max-w-3xl mx-auto px-4 mt-6 space-y-5">
+        <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-bold text-taxi-blue flex items-center gap-2">
+                    <i class="fas fa-plus-circle"></i> Đăng chuyến xe ghép
+                </h2>
+                <p class="text-xs text-gray-500 mt-0.5">Khách hàng sẽ liên hệ trực tiếp với bạn</p>
+            </div>
+            <div class="p-5 space-y-4">
+                <!-- 2 cột grid cho mobile/desktop -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-map-marker-alt text-red-500 mr-1"></i> Điểm đón *</label>
+                        <input type="text" id="pickup" placeholder="Ví dụ: Quảng Yên" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
                     </div>
-                `;
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-flag-checkered text-green-600 mr-1"></i> Điểm trả *</label>
+                        <input type="text" id="dropoff" placeholder="Ví dụ: Móng Cái" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="far fa-calendar-alt"></i> Giờ khởi hành *</label>
+                        <input type="datetime-local" id="departureTime" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-gas-pump"></i> Loại xe</label>
+                        <select id="vehicle" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white">
+                            <option value="4-xang">🚗 4 chỗ - Xăng</option>
+                            <option value="7-xang">🚙 7 chỗ - Xăng</option>
+                            <option value="4-dien">⚡ 4 chỗ - Điện</option>
+                            <option value="7-dien">🔋 7 chỗ - Điện</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-chair"></i> Số ghế còn *</label>
+                        <input type="number" id="seats" min="1" max="8" value="3" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-money-bill-wave"></i> Giá mỗi ghế (VNĐ) *</label>
+                        <input type="number" id="price" placeholder="250000" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-user"></i> Tên tài xế *</label>
+                        <input type="text" id="driverName" placeholder="Nguyễn Văn A" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1"><i class="fas fa-phone-alt"></i> Số điện thoại *</label>
+                        <input type="tel" id="phone" placeholder="0912345678" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-taxi-blue outline-none">
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <button id="publishRideBtn" class="w-full btn-primary text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 text-lg">
+                        <i class="fas fa-paper-plane"></i> Đăng chuyến
+                    </button>
+                </div>
+                <div id="driverMessage" class="text-sm text-center font-medium hidden transition-all"></div>
+            </div>
+        </div>
+
+        <!-- Hướng dẫn nhỏ cho tài xế -->
+        <div class="bg-blue-50 rounded-2xl p-3 text-xs text-blue-800 flex gap-2 items-start">
+            <i class="fas fa-info-circle mt-0.5"></i>
+            <span>📢 Khi khách hàng nhìn thấy chuyến, họ sẽ bấm số điện thoại để liên hệ trực tiếp với bạn. Không phát sinh đơn đặt xe qua hệ thống.</span>
+        </div>
+    </div>
+
+    <!-- ======================= GIAO DIỆN HÀNH KHÁCH ======================= -->
+    <div id="passengerPanel" class="max-w-3xl mx-auto px-4 mt-6 hidden">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-taxi text-taxi-blue"></i> Các chuyến xe ghép có sẵn
+            </h2>
+            <button id="refreshRidesBtn" class="bg-white p-2 rounded-full shadow text-taxi-blue">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+        <div id="ridesListContainer" class="space-y-4 pb-4">
+            <!-- Loading hoặc card sẽ được inject vào đây -->
+            <div class="bg-white rounded-2xl p-5 shadow text-center text-gray-500">
+                <i class="fas fa-spinner fa-pulse mr-2"></i> Đang tải danh sách chuyến...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ----------------------------- CẤU HÌNH FIREBASE ---------------------------------
+        // THAY THẾ BẰNG CONFIG CỦA DỰ ÁN THẬT (giữ nguyên cấu trúc)
+        // ĐẢM BẢO Realtime Database URL và rules tương thích shared_rides
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",               // ← NHẬP API KEY CỦA BẠN
+            authDomain: "YOUR_AUTH_DOMAIN",       // ← NHẬP AUTH DOMAIN
+            databaseURL: "https://YOUR_PROJECT.firebaseio.com",  // ← NHẬP DATABASE URL
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_BUCKET",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        // Khởi tạo Firebase (nếu chưa được khởi tạo)
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const database = firebase.database();
+        const sharedRidesRef = database.ref('shared_rides');
+
+        // Helper: Lấy timestamp server hoặc local cho phù hợp (dùng Date.now())
+        function getTimestamp() {
+            return Date.now();
+        }
+
+        // Helper hiển thị thông báo tài xế
+        function showDriverMessage(msg, isError = true) {
+            const msgDiv = document.getElementById('driverMessage');
+            msgDiv.innerText = msg;
+            msgDiv.classList.remove('hidden', 'text-green-600', 'text-red-500');
+            msgDiv.classList.add(isError ? 'text-red-500' : 'text-green-600');
+            setTimeout(() => {
+                msgDiv.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Validate và đăng chuyến (Tài xế)
+        async function publishRide() {
+            // Lấy dữ liệu từ form
+            const pickup = document.getElementById('pickup').value.trim();
+            const dropoff = document.getElementById('dropoff').value.trim();
+            const departureTimeRaw = document.getElementById('departureTime').value;
+            const vehicle = document.getElementById('vehicle').value;
+            let seats = parseInt(document.getElementById('seats').value);
+            let price = parseInt(document.getElementById('price').value);
+            const driverName = document.getElementById('driverName').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+
+            // Validation cơ bản
+            if (!pickup || !dropoff || !departureTimeRaw || !driverName || !phone || !seats || !price) {
+                showDriverMessage('❌ Vui lòng điền đầy đủ các trường bắt buộc (*)', true);
+                return;
+            }
+            if (isNaN(seats) || seats < 1) seats = 1;
+            if (isNaN(price) || price < 1000) {
+                showDriverMessage('💰 Giá ghế phải lớn hơn 0', true);
+                return;
+            }
+
+            // Format route hiển thị
+            const route = `${pickup} → ${dropoff}`;
+            // Định dạng lại departureTime cho đẹp (giữ nguyên string)
+            let departureTimeFormatted = departureTimeRaw.replace('T', ' ');
+            if (departureTimeFormatted.length === 16) departureTimeFormatted += ':00'; // bảo đảm có giây
+
+            // Tạo đối tượng chuyến đúng theo spec
+            const newRide = {
+                driverId: `driver_${Date.now()}_${Math.floor(Math.random() * 10000)}`, // simulate uid, không yêu cầu auth tuy nhiên vẫn đảm bảo unique
+                driverName: driverName,
+                phone: phone,
+                pickup: pickup,
+                dropoff: dropoff,
+                route: route,
+                departureTime: departureTimeFormatted,
+                vehicle: vehicle,
+                price: price,
+                seats: seats,
+                status: 'active',     // mặc định active
+                timestamp: getTimestamp()
+            };
+
+            // Ghi vào node shared_rides (rules write: auth != null, nhưng demo này cần đăng nhập hoặc để auth null? rules yêu cầu auth != null -> cần xác thực.
+            // Tuy nhiên để đúng spec và không phá luồng hiện tại, ta giả sử hệ thống có auth. Nếu chưa đăng nhập sẽ báo lỗi.
+            // Nhưng tài xế & khách đang dùng chung web, để đảm bảo không bị lỗi write, ta kiểm tra user đã đăng nhập chưa? 
+            // Thực tế rule shared_rides ghi "auth != null". Nếu chưa đăng nhập sẽ bị từ chối. Cần xử lý thông minh: báo tài xế đăng nhập.
+            // Nhưng vì không yêu cầu sửa module auth, ta kiểm tra currentUser.
+            const currentUser = firebase.auth().currentUser;
+            if (!currentUser) {
+                showDriverMessage('🔐 Bạn cần đăng nhập để đăng chuyến. Vui lòng đăng nhập vào Taxi Promax (auth required).', true);
+                return;
+            }
+            // Thêm driverId thật (uid từ auth)
+            newRide.driverId = currentUser.uid;
+
+            try {
+                // Push lên Firebase
+                const newRef = await sharedRidesRef.push(newRide);
+                showDriverMessage('✅ Đăng chuyến thành công! Hành khách sẽ thấy ngay.', false);
+                // Reset form (giữ lại tên & sđt cho tiện nếu muốn nhưng xoá các trường nhạy cảm)
+                document.getElementById('pickup').value = '';
+                document.getElementById('dropoff').value = '';
+                document.getElementById('departureTime').value = '';
+                document.getElementById('seats').value = '3';
+                document.getElementById('price').value = '';
+                document.getElementById('vehicle').value = '4-xang';
+                // Giữ lại driverName và phone nếu không muốn gõ lại nhưng đặt lại cũng được (tuỳ)
+                // document.getElementById('driverName').value = '';
+                // document.getElementById('phone').value = '';
+                // Có thể giữ lại để đăng nhanh chuyến khác:
+                // Nhưng theo UX để tránh nhầm thì không clear tên và phone
+            } catch (error) {
+                console.error(error);
+                showDriverMessage('❌ Lỗi khi đăng chuyến: ' + error.message, true);
+            }
+        }
+
+        // Lấy danh sách chuyến active và hiển thị cho hành khách, sắp xếp timestamp giảm dần (mới nhất đầu)
+        async function loadAndDisplayRides() {
+            const container = document.getElementById('ridesListContainer');
+            if (!container) return;
+            container.innerHTML = `<div class="bg-white rounded-2xl p-5 shadow text-center text-gray-500"><i class="fas fa-spinner fa-pulse mr-2"></i> Đang tải chuyến xe...</div>`;
+            
+            try {
+                // Truy vấn theo timestamp (orderByChild) theo đúng spec: orderByChild("timestamp")
+                const snapshot = await sharedRidesRef.orderByChild('timestamp').once('value');
+                const ridesData = snapshot.val();
+                if (!ridesData) {
+                    container.innerHTML = `<div class="bg-white rounded-2xl p-8 shadow text-center text-gray-400">
+                        <i class="fas fa-road fa-3x mb-2 opacity-50"></i>
+                        <p>Hiện chưa có chuyến xe ghép nào.<br>Hãy quay lại sau!</p>
+                    </div>`;
+                    return;
+                }
+                
+                // Chuyển object thành mảng và lọc status === 'active' (và full? active thôi, full vẫn hiển thị nếu còn ghế? spec: active mặc định, full chỉ khi ghế =0, nhưng ta sẽ hiển thị active)
+                let ridesArray = [];
+                for (let key in ridesData) {
+                    const ride = ridesData[key];
+                    // Chỉ hiển thị chuyến có status = active (full/completed/cancelled không hiển thị cho khách tìm xe)
+                    if (ride && ride.status === 'active') {
+                        ridesArray.push({ id: key, ...ride });
+                    }
+                }
+                
+                // Sắp xếp timestamp giảm dần (mới nhất trước) theo spec "Sắp xếp timestamp giảm dần"
+                ridesArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                
+                if (ridesArray.length === 0) {
+                    container.innerHTML = `<div class="bg-white rounded-2xl p-8 shadow text-center text-gray-400">
+                        <i class="fas fa-ban fa-3x mb-2"></i>
+                        <p>Không có chuyến xe nào đang hoạt động.</p>
+                    </div>`;
+                    return;
+                }
+                
+                // Render từng card
+                let html = '';
+                for (const ride of ridesArray) {
+                    // Xử lý hiển thị giá có dấu phân cách
+                    const formattedPrice = new Intl.NumberFormat('vi-VN').format(ride.price) + ' ₫';
+                    const seatsLeft = ride.seats || 0;
+                    const vehicleIcon = ride.vehicle === '4-xang' ? '🚗' : (ride.vehicle === '7-xang' ? '🚙' : (ride.vehicle === '4-dien' ? '⚡' : '🔋'));
+                    html += `
+                        <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 card-hover transition-all">
+                            <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fas fa-route text-taxi-blue text-lg"></i>
+                                        <span class="font-bold text-gray-800 text-md">${escapeHtml(ride.route || (ride.pickup + ' → ' + ride.dropoff))}</span>
+                                    </div>
+                                    <span class="bg-taxi-blue/10 text-taxi-blue text-[11px] font-semibold px-2 py-1 rounded-full">${vehicleIcon} ${ride.vehicle?.replace('-',' ') || 'Xe'}</span>
+                                </div>
+                            </div>
+                            <div class="p-4 space-y-2">
+                                <div class="flex items-start gap-3 text-sm">
+                                    <i class="fas fa-map-marker-alt text-red-400 mt-0.5 w-4"></i>
+                                    <span class="text-gray-700"><span class="font-medium">Đón:</span> ${escapeHtml(ride.pickup)}</span>
+                                </div>
+                                <div class="flex items-start gap-3 text-sm">
+                                    <i class="fas fa-location-dot text-green-600 mt-0.5 w-4"></i>
+                                    <span class="text-gray-700"><span class="font-medium">Trả:</span> ${escapeHtml(ride.dropoff)}</span>
+                                </div>
+                                <div class="flex items-start gap-3 text-sm">
+                                    <i class="far fa-clock text-blue-500 mt-0.5 w-4"></i>
+                                    <span class="text-gray-700"><span class="font-medium">Khởi hành:</span> ${escapeHtml(ride.departureTime || 'Chưa cập nhật')}</span>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                    <div class="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1 text-xs">
+                                        <i class="fas fa-chair text-amber-600"></i>
+                                        <span class="font-bold">${seatsLeft} ghế trống</span>
+                                    </div>
+                                    <div class="flex items-center gap-1 bg-green-50 rounded-full px-3 py-1 text-xs font-bold text-green-700">
+                                        <i class="fas fa-tag"></i> ${formattedPrice}/ghế
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between mt-2 pt-2 border-t border-dashed border-gray-200">
+                                    <div class="flex items-center gap-1 text-gray-600 text-xs">
+                                        <i class="fas fa-user-circle"></i> ${escapeHtml(ride.driverName || 'Tài xế')}
+                                    </div>
+                                    <a href="tel:${ride.phone}" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-5 rounded-xl shadow-md flex items-center gap-2 transition active:scale-95 text-sm">
+                                        <i class="fas fa-phone-alt"></i> Liên hệ
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                container.innerHTML = html;
+            } catch (error) {
+                console.error("Lỗi load rides:", error);
+                container.innerHTML = `<div class="bg-red-50 rounded-2xl p-5 text-red-600 text-center">⚠️ Không thể tải danh sách chuyến. Kiểm tra kết nối hoặc cấu hình Firebase.</div>`;
+            }
+        }
+
+        // Helper nhỏ để tránh XSS
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+                return c;
             });
+        }
+
+        // Quản lý tab Tài xế / Hành khách
+        function initTabs() {
+            const driverBtn = document.getElementById('tabDriverBtn');
+            const passengerBtn = document.getElementById('tabPassengerBtn');
+            const driverPanel = document.getElementById('driverPanel');
+            const passengerPanel = document.getElementById('passengerPanel');
+            
+            function setActiveTab(active) {
+                if (active === 'driver') {
+                    driverPanel.classList.remove('hidden');
+                    passengerPanel.classList.add('hidden');
+                    driverBtn.classList.add('bg-taxi-blue', 'text-white', 'shadow-md');
+                    driverBtn.classList.remove('text-gray-600', 'bg-transparent');
+                    passengerBtn.classList.remove('bg-taxi-blue', 'text-white', 'shadow-md');
+                    passengerBtn.classList.add('text-gray-600', 'bg-transparent');
+                } else {
+                    driverPanel.classList.add('hidden');
+                    passengerPanel.classList.remove('hidden');
+                    passengerBtn.classList.add('bg-taxi-blue', 'text-white', 'shadow-md');
+                    passengerBtn.classList.remove('text-gray-600', 'bg-transparent');
+                    driverBtn.classList.remove('bg-taxi-blue', 'text-white', 'shadow-md');
+                    driverBtn.classList.add('text-gray-600', 'bg-transparent');
+                    // Tải danh sách khi chuyển sang hành khách
+                    loadAndDisplayRides();
+                }
+            }
+            
+            driverBtn.addEventListener('click', () => setActiveTab('driver'));
+            passengerBtn.addEventListener('click', () => setActiveTab('passenger'));
+            
+            // Mặc định hiển thị tài xế (có thể tuỳ chỉnh, nhưng theo yêu cầu cả 2 đều quan trọng)
+            setActiveTab('driver');
+        }
+
+        // Kiểm tra trạng thái đăng nhập firebase và lắng nghe thay đổi để cập nhật message (không ảnh hưởng sâu)
+        function setupAuthListener() {
+            firebase.auth().onAuthStateChanged((user) => {
+                if (!user) {
+                    // Chỉ hiện cảnh báo nhưng không chặn xem danh sách, chỉ chặn đăng chuyến
+                    const driverMsgDiv = document.getElementById('driverMessage');
+                    if (driverMsgDiv && !driverMsgDiv.innerText.includes('đăng nhập')) {
+                        // có thể thông báo nhẹ ở tab tài xế, nhưng không ảnh hưởng load khách
+                        console.log("Chưa đăng nhập, không thể đăng chuyến");
+                    }
+                }
+            });
+        }
+
+        // Hàm khởi tạo tất cả sự kiện
+        function bindEvents() {
+            const publishBtn = document.getElementById('publishRideBtn');
+            if (publishBtn) publishBtn.addEventListener('click', publishRide);
+            const refreshBtn = document.getElementById('refreshRidesBtn');
+            if (refreshBtn) refreshBtn.addEventListener('click', () => loadAndDisplayRides());
+        }
+
+        // Khởi chạy toàn bộ
+        window.addEventListener('DOMContentLoaded', () => {
+            initTabs();
+            bindEvents();
+            setupAuthListener();
+            // Load sẵn dữ liệu cho passenger nếu tab đang active mặc định, nhưng mặc định là driver, vậy chỉ load khi sang tab
+            // Tuy nhiên để tăng trải nghiệm, nếu user muốn, nhưng không ảnh hưởng.
         });
     </script>
 </body>
