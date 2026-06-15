@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Promax - Tiện Chuyến</title>
+    <!-- Tailwind CSS cho giao diện đẹp -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
+</head>
+<body class="bg-gray-100 font-sans p-4">
+
+    <!-- Header -->
+    <header class="mb-6">
+        <h1 class="text-2xl font-bold text-blue-900">Xe Tiện Chuyến</h1>
+        <p class="text-gray-600">Kết nối nhanh - Chi phí thấp</p>
+    </header>
+
+    <!-- Form Đăng chuyến (Ẩn/Hiện bằng JS) -->
+    <div id="driver-form" class="bg-white p-6 rounded-2xl shadow-lg mb-6">
+        <h2 class="font-semibold mb-4">Đăng chuyến mới</h2>
+        <input type="text" id="route" placeholder="VD: Quảng Yên - Móng Cái" class="w-full p-3 border rounded-lg mb-2">
+        <div class="grid grid-cols-2 gap-2">
+            <select id="vehicle" class="p-3 border rounded-lg">
+                <option value="4-xang">4 chỗ Xăng</option>
+                <option value="4-dien">4 chỗ Điện</option>
+            </select>
+            <input type="number" id="seats" placeholder="Ghế trống" class="p-3 border rounded-lg">
+        </div>
+        <button onclick="postRide()" class="w-full mt-4 bg-blue-600 text-white p-3 rounded-xl font-bold">Đăng chuyến</button>
+    </div>
+
+    <!-- Danh sách chuyến xe -->
+    <div id="ride-list" class="space-y-4">
+        <!-- Chuyến xe sẽ được render ở đây -->
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+        // Cấu hình Firebase (Anh thay bằng config của anh)
+        const firebaseConfig = { /* Copy từ Firebase Console */ };
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Đăng chuyến
+        window.postRide = () => {
+            const rideData = {
+                route: document.getElementById('route').value,
+                vehicle: document.getElementById('vehicle').value,
+                seats: document.getElementById('seats').value,
+                timestamp: Date.now()
+            };
+            push(ref(db, 'shared_rides'), rideData);
+            alert("Đã đăng chuyến!");
+        };
+
+        // Lấy danh sách chuyến
+        onValue(ref(db, 'shared_rides'), (snapshot) => {
+            const list = document.getElementById('ride-list');
+            list.innerHTML = '';
+            snapshot.forEach((child) => {
+                const ride = child.val();
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-500">
+                        <h3 class="font-bold text-lg">${ride.route}</h3>
+                        <p class="text-sm text-gray-500">Loại xe: ${ride.vehicle} | Còn: ${ride.seats} chỗ</p>
+                        <button class="mt-2 w-full text-blue-600 border border-blue-600 py-2 rounded-lg font-semibold">Liên hệ tài xế</button>
+                    </div>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>
