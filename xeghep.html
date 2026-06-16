@@ -274,6 +274,212 @@
         }
         const database = firebase.database();
 
+        // ==================== PRICING ENGINE CLASS ====================
+        /**
+         * Class PricingEngine - Tính toán giá cước vận tải thông minh
+         * @version 1.0.0
+         * @author Taxi Promax Team
+         * 
+         * Mô hình tính giá dựa trên:
+         * 1. Chi phí vận hành theo loại xe (EV/ICE)
+         * 2. Lợi nhuận gộp cố định 50%
+         * 3. Ưu đãi chia sẻ chi phí khi có nhiều khách
+         * 4. Phụ phí ngày lễ Tết (25%)
+         * 5. Phí cầu đường cố định
+         */
+        class PricingEngine {
+            
+            /**
+             * Hằng số chi phí nhiên liệu/điện cho mỗi km
+             * @constant {Object} FUEL_COST_PER_KM
+             */
+            static FUEL_COST_PER_KM = {
+                EV: 800,    // Xe điện: 800 đồng/km (rẻ hơn 40% so với xăng)
+                ICE: 1350   // Xe xăng: 1350 đồng/km (chi phí gốc)
+            };
+            
+            /**
+             * Hệ số lợi nhuận gộp (profit margin = 50%)
+             * Giá cơ sở = chi phí vận hành * 1.5
+             * @constant {number} PROFIT_MARGIN
+             */
+            static PROFIT_MARGIN = 1.5;
+            
+            /**
+             * Hệ số phụ phí ngày lễ Tết (tăng 25%)
+             * @constant {number} HOLIDAY_SURCHARGE
+             */
+            static HOLIDAY_SURCHARGE = 1.25;
+            
+            /**
+             * Constructor khởi tạo đối tượng tính giá
+             * @param {Object} params - Tham số đầu vào
+             * @param {number} params.distance_km - Khoảng cách chuyến đi (km)
+             * @param {string} params.vehicle_type - Loại xe: 'EV' (xe điện) hoặc 'ICE' (xe xăng)
+             * @param {number} params.total_seats - Tổng số ghế của xe (mặc định: 4)
+             * @param {number} params.passengers_count - Số lượng khách hiện tại trên xe
+             * @param {boolean} params.is_holiday - Có phải ngày lễ/Tết không
+             * @param {number} params.fixed_tolls - Phí cầu đường cố định (VNĐ)
+             */
+            constructor({ distance_km, vehicle_type, total_seats = 4, passengers_count = 1, is_holiday = false, fixed_tolls = 0 }) {
+                // Kiểm tra dữ liệu đầu vào hợp lệ
+                if (typeof distance_km !== 'number' || distance_km <= 0) {
+                    throw new Error('Khoảng cách không hợp lệ (distance_km phải là số dương)');
+                }
+                if (vehicle_type !== 'EV' && vehicle_type !== 'ICE') {
+                    throw new Error('Loại xe không hợp lệ. Vui lòng chọn "EV" hoặc "ICE"');
+                }
+                if (typeof passengers_count !== 'number' || passengers_count < 1) {
+                    throw new Error('Số lượng khách phải lớn hơn hoặc bằng 1');
+                }
+                if (typeof total_seats !== 'number' || total_seats < passengers_count) {
+                    throw new Error('Số ghế xe không đủ cho số lượng khách');
+                }
+                
+                this.distance_km = distance_km;           // Khoảng cách thực tế (km)
+                this.vehicle_type = vehicle_type;         // Loại xe: EV hoặc ICE
+                this.total_seats = total_seats;           // Tổng số ghế xe
+                this.passengers_count = passengers_count; // Số khách hiện tại
+                this.is_holiday = is_holiday;             // Flag ngày lễ
+                this.fixed_tolls = fixed_tolls;           // Phí cầu đường cố định
+                
+                // Lấy chi phí nhiên liệu theo loại xe
+                this.fuel_cost_per_km = PricingEngine.FUEL_COST_PER_KM[vehicle_type];
+            }
+            
+            /**
+             * Bước 1: Tính chi phí vận hành cơ bản
+             * Chi phí vận hành = Khoảng cách * Chi phí nhiên liệu mỗi km
+             * @returns {number} Chi phí vận hành (VNĐ)
+             */
+            calculateOperatingCost() {
+                const operatingCost = this.distance_km * this.fuel_cost_per_km;
+                return operatingCost;
+            }
+            
+            /**
+             * Bước 2: Tính giá cơ sở (có lợi nhuận gộp 50%)
+             * Giá cơ sở = Chi phí vận hành * Hệ số lợi nhuận
+             * @returns {number} Giá cơ sở (VNĐ)
+             */
+            calculateBasePrice() {
+                const operatingCost = this.calculateOperatingCost();
+                const basePrice = operatingCost * PricingEngine.PROFIT_MARGIN;
+                return basePrice;
+            }
+            
+            /**
+             * Bước 3: Áp dụng ưu đãi ghép khách (mô hình chia sẻ chi phí)
+             * Nguyên tắc: Càng nhiều khách, mỗi khách càng được giảm giá
+             * Công thức: Hệ số chia sẻ = 1 - (số khách * 0.05) nhưng tối đa giảm 30%
+             * @returns {number} Giá sau khi áp dụng ưu đãi ghép (VNĐ)
+             */
+            applyRideSharingDiscount() {
+                const basePrice = this.calculateBasePrice();
+                
+                // Tính hệ số giảm giá dựa trên số lượng khách
+                // Mỗi khách thêm vào giảm thêm 5% cho tổng chuyến
+                let discountFactor = 1 - (this.passengers_count * 0.05);
+                
+                // Giới hạn mức giảm tối đa là 30% (không giảm quá 30%)
+                if (discountFactor < 0.7) {
+                    discountFactor = 0.7;
+                }
+                
+                const priceAfterDiscount = basePrice * discountFactor;
+                return priceAfterDiscount;
+            }
+            
+            /**
+             * Bước 4: Áp dụng phụ phí ngày lễ (nếu có)
+             * Nếu là ngày lễ/Tết, nhân tổng giá với hệ số 1.25 (tăng 25%)
+             * @param {number} currentPrice - Giá hiện tại trước khi áp dụng phụ phí
+             * @returns {number} Giá sau phụ phí ngày lễ
+             */
+            applyHolidaySurcharge(currentPrice) {
+                if (this.is_holiday) {
+                    return currentPrice * PricingEngine.HOLIDAY_SURCHARGE;
+                }
+                return currentPrice;
+            }
+            
+            /**
+             * Bước 5: Cộng phí cầu đường cố định
+             * @param {number} currentPrice - Giá hiện tại trước khi cộng phí cầu đường
+             * @returns {number} Giá sau khi cộng phí cầu đường
+             */
+            addTollFees(currentPrice) {
+                return currentPrice + this.fixed_tolls;
+            }
+            
+            /**
+             * Bước 6: Làm tròn giá đến hàng nghìn đồng (đẹp mắt)
+             * @param {number} price - Giá cần làm tròn
+             * @returns {number} Giá đã làm tròn
+             */
+            roundPrice(price) {
+                // Làm tròn lên đến hàng nghìn gần nhất
+                return Math.ceil(price / 1000) * 1000;
+            }
+            
+            /**
+             * Bước 7: Tính giá cho mỗi khách hàng (chia đều tổng doanh thu)
+             * @param {number} totalPrice - Tổng doanh thu chuyến
+             * @returns {number} Giá mỗi khách phải trả
+             */
+            calculatePricePerPassenger(totalPrice) {
+                const pricePerPassenger = totalPrice / this.passengers_count;
+                return this.roundPrice(pricePerPassenger);
+            }
+            
+            /**
+             * PHƯƠNG THỨC CHÍNH: Tính toán và trả về kết quả đầy đủ
+             * @returns {Object} Kết quả bao gồm total_price và price_per_passenger
+             */
+            calculate() {
+                // Bước 1: Tính chi phí vận hành
+                const operatingCost = this.calculateOperatingCost();
+                
+                // Bước 2: Tính giá cơ sở (có lợi nhuận 50%)
+                const basePrice = this.calculateBasePrice();
+                
+                // Bước 3: Áp dụng ưu đãi ghép khách
+                const priceAfterDiscount = this.applyRideSharingDiscount();
+                
+                // Bước 4: Áp dụng phụ phí ngày lễ (nếu có)
+                const priceAfterHoliday = this.applyHolidaySurcharge(priceAfterDiscount);
+                
+                // Bước 5: Cộng phí cầu đường cố định
+                const priceWithTolls = this.addTollFees(priceAfterHoliday);
+                
+                // Bước 6: Làm tròn giá
+                const totalPrice = this.roundPrice(priceWithTolls);
+                
+                // Bước 7: Tính giá mỗi khách
+                const pricePerPassenger = this.calculatePricePerPassenger(totalPrice);
+                
+                // Log chi tiết các bước tính (dành cho debug)
+                console.log('📊 Pricing Engine Calculation:', {
+                    '1. operatingCost': operatingCost,
+                    '2. basePrice (profit 50%)': basePrice,
+                    '3. afterRideSharing': priceAfterDiscount,
+                    '4. afterHoliday': priceAfterHoliday,
+                    '5. withTolls': priceWithTolls,
+                    '6. totalPrice': totalPrice,
+                    '7. pricePerPassenger': pricePerPassenger,
+                    'distance_km': this.distance_km,
+                    'vehicle_type': this.vehicle_type,
+                    'passengers': this.passengers_count,
+                    'is_holiday': this.is_holiday
+                });
+                
+                return {
+                    total_price: totalPrice,           // Tổng doanh thu chuyến (VNĐ)
+                    price_per_passenger: pricePerPassenger  // Giá mỗi khách phải trả (VNĐ)
+                };
+            }
+        }
+
         // ==================== GLOBAL VARIABLES ====================
         let currentUser = null;
         let currentBooking = null;
@@ -686,11 +892,48 @@
                     const route = data.routes[0];
                     const distanceKm = (route.distance / 1000).toFixed(1);
                     const durationMin = Math.round(route.duration / 60);
-                    const price = Math.round((route.distance / 1000) * 12000 + 15000);
                     
+                    // ========== SỬ DỤNG PRICING ENGINE ĐỂ TÍNH GIÁ ==========
+                    // Lấy số lượng khách từ select box (mặc định 1)
+                    const seatsSelect = document.getElementById('bookSeats');
+                    const passengersCount = parseInt(seatsSelect ? seatsSelect.value : 1);
+                    
+                    // Kiểm tra xem có phải ngày lễ không (có thể tích hợp API ngày lễ sau)
+                    // Hiện tại lấy từ localStorage hoặc mặc định false
+                    const isHoliday = localStorage.getItem('is_holiday') === 'true' ? true : false;
+                    
+                    // Phí cầu đường cố định (có thể cập nhật theo lộ trình sau)
+                    const fixedTolls = 0;
+                    
+                    // Khởi tạo Pricing Engine với thông số thực tế
+                    // Lưu ý: vehicle_type đang để mặc định 'ICE' (có thể tích hợp chọn loại xe sau)
+                    const pricingEngine = new PricingEngine({
+                        distance_km: parseFloat(distanceKm),
+                        vehicle_type: 'ICE',        // Mặc định xe xăng (có thể thêm select để chọn EV/ICE)
+                        total_seats: 4,              // Xe 4 chỗ mặc định
+                        passengers_count: passengersCount,
+                        is_holiday: isHoliday,
+                        fixed_tolls: fixedTolls
+                    });
+                    
+                    // Tính giá
+                    const priceResult = pricingEngine.calculate();
+                    const totalPrice = priceResult.total_price;
+                    
+                    // Cập nhật giao diện
                     document.getElementById('estDistance').innerText = distanceKm;
                     document.getElementById('estDuration').innerText = durationMin;
-                    document.getElementById('estPrice').innerText = price.toLocaleString() + 'đ';
+                    
+                    // Hiển thị giá (nếu có nhiều khách, hiển thị cả tổng và giá mỗi người)
+                    if (passengersCount > 1) {
+                        document.getElementById('estPrice').innerHTML = totalPrice.toLocaleString() + 'đ <span class="text-xs font-normal">(Tổng)</span><br><span class="text-sm">' + priceResult.price_per_passenger.toLocaleString() + 'đ/khách</span>';
+                    } else {
+                        document.getElementById('estPrice').innerHTML = totalPrice.toLocaleString() + 'đ';
+                    }
+                    
+                    // Lưu thông tin giá vào biến global để dùng khi đặt xe
+                    window.currentEstimatedPrice = totalPrice;
+                    window.currentEstimatedDistance = parseFloat(distanceKm);
                     
                     if (routeLine && map) {
                         map.removeLayer(routeLine);
@@ -705,7 +948,7 @@
                 }
             } catch (error) {
                 console.error('OSRM error:', error);
-                document.getElementById('estPrice').innerText = 'Lỗi tính giá';
+                document.getElementById('estPrice').innerHTML = 'Lỗi tính giá';
             }
         }
 
@@ -713,6 +956,18 @@
             document.getElementById(field === 'pickup' ? 'bookPickup' : 'bookDropoff').value = value;
             searchAddress(value, field === 'pickup' ? 'pickupList' : 'dropoffList', field);
         };
+
+        // Lắng nghe sự kiện thay đổi số lượng khách để tính lại giá
+        function setupPassengerChangeListener() {
+            const seatsSelect = document.getElementById('bookSeats');
+            if (seatsSelect) {
+                seatsSelect.addEventListener('change', function() {
+                    if (selectedPickup.latitude && selectedDropoff.latitude) {
+                        calculateRoute();
+                    }
+                });
+            }
+        }
 
         // ==================== BOOKING FUNCTIONS ====================
         async function bookRide() {
@@ -742,8 +997,10 @@
             
             const departureTime = document.getElementById('bookDeparture').value;
             const seats = parseInt(document.getElementById('bookSeats').value);
-            const estPriceText = document.getElementById('estPrice').innerText.replace(/[^\d]/g, '');
-            const estDistance = parseFloat(document.getElementById('estDistance').innerText);
+            
+            // Sử dụng giá đã tính từ Pricing Engine
+            const estimatedPrice = window.currentEstimatedPrice || 50000;
+            const estimatedDistance = window.currentEstimatedDistance || 5;
 
             const newBooking = {
                 customerId: currentUser.id,
@@ -757,8 +1014,8 @@
                 dropoffLongitude: selectedDropoff.longitude,
                 departureTime: departureTime ? departureTime.replace('T', ' ') + ':00' : new Date().toLocaleString(),
                 seats: seats,
-                estimatedPrice: parseInt(estPriceText) || 50000,
-                estimatedDistance: estDistance || 5,
+                estimatedPrice: estimatedPrice,
+                estimatedDistance: estimatedDistance,
                 driverId: null,
                 driverName: 'Đang chờ...',
                 driverPhone: '',
@@ -1268,6 +1525,16 @@
             const estPriceSpan = document.getElementById('estPrice');
             if (estPriceSpan) estPriceSpan.innerText = '-- đ';
             mapClickMode = 'pickup';
+            
+            // Reset selected points
+            selectedPickup = { address: '', latitude: null, longitude: null };
+            selectedDropoff = { address: '', latitude: null, longitude: null };
+            
+            // Clear input fields
+            const pickupInput = document.getElementById('bookPickup');
+            const dropoffInput = document.getElementById('bookDropoff');
+            if (pickupInput) pickupInput.value = '';
+            if (dropoffInput) dropoffInput.value = '';
         };
 
         window.closeBookingModal = function() {
@@ -1276,7 +1543,7 @@
         };
 
         window.showHelp = function() {
-            alert('🚖 Hướng dẫn sử dụng:\n\n1. Bấm nút + để đặt xe\n2. Hệ thống tự động gợi ý địa điểm dựa trên lịch sử\n3. Gõ địa chỉ và CHỌN từ danh sách gợi ý\n4. Hoặc chạm trực tiếp lên Bản đồ để ghim điểm\n5. Theo dõi tài xế thời gian thực với vầng quang định vị\n6. Nhắn tin và gọi điện trực tiếp với tài xế\n\n🎯 Tiên đoán thông minh - Đặt xe nhanh chóng!');
+            alert('🚖 Hướng dẫn sử dụng:\n\n1. Bấm nút + để đặt xe\n2. Hệ thống tự động gợi ý địa điểm dựa trên lịch sử\n3. Gõ địa chỉ và CHỌN từ danh sách gợi ý\n4. Hoặc chạm trực tiếp lên Bản đồ để ghim điểm\n5. Theo dõi tài xế thời gian thực với vầng quang định vị\n6. Nhắn tin và gọi điện trực tiếp với tài xế\n\n💰 Cách tính giá: Dựa trên khoảng cách thực tế, loại xe (EV/ICE), số lượng khách và ngày lễ\n\n🎯 Tiên đoán thông minh - Đặt xe nhanh chóng!');
         };
 
         // ==================== EVENT LISTENERS ====================
@@ -1337,6 +1604,9 @@
                 });
             });
         }
+
+        // Khởi tạo listener cho thay đổi số lượng khách
+        setupPassengerChangeListener();
 
         // ==================== INITIALIZATION ====================
         window.addEventListener('load', function() {
