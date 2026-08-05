@@ -1,59 +1,55 @@
 /**
- * TAXI PROMAX - SERVICE WORKER v3.0
- * FIX: Đúng đường dẫn file, đủ 3 app, cache Firebase SDK
- * Chiến lược: Network First → Cache Fallback
+ * TAXI PROMAX - SERVICE WORKER v4.0 (FINAL)
+ * Gộp ưu điểm: Network First + Cache CDN + Push + Background Sync
  * Phát triển bởi: NGUYỄN XUÂN ĐẠT
  */
 
-// [FIX] Nâng version v3 — bắt buộc sau khi deploy thay đổi lớn
-const CACHE_NAME = 'taxi-promax-v3';
+// [FIX] Nâng version — bắt browser reload SW mới
+const CACHE_NAME = 'taxi-promax-v4';
 
-// [FIX] Đúng đường dẫn thực tế trong repo
+// Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
-    // ===== 3 APP CHÍNH =====
+    // ===== 4 APP CHÍNH =====
     './',
     './index.html',        // App Tài Xế
     './khachhang.html',    // App Khách Hàng
+    './xeghep.html',       // App Xe Ghép
     './admin.html',        // Admin Dashboard
-
-    // ===== CONFIG =====
     './manifest.json',
 
-    // ===== CSS & ASSETS =====
-    './styles.css',
-
-    // ===== FIREBASE SDK (cache để dùng offline) =====
+    // ===== FIREBASE SDK (offline được) =====
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',
 
-    // ===== LEAFLET MAP (cache bản đồ offline) =====
+    // ===== LEAFLET MAP =====
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
 
-    // ===== FONT =====
-    'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800;900&display=swap'
+    // ===== FONT AWESOME (icon menu, nút bấm) =====
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+
+    // ===== CARTODB TILES (bản đồ offline) =====
+    'https://a.basemaps.cartocdn.com/light_all/13/4096/2720.png',
+    'https://a.basemaps.cartocdn.com/light_all/13/4096/2721.png'
 ];
 
 // ============================================================
-// 1. INSTALL — Lưu tài nguyên vào cache
+// 1. INSTALL
 // ============================================================
 self.addEventListener('install', (event) => {
-    console.log('[SW v3] Đang cài đặt...');
-
-    // Ép SW mới hoạt động ngay, không chờ tab cũ đóng
+    console.log('[SW v4] Đang cài đặt...');
     self.skipWaiting();
 
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            console.log('[SW v3] Đang cache tài nguyên...');
-
-            // Cache từng file riêng lẻ — tránh 1 file lỗi làm hỏng toàn bộ
-            const cachePromises = ASSETS_TO_CACHE.map(url =>
-                cache.add(url).catch(err => {
-                    console.warn(`[SW v3] Bỏ qua cache lỗi: ${url}`, err.message);
-                })
+            // Cache riêng lẻ — 1 file lỗi không ảnh hưởng file khác
+            return Promise.all(
+                ASSETS_TO_CACHE.map(url =>
+                    cache.add(url).catch(err => {
+                        console.warn('[SW v4] Bỏ qua:', url, err.message);
+                    })
+                )
             );
-            return Promise.all(cachePromises);
         })
     );
 });
@@ -62,89 +58,72 @@ self.addEventListener('install', (event) => {
 // 2. ACTIVATE — Xóa cache cũ
 // ============================================================
 self.addEventListener('activate', (event) => {
-    console.log('[SW v3] Đang kích hoạt...');
-
+    console.log('[SW v4] Đang kích hoạt...');
     event.waitUntil(
-        caches.keys().then((keyList) => {
-            return Promise.all(
-                keyList.map((key) => {
-                    if (key !== CACHE_NAME) {
-                        console.log('[SW v3] Xóa cache cũ:', key);
-                        return caches.delete(key);
-                    }
+        caches.keys().then((keyList) =>
+            Promise.all(
+                keyList.filter(key => key !== CACHE_NAME).map(key => {
+                    console.log('[SW v4] Xóa cache cũ:', key);
+                    return caches.delete(key);
                 })
-            );
-        }).then(() => {
-            console.log('[SW v3] ✅ Đã kích hoạt hoàn toàn');
-            // Kiểm soát tất cả tab ngay lập tức
-            return self.clients.claim();
-        })
+            )
+        ).then(() => self.clients.claim())
     );
 });
 
 // ============================================================
-// 3. FETCH — Chiến lược Network First → Cache Fallback
+// 3. FETCH — Network First, Cache Fallback
 // ============================================================
 self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
-    // ===== KHÔNG CACHE: API calls, Firebase REST, PayOS =====
-    // Các request này cần dữ liệu mới nhất, không được dùng cache
+    // ===== KHÔNG CACHE các request động =====
     if (
-        url.includes('/api/')                    || // Vercel API functions
-        url.includes('firebasedatabase.app')     || // Firebase REST API
-        url.includes('payos.vn')                 || // PayOS payment
-        url.includes('img.vietqr.io')            || // QR code images
-        url.includes('nominatim.openstreetmap')  || // Geocoding API
-        event.request.method !== 'GET'              // POST, PATCH, DELETE
+        url.includes('/api/') ||
+        url.includes('firebasedatabase.app') ||
+        url.includes('payos.vn') ||
+        url.includes('img.vietqr.io') ||
+        url.includes('api.qrserver.com') ||
+        url.includes('nominatim.openstreetmap') ||
+        url.includes('overpass-api.de') ||
+        url.includes('open-meteo.com') ||
+        event.request.method !== 'GET'
     ) {
-        return; // Để browser xử lý bình thường
+        return; // để browser xử lý
     }
 
     event.respondWith(
-        // Thử mạng trước
         fetch(event.request)
             .then((networkResponse) => {
-                // Mạng OK → lưu bản sao vào cache
                 if (networkResponse && networkResponse.status === 200) {
-                    const responseClone = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseClone);
+                    const clone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, clone);
                     });
                 }
                 return networkResponse;
             })
             .catch(() => {
-                // Mất mạng → lấy từ cache
-                return caches.match(event.request).then((cachedResponse) => {
-                    if (cachedResponse) {
-                        console.log('[SW v3] Offline mode — dùng cache:', url);
-                        return cachedResponse;
+                return caches.match(event.request).then((cached) => {
+                    if (cached) {
+                        console.log('[SW v4] Offline → cache:', url);
+                        return cached;
                     }
-
-                    // Không có cache → trả về trang chính
                     if (event.request.mode === 'navigate') {
-                        console.warn('[SW v3] Không có cache, fallback index.html');
                         return caches.match('./index.html');
                     }
-
-                    // Không có gì → trả về response rỗng tránh crash
-                    return new Response('', {
-                        status: 503,
-                        statusText: 'Service Unavailable — Offline'
-                    });
+                    return new Response('', { status: 503 });
                 });
             })
     );
 });
 
 // ============================================================
-// 4. BACKGROUND SYNC — Tự động sync khi có mạng lại
+// 4. BACKGROUND SYNC
 // ============================================================
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-pending-trips') {
-        console.log('[SW v3] Background sync: đang sync chuyến pending...');
-        // Thông báo tất cả tab sync lại
+        console.log('[SW v4] Background sync...');
         self.clients.matchAll().then(clients => {
             clients.forEach(client => {
                 client.postMessage({ type: 'SYNC_PENDING_TRIPS' });
@@ -154,49 +133,38 @@ self.addEventListener('sync', (event) => {
 });
 
 // ============================================================
-// 5. PUSH NOTIFICATION (FCM fallback)
+// 5. PUSH NOTIFICATION
 // ============================================================
 self.addEventListener('push', (event) => {
     if (!event.data) return;
-
     try {
         const data = event.data.json();
-        const title   = data.title   || 'TAXI PROMAX';
-        const options = {
-            body:    data.body    || 'Có thông báo mới',
-            icon:    data.icon    || './assets/logo.png',
-            badge:   './assets/logo.png',
-            vibrate: [300, 100, 300],
-            data:    { url: data.url || './' },
-            actions: data.actions || []
-        };
-
         event.waitUntil(
-            self.registration.showNotification(title, options)
+            self.registration.showNotification(data.title || 'TAXI PROMAX', {
+                body:    data.body || 'Có thông báo mới',
+                icon:    data.icon || './manifest.json',  // dùng manifest icon (không 404)
+                badge:   './manifest.json',
+                vibrate: [300, 100, 300],
+                data:    { url: data.url || './' },
+                actions: data.actions || []
+            })
         );
     } catch (err) {
-        console.error('[SW v3] Push notification error:', err);
+        console.error('[SW v4] Push error:', err);
     }
 });
 
-// Xử lý click notification
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const targetUrl = (event.notification.data && event.notification.data.url)
-        ? event.notification.data.url : './';
-
+    const targetUrl = (event.notification.data && event.notification.data.url) || './';
     event.waitUntil(
         self.clients.matchAll({ type: 'window' }).then(clients => {
-            // Nếu đã có tab mở → focus vào đó
             for (const client of clients) {
                 if (client.url.includes(targetUrl) && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // Chưa có tab → mở tab mới
-            if (self.clients.openWindow) {
-                return self.clients.openWindow(targetUrl);
-            }
+            return self.clients.openWindow ? self.clients.openWindow(targetUrl) : null;
         })
     );
 });
