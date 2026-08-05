@@ -1,111 +1,55 @@
 /**
- * TAXI PROMAX - PAYOS CREATE PAYMENT
- * Vercel Serverless Function - Tạo payment link PayOS
- * 
- * Endpoint: POST /api/create-payment
- * Input: { amount, planName, driverUid, driverPhone }
- * Output: { success, checkoutUrl, orderCode, qrCode }
+ * PAYOS CREATE PAYMENT — Vercel Serverless Function
+ * Tạo link thanh toán + lưu ánh xạ orderCode → {uid, plan} vào Firebase
  */
-
 import PayOS from '@payos/node';
 
-// Khởi tạo PayOS với environment variables
 const payos = new PayOS(
     process.env.PAYOS_CLIENT_ID,
     process.env.PAYOS_API_KEY,
     process.env.PAYOS_CHECKSUM_KEY
 );
 
+const FIREBASE_URL = 'https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app';
+
 export default async function handler(req, res) {
-    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    // Only accept POST
-    if (req.method !== 'POST') {
-        return res.status(405).json({ 
-            success: false, 
-            error: 'Method not allowed' 
-        });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
     try {
-        const { amount, planName, driverUid, driverPhone } = req.body;
+        const { amount, plan, driverUid } = req.body;
 
-        // Validate input
-        if (!amount || typeof amount !== 'number' || amount <= 0) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Amount must be a positive number' 
-            });
+        if (!amount || !plan || !driverUid) {
+            return res.status(400).json({ success: false, error: 'Thiếu amount/plan/driverUid' });
         }
 
-        if (!planName || typeof planName !== 'string') {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Plan name is required' 
-            });
-        }
-
-        if (!driverUid || typeof driverUid !== 'string') {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Driver UID is required' 
-            });
-        }
-
-        // Generate unique order code
         const orderCode = Date.now();
 
-        // Format description: "PROMAX {driverUid} {planName}"
-        // Example: "PROMAX DRV_ABC123 PROMAX 90 NGÀY"
-        const description = `PROMAX ${driverUid} ${planName}`.substring(0, 25); // PayOS limit 25 chars
+        // Lưu ánh xạ để webhook biết nạp cho AI, gói nào (không phụ thuộc description)
+        await fetch(`${FIREBASE_URL}/payment_pending/${orderCode}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: driverUid, plan: plan, amount: amount, createdAt: Date.now() })
+        });
 
-        // Base URL for return/cancel URLs
-        const baseUrl = process.env.VERCEL_URL 
-            ? `https://${process.env.VERCEL_URL}`
-            : 'https://taxi-promax.vercel.app';
+        const baseUrl = process.env.BASE_URL || 'https://taxi-promax.vercel.app';
 
-        // Create payment link
         const paymentLink = await payos.createPaymentLink({
             orderCode: orderCode,
             amount: amount,
-            description: description,
-            returnUrl: `${baseUrl}/?status=success&plan=${encodeURIComponent(planName)}&uid=${driverUid}`,
-            cancelUrl: `${baseUrl}/?status=cancel&plan=${encodeURIComponent(planName)}`
+            description: 'PROMAX ' + orderCode,
+            returnUrl: `${baseUrl}/?status=success&order=${orderCode}`,
+            cancelUrl: `${baseUrl}/?status=cancel`
         });
 
-        console.log(`[create-payment] ✅ Payment link created:`, {
-            orderCode: orderCode,
-            amount: amount,
-            plan: planName,
-            driver: driverUid
-        });
+        console.log(`[create-payment] ✅ order=${orderCode} amount=${amount} plan=${plan} uid=${driverUid}`);
+        return res.status(200).json({ success: true, checkoutUrl: paymentLink.checkoutUrl, orderCode: orderCode });
 
-        return res.status(200).json({
-            success: true,
-            checkoutUrl: paymentLink.checkoutUrl,
-            orderCode: orderCode,
-            qrCode: paymentLink.qrCode,
-            description: description
-        });
-
-    } catch (error) {
-        console.error('[create-payment] ❌ Error:', {
-            message: error.message,
-            stack: error.stack,
-            body: req.body
-        });
-
-        return res.status(500).json({ 
-            success: false, 
-            error: 'Không thể tạo payment link: ' + error.message 
-        });
+    } catch (e) {
+        console.error('[create-payment] ❌', e.message);
+        return res.status(500).json({ success: false, error: e.message });
     }
 }
