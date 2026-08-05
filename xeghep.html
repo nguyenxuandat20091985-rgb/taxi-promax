@@ -1855,5 +1855,177 @@ console.log('✅ Taxi ProMax Xe Ghép v2.0.1 — Hotfix Legacy Hash');
 console.log('🔒 Dual-hash authentication: SHA-256 (new) + simpleHash (legacy fallback)');
 console.log('🔄 Auto-migration on first successful legacy login');
 </script>
+<!-- ========== 🔧 XE GHEP ENHANCEMENTS v1 ========== -->
+<script>
+(function(){
+    /* ===== 1) PWA BOOT ===== */
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function(){
+            navigator.serviceWorker.register('/sw.js').catch(function(){});
+        });
+    }
+
+    /* ===== 2) LEGAL LINKS - Thêm vào footer auth card ===== */
+    function addLegalLinks() {
+        var footer = document.querySelector('.auth-card p:last-child');
+        if (footer && !footer.dataset.legalAdded) {
+            footer.dataset.legalAdded = '1';
+            footer.innerHTML = 'Bằng việc tiếp tục, bạn đồng ý <a href="/?legal=terms" target="_blank" style="color:#0054a3;font-weight:700;">Điều khoản</a> & <a href="/?legal=privacy" target="_blank" style="color:#0054a3;font-weight:700;">Chính sách bảo mật</a>';
+        }
+    }
+
+    /* ===== 3) ENHANCED SOS cho hành khách ===== */
+    var sosTimer = null;
+    window.triggerCustomerSOS = async function() {
+        if (!confirm('🚨 GỬI CẢNH BÁO KHẨN CẤP?\nHệ thống sẽ ghi âm 30 giây + gửi vị trí trực tiếp đến trung tâm hỗ trợ!')) return;
+        
+        var code = 'SOS' + Date.now().toString(36).toUpperCase();
+        var user = null;
+        try { user = JSON.parse(localStorage.getItem('xg_user') || 'null'); } catch(e) {}
+        
+        await db.ref('emergencies/' + code).set({
+            code: code,
+            customerId: user?.id || null,
+            customerPhone: user?.phone || null,
+            customerName: user?.name || null,
+            lat: typeof currentLat !== 'undefined' ? currentLat : null,
+            lng: typeof currentLng !== 'undefined' ? currentLng : null,
+            timestamp: Date.now(),
+            status: 'active',
+            source: 'xeghep'
+        });
+        
+        if (typeof showToast === 'function') showToast('🚨 ĐÃ GỬI SOS - Đang ghi âm...');
+        
+        // Ghi âm 30 giây
+        if (navigator.mediaDevices && MediaRecorder) {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+                var rec = new MediaRecorder(stream, { audioBitsPerSecond: 16000 });
+                var chunks = [];
+                rec.ondataavailable = function(e) { if (e.data.size) chunks.push(e.data); };
+                rec.onstop = function() {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    var blob = new Blob(chunks, { type: 'audio/webm' });
+                    var fr = new FileReader();
+                    fr.onload = function() {
+                        db.ref('emergencies/' + code).update({ audio: fr.result, audioSavedAt: Date.now() });
+                    };
+                    fr.readAsDataURL(blob);
+                };
+                rec.start();
+                setTimeout(function() { if (rec) rec.stop(); }, 30000);
+            }).catch(function(){});
+        }
+        
+        // Live location 5 phút
+        if (sosTimer) clearInterval(sosTimer);
+        sosTimer = setInterval(function() {
+            if (typeof currentLat !== 'undefined' && currentLat) {
+                db.ref('emergencies/' + code).update({ lat: currentLat, lng: currentLng, lastUpdate: Date.now() });
+            }
+        }, 5000);
+        
+        setTimeout(function() {
+            if (sosTimer) { clearInterval(sosTimer); sosTimer = null; }
+            db.ref('emergencies/' + code).update({ status: 'ended', endedAt: Date.now() });
+            if (typeof showToast === 'function') showToast('✅ SOS đã kết thúc');
+        }, 300000);
+        
+        setTimeout(function() { window.location.href = 'tel:113'; }, 1500);
+    };
+
+    /* ===== 4) THÊM NÚT SOS VÀO TRACK PANEL ===== */
+    function addSOSToTrackPanel() {
+        var panel = document.getElementById('trackPanel');
+        if (!panel || panel.dataset.sosAdded) return;
+        panel.dataset.sosAdded = '1';
+        var actions = panel.querySelector('.flex.gap-2');
+        if (actions) {
+            var sosBtn = document.createElement('button');
+            sosBtn.onclick = window.triggerCustomerSOS;
+            sosBtn.className = 'flex-1 py-2 bg-red-500 text-white rounded-xl text-sm font-bold';
+            sosBtn.innerText = '🚨 SOS';
+            actions.appendChild(sosBtn);
+        }
+    }
+
+    /* ===== 5) VIEW RECEIPT LINK trong booking detail ===== */
+    function addReceiptLink() {
+        var detailsBtns = document.querySelectorAll('#rideDetailsContent');
+        detailsBtns.forEach(function(c) {
+            if (c.dataset.receiptAdded) return;
+            c.dataset.receiptAdded = '1';
+            var bookingCodeMatch = c.innerHTML.match(/Mã vé:\s*<b>([^<]+)<\/b>/);
+            if (bookingCodeMatch) {
+                var code = bookingCodeMatch[1];
+                // Tìm xem có receipt tương ứng không
+                db.ref('receipts').orderByChild('code').equalTo('HD' + code).once('value').then(function(snap) {
+                    if (snap.exists()) {
+                        var div = document.createElement('div');
+                        div.className = 'bg-green-50 rounded-xl p-3 mt-3 border border-green-200';
+                        div.innerHTML = '<a href="/?receipt=' + code + '" target="_blank" class="flex items-center justify-between text-sm font-bold text-green-700"><span>🧾 Xem hóa đơn điện tử</span><i class="fas fa-external-link-alt"></i></a>';
+                        c.appendChild(div);
+                    }
+                });
+            }
+        });
+    }
+
+    /* ===== 6) I18N NHẸ (dùng lại từ điển từ index.html) ===== */
+    var LANG_KEY = 'promax_lang';
+    var currentLang = localStorage.getItem(LANG_KEY) || 'vi';
+    if (currentLang === 'en') {
+        var dict = {
+            'Đăng nhập': 'Sign in', 'Đăng ký': 'Register', 'Mật khẩu': 'Password',
+            'Số điện thoại': 'Phone number', 'Họ và tên': 'Full name',
+            'Tìm chuyến': 'Find rides', 'Của tôi': 'My trips', 'Bản đồ': 'Map',
+            'Thoát': 'Exit', 'Đặt ghế': 'Book seat', 'Gửi yêu cầu': 'Send request',
+            'Đang tải': 'Loading', 'Chưa có': 'No data yet', 'Hủy': 'Cancel',
+            'Gọi': 'Call', 'Chat': 'Chat', 'Theo dõi': 'Track', 'Đánh giá': 'Rate'
+        };
+        function translate(root) {
+            var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+            var nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            nodes.forEach(function(n) {
+                if (!n.nodeValue) return;
+                var t = n.nodeValue.trim();
+                if (dict[t] !== undefined) n.nodeValue = n.nodeValue.replace(t, dict[t]);
+            });
+        }
+        setTimeout(function() {
+            translate(document.body);
+            document.title = 'Taxi ProMax — Ride Share';
+        }, 500);
+        new MutationObserver(function() { translate(document.body); }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    /* ===== BOOT ===== */
+    function boot() {
+        addLegalLinks();
+        addSOSToTrackPanel();
+        addReceiptLink();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+    setInterval(boot, 1000);
+
+    /* ===== NÚT CHUYỂN NGÔN NGỮ TRONG HEADER ===== */
+    function addLangSwitcher() {
+        var header = document.querySelector('.app-header .flex.items-center.gap-2');
+        if (!header || document.getElementById('xgLangSwitch')) return;
+        var btn = document.createElement('button');
+        btn.id = 'xgLangSwitch';
+        btn.className = 'bg-white/20 w-10 h-10 rounded-full text-white flex items-center justify-center text-sm';
+        btn.innerText = currentLang === 'vi' ? '🌐' : '🇻🇳';
+        btn.onclick = function() {
+            localStorage.setItem(LANG_KEY, currentLang === 'vi' ? 'en' : 'vi');
+            location.reload();
+        };
+        header.insertBefore(btn, header.firstChild);
+    }
+    setTimeout(addLangSwitcher, 800);
+})();
+</script>
 </body>
 </html>
