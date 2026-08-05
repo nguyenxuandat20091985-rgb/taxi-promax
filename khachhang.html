@@ -4108,5 +4108,353 @@ console.log('📱 Đã có giao diện dashboard mới');
 console.log('🔄 Tự động cập nhật vị trí khi mở app');
 console.log('⚡ Suy đoán điểm đến nhanh');
 </script>
+<!-- ========== 🔧 CUSTOMER APP ENHANCEMENTS ========== -->
+<script>
+(function(){
+    var ADMIN_PHONE = '0388724966';
+    var isCustomer = true; // đánh dấu đây là app khách
+
+    /* ===== 1) PWA BOOT - Register Service Worker ===== */
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function(){
+            navigator.serviceWorker.register('/sw.js').catch(function(){});
+        });
+    }
+
+    /* ===== 2) AUTH MODULE - Đăng nhập/đăng ký/quên MK ===== */
+    function hashPassword(str) {
+        var h = 0;
+        for (var i = 0; i < str.length; i++) {
+            h = ((h << 5) - h) + str.charCodeAt(i);
+            h |= 0;
+        }
+        return 'h' + Math.abs(h).toString(36) + '_' + str.length;
+    }
+
+    // Kiểm tra xem đã có form auth chưa
+    function checkAuthUI() {
+        var authScreen = document.getElementById('authScreen');
+        if (!authScreen) {
+            createAuthUI();
+        }
+    }
+
+    function createAuthUI() {
+        var authHTML = `
+        <div id="authScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0066FF,#00C853);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;">
+            <div style="background:#fff;border-radius:24px;padding:32px;width:100%;max-width:400px;">
+                <div style="text-align:center;margin-bottom:24px;">
+                    <div style="font-size:48px;">🚖</div>
+                    <div style="font-size:24px;font-weight:900;color:#0066FF;">Taxi ProMax</div>
+                    <div style="font-size:13px;color:#666;">Đặt xe nhanh chóng, an toàn</div>
+                </div>
+                
+                <div id="authMode" style="display:none;">
+                    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🔐 Đăng nhập</div>
+                    <input id="loginPhone" type="tel" placeholder="Số điện thoại" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
+                    <input id="loginPassword" type="password" placeholder="Mật khẩu" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
+                    <button onclick="doLogin()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Đăng nhập</button>
+                    <button onclick="showForgot()" style="width:100%;padding:12px;background:transparent;color:#0066FF;border:none;font-weight:600;margin-top:8px;cursor:pointer;">Quên mật khẩu?</button>
+                    <div style="text-align:center;margin-top:16px;">
+                        <span style="color:#666;font-size:13px;">Chưa có tài khoản? </span>
+                        <a href="#" onclick="showRegister();return false;" style="color:#0066FF;font-weight:700;">Đăng ký</a>
+                    </div>
+                </div>
+
+                <div id="registerMode" style="display:none;">
+                    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">📝 Đăng ký</div>
+                    <input id="regName" type="text" placeholder="Họ và tên" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
+                    <input id="regPhone" type="tel" placeholder="Số điện thoại" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
+                    <input id="regPassword" type="password" placeholder="Mật khẩu (6+ ký tự)" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:16px;font-size:14px;">
+                    <button onclick="doRegister()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Đăng ký</button>
+                    <div style="text-align:center;margin-top:16px;">
+                        <span style="color:#666;font-size:13px;">Đã có tài khoản? </span>
+                        <a href="#" onclick="showLogin();return false;" style="color:#0066FF;font-weight:700;">Đăng nhập</a>
+                    </div>
+                </div>
+
+                <div id="forgotMode" style="display:none;">
+                    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🔑 Quên mật khẩu</div>
+                    <input id="forgotPhone" type="tel" placeholder="Số điện thoại đã đăng ký" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
+                    <button onclick="doForgot()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Gửi mã xác nhận</button>
+                    <button onclick="showLogin()" style="width:100%;padding:12px;background:transparent;color:#0066FF;border:none;font-weight:600;margin-top:8px;cursor:pointer;">← Quay lại đăng nhập</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('afterbegin', authHTML);
+        showLogin();
+    }
+
+    window.showLogin = function() {
+        document.getElementById('authMode').style.display = 'block';
+        document.getElementById('registerMode').style.display = 'none';
+        document.getElementById('forgotMode').style.display = 'none';
+    };
+
+    window.showRegister = function() {
+        document.getElementById('authMode').style.display = 'none';
+        document.getElementById('registerMode').style.display = 'block';
+        document.getElementById('forgotMode').style.display = 'none';
+    };
+
+    window.showForgot = function() {
+        document.getElementById('authMode').style.display = 'none';
+        document.getElementById('registerMode').style.display = 'none';
+        document.getElementById('forgotMode').style.display = 'block';
+    };
+
+    window.doLogin = async function() {
+        var phone = document.getElementById('loginPhone').value.trim();
+        var password = document.getElementById('loginPassword').value;
+        if (!phone || !password) {
+            showToast('⚠️ Vui lòng điền đầy đủ', 'error');
+            return;
+        }
+        try {
+            var snap = await db.ref('customers').once('value');
+            var user = null, uid = null;
+            if (snap.exists()) {
+                snap.forEach(function(c) {
+                    var v = c.val();
+                    if (v && (String(v.phone) === phone || c.key === phone)) {
+                        uid = c.key;
+                        user = v;
+                    }
+                });
+            }
+            if (!user) {
+                showToast('❌ SĐT chưa đăng ký', 'error');
+                return;
+            }
+            var h1 = hashPassword(password + phone);
+            var h2 = hashPassword(password);
+            if (user.passwordHash && user.passwordHash !== h1 && user.passwordHash !== h2) {
+                showToast('❌ Sai mật khẩu', 'error');
+                return;
+            }
+            user.uid = uid;
+            window.currentUser = user;
+            localStorage.setItem('customerInfo', JSON.stringify(user));
+            document.getElementById('authScreen').style.display = 'none';
+            showToast('✅ Chào ' + user.name, 'success');
+        } catch(e) {
+            showToast('❌ Lỗi: ' + e.message, 'error');
+        }
+    };
+
+    window.doRegister = async function() {
+        var name = document.getElementById('regName').value.trim();
+        var phone = document.getElementById('regPhone').value.trim();
+        var password = document.getElementById('regPassword').value;
+        if (!name || !phone || !password) {
+            showToast('⚠️ Vui lòng điền đầy đủ', 'error');
+            return;
+        }
+        if (password.length < 6) {
+            showToast('⚠️ Mật khẩu tối thiểu 6 ký tự', 'error');
+            return;
+        }
+        var uid = 'KH_' + Date.now().toString(36).toUpperCase();
+        var data = {
+            uid: uid,
+            name: name,
+            phone: phone,
+            passwordHash: hashPassword(password + phone),
+            createdAt: Date.now()
+        };
+        try {
+            await db.ref('customers/' + uid).set(data);
+            window.currentUser = data;
+            localStorage.setItem('customerInfo', JSON.stringify(data));
+            document.getElementById('authScreen').style.display = 'none';
+            showToast('✅ Đăng ký thành công!', 'success');
+        } catch(e) {
+            showToast('❌ Lỗi: ' + e.message, 'error');
+        }
+    };
+
+    window.doForgot = async function() {
+        var phone = document.getElementById('forgotPhone').value.trim();
+        if (!phone) {
+            showToast('⚠️ Nhập số điện thoại', 'error');
+            return;
+        }
+        showToast('✅ Đã gửi mã xác nhận về SMS (demo)', 'success');
+        setTimeout(showLogin, 2000);
+    };
+
+    /* ===== 3) LEGAL LINKS - Thêm vào menu ===== */
+    function addLegalLinks() {
+        var menuSidebar = document.getElementById('menuSidebar');
+        if (!menuSidebar || menuSidebar.dataset.legalAdded) return;
+        menuSidebar.dataset.legalAdded = '1';
+        
+        var privacyItem = document.createElement('div');
+        privacyItem.className = 'menu-item';
+        privacyItem.innerHTML = '<i class="fas fa-shield-alt"></i><span>Chính sách bảo mật</span>';
+        privacyItem.onclick = function() { window.open('?legal=privacy', '_blank'); };
+        
+        var termsItem = document.createElement('div');
+        termsItem.className = 'menu-item';
+        termsItem.innerHTML = '<i class="fas fa-file-contract"></i><span>Điều khoản sử dụng</span>';
+        termsItem.onclick = function() { window.open('?legal=terms', '_blank'); };
+        
+        var logout = menuSidebar.querySelector('.menu-logout');
+        if (logout) {
+            menuSidebar.insertBefore(privacyItem, logout);
+            menuSidebar.insertBefore(termsItem, logout);
+        }
+    }
+
+    /* ===== 4) RECEIPT VIEW - Xem hóa đơn ===== */
+    function openReceipt() {
+        var ov = document.getElementById('receiptView');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'receiptView';
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:none;align-items:center;justify-content:center;padding:20px;';
+            document.body.appendChild(ov);
+        }
+        ov.style.display = 'flex';
+        loadCustomerReceipts();
+    }
+
+    async function loadCustomerReceipts() {
+        var ov = document.getElementById('receiptView');
+        if (!window.currentUser) {
+            ov.innerHTML = '<div style="background:#fff;border-radius:20px;padding:24px;text-align:center;">Vui lòng đăng nhập để xem hóa đơn</div>';
+            return;
+        }
+        ov.innerHTML = '<div style="background:#fff;border-radius:20px;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;"><div style="text-align:center;color:#666;">Đang tải...</div></div>';
+        try {
+            var snap = await db.ref('receipts').orderByChild('customerPhone').equalTo(currentUser.phone).once('value');
+            var list = [];
+            if (snap.exists()) snap.forEach(function(c) { list.push(c.val()); });
+            list.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+            
+            var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h3 style="margin:0;">🧾 Hóa đơn</h3><button onclick="document.getElementById(\'receiptView\').style.display=\'none\'" style="background:#e0e0e0;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button></div>';
+            
+            if (!list.length) {
+                html += '<div style="text-align:center;color:#666;padding:40px;">Chưa có hóa đơn</div>';
+            } else {
+                list.slice(0, 10).forEach(function(r) {
+                    html += '<div style="border:1px solid #e0e0e0;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;" onclick="viewReceiptDetail(\'' + r.code + '\')">' +
+                        '<div style="font-weight:700;">' + r.code + '</div>' +
+                        '<div style="font-size:12px;color:#666;">' + new Date(r.createdAt).toLocaleDateString('vi-VN') + ' · ' + (r.km || 0).toFixed(1) + ' km</div>' +
+                        '<div style="font-size:14px;font-weight:800;color:#d32f2f;margin-top:4px;">' + (r.price || 0).toLocaleString() + '₫</div>' +
+                        '</div>';
+                });
+            }
+            ov.innerHTML = '<div style="background:#fff;border-radius:20px;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">' + html + '</div>';
+        } catch(e) {
+            ov.innerHTML = '<div style="background:#fff;border-radius:20px;padding:24px;">Lỗi tải hóa đơn</div>';
+        }
+    }
+
+    window.viewReceiptDetail = function(code) {
+        window.open('?receipt=' + code, '_blank');
+    };
+
+    /* ===== 5) ENHANCED SOS - Ghi âm + Live location ===== */
+    var sosRecording = null;
+    var sosTimer = null;
+
+    window.triggerSOSEnhanced = async function() {
+        if (!confirm('🚨 GỬI CẢNH BÁO KHẨN CẤP?\nHệ thống sẽ ghi âm 30 giây + gửi vị trí trực tiếp đến trung tâm hỗ trợ!')) return;
+        
+        var code = 'SOS' + Date.now().toString(36).toUpperCase();
+        await db.ref('emergencies/' + code).set({
+            code: code,
+            customerId: currentUser?.uid,
+            customerPhone: currentUser?.phone,
+            customerName: currentUser?.name,
+            lat: currentLat,
+            lng: currentLng,
+            timestamp: Date.now(),
+            status: 'active'
+        });
+        
+        showToast('🚨 ĐÃ GỬI SOS - Đang ghi âm...', 'error');
+        vibrate();
+        
+        // Ghi âm 30 giây
+        if (navigator.mediaDevices && MediaRecorder) {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+                sosRecording = new MediaRecorder(stream, { audioBitsPerSecond: 16000 });
+                var chunks = [];
+                sosRecording.ondataavailable = function(e) { if (e.data.size) chunks.push(e.data); };
+                sosRecording.onstop = function() {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    var blob = new Blob(chunks, { type: 'audio/webm' });
+                    var fr = new FileReader();
+                    fr.onload = function() {
+                        db.ref('emergencies/' + code).update({ audio: fr.result, audioSavedAt: Date.now() });
+                    };
+                    fr.readAsDataURL(blob);
+                };
+                sosRecording.start();
+                setTimeout(function() { if (sosRecording) sosRecording.stop(); }, 30000);
+            });
+        }
+        
+        // Live location 5 phút
+        if (sosTimer) clearInterval(sosTimer);
+        sosTimer = setInterval(function() {
+            if (currentLat && currentLng) {
+                db.ref('emergencies/' + code).update({ lat: currentLat, lng: currentLng, lastUpdate: Date.now() });
+            }
+        }, 5000);
+        
+        setTimeout(function() {
+            if (sosTimer) { clearInterval(sosTimer); sosTimer = null; }
+            db.ref('emergencies/' + code).update({ status: 'ended', endedAt: Date.now() });
+            showToast('✅ SOS đã kết thúc', 'success');
+        }, 300000);
+        
+        setTimeout(function() { window.location.href = 'tel:113'; }, 1500);
+    };
+
+    /* ===== 6) THÊM MENU ITEMS ===== */
+    function addCustomerMenuItems() {
+        var menuSidebar = document.getElementById('menuSidebar');
+        if (!menuSidebar || menuSidebar.dataset.custAdded) return;
+        menuSidebar.dataset.custAdded = '1';
+        
+        var receiptItem = document.createElement('div');
+        receiptItem.className = 'menu-item';
+        receiptItem.innerHTML = '<i class="fas fa-receipt"></i><span>Hóa đơn chuyến đi</span>';
+        receiptItem.onclick = function() { toggleMenu(); openReceipt(); };
+        
+        var logout = menuSidebar.querySelector('.menu-logout');
+        if (logout) {
+            menuSidebar.insertBefore(receiptItem, logout);
+        }
+    }
+
+    /* ===== 7) BOOT - Khởi động ===== */
+    function boot() {
+        checkAuthUI();
+        addLegalLinks();
+        addCustomerMenuItems();
+        
+        // Override triggerSOS cũ
+        if (typeof window.triggerSOS === 'function') {
+            var oldSOS = window.triggerSOS;
+            window.triggerSOS = window.triggerSOSEnhanced;
+        }
+    }
+
+    // Chờ currentUser được set từ code gốc
+    var bootInterval = setInterval(function() {
+        if (window.currentUser || document.getElementById('authScreen')) {
+            boot();
+            clearInterval(bootInterval);
+        }
+    }, 500);
+
+    // Fallback: boot sau 3 giây
+    setTimeout(boot, 3000);
+})();
+</script>
 </body>
 </html>
