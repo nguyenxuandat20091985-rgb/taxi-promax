@@ -525,9 +525,10 @@
         <button class="menu-btn" onclick="openSidebar()">☰</button>
     </div>
 
-    <div class="gps-status-bar" id="gpsStatusBar">
+    <div class="gps-status-bar" id="gpsStatusBar" onclick="forceRefreshGPS()" title="Bấm để làm mới GPS" style="cursor:pointer;">
         <div class="gps-dot" id="gpsDot"></div>
         <span id="gpsStatusText">GPS: Đang tìm...</span>
+        <span style="margin-left:4px;font-size:9px;opacity:0.7;">↻</span>
     </div>
 
     <div class="stats-bar" id="statsUI">
@@ -830,7 +831,7 @@
     <script>
     // ============================================================
     // TAXI PROMAX - APP TÀI XẾ (FULL VERSION NÂNG CẤP)
-    // Version: 9.0 - Hamburger Menu, Keep Awake, AI Dispatch, Profile Dashboard
+    // Version: 9.2 - GPS nâng cấp (Grab-style accuracy, retry, force refresh, fare calc ổn định)
     // ============================================================
 
     // ==================== FIREBASE ====================
@@ -860,6 +861,7 @@
     let isStreetHail = false;
     let lastDisplayedFare = 0;
     let isGapMode = false;
+    let streetHailTimerInterval = null; // Timer cho đồng hồ chuyến vẫy
     let backgroundGeolocation = null;
     let isBackgroundTracking = false;
     let locationHistory = [];
@@ -889,11 +891,21 @@
         { name: "Trung tâm TP Hạ Long", lat: 20.9511, lng: 107.0800, intensity: 0.95, timeSlots: [8,9,10,11,17,18,19,20] }
     ];
 
-    // Các hằng số
+    // Các hằng số GPS (nâng cấp theo Grab / Xanh SM)
     const GAP_THRESHOLD = 15000;
-    const ACCURACY_THRESHOLD = 100;
-    const MIN_DISTANCE_DELTA = 0.005;
+    // Giai đoạn 1 (15s đầu): chấp nhận ≤ 80m để hiện marker sớm
+    // Sau đó: chấp nhận ≤ 150m (vẫn tính cước được)
+    // Chỉ loại bỏ khi > 300m (quá nhiễu)
+    const ACCURACY_STRICT = 80;
+    const ACCURACY_NORMAL = 150;
+    const ACCURACY_MAX = 300;
+    const MIN_DISTANCE_DELTA = 0.008; // ~8m – tránh nhiễu khi đứng yên
     const MAX_HISTORY_SIZE = 500;
+    let gpsWatchId = null;
+    let gpsFirstFixTime = null;
+    let gpsRetryCount = 0;
+    let lastAccuracy = 999;
+    let hasCenteredMap = false;
 
     // ==================== THUẬT TOÁN HAVERSINE ====================
     function haversineDistance(lat1, lon1, lat2, lon2) {
@@ -1194,41 +1206,89 @@
         } catch(e) {}
     }
     
-    function processBackgroundLocation(location) {
-        const { latitude, longitude, accuracy, heading, speed, timestamp } = location;
-        const currentTime = timestamp || Date.now();
-        
-        if (accuracy > ACCURACY_THRESHOLD) return;
-        
-        currentLat = latitude;
-        currentLng = longitude;
-        if (heading) currentHeading = Math.round(heading);
-        
-        saveLocationToHistory(latitude, longitude, accuracy, currentTime);
-        
+    function getAccuracyThreshold() {
+        // 15 giây đầu dùng ngưỡng nghiêm, sau đó nới lỏng (kiểu Grab)
+        if (!gpsFirstFixTime) return ACCURACY_STRICT;
+        const elapsed = Date.now() - gpsFirstFixTime;
+        if (elapsed < 15000) return ACCURACY_STRICT;
+        return ACCURACY_NORMAL;
+    }
+
+    function updateGpsStatusUI(accuracy, isError, errorMsg) {
         const dot = document.getElementById('gpsDot');
         const text = document.getElementById('gpsStatusText');
-        if (accuracy <= 15) { 
-            if (dot) dot.className = 'gps-dot good bg'; 
-            if (text) text.innerText = `GPS: Tốt (±${Math.round(accuracy)}m)`; 
-        } else if (accuracy <= 30) { 
-            if (dot) dot.className = 'gps-dot weak bg'; 
-            if (text) text.innerText = `GPS: TB (±${Math.round(accuracy)}m)`; 
-        } else { 
-            if (dot) dot.className = 'gps-dot bad bg'; 
-            if (text) text.innerText = `GPS: Yếu (±${Math.round(accuracy)}m)`; 
+        if (!dot || !text) return;
+
+        if (isError) {
+            dot.className = 'gps-dot bad';
+            text.innerText = errorMsg || 'GPS: Lỗi';
+            return;
         }
-        
-        updateDriverMarker(latitude, longitude);
-        
-        if (isRunning && lastValidPos) {
+
+        lastAccuracy = accuracy;
+        const acc = Math.round(accuracy);
+        if (accuracy <= 20) {
+            dot.className = 'gps-dot good' + (isBackgroundTracking ? ' bg' : '');
+            text.innerText = `GPS: Tốt (±${acc}m)`;
+        } else if (accuracy <= 50) {
+            dot.className = 'gps-dot weak' + (isBackgroundTracking ? ' bg' : '');
+            text.innerText = `GPS: TB (±${acc}m)`;
+        } else if (accuracy <= ACCURACY_MAX) {
+            dot.className = 'gps-dot weak';
+            text.innerText = `GPS: Yếu (±${acc}m)`;
+        } else {
+            dot.className = 'gps-dot bad';
+            text.innerText = `GPS: Rất yếu (±${acc}m)`;
+        }
+
+        // Cập nhật profile nếu đang mở
+        const profileAcc = document.getElementById('profileAccuracy');
+        if (profileAcc) profileAcc.innerText = `±${acc}m`;
+    }
+
+    function processBackgroundLocation(location) {
+        const latitude = location.latitude ?? location.coords?.latitude;
+        const longitude = location.longitude ?? location.coords?.longitude;
+        let accuracy = location.accuracy ?? location.coords?.accuracy ?? 999;
+        const heading = location.heading ?? location.coords?.heading;
+        const speed = location.speed ?? location.coords?.speed;
+        const currentTime = location.timestamp || Date.now();
+
+        if (latitude == null || longitude == null || isNaN(latitude) || isNaN(longitude)) return;
+
+        // Chấp nhận dần dần – không bỏ hết điểm như trước
+        const threshold = getAccuracyThreshold();
+        if (accuracy > ACCURACY_MAX) {
+            // Vẫn cập nhật status để tài xế biết, nhưng không dùng tính cước
+            updateGpsStatusUI(accuracy, false);
+            return;
+        }
+
+        // Điểm có accuracy kém hơn threshold nhưng vẫn < MAX: vẫn hiện marker, chỉ hạn chế cộng km nếu quá nhiễu
+        const isGoodEnoughForFare = accuracy <= threshold || accuracy <= ACCURACY_NORMAL;
+
+        if (!gpsFirstFixTime) gpsFirstFixTime = Date.now();
+        gpsRetryCount = 0;
+
+        currentLat = latitude;
+        currentLng = longitude;
+        if (heading != null && !isNaN(heading) && heading >= 0) {
+            currentHeading = Math.round(heading);
+        }
+
+        saveLocationToHistory(latitude, longitude, accuracy, currentTime);
+        updateGpsStatusUI(accuracy, false);
+        updateDriverMarker(latitude, longitude, true);
+
+        // Chỉ cộng km khi đang chạy chuyến và điểm đủ tốt
+        if (isRunning && isGoodEnoughForFare && lastValidPos) {
             const timeDiff = currentTime - lastValidTime;
-            
+
             if (timeDiff > GAP_THRESHOLD) {
                 showGapNotice();
                 isGapMode = true;
                 requestRoadDistance(lastValidPos, { lat: latitude, lng: longitude }).then(roadKm => {
-                    if (roadKm > 0) {
+                    if (roadKm > 0 && roadKm < 5) { // chống nhảy ảo quá xa
                         totalKm += roadKm;
                         updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
                     }
@@ -1236,31 +1296,40 @@
                 setTimeout(() => { isGapMode = false; }, 5000);
             } else {
                 const dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, latitude, longitude);
-                if (dist > MIN_DISTANCE_DELTA) {
+                // Lọc nhiễu: chỉ cộng khi di chuyển thật + tốc độ hợp lý
+                if (dist > MIN_DISTANCE_DELTA && dist < 0.5) {
                     totalKm += dist;
                     updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
                 }
             }
         }
-        
-        lastValidPos = { lat: latitude, lng: longitude };
-        lastValidTime = currentTime;
+
+        // Luôn cập nhật lastValidPos nếu điểm chấp nhận được (để lần sau tính được)
+        if (isGoodEnoughForFare || !lastValidPos) {
+            lastValidPos = { lat: latitude, lng: longitude };
+            lastValidTime = currentTime;
+        }
         syncDriverLocation();
     }
     
-    function updateDriverMarker(lat, lng) {
+    function updateDriverMarker(lat, lng, forceCenter) {
         if (!map) return;
         if (!driverMarker) {
             const icon = L.divIcon({
                 html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${currentHeading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
                 className: '', iconSize: [40,40], iconAnchor: [20,20]
             });
-            driverMarker = L.marker([lat, lng], { icon }).addTo(map);
-            map.setView([lat, lng], 16);
+            driverMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(map);
+            map.setView([lat, lng], 17);
+            hasCenteredMap = true;
         } else {
             driverMarker.setLatLng([lat, lng]);
             const compass = document.getElementById('compass');
             if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
+            // Chỉ auto-center lần đầu hoặc khi đang chạy chuyến
+            if ((forceCenter && !hasCenteredMap) || (isRunning && !isStreetHail)) {
+                map.panTo([lat, lng], { animate: true, duration: 0.5 });
+            }
         }
     }
     
@@ -1318,17 +1387,99 @@
     }
     
     function startGPS() {
-        if (!('geolocation' in navigator)) { showToast('⚠️ Không hỗ trợ GPS'); return; }
-        navigator.geolocation.watchPosition(
+        if (!('geolocation' in navigator)) {
+            updateGpsStatusUI(0, true, 'GPS: Không hỗ trợ');
+            showToast('⚠️ Thiết bị không hỗ trợ GPS');
+            return;
+        }
+
+        // Dừng watch cũ nếu có
+        if (gpsWatchId != null) {
+            navigator.geolocation.clearWatch(gpsWatchId);
+            gpsWatchId = null;
+        }
+
+        updateGpsStatusUI(0, true, 'GPS: Đang xin quyền...');
+
+        // Lấy vị trí cuối cùng ngay (nếu có) để hiện marker sớm
+        navigator.geolocation.getCurrentPosition(
             (pos) => {
-                const { latitude, longitude, accuracy, heading, speed } = pos.coords;
                 processBackgroundLocation({
-                    latitude, longitude, accuracy, heading, speed, timestamp: pos.timestamp
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    heading: pos.coords.heading,
+                    speed: pos.coords.speed,
+                    timestamp: pos.timestamp
                 });
             },
-            (err) => { console.error('GPS error:', err); },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            () => {},
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
         );
+
+        // Watch liên tục – cấu hình giống app taxi thật
+        gpsWatchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                processBackgroundLocation({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    heading: pos.coords.heading,
+                    speed: pos.coords.speed,
+                    timestamp: pos.timestamp
+                });
+            },
+            (err) => {
+                console.error('[GPS] error:', err.code, err.message);
+                gpsRetryCount++;
+                let msg = 'GPS: Lỗi';
+                if (err.code === 1) { // PERMISSION_DENIED
+                    msg = 'GPS: Bị từ chối quyền';
+                    showToast('⚠️ Hãy bật Quyền Vị trí trong Cài đặt điện thoại');
+                    updateGpsStatusUI(0, true, msg);
+                    // Không retry liên tục khi bị từ chối
+                    return;
+                } else if (err.code === 2) { // POSITION_UNAVAILABLE
+                    msg = 'GPS: Không có tín hiệu';
+                } else if (err.code === 3) { // TIMEOUT
+                    msg = 'GPS: Timeout – đang thử lại';
+                }
+                updateGpsStatusUI(0, true, msg);
+
+                // Tự động thử lại sau vài giây (tối đa 5 lần)
+                if (gpsRetryCount <= 5) {
+                    setTimeout(() => {
+                        if (!lastValidPos) startGPS();
+                    }, 4000);
+                }
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 20000,
+                maximumAge: 3000   // cho phép dùng cache 3s – giảm lag
+            }
+        );
+    }
+
+    function stopGPS() {
+        if (gpsWatchId != null) {
+            navigator.geolocation.clearWatch(gpsWatchId);
+            gpsWatchId = null;
+        }
+    }
+
+    // Nút bấm thủ công để làm mới GPS (tài xế hay cần)
+    function forceRefreshGPS() {
+        showToast('📡 Đang làm mới GPS...');
+        gpsFirstFixTime = null;
+        hasCenteredMap = false;
+        gpsRetryCount = 0;
+        startGPS();
+        // Nếu đã có vị trí thì bay tới luôn
+        if (currentLat && currentLng && map) {
+            map.flyTo([currentLat, currentLng], 17, { duration: 1 });
+            hasCenteredMap = true;
+        }
     }
 
     // ==================== SIDEBAR ====================
@@ -1598,26 +1749,49 @@
     function initCountdown() {
         const check = async () => {
             try {
+                if (!driverInfo?.uid) return;
                 const snap = await db.ref(`drivers/${driverInfo.uid}`).once('value');
                 const d = snap.val();
-                const planShow = document.getElementById('planShow');
                 const now = Date.now();
+                
+                // planShow có thể không tồn tại trong DOM → phải kiểm tra null
+                const planShow = document.getElementById('planShow');
+                const cdVal = document.getElementById('tp-cd-val');
+                const profilePlan = document.getElementById('profilePlan');
+                const profileExpiry = document.getElementById('profileExpiry');
+                const sidebarPlan = document.getElementById('sidebarPlan');
+                const miniTimer = document.getElementById('tp-mini-timer');
+
                 if (d && d.tp_expiry && parseInt(d.tp_expiry) > now) {
                     const expiry = parseInt(d.tp_expiry);
-                    planShow.innerText = `⭐ GÓI: ${d.active_plan || 'PROMAX'}`;
                     const days = Math.floor((expiry - now) / 86400000);
-                    document.getElementById('tp-cd-val').innerText = days + "n";
-                    document.getElementById('profilePlan').innerText = d.active_plan || 'TRIAL';
-                    document.getElementById('profileExpiry').innerText = new Date(expiry).toLocaleDateString('vi-VN');
+                    
+                    if (planShow) planShow.innerText = `⭐ GÓI: ${d.active_plan || 'PROMAX'}`;
+                    if (cdVal) cdVal.innerText = days + "n";
+                    if (profilePlan) profilePlan.innerText = d.active_plan || 'TRIAL';
+                    if (profileExpiry) profileExpiry.innerText = new Date(expiry).toLocaleDateString('vi-VN');
+                    if (sidebarPlan) sidebarPlan.innerHTML = `⭐ ${d.active_plan || 'PROMAX'}`;
+                    if (miniTimer) miniTimer.style.display = 'inline-flex';
+                    
+                    isLocked = false;
                 } else {
-                    planShow.innerText = "⭐ GÓI: MIỄN PHÍ";
-                    document.getElementById('profilePlan').innerText = 'Hết hạn';
-                    document.getElementById('profileExpiry').innerText = 'Hết hạn';
-                    if (!isLocked && !isRunning) { isLocked = true; showToast('⚠️ Gói cước đã hết hạn! Vui lòng gia hạn để nhận đơn.'); }
+                    if (planShow) planShow.innerText = "⭐ GÓI: MIỄN PHÍ";
+                    if (profilePlan) profilePlan.innerText = 'Hết hạn';
+                    if (profileExpiry) profileExpiry.innerText = 'Hết hạn';
+                    if (sidebarPlan) sidebarPlan.innerHTML = '⭐ MIỄN PHÍ';
+                    if (miniTimer) miniTimer.style.display = 'none';
+                    
+                    if (!isLocked && !isRunning) { 
+                        isLocked = true; 
+                        showToast('⚠️ Gói cước đã hết hạn! Vui lòng gia hạn để nhận đơn.'); 
+                    }
                 }
-            } catch(e) {}
+            } catch(e) { 
+                console.warn('initCountdown error:', e); 
+            }
         };
-        check(); setInterval(check, 60000);
+        check(); 
+        setInterval(check, 60000);
     }
 
     function startPackageExpiryChecker() {
@@ -1803,35 +1977,74 @@
     }
 
     function completeTrip() {
-        const finalCost = Math.round(totalKm * currentRate);
+        // Giữ lại giá trị trước khi reset (fixix lỗi luôn hiện 0.00 KM)
+        const finalKm = totalKm;
+        const finalCost = Math.round(finalKm * currentRate);
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
-        saveHistory(totalKm, finalCost.toLocaleString(), finalCost, tripType);
+        
+        saveHistory(finalKm, finalCost.toLocaleString(), finalCost, tripType);
         
         if (currentOrderId && !isStreetHail) {
-            db.ref(`datxe/${currentOrderId}`).update({ status: 'completed', completedAt: Date.now(), actualKm: totalKm, actualPrice: finalCost });
+            db.ref(`datxe/${currentOrderId}`).update({ 
+                status: 'completed', 
+                completedAt: Date.now(), 
+                actualKm: finalKm, 
+                actualPrice: finalCost 
+            }).catch(()=>{});
         }
         
-        isRunning = false; hasPickedUp = false; isStreetHail = false;
-        totalKm = 0; lastDisplayedFare = 0; currentOrderId = null; currentCustomerData = null;
-        lastValidPos = null; lastValidTime = 0; isGapMode = false;
+        isRunning = false; 
+        hasPickedUp = false; 
+        isStreetHail = false;
+        totalKm = 0; 
+        lastDisplayedFare = 0; 
+        currentOrderId = null; 
+        currentCustomerData = null;
+        lastValidPos = null; 
+        lastValidTime = 0; 
+        isGapMode = false;
         
-        document.getElementById('tripInfoPanel').style.display = 'none';
-        document.getElementById('homeControls').style.display = 'block';
-        document.getElementById('statsUI').classList.remove('show');
-        document.getElementById('mainBtn').innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
-        document.getElementById('mainBtn').style.background = "var(--accent)";
+        // Ẩn street hail meter nếu đang mở
+        const streetMeter = document.getElementById('streetHailMeter');
+        if (streetMeter) streetMeter.classList.remove('show');
+        if (typeof streetHailTimerInterval !== 'undefined' && streetHailTimerInterval) {
+            clearInterval(streetHailTimerInterval);
+            streetHailTimerInterval = null;
+        }
         
-        if (customerMarker) map.removeLayer(customerMarker);
-        if (routeLayer) map.removeLayer(routeLayer);
-        customerMarker = null; routeLayer = null;
+        const tripPanel = document.getElementById('tripInfoPanel');
+        const homeControls = document.getElementById('homeControls');
+        const statsUI = document.getElementById('statsUI');
+        const mainBtn = document.getElementById('mainBtn');
+        
+        if (tripPanel) tripPanel.style.display = 'none';
+        if (homeControls) homeControls.style.display = 'block';
+        if (statsUI) statsUI.classList.remove('show');
+        if (mainBtn) {
+            mainBtn.innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
+            mainBtn.style.background = "var(--accent)";
+        }
+        
+        if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+        
         stopForegroundService();
         disableKeepAwake();
         
-        document.getElementById('endSummary').innerHTML = `Quãng đường: <b>${totalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
-        document.getElementById('endModal').style.display = 'flex';
+        const endSummary = document.getElementById('endSummary');
+        if (endSummary) {
+            endSummary.innerHTML = `Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
+        }
+        
+        const endModal = document.getElementById('endModal');
+        if (endModal) endModal.style.display = 'flex';
+        
         speak(`Chuyến đi kết thúc. Tổng tiền ${finalCost.toLocaleString()} đồng.`);
-        document.getElementById('km').innerText = '0.00';
-        document.getElementById('cost').innerText = '0';
+        
+        const kmEl = document.getElementById('km');
+        const costEl = document.getElementById('cost');
+        if (kmEl) kmEl.innerText = '0.00';
+        if (costEl) costEl.innerText = '0';
     }
 
     async function saveHistory(km, costLabel, costRaw, tripType) {
@@ -1978,6 +2191,7 @@
     
     function showToast(msg) { 
         const toast = document.getElementById('txToast'); 
+        if (!toast) return;
         toast.innerText = msg; 
         toast.classList.add('show'); 
         setTimeout(() => toast.classList.remove('show'), 3000); 
@@ -2029,14 +2243,23 @@
         }
         showConfirmDialog('Bạn có chắc chắn muốn đăng xuất?', () => {
             stopBackgroundGeolocation();
+            stopGPS();
             stopLocationPushing();
             stopAIDispatch();
             stopForegroundService();
             disableKeepAwake();
-            if (orderListener) db.ref('datxe').off();
-            if (chatListener) db.ref(`chat/${chatListener}`).off();
-            if (ratingListener) db.ref(`ratings/${ratingListener}`).off();
-            if (_cancelListener) db.ref(`datxe/${_cancelListener}/status`).off();
+            
+            // Hủy tất cả listener Firebase
+            if (orderListener) { db.ref('datxe').off(); orderListener = null; }
+            if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
+            if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
+            if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
+            
+            // Đồng bộ offline trước khi logout
+            if (driverInfo?.uid) {
+                db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
+            }
+            
             localStorage.removeItem('driverInfo');
             location.reload();
         });
