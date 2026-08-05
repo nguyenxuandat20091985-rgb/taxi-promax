@@ -3887,5 +3887,1199 @@
     else boot();
 })();
 </script>
+<!-- ========== 🔐 KYC MODULE v1 - Xác thực tài xế + Duyệt hồ sơ ========== -->
+<script>
+(function(){
+    var ADMIN_PHONE = '0388724966';
+    var kycData = { front: null, back: null, license: null, selfie: null };
+
+    /* ===== CSS ===== */
+    var css = document.createElement('style');
+    css.textContent =
+        '.kyc-overlay{position:fixed;inset:0;background:rgba(10,15,25,.6);backdrop-filter:blur(6px);z-index:15000;display:none;align-items:flex-end;justify-content:center;}' +
+        '.kyc-overlay.show{display:flex;}' +
+        '.kyc-sheet{background:#fff;width:100%;max-width:480px;border-radius:24px 24px 0 0;max-height:92vh;overflow-y:auto;padding-bottom:20px;}' +
+        '.kyc-head{background:linear-gradient(135deg,#0054a3,#00bfa5);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:5;}' +
+        '.kyc-body{padding:16px;}' +
+        '.kyc-status{border-radius:14px;padding:12px 14px;font-size:13px;font-weight:700;margin-bottom:14px;}' +
+        '.kyc-status.pending{background:#fff7e6;color:#b45309;border:1px solid #fcd34d;}' +
+        '.kyc-status.approved{background:#e8f9ee;color:#15803d;border:1px solid #86efac;}' +
+        '.kyc-status.rejected{background:#fdecec;color:#b91c1c;border:1px solid #fca5a5;}' +
+        '.kyc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}' +
+        '.kyc-slot{border:2px dashed #cbd5e1;border-radius:14px;padding:10px;text-align:center;cursor:pointer;background:#f8fafc;}' +
+        '.kyc-slot.done{border-style:solid;border-color:#00bfa5;background:#e8f8f5;}' +
+        '.kyc-thumb{width:100%;height:90px;border-radius:10px;background-color:#e2e8f0;background-position:center;background-size:cover;background-repeat:no-repeat;margin-bottom:6px;}' +
+        '.kyc-label{font-size:11px;font-weight:700;color:#475569;}' +
+        '.kyc-slot input{display:none;}' +
+        '.kyc-submit{width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#0054a3,#00bfa5);color:#fff;font-size:15px;font-weight:800;cursor:pointer;}' +
+        '.kyc-submit:disabled{opacity:.5;}' +
+        '.kyc-admin-card{border:1px solid #e2e8f0;border-radius:16px;padding:14px;margin-bottom:12px;}' +
+        '.kyc-admin-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0;}' +
+        '.kyc-admin-thumbs div{height:64px;border-radius:8px;background-color:#e2e8f0;background-position:center;background-size:cover;cursor:pointer;}' +
+        '.kyc-admin-actions{display:flex;gap:8px;}' +
+        '.kyc-admin-actions button{flex:1;padding:10px;border:none;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;}' +
+        '.kyc-viewer{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:16000;display:none;align-items:center;justify-content:center;}' +
+        '.kyc-viewer.show{display:flex;}' +
+        '.kyc-viewer img{max-width:94%;max-height:90%;border-radius:8px;}';
+    document.head.appendChild(css);
+
+    /* ===== Nén ảnh trước khi upload ===== */
+    function compressImage(file, cb) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = new Image();
+            img.onload = function() {
+                var scale = Math.min(1, 800 / Math.max(img.width, img.height));
+                var canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                cb(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    /* ===== Xem ảnh phóng to ===== */
+    function makeViewer() {
+        if (document.getElementById('kycViewer')) return;
+        var v = document.createElement('div');
+        v.id = 'kycViewer'; v.className = 'kyc-viewer';
+        v.innerHTML = '<img src="">';
+        v.onclick = function() { v.classList.remove('show'); };
+        document.body.appendChild(v);
+    }
+    function viewImage(src) {
+        makeViewer();
+        var v = document.getElementById('kycViewer');
+        v.querySelector('img').src = src;
+        v.classList.add('show');
+    }
+
+    /* ===== MODAL tài xế gửi hồ sơ ===== */
+    function buildKYCModal() {
+        if (document.getElementById('kycModal')) return;
+        var m = document.createElement('div');
+        m.id = 'kycModal'; m.className = 'kyc-overlay';
+        m.innerHTML =
+            '<div class="kyc-sheet">' +
+            '<div class="kyc-head"><b>🔐 Xác thực tài xế</b><button onclick="document.getElementById(\'kycModal\').classList.remove(\'show\')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+            '<div class="kyc-body">' +
+            '<div id="kycStatusBox"></div>' +
+            '<div class="kyc-grid">' +
+            slotHtml('front', '🪪 CCCD — mặt trước', 'environment') +
+            slotHtml('back', '🪪 CCCD — mặt sau', 'environment') +
+            slotHtml('license', '🚗 Bằng lái xe', 'environment') +
+            slotHtml('selfie', '🤳 Ảnh chân dung', 'user') +
+            '</div>' +
+            '<button id="kycSubmitBtn" class="kyc-submit">📤 Gửi hồ sơ xét duyệt</button>' +
+            '</div></div>';
+        document.body.appendChild(m);
+
+        ['front','back','license','selfie'].forEach(function(key) {
+            document.getElementById('kycInput_' + key).onchange = function() {
+                var f = this.files && this.files[0];
+                if (!f) return;
+                compressImage(f, function(b64) {
+                    kycData[key] = b64;
+                    var slot = document.getElementById('kycSlot_' + key);
+                    slot.classList.add('done');
+                    slot.querySelector('.kyc-thumb').style.backgroundImage = 'url(' + b64 + ')';
+                });
+            };
+        });
+        document.getElementById('kycSubmitBtn').onclick = submitKYC;
+    }
+    function slotHtml(key, label, capture) {
+        return '<div class="kyc-slot" id="kycSlot_' + key + '" onclick="document.getElementById(\'kycInput_' + key + '\').click()">' +
+            '<div class="kyc-thumb"></div><div class="kyc-label">' + label + '</div>' +
+            '<input type="file" accept="image/*" capture="' + capture + '" id="kycInput_' + key + '"></div>';
+    }
+
+    function openKYC() {
+        buildKYCModal();
+        document.getElementById('kycModal').classList.add('show');
+        loadKYCStatus();
+    }
+    window.openKYC = openKYC;
+
+    function loadKYCStatus() {
+        if (!window.driverInfo || !driverInfo.uid) return;
+        db.ref('drivers/' + driverInfo.uid + '/documents').once('value').then(function(snap) {
+            var box = document.getElementById('kycStatusBox');
+            if (!snap.exists()) { box.innerHTML = '<div class="kyc-status pending">📋 Bạn chưa gửi hồ sơ xác thực. Hãy chụp đủ 4 ảnh bên dưới.</div>'; return; }
+            var d = snap.val();
+            if (d.status === 'approved') box.innerHTML = '<div class="kyc-status approved">✅ Tài khoản đã xác thực — tăng uy tín nhận đơn!</div>';
+            else if (d.status === 'rejected') box.innerHTML = '<div class="kyc-status rejected">❌ Hồ sơ bị từ chối' + (d.rejectReason ? ': ' + d.rejectReason : '') + ' — chụp lại và gửi lại.</div>';
+            else box.innerHTML = '<div class="kyc-status pending">⏳ Hồ sơ đang chờ duyệt...</div>';
+            // nạp lại ảnh đã gửi
+            ['front','back','license','selfie'].forEach(function(key) {
+                if (d[key]) {
+                    kycData[key] = d[key];
+                    var slot = document.getElementById('kycSlot_' + key);
+                    slot.classList.add('done');
+                    slot.querySelector('.kyc-thumb').style.backgroundImage = 'url(' + d[key] + ')';
+                }
+            });
+        });
+    }
+
+    function submitKYC() {
+        if (!window.driverInfo || !driverInfo.uid) return;
+        if (!kycData.front || !kycData.back || !kycData.license || !kycData.selfie) {
+            if (typeof showToast === 'function') showToast('❌ Chụp đủ 4 ảnh trước khi gửi');
+            return;
+        }
+        var btn = document.getElementById('kycSubmitBtn');
+        btn.disabled = true; btn.textContent = '⏳ Đang gửi...';
+        db.ref('drivers/' + driverInfo.uid + '/documents').set({
+            front: kycData.front, back: kycData.back,
+            license: kycData.license, selfie: kycData.selfie,
+            status: 'pending', submittedAt: Date.now(),
+            name: driverInfo.name, phone: driverInfo.phone
+        }).then(function() {
+            btn.disabled = false; btn.textContent = '📤 Gửi hồ sơ xét duyệt';
+            if (typeof showToast === 'function') showToast('✅ Đã gửi hồ sơ! Chờ admin duyệt.');
+            loadKYCStatus();
+        }).catch(function(e) {
+            btn.disabled = false; btn.textContent = '📤 Gửi hồ sơ xét duyệt';
+            if (typeof showToast === 'function') showToast('❌ Lỗi: ' + e.message);
+        });
+    }
+
+    /* ===== MODAL admin duyệt hồ sơ ===== */
+    function openKYCAdmin() {
+        if (!window.driverInfo || String(driverInfo.phone) !== ADMIN_PHONE) {
+            if (typeof showToast === 'function') showToast('⛔ Chỉ admin mới dùng tính năng này');
+            return;
+        }
+        if (!document.getElementById('kycAdminModal')) {
+            var m = document.createElement('div');
+            m.id = 'kycAdminModal'; m.className = 'kyc-overlay';
+            m.innerHTML =
+                '<div class="kyc-sheet"><div class="kyc-head"><b>🛡️ Duyệt hồ sơ tài xế</b>' +
+                '<button onclick="document.getElementById(\'kycAdminModal\').classList.remove(\'show\')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+                '<div class="kyc-body" id="kycAdminList"></div></div>';
+            document.body.appendChild(m);
+        }
+        document.getElementById('kycAdminModal').classList.add('show');
+        loadPendingList();
+    }
+    window.openKYCAdmin = openKYCAdmin;
+
+    function loadPendingList() {
+        var box = document.getElementById('kycAdminList');
+        box.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">Đang tải...</div>';
+        db.ref('drivers').once('value').then(function(snap) {
+            var html = '';
+            if (snap.exists()) {
+                snap.forEach(function(c) {
+                    var d = c.val();
+                    if (d && d.documents && d.documents.status === 'pending') {
+                        html +=
+                            '<div class="kyc-admin-card">' +
+                            '<div style="font-weight:800;font-size:14px;">👤 ' + (d.name || '---') + '</div>' +
+                            '<div style="font-size:12px;color:#64748b;">📞 ' + (d.phone || '---') + ' · ' + new Date(d.documents.submittedAt || Date.now()).toLocaleString('vi-VN') + '</div>' +
+                            '<div class="kyc-admin-thumbs">' +
+                            ['front','back','license','selfie'].map(function(k) {
+                                return '<div style="background-image:url(' + (d.documents[k] || '') + ')" onclick="viewImage(\'' + k + '_' + c.key + '\')"></div>';
+                            }).join('') +
+                            '</div>' +
+                            '<div class="kyc-admin-actions">' +
+                            '<button style="background:#00bfa5;color:#fff;" onclick="kycDecide(\'' + c.key + '\',true)">✅ Duyệt</button>' +
+                            '<button style="background:#ef5350;color:#fff;" onclick="kycDecide(\'' + c.key + '\',false)">❌ Từ chối</button>' +
+                            '</div></div>';
+                        // lưu ảnh tạm để viewer
+                        window['kycCache_' + c.key] = d.documents;
+                    }
+                });
+            }
+            box.innerHTML = html || '<div style="text-align:center;padding:30px;color:#94a3b8;">🎉 Không có hồ sơ chờ duyệt</div>';
+            // sửa onclick thumbnail dùng cache
+            box.querySelectorAll('.kyc-admin-thumbs div').forEach(function(el, idx) {});
+        });
+    }
+    // viewer cho admin: dùng dữ liệu cache
+    window.viewImage = function(ref) {
+        var parts = ref.split('_');
+        var key = parts[0], uid = parts.slice(1).join('_');
+        var cache = window['kycCache_' + uid];
+        if (cache && cache[key]) {
+            makeViewer();
+            var v = document.getElementById('kycViewer');
+            v.querySelector('img').src = cache[key];
+            v.classList.add('show');
+        }
+    };
+    window.kycDecide = function(uid, approve) {
+        var reason = '';
+        if (!approve) {
+            reason = prompt('Lý do từ chối (tài xế sẽ nhìn thấy):') || 'Hồ sơ chưa rõ, chụp lại';
+        }
+        db.ref('drivers/' + uid + '/documents').update({
+            status: approve ? 'approved' : 'rejected',
+            decidedAt: Date.now(),
+            rejectReason: approve ? null : reason
+        }).then(function() {
+            if (typeof showToast === 'function') showToast(approve ? '✅ Đã duyệt' : '❌ Đã từ chối');
+            loadPendingList();
+        });
+    };
+
+    /* ===== Thêm mục menu + badge xác thực ===== */
+    function addKYCMenu() {
+        var menu = document.querySelector('.sidebar-menu');
+        if (!menu || menu.dataset.kycAdded || !window.driverInfo) return;
+        menu.dataset.kycAdded = '1';
+        var logout = null;
+        for (var i = 0; i < menu.children.length; i++) {
+            if ((menu.children[i].innerText || '').indexOf('Đăng xuất') !== -1) logout = menu.children[i];
+        }
+        function mk(icon, label, fn) {
+            var d = document.createElement('div');
+            d.className = 'sidebar-item';
+            d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">' + icon + '</span><span>' + label + '</span>';
+            d.onclick = fn;
+            return d;
+        }
+        var items = [mk('🔐', 'Xác thực tài xế', openKYC)];
+        if (String(driverInfo.phone) === ADMIN_PHONE) items.push(mk('🛡️', 'Duyệt hồ sơ', openKYCAdmin));
+        items.forEach(function(it) { if (logout) menu.insertBefore(it, logout); else menu.appendChild(it); });
+    }
+
+    /* ===== Badge ✅ khi đã xác thực ===== */
+    function updateVerifiedBadge() {
+        if (!window.driverInfo || !driverInfo.uid) return;
+        db.ref('drivers/' + driverInfo.uid + '/documents/status').on('value', function(snap) {
+            var nameEl = document.getElementById('sidebarName');
+            if (nameEl && snap.val() === 'approved' && nameEl.innerText.indexOf('✅') === -1) {
+                nameEl.innerText = nameEl.innerText + ' ✅';
+            }
+        });
+    }
+
+    function boot() { addKYCMenu(); updateVerifiedBadge(); setInterval(addKYCMenu, 1000); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
+</script>
+<!-- ========== 📜 LEGAL MODULE v1 - Bảo mật + Điều khoản (chuẩn CH Play) ========== -->
+<script>
+(function(){
+    var PRIVACY = {
+        title: '🔒 CHÍNH SÁCH BẢO MẬT',
+        sections: [
+            { h: '1. Giới thiệu', b: 'Taxi ProMax ("chúng tôi") là nền tảng phần mềm kết nối hành khách với tài xế. Chính sách này giải thích cách chúng tôi thu thập, sử dụng và bảo vệ dữ liệu cá nhân của bạn, phù hợp với Luật An ninh mạng và Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.' },
+            { h: '2. Dữ liệu chúng tôi thu thập', b: '• Tài khoản: họ tên, số điện thoại, mật khẩu (lưu dạng mã hóa hash).\n• Hồ sơ tài xế: CCCD/CMND, bằng lái, ảnh chân dung, biển số xe, loại xe.\n• Hoạt động: vị trí GPS khi dùng app, lịch sử chuyến đi, giá cước, đánh giá.\n• Kỹ thuật: loại thiết bị, phiên bản hệ điều hành.' },
+            { h: '3. Mục đích sử dụng', b: '• Đăng ký và xác thực tài khoản (KYC).\n• Kết nối tài xế với hành khách.\n• Đảm bảo an toàn: SOS, theo dõi chuyến đi.\n• Nâng cao chất lượng dịch vụ.\n• Tuân thủ yêu cầu của pháp luật.' },
+            { h: '4. Căn cứ xử lý dữ liệu', b: '• Sự đồng ý của bạn khi đăng ký tài khoản.\n• Thực hiện thỏa thuận giữa bạn và nền tảng.\n• Tuân thủ nghĩa vụ pháp luật.' },
+            { h: '5. Lưu trữ và bảo vệ', b: '• Dữ liệu truyền qua HTTPS mã hóa.\n• Lưu trên hệ thống Google Firebase (khu vực Singapore).\n• Mật khẩu lưu dạng hash, không lưu bản rõ.\n• Hồ sơ giấy tờ chỉ quản trị viên được truy cập.' },
+            { h: '6. Thời gian lưu trữ', b: '• Dữ liệu tài khoản: đến khi bạn yêu cầu xóa.\n• Dữ liệu chuyến đi: 12 tháng.\n• Hồ sơ xác thực: xóa trong 30 ngày sau khi khóa tài khoản.' },
+            { h: '7. Chia sẻ dữ liệu', b: '• Chúng tôi KHÔNG bán dữ liệu của bạn.\n• Thông tin tài xế (tên, SĐT, biển số) chỉ hiển thị với hành khách trong chuyến đi.\n• Chỉ cung cấp cho cơ quan nhà nước khi pháp luật yêu cầu.' },
+            { h: '8. Quyền của bạn', b: 'Bạn có quyền: xem, chỉnh sửa, xóa dữ liệu; rút lại sự đồng ý; phản đối xử lý dữ liệu; khiếu nại. Liên hệ hotline 0388724966 để thực hiện quyền.' },
+            { h: '9. Về vị trí (GPS)', b: '• Chỉ thu thập khi tài xế online hoặc hành khách đặt xe.\n• Bạn có thể tắt trong Cài đặt điện thoại; một số tính năng sẽ bị hạn chế.' },
+            { h: '10. Thay đổi chính sách', b: 'Mọi thay đổi sẽ được thông báo trong ứng dụng ít nhất 7 ngày trước khi áp dụng.' }
+        ]
+    };
+    var TERMS = {
+        title: '📜 ĐIỀU KHOẢN SỬ DỤNG',
+        sections: [
+            { h: '1. Bản chất dịch vụ', b: 'Taxi ProMax là phần mềm kết nối. Chúng tôi KHÔNG phải đơn vị kinh doanh vận tải, không điều hành xe, không trực tiếp cung cấp dịch vụ vận chuyển.' },
+            { h: '2. Tài khoản tài xế', b: '• Cung cấp thông tin trung thực, xác thực giấy tờ (CCCD, bằng lái).\n• Giữ bằng lái và đăng kiểm còn hiệu lực.\n• Tuân thủ Luật Giao thông đường bộ.' },
+            { h: '3. Phí và thanh toán', b: '• Tài xế trả phí thuê bao 99.000đ/tháng để sử dụng phần mềm.\n• Nền tảng KHÔNG thu phần trăm trên mỗi chuyến.\n• Hành khách thanh toán trực tiếp cho tài xế (tiền mặt hoặc thỏa thuận).' },
+            { h: '4. Nghĩa vụ tài xế', b: 'Đón đúng điểm hẹn, không chặt chém, không phân biệt đối xử, giữ gìn xe sạch sẽ, tuân thủ chính sách hủy chuyến.' },
+            { h: '5. Nghĩa vụ hành khách', b: 'Cung cấp điểm đón/trả chính xác, thanh toán đúng giá đã thỏa thuận, ứng xử văn minh.' },
+            { h: '6. Hủy chuyến (xe ghép)', b: '• Hủy trước 30 phút so với giờ khởi hành: miễn phí.\n• Hủy trong vòng 30 phút: phí 20% giá vé.' },
+            { h: '7. Giới hạn trách nhiệm', b: '• Hợp đồng vận chuyển được xác lập trực tiếp giữa tài xế và hành khách.\n• Nền tảng không chịu trách nhiệm với thiệt hại phát sinh từ hoạt động vận chuyển ngoài phạm vi hỗ trợ kết nối.\n• Khuyến nghị mua bảo hiểm hành khách cho mỗi chuyến đi.' },
+            { h: '8. Xử lý vi phạm', b: 'Tùy mức độ: nhắc nhở, khóa tài khoản có thời hạn hoặc vĩnh viễn; cung cấp thông tin cho cơ quan chức năng khi được yêu cầu.' },
+            { h: '9. Luật áp dụng', b: 'Điều khoản này chịu sự điều chỉnh của pháp luật nước Cộng hòa XHCN Việt Nam. Tranh chấp ưu tiên thương lượng trước.' }
+        ]
+    };
+
+    function openLegal(kind) {
+        var data = (kind === 'terms') ? TERMS : PRIVACY;
+        var ov = document.getElementById('legalOverlay');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'legalOverlay';
+            ov.style.cssText = 'position:fixed;inset:0;background:#f5f7fa;z-index:99998;overflow-y:auto;display:none;';
+            document.body.appendChild(ov);
+        }
+        var html = '<div style="max-width:720px;margin:0 auto;padding:20px 18px 60px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">' +
+            '<button id="legalClose" style="width:38px;height:38px;border:none;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:16px;cursor:pointer;">✕</button>' +
+            '<b style="font-size:16px;color:#0054a3;">' + data.title + '</b></div>' +
+            '<div style="font-size:11px;color:#64748b;margin:0 0 16px 48px;">Cập nhật: 06/08/2026 · Taxi ProMax · Hotline 0388724966</div>';
+        data.sections.forEach(function(s) {
+            html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,.05);">' +
+                '<div style="font-weight:800;font-size:13px;color:#1e293b;margin-bottom:6px;">' + s.h + '</div>' +
+                '<div style="font-size:12.5px;color:#475569;line-height:1.7;white-space:pre-line;">' + s.b + '</div></div>';
+        });
+        html += '</div>';
+        ov.innerHTML = html;
+        ov.style.display = 'block';
+        ov.scrollTop = 0;
+        ov.querySelector('#legalClose').onclick = function() { ov.style.display = 'none'; };
+    }
+    window.openLegal = openLegal;
+
+    /* ===== Mở bằng URL công khai (?legal=privacy / ?legal=terms) ===== */
+    try {
+        var lp = new URLSearchParams(window.location.search).get('legal');
+        if (lp === 'privacy' || lp === 'terms') setTimeout(function() { openLegal(lp); }, 300);
+    } catch(e) {}
+
+    /* ===== Thêm mục menu + gắn link ở màn đăng nhập ===== */
+    function addLegalMenu() {
+        var menu = document.querySelector('.sidebar-menu');
+        if (menu && !menu.dataset.legalAdded) {
+            menu.dataset.legalAdded = '1';
+            var logout = null;
+            for (var i = 0; i < menu.children.length; i++) {
+                if ((menu.children[i].innerText || '').indexOf('Đăng xuất') !== -1) logout = menu.children[i];
+            }
+            function mk(icon, label, fn) {
+                var d = document.createElement('div');
+                d.className = 'sidebar-item';
+                d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">' + icon + '</span><span>' + label + '</span>';
+                d.onclick = fn;
+                return d;
+            }
+            var a = mk('🔒', 'Chính sách bảo mật', function() { openLegal('privacy'); });
+            var b = mk('📜', 'Điều khoản sử dụng', function() { openLegal('terms'); });
+            if (logout) { menu.insertBefore(a, logout); menu.insertBefore(b, logout); }
+            else { menu.appendChild(a); menu.appendChild(b); }
+        }
+        // Gắn vào link "Điều khoản" ở màn đăng nhập
+        var links = document.querySelectorAll('#authScreen a, #authScreen button, #authScreen span');
+        for (var j = 0; j < links.length; j++) {
+            var t = (links[j].innerText || '');
+            if (t.indexOf('Điều khoản') !== -1 && !links[j].dataset.legalBound) {
+                links[j].dataset.legalBound = '1';
+                links[j].style.cursor = 'pointer';
+                links[j].onclick = function(e) { e.preventDefault(); openLegal('terms'); };
+            }
+        }
+    }
+    function boot() { addLegalMenu(); setInterval(addLegalMenu, 1000); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
+</script>
+<!-- ========== ⚡ EV MODULE v1 - Trạm sạc + Pin + Eco ========== -->
+<script>
+(function(){
+    var css = document.createElement('style');
+    css.textContent =
+        '.ev-overlay{position:fixed;inset:0;background:rgba(10,15,25,.6);backdrop-filter:blur(6px);z-index:15000;display:none;align-items:flex-end;justify-content:center;}' +
+        '.ev-overlay.show{display:flex;}' +
+        '.ev-sheet{background:#fff;width:100%;max-width:480px;border-radius:24px 24px 0 0;max-height:92vh;overflow-y:auto;padding-bottom:20px;}' +
+        '.ev-head{background:linear-gradient(135deg,#00796b,#00bfa5);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:5;}' +
+        '.ev-body{padding:16px;}' +
+        '.ev-batt-card{border-radius:16px;padding:16px;margin-bottom:14px;background:#f0fdfa;border:1px solid #99f6e4;}' +
+        '.ev-batt-val{font-size:30px;font-weight:900;}' +
+        '.ev-batt-bar{height:10px;border-radius:6px;background:#e2e8f0;overflow:hidden;margin:8px 0;}' +
+        '.ev-batt-fill{height:100%;border-radius:6px;transition:width .3s,background .3s;}' +
+        '.ev-quick{display:flex;gap:8px;margin:10px 0;}' +
+        '.ev-quick button{flex:1;padding:8px;border:1px solid #cbd5e1;background:#fff;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;}' +
+        '.ev-station{display:flex;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:14px;padding:12px;margin-bottom:8px;}' +
+        '.ev-station .ico{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#00796b,#00bfa5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}' +
+        '.ev-station .info{flex:1;min-width:0;}' +
+        '.ev-station .name{font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        '.ev-station .dist{font-size:11px;color:#64748b;}' +
+        '.ev-station a{background:#0054a3;color:#fff;text-decoration:none;font-size:11px;font-weight:800;padding:8px 10px;border-radius:10px;flex-shrink:0;}';
+    document.head.appendChild(css);
+
+    var evMarkers = [];
+    function evHav(a, b, c, d) {
+        var R = 6371, dLa = (c - a) * Math.PI / 180, dLo = (d - b) * Math.PI / 180;
+        var x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+        return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
+    function getPos() {
+        var lat = (typeof currentLat !== 'undefined' && currentLat) ? currentLat : 21.0285;
+        var lng = (typeof currentLng !== 'undefined' && currentLng) ? currentLng : 105.8542;
+        return { lat: lat, lng: lng };
+    }
+    function fallbackStations(lat) {
+        if (lat > 15) return [
+            { name: 'Trạm sạc VinFast Cầu Giấy', lat: 21.0352, lng: 105.7878 },
+            { name: 'Trạm sạc VinFast Times City', lat: 21.0015, lng: 105.8625 },
+            { name: 'Trạm sạc VinFast Hà Đông', lat: 20.9714, lng: 105.7776 },
+            { name: 'Trạm sạc VinFast Nội Bài', lat: 21.2142, lng: 105.8075 }
+        ];
+        return [
+            { name: 'Trạm sạc VinFast Quận 1', lat: 10.7769, lng: 106.7009 },
+            { name: 'Trạm sạc VinFast Phú Mỹ Hưng', lat: 10.7288, lng: 106.7181 },
+            { name: 'Trạm sạc VinFast Tân Sơn Nhất', lat: 10.8188, lng: 106.6519 },
+            { name: 'Trạm sạc VinFast Thủ Đức', lat: 10.8611, lng: 106.7721 }
+        ];
+    }
+
+    /* ===== Modal ===== */
+    function buildEVModal() {
+        if (document.getElementById('evModal')) return;
+        var m = document.createElement('div');
+        m.id = 'evModal'; m.className = 'ev-overlay';
+        m.innerHTML =
+            '<div class="ev-sheet"><div class="ev-head"><b>⚡ Xe điện & Trạm sạc</b>' +
+            '<button onclick="document.getElementById(\'evModal\').classList.remove(\'show\')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+            '<div class="ev-body">' +
+            '<div class="ev-batt-card">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;font-weight:700;color:#0f766e;">🔋 Mức pin hiện tại</span><span id="evEco" style="font-size:12px;font-weight:800;color:#00796b;"></span></div>' +
+            '<div class="ev-batt-val" id="evBattVal">--%</div>' +
+            '<div class="ev-batt-bar"><div class="ev-batt-fill" id="evBattFill" style="width:0%;"></div></div>' +
+            '<input type="range" id="evBattRange" min="5" max="100" step="5" value="80" style="width:100%;accent-color:#00bfa5;">' +
+            '<div class="ev-quick">' +
+            '<button onclick="evSetBatt(100)">100%</button><button onclick="evSetBatt(80)">80%</button>' +
+            '<button onclick="evSetBatt(50)">50%</button><button onclick="evSetBatt(20)">20%</button></div>' +
+            '<button id="evSaveBatt" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#00796b,#00bfa5);color:#fff;font-weight:800;font-size:14px;cursor:pointer;">💾 Lưu mức pin</button>' +
+            '</div>' +
+            '<button id="evFindBtn" style="width:100%;padding:13px;border:none;border-radius:12px;background:#0054a3;color:#fff;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:12px;">🔌 Tìm trạm sạc gần nhất</button>' +
+            '<div id="evList"></div>' +
+            '</div></div>';
+        document.body.appendChild(m);
+        document.getElementById('evBattRange').oninput = function() { evPreview(parseInt(this.value)); };
+        document.getElementById('evSaveBatt').onclick = evSaveBatt;
+        document.getElementById('evFindBtn').onclick = findStations;
+    }
+    function evColor(v) { return v > 50 ? '#00bfa5' : v > 30 ? '#f7931e' : '#d32f2f'; }
+    function evPreview(v) {
+        var val = document.getElementById('evBattVal');
+        var fill = document.getElementById('evBattFill');
+        if (val) { val.textContent = v + '%'; val.style.color = evColor(v); }
+        if (fill) { fill.style.width = v + '%'; fill.style.background = evColor(v); }
+    }
+    window.evSetBatt = function(v) {
+        var r = document.getElementById('evBattRange');
+        if (r) r.value = v;
+        evPreview(v);
+    };
+    function evSaveBatt() {
+        var v = parseInt(document.getElementById('evBattRange').value);
+        localStorage.setItem('promax_battery', v);
+        try {
+            if (window.driverInfo && driverInfo.uid && typeof db !== 'undefined') {
+                db.ref('drivers/' + driverInfo.uid + '/battery').set({ level: v, updatedAt: Date.now() });
+            }
+        } catch(e) {}
+        evPreview(v);
+        if (typeof showToast === 'function') showToast('💾 Đã lưu pin ' + v + '%');
+        if (v <= 30) evLowAlert();
+    }
+    function evLowAlert() {
+        if (typeof showToast === 'function') showToast('⚠️ Pin thấp! Nên tìm trạm sạc gần nhất');
+        if (typeof speak === 'function') speak('Pin thấp. Đề xuất tìm trạm sạc gần nhất.');
+    }
+    function evCheckOnBoot() {
+        var v = parseInt(localStorage.getItem('promax_battery') || '0');
+        if (v > 0 && v <= 30) setTimeout(evLowAlert, 3000);
+    }
+
+    /* ===== Tìm trạm sạc ===== */
+    function clearEvMarkers() {
+        evMarkers.forEach(function(mk) { try { map.removeLayer(mk); } catch(e) {} });
+        evMarkers = [];
+    }
+    function findStations() {
+        var p = getPos();
+        var box = document.getElementById('evList');
+        box.innerHTML = '<div style="text-align:center;padding:16px;color:#64748b;font-size:13px;">⏳ Đang tìm trạm sạc quanh bạn...</div>';
+        var q = '[out:json][timeout:12];node[amenity=charging_station](around:8000,' + p.lat + ',' + p.lng + ');out body 15;';
+        fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var list = (d.elements || []).map(function(e) {
+                    return { name: (e.tags && e.tags.name) || 'Trạm sạc', lat: e.lat, lng: e.lon };
+                });
+                if (!list.length) list = fallbackStations(p.lat);
+                renderStations(list);
+            })
+            .catch(function() { renderStations(fallbackStations(p.lat)); });
+    }
+    function renderStations(list) {
+        var p = getPos();
+        list.forEach(function(s) { s.d = evHav(p.lat, p.lng, s.lat, s.lng); });
+        list.sort(function(a, b) { return a.d - b.d; });
+        list = list.slice(0, 6);
+        var box = document.getElementById('evList');
+        if (!list.length) { box.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;font-size:13px;">Không tìm thấy trạm gần đây</div>'; return; }
+        box.innerHTML = list.map(function(s) {
+            return '<div class="ev-station"><div class="ico">⚡</div>' +
+                '<div class="info"><div class="name">' + s.name + '</div><div class="dist">📍 Cách ' + s.d.toFixed(1) + ' km</div></div>' +
+                '<a href="https://www.google.com/maps/dir/?api=1&origin=' + p.lat + ',' + p.lng + '&destination=' + s.lat + ',' + s.lng + '" target="_blank">🧭 Đến</a></div>';
+        }).join('');
+        // Chấm ⚡ lên bản đồ
+        if (typeof map !== 'undefined' && map && typeof L !== 'undefined') {
+            clearEvMarkers();
+            list.forEach(function(s) {
+                var mk = L.circleMarker([s.lat, s.lng], { radius: 9, color: '#00796b', weight: 2, fillColor: '#00bfa5', fillOpacity: 0.7 })
+                    .addTo(map).bindTooltip('⚡ ' + s.name + ' (' + s.d.toFixed(1) + ' km)');
+                evMarkers.push(mk);
+            });
+        }
+        if (typeof showToast === 'function') showToast('⚡ Tìm thấy ' + list.length + ' trạm sạc');
+    }
+
+    /* ===== Điểm Eco (trừ khi tăng tốc/phanh gấp) ===== */
+    var ecoScore = parseInt(localStorage.getItem('promax_eco') || '100');
+    var lastV = null, lastT = null;
+    function updateEcoUI() {
+        var el = document.getElementById('evEco');
+        if (el) el.textContent = '🌿 Eco: ' + ecoScore + '/100';
+    }
+    function startEco() {
+        if (!('geolocation' in navigator)) return;
+        navigator.geolocation.watchPosition(function(p) {
+            if (p.coords.speed == null) return;
+            var v = p.coords.speed, t = p.timestamp;
+            if (lastV != null && lastT != null) {
+                var dt = (t - lastT) / 1000;
+                if (dt > 0 && dt < 5) {
+                    var a = Math.abs(v - lastV) / dt;
+                    if (a > 3) {
+                        ecoScore = Math.max(60, ecoScore - 2);
+                        localStorage.setItem('promax_eco', ecoScore);
+                        updateEcoUI();
+                    }
+                }
+            }
+            lastV = v; lastT = t;
+        }, function() {}, { enableHighAccuracy: false, maximumAge: 5000 });
+    }
+
+    /* ===== Mở modal + menu ===== */
+    function openEV() {
+        buildEVModal();
+        document.getElementById('evModal').classList.add('show');
+        var v = parseInt(localStorage.getItem('promax_battery') || '80');
+        var r = document.getElementById('evBattRange');
+        if (r) r.value = v;
+        evPreview(v);
+        updateEcoUI();
+    }
+    window.openEV = openEV;
+
+    function addEVMenu() {
+        var menu = document.querySelector('.sidebar-menu');
+        if (!menu || menu.dataset.evAdded) return;
+        menu.dataset.evAdded = '1';
+        var logout = null;
+        for (var i = 0; i < menu.children.length; i++) {
+            if ((menu.children[i].innerText || '').indexOf('Đăng xuất') !== -1) logout = menu.children[i];
+        }
+        var d = document.createElement('div');
+        d.className = 'sidebar-item';
+        d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">⚡</span><span>Xe điện & Trạm sạc</span>';
+        d.onclick = openEV;
+        if (logout) menu.insertBefore(d, logout); else menu.appendChild(d);
+    }
+
+    function boot() { addEVMenu(); startEco(); evCheckOnBoot(); setInterval(addEVMenu, 1000); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
+</script>
+<!-- ========== 💰 WALLET MODULE v1 - Ví tiền & Gói cước SaaS ========== -->
+<script>
+(function(){
+    var ADMIN_PHONE = '0388724966';
+    var BANK = { bank: 'MB Bank', acc: '0388724966', name: 'NGUYEN XUAN DAT', momo: '0388724966' };
+    var PLANS = {
+        m1:  { name: '1 tháng',            price: 99000,  days: 30 },
+        m3:  { name: '3 tháng (tiết kiệm 15%)', price: 249000, days: 90 },
+        m12: { name: '12 tháng (tiết kiệm 200k)', price: 799000, days: 365 }
+    };
+    var selPlan = 'm1';
+
+    var css = document.createElement('style');
+    css.textContent =
+        '.wm-overlay{position:fixed;inset:0;background:rgba(10,15,25,.6);backdrop-filter:blur(6px);z-index:15000;display:none;align-items:flex-end;justify-content:center;}' +
+        '.wm-overlay.show{display:flex;}' +
+        '.wm-sheet{background:#fff;width:100%;max-width:480px;border-radius:24px 24px 0 0;max-height:92vh;overflow-y:auto;padding-bottom:20px;}' +
+        '.wm-head{background:linear-gradient(135deg,#0054a3,#00bfa5);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:5;}' +
+        '.wm-body{padding:16px;}' +
+        '.wm-tx{display:flex;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12px;}' +
+        '.wm-tx .amt{margin-left:auto;font-weight:900;color:#0054a3;}';
+    document.head.appendChild(css);
+
+    function copyText(t) {
+        if (navigator.clipboard) navigator.clipboard.writeText(t).then(function() {
+            if (typeof showToast === 'function') showToast('📋 Đã sao chép: ' + t);
+        });
+        else prompt('Sao chép nội dung:', t);
+    }
+
+    function buildModal() {
+        if (document.getElementById('wmModal')) return;
+        var m = document.createElement('div');
+        m.id = 'wmModal'; m.className = 'wm-overlay';
+        m.innerHTML =
+            '<div class="wm-sheet"><div class="wm-head"><b>💰 Ví tiền & Gói cước</b>' +
+            '<button onclick="document.getElementById(\'wmModal\').classList.remove(\'show\')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+            '<div class="wm-body">' +
+            '<div id="wmPlanStatus"></div>' +
+            '<div style="font-size:13px;font-weight:800;margin:12px 0 8px;">📦 Chọn gói thuê bao</div>' +
+            '<div id="wmPlans" style="display:flex;gap:8px;"></div>' +
+            '<div id="wmPayPanel" style="margin-top:12px;"></div>' +
+            '<div style="font-size:13px;font-weight:800;margin:6px 0 8px;">📜 Lịch sử giao dịch</div>' +
+            '<div id="wmTxList"></div>' +
+            '<div id="wmAdminBox"></div>' +
+            '</div></div>';
+        document.body.appendChild(m);
+    }
+    function openWallet() {
+        buildModal();
+        document.getElementById('wmModal').classList.add('show');
+        loadWallet();
+    }
+    window.openWallet = openWallet;
+
+    function loadWallet() {
+        if (!window.driverInfo || !driverInfo.uid || typeof db === 'undefined') return;
+        var uid = driverInfo.uid;
+        db.ref('drivers/' + uid).once('value').then(function(snap) {
+            var d = snap.val() || {};
+            var exp = parseInt(d.tp_expiry || 0);
+            var days = exp > Date.now() ? Math.floor((exp - Date.now()) / 86400000) : 0;
+            document.getElementById('wmPlanStatus').innerHTML = days > 0
+                ? '<div style="background:#e8f9ee;border:1px solid #86efac;color:#15803d;border-radius:14px;padding:12px 14px;font-size:13px;font-weight:800;">✅ Gói PROMAX đang hoạt động — còn ' + days + ' ngày</div>'
+                : '<div style="background:#fff7e6;border:1px solid #fcd34d;color:#b45309;border-radius:14px;padding:12px 14px;font-size:13px;font-weight:800;">⚠️ Gói cước đã hết hạn — gia hạn để tiếp tục nhận đơn</div>';
+            renderPlans();
+            renderPayPanel();
+            var txs = (d.wallet && d.wallet.transactions) || {};
+            var list = Object.keys(txs).map(function(k) { return txs[k]; })
+                .sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).slice(0, 10);
+            document.getElementById('wmTxList').innerHTML = list.length ? list.map(function(t) {
+                return '<div class="wm-tx"><span>' + (t.status === 'paid' ? '✅' : '⏳') + '</span>' +
+                    '<span>' + (t.planName || 'Gói') + ' · ' + new Date(t.createdAt || Date.now()).toLocaleDateString('vi-VN') + '</span>' +
+                    '<span class="amt">' + (t.amount || 0).toLocaleString() + '₫</span></div>';
+            }).join('') : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:10px;">Chưa có giao dịch</div>';
+            if (String(driverInfo.phone) === ADMIN_PHONE) loadApprovals();
+            else document.getElementById('wmAdminBox').innerHTML = '';
+        });
+    }
+
+    function renderPlans() {
+        var box = document.getElementById('wmPlans');
+        box.innerHTML = Object.keys(PLANS).map(function(k) {
+            var p = PLANS[k], sel = k === selPlan;
+            return '<div data-plan="' + k + '" style="flex:1;border:2px solid ' + (sel ? '#00bfa5' : '#e2e8f0') + ';background:' + (sel ? '#e8f8f5' : '#fff') + ';border-radius:14px;padding:10px;text-align:center;cursor:pointer;">' +
+                '<div style="font-size:11px;font-weight:800;color:#1e293b;">' + p.name + '</div>' +
+                '<div style="font-size:13px;font-weight:900;color:#0054a3;">' + p.price.toLocaleString() + '₫</div></div>';
+        }).join('');
+        box.querySelectorAll('[data-plan]').forEach(function(el) {
+            el.onclick = function() { selPlan = el.dataset.plan; renderPlans(); renderPayPanel(); };
+        });
+    }
+
+    function renderPayPanel() {
+        var p = PLANS[selPlan];
+        var code = 'PROMAX ' + (window.driverInfo ? driverInfo.phone : '');
+        var qr = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(code + ' ' + p.price);
+        document.getElementById('wmPayPanel').innerHTML =
+            '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:14px;">' +
+            '<div style="font-size:13px;font-weight:800;margin-bottom:10px;">💳 Quét QR hoặc chuyển khoản</div>' +
+            '<div style="display:flex;gap:12px;align-items:center;">' +
+            '<img src="' + qr + '" style="width:110px;height:110px;border-radius:10px;background:#fff;padding:4px;">' +
+            '<div style="flex:1;font-size:12px;line-height:1.8;color:#475569;">' +
+            '🏦 <b>' + BANK.bank + '</b>: <b style="color:#0054a3;">' + BANK.acc + '</b><br>' +
+            '👤 ' + BANK.name + '<br>📱 MoMo: <b>' + BANK.momo + '</b><br>' +
+            '✏️ Nội dung: <b style="color:#d32f2f;">' + code + '</b></div></div>' +
+            '<div style="display:flex;gap:8px;margin-top:10px;">' +
+            '<button id="wmCopy" style="flex:1;padding:10px;border:1px solid #cbd5e1;background:#fff;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;">📋 Sao chép</button>' +
+            '<button id="wmDone" style="flex:1;padding:10px;border:none;background:linear-gradient(135deg,#0054a3,#00bfa5);color:#fff;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;">✅ Đã chuyển khoản</button>' +
+            '</div></div>';
+        document.getElementById('wmCopy').onclick = function() { copyText(code); };
+        document.getElementById('wmDone').onclick = confirmPaid;
+    }
+
+    function confirmPaid() {
+        if (!window.driverInfo || !driverInfo.uid) return;
+        var p = PLANS[selPlan];
+        var tid = 'tx_' + Date.now();
+        db.ref('drivers/' + driverInfo.uid + '/wallet/transactions/' + tid).set({
+            id: tid, type: 'payment', plan: selPlan, planName: p.name,
+            amount: p.price, code: 'PROMAX ' + driverInfo.phone,
+            status: 'pending', createdAt: Date.now()
+        }).then(function() {
+            if (typeof showToast === 'function') showToast('⏳ Đã báo chuyển khoản — chờ admin xác nhận');
+            loadWallet();
+        });
+    }
+
+    /* ===== Admin duyệt thanh toán ===== */
+    function loadApprovals() {
+        var box = document.getElementById('wmAdminBox');
+        box.innerHTML = '<div style="font-size:13px;font-weight:800;margin:10px 0 8px;">🛡️ Xác nhận thanh toán (admin)</div>';
+        db.ref('drivers').once('value').then(function(snap) {
+            var html = '';
+            snap.forEach(function(c) {
+                var d = c.val() || {};
+                var txs = (d.wallet && d.wallet.transactions) || {};
+                Object.keys(txs).forEach(function(tid) {
+                    var t = txs[tid];
+                    if (t.status === 'pending') {
+                        html += '<div class="wm-tx"><span>⏳</span><span><b>' + (d.name || '---') + '</b> · ' +
+                            (t.planName || '') + '<br><small style="color:#64748b;">' + (d.phone || '') + ' · mã: ' + (t.code || '') + '</small></span>' +
+                            '<button onclick="wmApprove(\'' + c.key + '\',\'' + tid + '\')" style="background:#00bfa5;color:#fff;border:none;border-radius:10px;padding:8px 10px;font-weight:800;font-size:11px;cursor:pointer;">Duyệt</button></div>';
+                    }
+                });
+            });
+            box.innerHTML += html || '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:10px;">Không có thanh toán chờ</div>';
+        });
+    }
+    window.wmApprove = function(uid, tid) {
+        db.ref('drivers/' + uid).once('value').then(function(s) {
+            var d = s.val() || {};
+            var t = ((d.wallet || {}).transactions || {})[tid];
+            if (!t) return;
+            var plan = PLANS[t.plan] || PLANS.m1;
+            var base = parseInt(d.tp_expiry || 0);
+            var start = base > Date.now() ? base : Date.now();
+            var upd = {};
+            upd['wallet/transactions/' + tid + '/status'] = 'paid';
+            upd['wallet/transactions/' + tid + '/approvedAt'] = Date.now();
+            upd['tp_expiry'] = start + plan.days * 86400000;
+            upd['active_plan'] = 'PROMAX';
+            return db.ref('drivers/' + uid).update(upd);
+        }).then(function() {
+            if (typeof showToast === 'function') showToast('✅ Đã duyệt — gia hạn gói thành công');
+            loadWallet();
+        });
+    };
+
+    /* ===== Gắn vào menu "Ví tiền" có sẵn ===== */
+    function bindWalletMenu() {
+        var menu = document.querySelector('.sidebar-menu');
+        if (!menu || menu.dataset.walletBound) return;
+        menu.dataset.walletBound = '1';
+        var items = menu.querySelectorAll('.sidebar-item'), found = null;
+        for (var i = 0; i < items.length; i++) {
+            if ((items[i].innerText || '').indexOf('Ví tiền') !== -1) { found = items[i]; break; }
+        }
+        if (found) found.onclick = function() { openWallet(); };
+        else {
+            var logout = null;
+            for (var j = 0; j < menu.children.length; j++) {
+                if ((menu.children[j].innerText || '').indexOf('Đăng xuất') !== -1) logout = menu.children[j];
+            }
+            var d = document.createElement('div');
+            d.className = 'sidebar-item';
+            d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">💰</span><span>Ví tiền & Gói cước</span>';
+            d.onclick = openWallet;
+            if (logout) menu.insertBefore(d, logout); else menu.appendChild(d);
+        }
+    }
+    function boot() { bindWalletMenu(); setInterval(bindWalletMenu, 1000); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
+</script>
+<!-- ========== 🧾 RECEIPT MODULE v1 - Hóa đơn điện tử ========== -->
+<script>
+(function(){
+    var css = document.createElement('style');
+    css.textContent =
+        '.rc-overlay{position:fixed;inset:0;background:rgba(10,15,25,.6);backdrop-filter:blur(6px);z-index:15000;display:none;align-items:flex-end;justify-content:center;}' +
+        '.rc-overlay.show{display:flex;}' +
+        '.rc-sheet{background:#fff;width:100%;max-width:480px;border-radius:24px 24px 0 0;max-height:92vh;overflow-y:auto;padding-bottom:20px;}' +
+        '.rc-head{background:linear-gradient(135deg,#0054a3,#00bfa5);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:5;}' +
+        '.rc-body{padding:16px;}' +
+        '.rc-paper{background:#fffdf7;border:1px dashed #94a3b8;border-radius:14px;padding:16px;font-size:12.5px;color:#334155;}' +
+        '.rc-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dotted #e2e8f0;}' +
+        '.rc-row:last-child{border-bottom:none;}' +
+        '.rc-total{font-size:20px;font-weight:900;color:#d32f2f;}' +
+        '.rc-item{display:flex;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12px;}';
+    document.head.appendChild(css);
+
+    function rcCopy(t) {
+        if (navigator.clipboard) navigator.clipboard.writeText(t).then(function() {
+            if (typeof showToast === 'function') showToast('📋 Đã sao chép');
+        });
+        else prompt('Sao chép:', t);
+    }
+    function rcUrl(code) { return location.origin + location.pathname + '?receipt=' + code; }
+    function rcText(rec) {
+        return '🧾 HÓA ĐƠN CHUYẾN ĐI ' + rec.code +
+            '\n🚕 Tài xế: ' + (rec.driverName || '') + ' — ' + (rec.plate || '') +
+            '\n📍 ' + (rec.pickup || '') + ' → ' + (rec.dropoff || '') +
+            '\n📏 ' + (rec.km || 0).toFixed(1) + ' km' +
+            '\n💰 Thành tiền: ' + (rec.price || 0).toLocaleString() + '₫' +
+            '\n🔗 Xem: ' + rcUrl(rec.code);
+    }
+
+    /* ===== 1) Tự tạo hóa đơn khi kết thúc chuyến ===== */
+    var _oldCT = window.completeTrip;
+    window.completeTrip = function() {
+        var cust = window.currentCustomerData || {};
+        var oid = window.currentOrderId || null;
+        if (_oldCT) _oldCT();
+        try { createReceipt(cust, oid); } catch(e) {}
+    };
+    function createReceipt(cust, oid) {
+        if (!window.driverInfo || typeof db === 'undefined') return;
+        var hist = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        var last = hist[0];
+        if (!last) return;
+        var code = 'HD' + Date.now().toString(36).toUpperCase();
+        db.ref('receipts/' + code).set({
+            code: code, createdAt: Date.now(), orderId: oid,
+            driverName: driverInfo.name || '', driverPhone: driverInfo.phone || '', plate: driverInfo.plate || '',
+            customerName: cust.clientName || 'Khách',
+            pickup: cust.pickup || 'Vị trí hiện tại',
+            dropoff: cust.dropoff || 'Không xác định',
+            km: last.km || 0, price: last.cost || 0,
+            tripType: last.tripType || 'APP_BOOKING'
+        }).then(function() {
+            if (typeof showToast === 'function') showToast('🧾 Đã tạo hóa đơn ' + code);
+        });
+    }
+
+    /* ===== 2) Xem hóa đơn (dạng giấy biên lai) ===== */
+    function showReceipt(rec) {
+        var ov = document.getElementById('rcView');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'rcView'; ov.className = 'rc-overlay';
+            document.body.appendChild(ov);
+        }
+        var time = new Date(rec.createdAt || Date.now()).toLocaleString('vi-VN');
+        ov.innerHTML =
+            '<div class="rc-sheet"><div class="rc-head"><b>🧾 Hóa đơn điện tử</b>' +
+            '<button onclick="document.getElementById(\'rcView\').classList.remove(\'show\')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+            '<div class="rc-body"><div class="rc-paper">' +
+            '<div style="text-align:center;margin-bottom:10px;">' +
+            '<div style="font-size:16px;font-weight:900;color:#0054a3;letter-spacing:1px;">TAXI PROMAX</div>' +
+            '<div style="font-size:10px;color:#64748b;">Nền tảng kết nối vận chuyển · Hotline 0388724966</div>' +
+            '<div style="font-size:12px;font-weight:800;margin-top:6px;">BIÊN LAI CHUYẾN ĐI — ' + rec.code + '</div></div>' +
+            '<div class="rc-row"><span>⏰ Thời gian</span><b>' + time + '</b></div>' +
+            '<div class="rc-row"><span>👤 Hành khách</span><b>' + (rec.customerName || 'Khách') + '</b></div>' +
+            '<div class="rc-row"><span>🚕 Tài xế</span><b>' + (rec.driverName || '') + '</b></div>' +
+            '<div class="rc-row"><span>🚗 Biển số</span><b>' + (rec.plate || '') + '</b></div>' +
+            '<div class="rc-row"><span>📍 Điểm đón</span><b>' + (rec.pickup || '') + '</b></div>' +
+            '<div class="rc-row"><span>🏁 Điểm đến</span><b>' + (rec.dropoff || '') + '</b></div>' +
+            '<div class="rc-row"><span>📏 Quãng đường</span><b>' + (rec.km || 0).toFixed(1) + ' km</b></div>' +
+            '<div class="rc-row"><span>💰 THÀNH TIỀN</span><span class="rc-total">' + (rec.price || 0).toLocaleString() + '₫</span></div>' +
+            '<div style="margin-top:10px;font-size:10.5px;color:#64748b;line-height:1.6;">' +
+            '• Hành khách thanh toán trực tiếp cho tài xế.<br>' +
+            '• Taxi ProMax là nền tảng kết nối, không thu tiền chuyến đi.<br>' +
+            '• Biên lai điện tử có giá trị làm bằng chứng giao dịch.</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px;margin-top:12px;">' +
+            '<button id="rcShare" style="flex:1;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#0054a3,#00bfa5);color:#fff;font-weight:800;font-size:13px;cursor:pointer;">📤 Chia sẻ</button>' +
+            '<button id="rcMail" style="flex:1;padding:12px;border:none;border-radius:12px;background:#00796b;color:#fff;font-weight:800;font-size:13px;cursor:pointer;">📧 Email</button>' +
+            '<button id="rcCopyBtn" style="flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;font-weight:800;font-size:13px;cursor:pointer;">📋 Copy</button>' +
+            '</div></div></div>';
+        ov.classList.add('show');
+        ov.querySelector('#rcShare').onclick = function() {
+            if (navigator.share) navigator.share({ title: 'Taxi ProMax — Hóa đơn', text: rcText(rec) });
+            else rcCopy(rcText(rec));
+        };
+        ov.querySelector('#rcMail').onclick = function() {
+            location.href = 'mailto:?subject=' + encodeURIComponent('Hóa đơn chuyến đi ' + rec.code) + '&body=' + encodeURIComponent(rcText(rec));
+        };
+        ov.querySelector('#rcCopyBtn').onclick = function() { rcCopy(rcText(rec)); };
+    }
+    window.showReceipt = showReceipt;
+
+    /* ===== 3) Danh sách hóa đơn của tài xế ===== */
+    function openReceiptList() {
+        var ov = document.getElementById('rcList');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'rcList'; ov.className = 'rc-overlay';
+            ov.innerHTML = '<div class="rc-sheet"><div class="rc-head"><b>🧾 Hóa đơn chuyến đi</b>' +
+                '<button onclick="document.getElementById(\'rcList\').classList.remove(\'show\')" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+                '<div class="rc-body" id="rcListBox"></div></div>';
+            document.body.appendChild(ov);
+        }
+        ov.classList.add('show');
+        var box = document.getElementById('rcListBox');
+        box.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">Đang tải...</div>';
+        if (!window.driverInfo || typeof db === 'undefined') return;
+        db.ref('receipts').orderByChild('driverPhone').equalTo(driverInfo.phone).limitToLast(30).once('value').then(function(snap) {
+            var list = [];
+            if (snap.exists()) snap.forEach(function(c) { list.push(c.val()); });
+            list.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+            box.innerHTML = list.length ? list.map(function(r, idx) {
+                return '<div class="rc-item"><span>🧾</span>' +
+                    '<span><b>' + r.code + '</b> · ' + (r.km || 0).toFixed(1) + ' km<br><small style="color:#64748b;">' + new Date(r.createdAt).toLocaleDateString('vi-VN') + ' · ' + (r.customerName || 'Khách') + '</small></span>' +
+                    '<span style="margin-left:auto;font-weight:900;color:#d32f2f;">' + (r.price || 0).toLocaleString() + '₫</span>' +
+                    '<button data-idx="' + idx + '" style="background:#0054a3;color:#fff;border:none;border-radius:10px;padding:8px 10px;font-weight:800;font-size:11px;cursor:pointer;">Xem</button></div>';
+            }).join('') : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:16px;">Chưa có hóa đơn nào</div>';
+            window._rcCache = list;
+            box.querySelectorAll('button[data-idx]').forEach(function(b) {
+                b.onclick = function() { showReceipt(window._rcCache[parseInt(b.dataset.idx)]); };
+            });
+        });
+    }
+    window.openReceiptList = openReceiptList;
+
+    /* ===== 4) Mở hóa đơn bằng link công khai ===== */
+    try {
+        var rp = new URLSearchParams(window.location.search).get('receipt');
+        if (rp && typeof db !== 'undefined') {
+            setTimeout(function() {
+                db.ref('receipts/' + rp).once('value').then(function(s) {
+                    if (s.exists()) showReceipt(s.val());
+                });
+            }, 400);
+        }
+    } catch(e) {}
+
+    /* ===== Menu ===== */
+    function addRCMenu() {
+        var menu = document.querySelector('.sidebar-menu');
+        if (!menu || menu.dataset.rcAdded) return;
+        menu.dataset.rcAdded = '1';
+        var logout = null;
+        for (var i = 0; i < menu.children.length; i++) {
+            if ((menu.children[i].innerText || '').indexOf('Đăng xuất') !== -1) logout = menu.children[i];
+        }
+        var d = document.createElement('div');
+        d.className = 'sidebar-item';
+        d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">🧾</span><span>Hóa đơn chuyến đi</span>';
+        d.onclick = openReceiptList;
+        if (logout) menu.insertBefore(d, logout); else menu.appendChild(d);
+    }
+    function boot() { addRCMenu(); setInterval(addRCMenu, 1000); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
+</script>
+<!-- ========== 🚨 SOS MODULE v1 - Ghi âm + vị trí trực tiếp ========== -->
+<script>
+(function(){
+    var ADMIN_PHONE = '0388724966';
+    var sosState = { code: null, liveTimer: null, recEnd: 0, cdTimer: null };
+
+    var css = document.createElement('style');
+    css.textContent =
+        '.sos-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#7f1d1d,#d32f2f);z-index:17000;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#fff;}' +
+        '.sos-overlay.show{display:flex;}' +
+        '.sos-pulse{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:52px;animation:sosP 1.2s infinite;}' +
+        '@keyframes sosP{0%{box-shadow:0 0 0 0 rgba(255,255,255,.4);}70%{box-shadow:0 0 0 30px rgba(255,255,255,0);}100%{box-shadow:0 0 0 0 rgba(255,255,255,0);}}' +
+        '.sos-btn{width:100%;max-width:320px;padding:14px;border:none;border-radius:14px;font-size:15px;font-weight:900;cursor:pointer;margin-top:10px;}' +
+        '.sos-item{border:1px solid #fecaca;border-radius:14px;padding:12px;margin-bottom:10px;background:#fff;}' ;
+    document.head.appendChild(css);
+
+    function sosPos() {
+        var lat = (typeof currentLat !== 'undefined' && currentLat) ? currentLat : 21.0285;
+        var lng = (typeof currentLng !== 'undefined' && currentLng) ? currentLng : 105.8542;
+        return { lat: lat, lng: lng };
+    }
+
+    /* ===== Kích hoạt SOS (ghi đè openSOS cũ) ===== */
+    function triggerSOS() {
+        if (sosState.code) { if (typeof showToast === 'function') showToast('🚨 SOS đang hoạt động'); return; }
+        if (!window.driverInfo || typeof db === 'undefined') return;
+        var code = 'SOS' + Date.now().toString(36).toUpperCase();
+        sosState.code = code;
+        var p = sosPos();
+        db.ref('sos/' + code).set({
+            code: code, driverUid: driverInfo.uid, driverName: driverInfo.name || '',
+            phone: driverInfo.phone || '', plate: driverInfo.plate || '',
+            lat: p.lat, lng: p.lng, createdAt: Date.now(), status: 'active'
+        });
+        showSOSOverlay(code);
+        startSOSRecording(code);
+        startLiveLocation(code);
+        if (typeof speak === 'function') speak('SOS khẩn cấp đã kích hoạt. Đang ghi âm và gửi vị trí.');
+    }
+    window.triggerSOS = triggerSOS;
+    window.openSOS = triggerSOS; // ghi đè hàm cũ
+
+    /* ===== Màn hình SOS ===== */
+    function showSOSOverlay(code) {
+        var ov = document.getElementById('sosOverlay');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'sosOverlay'; ov.className = 'sos-overlay';
+            document.body.appendChild(ov);
+        }
+        sosState.recEnd = Date.now() + 120000;
+        ov.innerHTML =
+            '<div class="sos-pulse">🚨</div>' +
+            '<div style="font-size:22px;font-weight:900;margin-top:16px;">SOS ĐÃ KÍCH HOẠT</div>' +
+            '<div style="font-size:13px;opacity:.9;margin-top:6px;">Mã: ' + code + '</div>' +
+            '<div id="sosRecStatus" style="margin-top:12px;font-size:14px;font-weight:800;">🎙 Đang ghi âm... 02:00</div>' +
+            '<div style="font-size:11px;opacity:.85;margin-top:6px;">📍 Vị trí đang được gửi trực tiếp cho quản lý</div>' +
+            '<div style="width:100%;max-width:320px;margin-top:22px;">' +
+            '<a href="tel:113" class="sos-btn" style="display:block;background:#fff;color:#d32f2f;text-decoration:none;">📞 GỌI 113 NGAY</a>' +
+            '<button class="sos-btn" style="background:rgba(255,255,255,.2);color:#fff;" onclick="cancelSOS()">❌ Báo động giả — Hủy</button>' +
+            '</div>';
+        ov.classList.add('show');
+        if (sosState.cdTimer) clearInterval(sosState.cdTimer);
+        sosState.cdTimer = setInterval(function() {
+            var el = document.getElementById('sosRecStatus');
+            if (!el) return;
+            var s = Math.max(0, Math.round((sosState.recEnd - Date.now()) / 1000));
+            if (s > 0) el.textContent = '🎙 Đang ghi âm... 0' + Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+            else el.textContent = '✅ Ghi âm đã lưu — vẫn gửi vị trí';
+        }, 1000);
+    }
+    window.cancelSOS = function() {
+        if (!sosState.code) return;
+        try { db.ref('sos/' + sosState.code).update({ status: 'cancelled', cancelledAt: Date.now() }); } catch(e) {}
+        stopSOSTimers();
+        if (typeof showToast === 'function') showToast('Đã hủy báo động SOS');
+    };
+    function stopSOSTimers() {
+        sosState.code = null;
+        if (sosState.liveTimer) { clearInterval(sosState.liveTimer); sosState.liveTimer = null; }
+        if (sosState.cdTimer) { clearInterval(sosState.cdTimer); sosState.cdTimer = null; }
+        var ov = document.getElementById('sosOverlay');
+        if (ov) ov.classList.remove('show');
+    }
+
+    /* ===== Ghi âm 2 phút ===== */
+    function startSOSRecording(code) {
+        if (!navigator.mediaDevices || !window.MediaRecorder) return;
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+            var opts = { audioBitsPerSecond: 16000 };
+            var mimes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+            for (var i = 0; i < mimes.length; i++) {
+                if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mimes[i])) { opts.mimeType = mimes[i]; break; }
+            }
+            var rec = new MediaRecorder(stream, opts);
+            var chunks = [];
+            rec.ondataavailable = function(e) { if (e.data && e.data.size) chunks.push(e.data); };
+            rec.onstop = function() {
+                stream.getTracks().forEach(function(t) { t.stop(); });
+                var blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+                var fr = new FileReader();
+                fr.onload = function() {
+                    try { db.ref('sos/' + code).update({ audio: fr.result, audioType: blob.type, audioSavedAt: Date.now() }); } catch(e) {}
+                };
+                fr.readAsDataURL(blob);
+            };
+            rec.start();
+            setTimeout(function() { try { rec.stop(); } catch(e) {} }, 120000);
+        }).catch(function() {});
+    }
+
+    /* ===== Vị trí trực tiếp 10 phút ===== */
+    function startLiveLocation(code) {
+        var end = Date.now() + 600000;
+        sosState.liveTimer = setInterval(function() {
+            if (Date.now() > end || !sosState.code) { stopSOSTimers(); return; }
+            var p = sosPos();
+            try { db.ref('sos/' + code).update({ lat: p.lat, lng: p.lng, lastUpdate: Date.now() }); } catch(e) {}
+        }, 5000);
+    }
+
+    /* ===== Admin: giám sát SOS ===== */
+    function openSOSAdmin() {
+        if (!window.driverInfo || String(driverInfo.phone) !== ADMIN_PHONE) {
+            if (typeof showToast === 'function') showToast('⛔ Chỉ admin mới dùng');
+            return;
+        }
+        var ov = document.getElementById('sosAdmin');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'sosAdmin'; ov.className = 'rc-overlay';
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(10,15,25,.6);backdrop-filter:blur(6px);z-index:15000;display:none;align-items:flex-end;justify-content:center;';
+            ov.innerHTML = '<div style="background:#fff;width:100%;max-width:480px;border-radius:24px 24px 0 0;max-height:92vh;overflow-y:auto;padding-bottom:20px;">' +
+                '<div style="background:linear-gradient(135deg,#7f1d1d,#d32f2f);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:24px 24px 0 0;position:sticky;top:0;z-index:5;"><b>🚨 Giám sát SOS</b>' +
+                '<button onclick="document.getElementById(\'sosAdmin\').style.display=\'none\'" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button></div>' +
+                '<div style="padding:16px;" id="sosAdminList"></div></div>';
+            document.body.appendChild(ov);
+        }
+        ov.style.display = 'flex';
+        loadSOSAdmin();
+    }
+    window.openSOSAdmin = openSOSAdmin;
+
+    function loadSOSAdmin() {
+        var box = document.getElementById('sosAdminList');
+        box.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">Đang tải...</div>';
+        db.ref('sos').orderByChild('createdAt').limitToLast(20).once('value').then(function(snap) {
+            var list = [];
+            if (snap.exists()) snap.forEach(function(c) { list.push(c.val()); });
+            list.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+            window._sosCache = list;
+            box.innerHTML = list.length ? list.map(function(s, i) {
+                var st = s.status === 'active' ? '🔴 ĐANG BÁO' : (s.status === 'safe' ? '✅ An toàn' : '❌ Đã hủy');
+                return '<div class="sos-item">' +
+                    '<div style="display:flex;justify-content:space-between;"><b style="font-size:13px;">👤 ' + (s.driverName || '---') + '</b><span style="font-size:11px;font-weight:800;">' + st + '</span></div>' +
+                    '<div style="font-size:11px;color:#64748b;margin:4px 0;">📞 ' + (s.phone || '') + ' · ' + new Date(s.createdAt).toLocaleString('vi-VN') + '</div>' +
+                    '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                    '<a href="https://www.google.com/maps/?q=' + (s.lat || 0) + ',' + (s.lng || 0) + '" target="_blank" style="background:#0054a3;color:#fff;text-decoration:none;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:800;">🗺 Vị trí</a>' +
+                    '<a href="tel:' + (s.phone || '') + '" style="background:#00bfa5;color:#fff;text-decoration:none;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:800;">📞 Gọi</a>' +
+                    (s.audio ? '<button onclick="playSOSAudio(' + i + ')" style="background:#7f1d1d;color:#fff;border:none;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;">🔊 Nghe</button>' : '') +
+                    (s.status === 'active' ? '<button onclick="markSOSSafe(' + i + ')" style="background:#15803d;color:#fff;border:none;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;">✅ An toàn</button>' : '') +
+                    '</div></div>';
+            }).join('') : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:16px;">Không có báo động SOS nào 🎉</div>';
+        });
+    }
+    window.playSOSAudio = function(i) {
+        var s = window._sosCache[i];
+        if (!s || !s.audio) return;
+        var ov = document.getElementById('sosAudio');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'sosAudio';
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:18000;display:none;align-items:center;justify-content:center;padding:20px;';
+            document.body.appendChild(ov);
+        }
+        ov.innerHTML = '<div style="background:#fff;border-radius:20px;padding:20px;width:100%;max-width:360px;text-align:center;">' +
+            '<b style="font-size:14px;">🔊 Ghi âm khẩn cấp — ' + s.code + '</b>' +
+            '<audio controls autoplay src="' + s.audio + '" style="width:100%;margin-top:12px;"></audio>' +
+            '<button onclick="document.getElementById(\'sosAudio\').style.display=\'none\'" style="margin-top:12px;width:100%;padding:12px;border:none;border-radius:12px;background:#0054a3;color:#fff;font-weight:800;cursor:pointer;">Đóng</button></div>';
+        ov.style.display = 'flex';
+    };
+    window.markSOSSafe = function(i) {
+        var s = window._sosCache[i];
+        if (!s) return;
+        db.ref('sos/' + s.code).update({ status: 'safe', safeAt: Date.now() }).then(function() {
+            if (typeof showToast === 'function') showToast('✅ Đã đánh dấu an toàn');
+            loadSOSAdmin();
+        });
+    };
+
+    /* ===== Menu ===== */
+    function addSOSMenu() {
+        var menu = document.querySelector('.sidebar-menu');
+        if (!menu || menu.dataset.sosAdded || !window.driverInfo) return;
+        menu.dataset.sosAdded = '1';
+        if (String(driverInfo.phone) === ADMIN_PHONE) {
+            var logout = null;
+            for (var i = 0; i < menu.children.length; i++) {
+                if ((menu.children[i].innerText || '').indexOf('Đăng xuất') !== -1) logout = menu.children[i];
+            }
+            var d = document.createElement('div');
+            d.className = 'sidebar-item';
+            d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">🚨</span><span>Giám sát SOS</span>';
+            d.onclick = openSOSAdmin;
+            if (logout) menu.insertBefore(d, logout); else menu.appendChild(d);
+        }
+    }
+    function boot() { addSOSMenu(); setInterval(addSOSMenu, 1000); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
+</script>
+<!-- ========== 📦 PWA BOOT v1 - Service Worker + meta installable ========== -->
+<script>
+(function(){
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function(){
+            navigator.serviceWorker.register('/sw.js').catch(function(){});
+        });
+    }
+    function addMeta(name, content){
+        if (!document.querySelector('meta[name="' + name + '"]')) {
+            var m = document.createElement('meta'); m.name = name; m.content = content;
+            document.head.appendChild(m);
+        }
+    }
+    addMeta('theme-color', '#0054a3');
+    addMeta('mobile-web-app-capable', 'yes');
+    addMeta('apple-mobile-web-app-capable', 'yes');
+    addMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+})();
+</script>
 </body>
 </html>
