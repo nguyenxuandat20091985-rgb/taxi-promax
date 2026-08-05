@@ -817,20 +817,20 @@
         <div class="auth-subtitle">Đối tác tài xế — Thu nhập cao, an toàn</div>
         <div class="auth-box">
             <div id="stepRegister">
-                <input type="text" class="auth-input" id="regFullname" placeholder="Họ và tên" maxlength="50">
+                <input type="text" class="auth-input" id="regName" placeholder="Họ và tên" maxlength="50">
                 <input type="tel" class="auth-input" id="regPhone" placeholder="Số điện thoại" maxlength="10">
                 <input type="password" class="auth-input" id="regPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" maxlength="20">
                 <input type="text" class="auth-input" id="regCccd" placeholder="CCCD/CMND (12 số)" maxlength="12">
                 <div class="input-row"><input type="text" class="auth-input" id="regPlate" placeholder="Biển số xe" maxlength="15"><input type="text" class="auth-input" id="regCarModel" placeholder="Dòng xe" maxlength="30"></div>
                 <div class="radio-group"><label class="radio-label"><input type="radio" name="fuelType" value="xang" checked> ⛽ Xăng</label><label class="radio-label"><input type="radio" name="fuelType" value="dien"> 🔋 Điện</label></div>
                 <div class="radio-group"><label class="radio-label"><input type="radio" name="carClass" value="4_seats" checked> 🚗 4 Chỗ</label><label class="radio-label"><input type="radio" name="carClass" value="7_seats"> 🚙 7 Chỗ</label></div>
-                <button class="auth-btn" id="btnRegister" onclick="doRegister()"><i class="fas fa-user-plus"></i><span id="btnRegText">ĐĂNG KÝ TÀI XẾ</span></button>
+                <button class="auth-btn" id="btnRegister"><i class="fas fa-user-plus"></i><span id="btnRegText">ĐĂNG KÝ TÀI XẾ</span></button>
                 <div class="auth-error" id="regError"></div>
             </div>
             <div id="stepLogin" style="display:none;">
                 <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
                 <input type="password" class="auth-input" id="loginPassword" placeholder="Mật khẩu">
-                <button class="auth-btn" id="btnLogin" onclick="doLogin()"><i class="fas fa-sign-in-alt"></i><span id="btnLoginText">ĐĂNG NHẬP</span></button>
+                <button class="auth-btn" id="btnLogin"><i class="fas fa-sign-in-alt"></i><span id="btnLoginText">ĐĂNG NHẬP</span></button>
                 <div class="auth-error" id="loginError"></div>
             </div>
             <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">Đã có tài khoản? Đăng nhập</button>
@@ -899,13 +899,239 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- FIREBASE & THƯ VIỆN -->
+    <!-- ============================================================ -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    
+
+    <!-- ============================================================ -->
+    <!-- 🔐 AUTH MODULE v1 - ĐĂNG NHẬP/ĐĂNG KÝ (BỔ SUNG) -->
+    <!-- ============================================================ -->
+    <script>
+    (function() {
+        // Hàm hash mật khẩu (đơn giản, tương thích dữ liệu cũ)
+        function hashPassword(str) {
+            let h = 0;
+            for (let i = 0; i < str.length; i++) {
+                h = ((h << 5) - h) + str.charCodeAt(i);
+                h |= 0;
+            }
+            return 'h' + Math.abs(h).toString(36) + '_' + str.length;
+        }
+
+        // Đăng ký tài xế mới
+        window.doRegister = async function() {
+            const name = (document.getElementById('regName')?.value || '').trim();
+            const phone = (document.getElementById('regPhone')?.value || '').trim();
+            const cccd = (document.getElementById('regCccd')?.value || '').trim();
+            const plate = (document.getElementById('regPlate')?.value || '').trim();
+            const carModel = (document.getElementById('regCarModel')?.value || '').trim();
+            const fuelType = document.querySelector('input[name="fuelType"]:checked')?.value || 'xang';
+            const carClass = document.querySelector('input[name="carClass"]:checked')?.value || '4_seats';
+            const password = document.getElementById('regPassword')?.value || '';
+            const errEl = document.getElementById('regError');
+
+            // Reset lỗi
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+            // Validation
+            if (!name || !phone || !password) {
+                if (errEl) { errEl.textContent = 'Vui lòng điền họ tên, SĐT, mật khẩu'; errEl.style.display = 'block'; }
+                else alert('Vui lòng điền họ tên, SĐT, mật khẩu');
+                return;
+            }
+            if (password.length < 6) {
+                if (errEl) { errEl.textContent = 'Mật khẩu tối thiểu 6 ký tự'; errEl.style.display = 'block'; }
+                else alert('Mật khẩu tối thiểu 6 ký tự');
+                return;
+            }
+            if (!/^0[3-9]\d{8}$/.test(phone)) {
+                if (errEl) { errEl.textContent = 'SĐT không hợp lệ (10 số, bắt đầu 03-09)'; errEl.style.display = 'block'; }
+                else alert('SĐT không hợp lệ');
+                return;
+            }
+
+            // Kiểm tra trùng
+            try {
+                const check = await db.ref('drivers').once('value');
+                let exists = false;
+                if (check.exists()) {
+                    check.forEach(c => {
+                        const v = c.val();
+                        if (v && (String(v.phone) === phone || c.key === phone)) exists = true;
+                    });
+                }
+                if (exists) {
+                    if (errEl) { errEl.textContent = 'SĐT đã tồn tại. Hãy đăng nhập.'; errEl.style.display = 'block'; }
+                    else alert('SĐT đã tồn tại. Hãy đăng nhập.');
+                    return;
+                }
+
+                // Tạo tài khoản
+                const uid = 'DRV_' + Date.now().toString(36).toUpperCase();
+                const data = {
+                    uid, name, phone, cccd, plate, carModel, fuelType, carClass,
+                    passwordHash: hashPassword(password + phone),
+                    status: 'online',
+                    createdAt: Date.now()
+                };
+
+                await db.ref('drivers/' + uid).set(data);
+                
+                // Lưu session
+                driverInfo = data;
+                localStorage.setItem('driverInfo', JSON.stringify(data));
+                document.getElementById('authScreen').style.display = 'none';
+                
+                if (typeof initApp === 'function') initApp();
+                if (typeof showToast === 'function') showToast('✅ Đăng ký thành công! Chào ' + name);
+                else alert('Xin chào ' + name);
+                
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Lỗi: ' + e.message; errEl.style.display = 'block'; }
+                else alert('Lỗi: ' + e.message);
+            }
+        };
+
+        // Đăng nhập
+        window.doLogin = async function() {
+            const phone = (document.getElementById('loginPhone')?.value || '').trim();
+            const password = document.getElementById('loginPassword')?.value || '';
+            const errEl = document.getElementById('loginError');
+
+            // Reset lỗi
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+            if (!phone || !password) {
+                if (errEl) { errEl.textContent = 'Nhập SĐT và mật khẩu'; errEl.style.display = 'block'; }
+                else alert('Nhập SĐT và mật khẩu');
+                return;
+            }
+
+            try {
+                // Tìm user trong drivers/
+                let uid = null, user = null;
+                const snap = await db.ref('drivers').once('value');
+                if (snap.exists()) {
+                    snap.forEach(c => {
+                        const v = c.val();
+                        if (v && (String(v.phone) === phone || c.key === phone)) {
+                            uid = c.key;
+                            user = v;
+                        }
+                    });
+                }
+
+                if (!user) {
+                    if (errEl) { errEl.textContent = 'SĐT ' + phone + ' chưa đăng ký. Hãy bấm ĐĂNG KÝ.'; errEl.style.display = 'block'; }
+                    else alert('SĐT chưa đăng ký. Hãy bấm ĐĂNG KÝ.');
+                    return;
+                }
+
+                // Xác thực mật khẩu
+                const hash1 = hashPassword(password + phone);
+                const hash2 = hashPassword(password);
+                if (user.passwordHash && user.passwordHash !== hash1 && user.passwordHash !== hash2) {
+                    if (errEl) { errEl.textContent = 'Sai mật khẩu'; errEl.style.display = 'block'; }
+                    else alert('Sai mật khẩu');
+                    return;
+                }
+
+                // Nếu chưa có passwordHash, tự tạo (cho tài khoản cũ)
+                if (!user.passwordHash) {
+                    await db.ref('drivers/' + uid).update({ passwordHash: hash1 });
+                }
+
+                // Lưu session
+                user.uid = uid;
+                if (!user.carClass) user.carClass = user.carType || '4_seats';
+                driverInfo = user;
+                localStorage.setItem('driverInfo', JSON.stringify(user));
+                document.getElementById('authScreen').style.display = 'none';
+                
+                if (typeof initApp === 'function') initApp();
+                if (typeof showToast === 'function') showToast('✅ Xin chào ' + (user.name || 'tài xế'));
+                else alert('Xin chào ' + (user.name || 'tài xế'));
+                
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Lỗi: ' + e.message; errEl.style.display = 'block'; }
+                else alert('Lỗi: ' + e.message);
+            }
+        };
+
+        // Tự động gắn onclick vào nút đăng nhập/đăng ký
+        function bindButtons() {
+            const authScreen = document.getElementById('authScreen');
+            if (!authScreen) return;
+            
+            // Tìm và gắn cho nút ĐĂNG KÝ
+            const regBtn = document.getElementById('btnRegister');
+            if (regBtn && !regBtn.dataset.authBound) {
+                regBtn.dataset.authBound = '1';
+                regBtn.onclick = function(e) { 
+                    e.preventDefault(); 
+                    doRegister(); 
+                };
+            }
+            
+            // Tìm và gắn cho nút ĐĂNG NHẬP
+            const loginBtn = document.getElementById('btnLogin');
+            if (loginBtn && !loginBtn.dataset.authBound) {
+                loginBtn.dataset.authBound = '1';
+                loginBtn.onclick = function(e) { 
+                    e.preventDefault(); 
+                    doLogin(); 
+                };
+            }
+            
+            // Fallback: tìm bằng text (phòng khi ID thay đổi)
+            authScreen.querySelectorAll('button').forEach(btn => {
+                if (btn.dataset.authBound) return;
+                const txt = (btn.innerText || '').toLowerCase();
+                if (txt.includes('đăng nhập') && !txt.includes('đã có')) {
+                    btn.dataset.authBound = '1';
+                    btn.onclick = function(e) { e.preventDefault(); doLogin(); };
+                }
+                if (txt.includes('đăng ký') && !txt.includes('chưa có')) {
+                    btn.dataset.authBound = '1';
+                    btn.onclick = function(e) { e.preventDefault(); doRegister(); };
+                }
+            });
+        }
+
+        // Chạy sau khi DOM load
+        function startBinding() {
+            bindButtons();
+            // Kiểm tra định kỳ (phòng khi HTML render trễ)
+            const interval = setInterval(() => {
+                bindButtons();
+                // Dừng sau 10 giây
+                if (document.getElementById('btnRegister')?.dataset.authBound && 
+                    document.getElementById('btnLogin')?.dataset.authBound) {
+                    clearInterval(interval);
+                }
+            }, 500);
+            
+            // Tự động dừng sau 10s để tránh chạy mãi
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startBinding);
+        } else {
+            startBinding();
+        }
+    })();
+    </script>
+
+    <!-- ============================================================ -->
+    <!-- MAIN APP SCRIPT -->
+    <!-- ============================================================ -->
     <script>
     // ============================================================
     // TAXI PROMAX - FULL VERSION + MODULE XE GHÉP v6.0
@@ -1021,7 +1247,7 @@
 
     // ==================== GPS ====================
     async function requestRoadDistance(p1, p2) {
-        const url = `https://router.project-osrm.org/route/v1/driving/\( {p1.lng}, \){p1.lat};\( {p2.lng}, \){p2.lat}?overview=false`;
+        const url = `https://router.project-osrm.org/route/v1/driving/${p1.lng},${p1.lat};${p2.lng},${p2.lat}?overview=false`;
         try {
             const response = await fetch(url);
             const data = await response.json();
@@ -1263,17 +1489,15 @@
             
             messaging = firebase.messaging();
             
-            // Request permission
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
                 console.warn('Push notification bị từ chối');
                 return;
             }
             
-            // Get FCM token
             try {
                 fcmToken = await messaging.getToken({
-                    vapidKey: 'BAA3S8g0HhHj2rCq8j4KpQ1lX6yM5nV7wP9rT2uE3fG4hJ5kL6mN7oP8qR9sT0uV' // Demo VAPID
+                    vapidKey: 'BAA3S8g0HhHj2rCq8j4KpQ1lX6yM5nV7wP9rT2uE3fG4hJ5kL6mN7oP8qR9sT0uV'
                 });
                 
                 if (fcmToken && driverInfo.uid) {
@@ -1284,14 +1508,12 @@
                 console.warn('Không lấy được FCM token:', e);
             }
             
-            // Listen for foreground messages
             messaging.onMessage((payload) => {
                 const title = payload.notification?.title || '📨 Thông báo';
                 const body = payload.notification?.body || '';
                 showToast(`📨 ${title}: ${body}`);
                 
                 if (payload.data?.type === 'new_order') {
-                    // Force check orders
                     setTimeout(checkNearbyOrders, 1000);
                 }
                 
@@ -1606,289 +1828,6 @@
         showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', () => completeTrip());
     }
 
-    // ==================== AUTH ====================
-    function hashPassword(str) {
-        let h = 0;
-        for (let i = 0; i < str.length; i++) {
-            h = ((h << 5) - h) + str.charCodeAt(i);
-            h |= 0;
-        }
-        return 'h' + Math.abs(h).toString(36) + '_' + str.length;
-    }
-
-    async function doRegister() {
-        const fullname = document.getElementById('regFullname').value.trim();
-        const phone = document.getElementById('regPhone').value.trim();
-        const password = document.getElementById('regPassword').value.trim();
-        const cccd = document.getElementById('regCccd').value.trim();
-        const plate = document.getElementById('regPlate').value.trim();
-        const carModel = document.getElementById('regCarModel').value.trim();
-        const fuelType = document.querySelector('input[name="fuelType"]:checked')?.value || 'xang';
-        const carClass = document.querySelector('input[name="carClass"]:checked')?.value || '4_seats';
-        const btn = document.getElementById('btnRegister');
-        const btnText = document.getElementById('btnRegText');
-        const errorEl = document.getElementById('regError');
-
-        errorEl.style.display = 'none';
-        if (!fullname || fullname.length < 2) { errorEl.textContent = '⚠️ Vui lòng nhập họ tên'; errorEl.style.display = 'block'; return; }
-        if (!/^0[0-9]{9}$/.test(phone)) { errorEl.textContent = '⚠️ Số điện thoại không hợp lệ'; errorEl.style.display = 'block'; return; }
-        if (!password || password.length < 6) { errorEl.textContent = '⚠️ Mật khẩu phải có ít nhất 6 ký tự'; errorEl.style.display = 'block'; return; }
-        if (!/^[0-9]{9,12}$/.test(cccd)) { errorEl.textContent = '⚠️ CCCD/CMND phải 9-12 số'; errorEl.style.display = 'block'; return; }
-        if (!plate) { errorEl.textContent = '⚠️ Vui lòng nhập biển số xe'; errorEl.style.display = 'block'; return; }
-        if (!carModel) { errorEl.textContent = '⚠️ Vui lòng nhập dòng xe'; errorEl.style.display = 'block'; return; }
-
-        btn.disabled = true; btnText.textContent = 'Đang xử lý...';
-        try {
-            const snapshot = await db.ref('drivers').once('value');
-            const allDrivers = snapshot.val() || {};
-            if (Object.values(allDrivers).some(d => d.phone === phone)) {
-                errorEl.textContent = '⚠️ Số điện thoại đã đăng ký!'; errorEl.style.display = 'block'; return;
-            }
-            const uid = 'driver_' + Date.now();
-            const passwordHash = hashPassword(password + phone);
-            const newDriver = { 
-                uid, name: fullname, phone, passwordHash, cccd, plate, carModel, fuelType, carClass, 
-                status: 'offline', createdAt: Date.now(), totalRides: 0, rating: 5.0 
-            };
-            await db.ref('drivers/' + uid).set(newDriver);
-            driverInfo = { uid, name: fullname, phone, plate, carModel, fuelType, carClass };
-            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
-            document.getElementById('authScreen').style.display = 'none';
-            showToast('✅ Đăng ký thành công! Chào ' + fullname);
-            setTimeout(initApp, 300);
-        } catch (error) { errorEl.textContent = '⚠️ Lỗi: ' + error.message; errorEl.style.display = 'block'; }
-        finally { btn.disabled = false; btnText.textContent = 'ĐĂNG KÝ TÀI XẾ'; }
-    }
-
-    async function doLogin() {
-        const phone = document.getElementById('loginPhone').value.trim();
-        const password = document.getElementById('loginPassword').value.trim();
-        const btn = document.getElementById('btnLogin');
-        const btnText = document.getElementById('btnLoginText');
-        const errorEl = document.getElementById('loginError');
-        errorEl.style.display = 'none';
-        if (!/^0[0-9]{9}$/.test(phone)) { errorEl.textContent = '⚠️ Số điện thoại không hợp lệ'; errorEl.style.display = 'block'; return; }
-        if (!password) { errorEl.textContent = '⚠️ Vui lòng nhập mật khẩu'; errorEl.style.display = 'block'; return; }
-        btn.disabled = true; btnText.textContent = 'Đang xử lý...';
-        try {
-            const snapshot = await db.ref('drivers').once('value');
-            const allDrivers = snapshot.val() || {};
-            let driver = null;
-            let uid = null;
-            for (const [key, val] of Object.entries(allDrivers)) {
-                if (val.phone === phone) { driver = val; uid = key; break; }
-            }
-            if (!driver) { errorEl.textContent = '⚠️ Số điện thoại chưa đăng ký!'; errorEl.style.display = 'block'; return; }
-            
-            const expectedHash = hashPassword(password + phone);
-            if (driver.passwordHash && driver.passwordHash !== expectedHash) {
-                errorEl.textContent = '⚠️ Sai mật khẩu!'; errorEl.style.display = 'block'; return;
-            }
-            
-            if (!driver.passwordHash) {
-                await db.ref('drivers/' + uid).update({ passwordHash: expectedHash });
-            }
-            
-            driverInfo = { 
-                uid: driver.uid, name: driver.name, phone: driver.phone, 
-                plate: driver.plate, carModel: driver.carModel, 
-                fuelType: driver.fuelType, carClass: driver.carClass 
-            };
-            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
-            document.getElementById('authScreen').style.display = 'none';
-            showToast('✅ Đăng nhập thành công! Chào ' + driver.name);
-            setTimeout(initApp, 300);
-        } catch (error) { errorEl.textContent = '⚠️ Lỗi: ' + error.message; errorEl.style.display = 'block'; }
-        finally { btn.disabled = false; btnText.textContent = 'ĐĂNG NHẬP'; }
-    }
-
-    function toggleAuth() {
-        const reg = document.getElementById('stepRegister'), log = document.getElementById('stepLogin'), toggle = document.getElementById('btnToggle');
-        if (reg.style.display !== 'none') { reg.style.display = 'none'; log.style.display = 'block'; toggle.textContent = 'Chưa có tài khoản? Đăng ký'; }
-        else { reg.style.display = 'block'; log.style.display = 'none'; toggle.textContent = 'Đã có tài khoản? Đăng nhập'; }
-    }
-
-    // ==================== INIT APP ====================
-    async function initApp() {
-        try {
-            const saved = localStorage.getItem('driverInfo');
-            if (saved) driverInfo = JSON.parse(saved);
-            
-            // Apply dark mode
-            if (isDarkMode) {
-                document.body.classList.add('dark-mode');
-                const btn = document.querySelector('.dark-toggle-btn');
-                if (btn) btn.textContent = '☀️';
-            }
-            
-            document.getElementById('sidebarName').innerText = driverInfo.name || 'Tài xế';
-            document.getElementById('sidebarPhone').innerText = driverInfo.phone || '...';
-            document.getElementById('sidebarId').innerHTML = '🆔 ' + (driverInfo.uid?.slice(-8) || '...');
-            document.getElementById('sidebarPlan').innerHTML = '⭐ ' + (driverInfo.active_plan || 'MIỄN PHÍ');
-            
-            document.getElementById('profileNameFull').innerText = driverInfo.name || '...';
-            document.getElementById('profileID').innerText = driverInfo.uid?.slice(-8) || '...';
-            document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
-            document.getElementById('profilePlate').innerText = driverInfo.plate || '...';
-            document.getElementById('profileCarModel').innerText = driverInfo.carModel || '...';
-            document.getElementById('profileFuel').innerText = driverInfo.fuelType === 'xang' ? '⛽ Xăng' : '🔋 Điện';
-            document.getElementById('profileCarClass').innerText = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-            
-            // Load rating
-            try {
-                const ratingSnap = await db.ref(`ratings/${driverInfo.uid}`).once('value');
-                const ratings = ratingSnap.val();
-                if (ratings) {
-                    const vals = Object.values(ratings);
-                    const avg = vals.reduce((s, r) => s + (r.rating || 0), 0) / vals.length;
-                    document.getElementById('profileRating').innerText = avg.toFixed(1);
-                }
-            } catch(e) {}
-            
-            loadLocationHistory();
-            initMap();
-            await initBackgroundGeolocation();
-            startOrderListener();
-            renderHistory();
-            initCountdown();
-            syncDriverOnline(true);
-            startAIHotspotChecker();
-            startPackageExpiryChecker();
-            startForegroundService();
-            startLocationPushing();
-            startAIDispatch();
-            initPushNotifications();
-            updateVerificationStatus();
-            loadDocumentsList();
-            
-            const walletBalance = document.getElementById('walletBalance');
-            if (walletBalance) {
-                try {
-                    const snap = await db.ref(`drivers/${driverInfo.uid}/wallet`).once('value');
-                    const balance = snap.val() || Math.floor(Math.random() * 500000 + 100000);
-                    walletBalance.innerText = balance.toLocaleString() + 'đ';
-                } catch(e) {
-                    walletBalance.innerText = (Math.floor(Math.random() * 500000 + 100000)).toLocaleString() + 'đ';
-                }
-            }
-            
-        } catch(e) { console.error('Init error:', e); }
-    }
-
-    async function loadDocumentsList() {
-        try {
-            const snap = await db.ref(`drivers/${driverInfo.uid}/documents`).once('value');
-            const docs = snap.val();
-            const container = document.getElementById('uploadedDocuments');
-            if (docs && Object.keys(docs).length > 0) {
-                container.innerHTML = Object.values(docs).map(d => 
-                    `<div style="padding: 2px 0;">✅ ${d.name || 'Tài liệu'}</div>`
-                ).join('');
-            }
-        } catch(e) {}
-    }
-
-    function initMap() {
-        const timestamp = Date.now();
-        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
-        L.tileLayer(`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png?v=${timestamp}`, { maxZoom: 19 }).addTo(map);
-        window.addEventListener('resize', () => map.invalidateSize());
-    }
-
-    function startForegroundService() {
-        const indicator = document.getElementById('fgServiceIndicator');
-        if (indicator) indicator.classList.add('active');
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').then(lock => { wakeLock = lock; }).catch(() => {});
-        }
-    }
-    
-    function stopForegroundService() {
-        const indicator = document.getElementById('fgServiceIndicator');
-        if (indicator) indicator.classList.remove('active');
-        if (wakeLock) { wakeLock.release(); wakeLock = null; }
-    }
-
-    function syncDriverLocation() {
-        if (!currentLat || !currentLng || !driverInfo.uid) return;
-        try {
-            db.ref(`tai_xe_online/${driverInfo.uid}`).set({
-                lat: currentLat, lng: currentLng, heading: currentHeading,
-                status: isRunning ? 'busy' : 'ready', lastUpdate: Date.now(),
-                plate: driverInfo.plate, name: driverInfo.name,
-                isGapMode: isGapMode, backgroundMode: isBackgroundTracking,
-                online: isDriverOnline
-            }).catch(()=>{});
-        } catch(e) {}
-    }
-
-    function syncDriverOnline(isOnline) {
-        if (!driverInfo.uid) return;
-        if (isOnline) syncDriverLocation();
-        else db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
-    }
-
-    function drawRoute(fromLat, fromLng, toLat, toLng) {
-        if (routeLayer) map.removeLayer(routeLayer);
-        if (!fromLat || !fromLng || !toLat || !toLng) return;
-        fetch(`https://router.project-osrm.org/route/v1/driving/\( {fromLng}, \){fromLat};\( {toLng}, \){toLat}?overview=full&geometries=geojson`)
-            .then(r => r.json())
-            .then(data => { 
-                if (data.routes?.[0]) {
-                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                    routeLayer = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.8 }).addTo(map);
-                    if (!isStreetHail) map.fitBounds(routeLayer.getBounds().pad(0.2));
-                }
-            })
-            .catch(() => {});
-    }
-
-    function geocodeAddress(address, callback) {
-        if (!address) return;
-        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
-            .then(r => r.json())
-            .then(data => { if (data && data[0]) callback(parseFloat(data[0].lat), parseFloat(data[0].lon)); })
-            .catch(() => {});
-    }
-
-    let heatmapLayers = [];
-    function openHeatmap() {
-        if (heatmapLayers.length) heatmapLayers.forEach(l => map.removeLayer(l));
-        heatmapLayers = [];
-        const currentHour = new Date().getHours();
-        HOTSPOTS.forEach(spot => {
-            const isActive = spot.timeSlots.includes(currentHour);
-            const marker = L.circleMarker([spot.lat, spot.lng], {
-                radius: isActive ? 18 : 8, fillColor: isActive ? '#ff4444' : '#ffaa44', color: '#fff', weight: 2, fillOpacity: 0.7
-            }).addTo(map);
-            marker.bindTooltip(`<b>\( {spot.name}</b><br> \){isActive ? '🔥 Đang cao điểm' : '⏰ Sắp cao điểm'}`);
-            heatmapLayers.push(marker);
-        });
-        showToast('🔥 Đã hiển thị điểm nóng khách hàng');
-        if (lastValidPos) map.flyTo([lastValidPos.lat, lastValidPos.lng], 13);
-        closeSidebar();
-    }
-
-    function startAIHotspotChecker() {
-        setInterval(() => {
-            const hour = new Date().getHours();
-            const activeSpots = HOTSPOTS.filter(s => s.timeSlots.includes(hour));
-            if (activeSpots.length && !isRunning && !_isModalOpening && isDriverOnline) {
-                const nearest = activeSpots[0];
-                showToast(`🔥 Gợi ý: Khu vực ${nearest.name} đang có nhu cầu cao!`);
-                speak(`Khu vực ${nearest.name} đang có nhiều khách.`);
-            }
-        }, 600000);
-    }
-
-    function showAIAlert(msg) { 
-        const alertDiv = document.getElementById('aiAlert'); 
-        if (!alertDiv) return;
-        document.getElementById('aiAlertText').innerText = msg; 
-        alertDiv.classList.add('show'); 
-        setTimeout(() => alertDiv.classList.remove('show'), 5000); 
-    }
-
     // ==================== PAYMENT & PACKAGE ====================
     async function handlePayment(amount, plan) {
         if (!driverInfo?.uid) {
@@ -1909,7 +1848,6 @@
         try {
             showToast('⏳ Đang tạo liên kết thanh toán...');
             
-            // Demo: Gọi API PayOS (cần thay bằng endpoint thực tế)
             const orderId = `DRV_${driverInfo.uid}_${Date.now()}`;
             const response = await fetch('https://api.payos.vn/v1/payment-requests', {
                 method: 'POST',
@@ -1933,7 +1871,6 @@
             const data = await response.json();
             if (data.data?.checkoutUrl) {
                 window.open(data.data.checkoutUrl, '_blank');
-                // Theo dõi trạng thái thanh toán
                 monitorPaymentStatus(orderId);
             } else {
                 showToast('⚠️ Không thể tạo thanh toán, vui lòng thử lại');
@@ -1953,7 +1890,6 @@
                     clearInterval(interval);
                     showToast('✅ Thanh toán thành công! Đang cập nhật gói cước...');
                     
-                    // Cập nhật gói cước cho tài xế
                     const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
                     await db.ref(`drivers/${driverInfo.uid}`).update({ 
                         tp_expiry: expiry, 
@@ -2142,9 +2078,9 @@
     function navigateToPickup() {
         if (!currentCustomerData) return;
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
-            window.open(`https://www.google.com/maps/dir/?api=1&origin=\( {currentLat}, \){currentLng}&destination=\( {currentCustomerData.pickupLat}, \){currentCustomerData.pickupLng}&travelmode=driving`, '_blank');
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentCustomerData.pickupLat},${currentCustomerData.pickupLng}&travelmode=driving`, '_blank');
         } else {
-            window.open(`https://www.google.com/maps/dir/?api=1&origin=\( {currentLat}, \){currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
         }
     }
 
@@ -2253,7 +2189,7 @@
         
         const endSummary = document.getElementById('endSummary');
         if (endSummary) {
-            endSummary.innerHTML = `Quãng đường: <b>\( {finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;"> \){finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
+            endSummary.innerHTML = `Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
         }
         
         const endModal = document.getElementById('endModal');
@@ -2273,7 +2209,7 @@
         let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
         history.unshift(tripData);
         localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
-        try { await db.ref(`trips/\( {driverInfo.uid}/ \){now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
+        try { await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
         renderHistory();
     }
 
@@ -2290,7 +2226,7 @@
                             <div class="h-info">
                                 <b>${h.time}</b><br>
                                 <small>${h.km.toFixed(2)} KM</small>
-                                <span class="h-source \( {h.tripType === 'STREET_HAIL' ? 'street' : 'cloud'}"> \){h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
+                                <span class="h-source ${h.tripType === 'STREET_HAIL' ? 'street' : 'cloud'}">${h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
                             </div>
                             <div class="h-price">${h.costLabel}đ</div>
                         </div>`).join(''); 
@@ -2305,7 +2241,7 @@
                 <div class="h-info">
                     <b>${h.time}</b><br>
                     <small>${h.km.toFixed(2)} KM</small>
-                    <span class="h-source \( {h.tripType === 'STREET_HAIL' ? 'street' : 'local'}"> \){h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
+                    <span class="h-source ${h.tripType === 'STREET_HAIL' ? 'street' : 'local'}">${h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
                 </div>
                 <div class="h-price">${h.costLabel}đ</div>
             </div>`).join('');
@@ -2368,7 +2304,7 @@
         const time = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
         const div = document.createElement('div'); 
         div.className = 'chat-message ' + (isMe ? 'sent' : 'received');
-        div.innerHTML = `\( {msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;"> \){time}</div>`;
+        div.innerHTML = `${msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;">${time}</div>`;
         container.appendChild(div); 
         container.scrollTop = container.scrollHeight;
     }
@@ -2468,7 +2404,6 @@
     function openSOS() { 
         speak("Đang phát tín hiệu SOS."); 
         showToast("🚨 Đã gửi tín hiệu cứu hộ!"); 
-        // Gửi SOS lên Firebase
         if (driverInfo.uid && currentLat && currentLng) {
             db.ref(`sos/${driverInfo.uid}`).set({
                 lat: currentLat, lng: currentLng,
@@ -2915,7 +2850,7 @@
                 const b = document.createElement('button');
                 b.id = id;
                 b.className = 'xg-tabbtn';
-                b.innerHTML = `${icon} \( {label}<span class="xg-badge" id=" \){id}_badge">0</span>`;
+                b.innerHTML = `${icon} ${label}<span class="xg-badge" id="${id}_badge">0</span>`;
                 b.onclick = () => switchXGTab(id.replace('xgTab','').toLowerCase());
                 return b;
             };
@@ -3049,16 +2984,16 @@
                 } else if (b.status === 'accepted') {
                     act = `<div class="xg-actions">
                         <a class="xg-acc" href="tel:${b.customerPhone}">📞 Gọi khách</a>
-                        <button class="xg-acc" style="background:#0054a3;" onclick="openXGChat('\( {b.id}',' \){escapeHtmlXG(b.customerName)}')">💬 Chat</button>
+                        <button class="xg-acc" style="background:#0054a3;" onclick="openXGChat('${b.id}','${escapeHtmlXG(b.customerName)}')">💬 Chat</button>
                     </div>`;
                 }
                 return `<div class="xg-bcard">
                     <div style="font-weight:800;font-size:14px;margin-bottom:6px;">🎫 ${escapeHtmlXG(b.route)}</div>
                     <div style="font-size:12px;color:#666;line-height:1.6;">
                         <div>👤 <b>${escapeHtmlXG(b.customerName||'Khách')}</b> · 📞 ${escapeHtmlXG(b.customerPhone||'---')}</div>
-                        <div>💺 \( {b.seats} ghế · <span style="color:#d32f2f;font-weight:800;"> \){(b.totalPrice||0).toLocaleString()}đ</span></div>
+                        <div>💺 ${b.seats} ghế · <span style="color:#d32f2f;font-weight:800;">${(b.totalPrice||0).toLocaleString()}đ</span></div>
                         ${b.note ? `<div>📝 ${escapeHtmlXG(b.note)}</div>` : ''}
-                        <div>🕐 \( {time} · Trạng thái: <b> \){b.status}</b></div>
+                        <div>🕐 ${time} · Trạng thái: <b>${b.status}</b></div>
                     </div>
                     ${act}
                 </div>`;
@@ -3109,8 +3044,8 @@
                 <div style="font-weight:800;font-size:14px;margin-bottom:6px;">📨 ${escapeHtmlXG(r.route)}</div>
                 <div style="font-size:12px;color:#666;line-height:1.6;">
                     <div>👤 <b>${escapeHtmlXG(r.customerName||'Khách')}</b> · 📞 ${escapeHtmlXG(r.customerPhone||'---')}</div>
-                    <div>💺 \( {r.seats} ghế · <span style="color:#d32f2f;font-weight:800;"> \){(r.estimatedPrice||r.price||0).toLocaleString()}đ</span></div>
-                    <div>🕐 \( {escapeHtmlXG(r.departureTime)} \){r._dist ? ' · 📍 '+r._dist.toFixed(1)+' km' : ''}</div>
+                    <div>💺 ${r.seats} ghế · <span style="color:#d32f2f;font-weight:800;">${(r.estimatedPrice||r.price||0).toLocaleString()}đ</span></div>
+                    <div>🕐 ${escapeHtmlXG(r.departureTime)}${r._dist ? ' · 📍 '+r._dist.toFixed(1)+' km' : ''}</div>
                 </div>
                 <div class="xg-actions">
                     <button class="xg-acc" onclick="acceptXGRequest('${r.id}')">✓ Nhận & tạo chuyến</button>
@@ -3195,8 +3130,8 @@
         }
         list.sort((a,b) => b.lastTime - a.lastTime);
         if (!list.length) { box.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">💬 Chưa có cuộc trò chuyện</div>'; return; }
-        box.innerHTML = list.map(c => `<div onclick="openXGChat('\( {c.bid}',' \){escapeHtmlXG(c.name)}')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;">
-            <div style="font-weight:800;font-size:13px;">💬 ${escapeHtmlXG(c.name)} \( {c.unread>0?`<span style="background:#d32f2f;color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;"> \){c.unread}</span>`:''}</div>
+        box.innerHTML = list.map(c => `<div onclick="openXGChat('${c.bid}','${escapeHtmlXG(c.name)}')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;">
+            <div style="font-weight:800;font-size:13px;">💬 ${escapeHtmlXG(c.name)} ${c.unread>0?`<span style="background:#d32f2f;color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;">${c.unread}</span>`:''}</div>
             <div style="font-size:11px;color:#7f8c8d;">${escapeHtmlXG(c.last.substring(0,50))||'Chưa có tin nhắn'}</div>
         </div>`).join('');
     }
@@ -3226,7 +3161,7 @@
             const t = new Date(m.timestamp).toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'});
             const d = document.createElement('div');
             d.className = 'xg-msg ' + (isMine ? 'mine' : 'theirs');
-            d.innerHTML = `\( {escapeHtmlXG(m.text)}<div style="font-size:9px;opacity:.7;margin-top:3px;"> \){t}</div>`;
+            d.innerHTML = `${escapeHtmlXG(m.text)}<div style="font-size:9px;opacity:.7;margin-top:3px;">${t}</div>`;
             mc.appendChild(d);
             mc.scrollTop = mc.scrollHeight;
         });
@@ -3463,6 +3398,180 @@
             }).catch(() => {});
         } catch(e) {}
     });
+
+    // ==================== INIT APP ====================
+    async function initApp() {
+        try {
+            const saved = localStorage.getItem('driverInfo');
+            if (saved) driverInfo = JSON.parse(saved);
+            
+            // Apply dark mode
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                const btn = document.querySelector('.dark-toggle-btn');
+                if (btn) btn.textContent = '☀️';
+            }
+            
+            document.getElementById('sidebarName').innerText = driverInfo.name || 'Tài xế';
+            document.getElementById('sidebarPhone').innerText = driverInfo.phone || '...';
+            document.getElementById('sidebarId').innerHTML = '🆔 ' + (driverInfo.uid?.slice(-8) || '...');
+            document.getElementById('sidebarPlan').innerHTML = '⭐ ' + (driverInfo.active_plan || 'MIỄN PHÍ');
+            
+            document.getElementById('profileNameFull').innerText = driverInfo.name || '...';
+            document.getElementById('profileID').innerText = driverInfo.uid?.slice(-8) || '...';
+            document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
+            document.getElementById('profilePlate').innerText = driverInfo.plate || '...';
+            document.getElementById('profileCarModel').innerText = driverInfo.carModel || '...';
+            document.getElementById('profileFuel').innerText = driverInfo.fuelType === 'xang' ? '⛽ Xăng' : '🔋 Điện';
+            document.getElementById('profileCarClass').innerText = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+            
+            // Load rating
+            try {
+                const ratingSnap = await db.ref(`ratings/${driverInfo.uid}`).once('value');
+                const ratings = ratingSnap.val();
+                if (ratings) {
+                    const vals = Object.values(ratings);
+                    const avg = vals.reduce((s, r) => s + (r.rating || 0), 0) / vals.length;
+                    document.getElementById('profileRating').innerText = avg.toFixed(1);
+                }
+            } catch(e) {}
+            
+            loadLocationHistory();
+            initMap();
+            await initBackgroundGeolocation();
+            startOrderListener();
+            renderHistory();
+            initCountdown();
+            syncDriverOnline(true);
+            startAIHotspotChecker();
+            startPackageExpiryChecker();
+            startForegroundService();
+            startLocationPushing();
+            startAIDispatch();
+            initPushNotifications();
+            updateVerificationStatus();
+            loadDocumentsList();
+            
+            const walletBalance = document.getElementById('walletBalance');
+            if (walletBalance) {
+                try {
+                    const snap = await db.ref(`drivers/${driverInfo.uid}/wallet`).once('value');
+                    const balance = snap.val() || Math.floor(Math.random() * 500000 + 100000);
+                    walletBalance.innerText = balance.toLocaleString() + 'đ';
+                } catch(e) {
+                    walletBalance.innerText = (Math.floor(Math.random() * 500000 + 100000)).toLocaleString() + 'đ';
+                }
+            }
+            
+        } catch(e) { console.error('Init error:', e); }
+    }
+
+    async function loadDocumentsList() {
+        try {
+            const snap = await db.ref(`drivers/${driverInfo.uid}/documents`).once('value');
+            const docs = snap.val();
+            const container = document.getElementById('uploadedDocuments');
+            if (docs && Object.keys(docs).length > 0) {
+                container.innerHTML = Object.values(docs).map(d => 
+                    `<div style="padding: 2px 0;">✅ ${d.name || 'Tài liệu'}</div>`
+                ).join('');
+            }
+        } catch(e) {}
+    }
+
+    function startForegroundService() {
+        const indicator = document.getElementById('fgServiceIndicator');
+        if (indicator) indicator.classList.add('active');
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').then(lock => { wakeLock = lock; }).catch(() => {});
+        }
+    }
+    
+    function stopForegroundService() {
+        const indicator = document.getElementById('fgServiceIndicator');
+        if (indicator) indicator.classList.remove('active');
+        if (wakeLock) { wakeLock.release(); wakeLock = null; }
+    }
+
+    function syncDriverLocation() {
+        if (!currentLat || !currentLng || !driverInfo.uid) return;
+        try {
+            db.ref(`tai_xe_online/${driverInfo.uid}`).set({
+                lat: currentLat, lng: currentLng, heading: currentHeading,
+                status: isRunning ? 'busy' : 'ready', lastUpdate: Date.now(),
+                plate: driverInfo.plate, name: driverInfo.name,
+                isGapMode: isGapMode, backgroundMode: isBackgroundTracking,
+                online: isDriverOnline
+            }).catch(()=>{});
+        } catch(e) {}
+    }
+
+    function syncDriverOnline(isOnline) {
+        if (!driverInfo.uid) return;
+        if (isOnline) syncDriverLocation();
+        else db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
+    }
+
+    function drawRoute(fromLat, fromLng, toLat, toLng) {
+        if (routeLayer) map.removeLayer(routeLayer);
+        if (!fromLat || !fromLng || !toLat || !toLng) return;
+        fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
+            .then(r => r.json())
+            .then(data => { 
+                if (data.routes?.[0]) {
+                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    routeLayer = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.8 }).addTo(map);
+                    if (!isStreetHail) map.fitBounds(routeLayer.getBounds().pad(0.2));
+                }
+            })
+            .catch(() => {});
+    }
+
+    function geocodeAddress(address, callback) {
+        if (!address) return;
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
+            .then(r => r.json())
+            .then(data => { if (data && data[0]) callback(parseFloat(data[0].lat), parseFloat(data[0].lon)); })
+            .catch(() => {});
+    }
+
+    let heatmapLayers = [];
+    function openHeatmap() {
+        if (heatmapLayers.length) heatmapLayers.forEach(l => map.removeLayer(l));
+        heatmapLayers = [];
+        const currentHour = new Date().getHours();
+        HOTSPOTS.forEach(spot => {
+            const isActive = spot.timeSlots.includes(currentHour);
+            const marker = L.circleMarker([spot.lat, spot.lng], {
+                radius: isActive ? 18 : 8, fillColor: isActive ? '#ff4444' : '#ffaa44', color: '#fff', weight: 2, fillOpacity: 0.7
+            }).addTo(map);
+            marker.bindTooltip(`<b>${spot.name}</b><br>${isActive ? '🔥 Đang cao điểm' : '⏰ Sắp cao điểm'}`);
+            heatmapLayers.push(marker);
+        });
+        showToast('🔥 Đã hiển thị điểm nóng khách hàng');
+        if (lastValidPos) map.flyTo([lastValidPos.lat, lastValidPos.lng], 13);
+        closeSidebar();
+    }
+
+    function startAIHotspotChecker() {
+        setInterval(() => {
+            const hour = new Date().getHours();
+            const activeSpots = HOTSPOTS.filter(s => s.timeSlots.includes(hour));
+            if (activeSpots.length && !isRunning && !_isModalOpening && isDriverOnline) {
+                const nearest = activeSpots[0];
+                showToast(`🔥 Gợi ý: Khu vực ${nearest.name} đang có nhu cầu cao!`);
+                speak(`Khu vực ${nearest.name} đang có nhiều khách.`);
+            }
+        }, 600000);
+    }
+
+    function showAIAlert(msg) { 
+        const alertDiv = document.getElementById('aiAlert'); 
+        if (!alertDiv) return;
+        document.getElementById('aiAlertText').innerText = msg; 
+        alertDiv.classList.add('show'); 
+        setTimeout(() => alertDiv.classList.remove('show'), 5000); 
+    }
 
     // ==================== ONLINE/OFFLINE ====================
     window.addEventListener('online', () => { 
