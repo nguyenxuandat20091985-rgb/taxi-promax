@@ -769,10 +769,10 @@
             
             <!-- Nội dung chính -->
             <div style="padding: 16px;">
-                <!-- Tab chuyển đổi -->
-                <div style="display: flex; gap: 8px; background: #f0f0f0; padding: 4px; border-radius: 30px; margin-bottom: 20px;">
-                    <button id="xgTabDriver" onclick="switchXGTab('driver')" style="flex: 1; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #0054a3; color: white;">🚗 ĐĂNG CHUYẾN</button>
-                    <button id="xgTabPassenger" onclick="switchXGTab('passenger')" style="flex: 1; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #e0e0e0;">👥 TÌM CHUYẾN</button>
+                <!-- Tab chuyển đổi (sẽ được inject thêm tab bởi JS) -->
+                <div style="display: flex; gap: 8px; background: #f0f0f0; padding: 4px; border-radius: 30px; margin-bottom: 20px; overflow-x: auto;" id="xgTabBar">
+                    <button id="xgTabDriver" onclick="switchXGTab('driver')" style="flex: 1; min-width: 80px; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #0054a3; color: white;">🚗 ĐĂNG CHUYẾN</button>
+                    <button id="xgTabPassenger" onclick="switchXGTab('passenger')" style="flex: 1; min-width: 80px; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #e0e0e0;">👥 TÌM CHUYẾN</button>
                 </div>
                 
                 <!-- TAB TÀI XẾ (Đăng chuyến) -->
@@ -831,7 +831,7 @@
     <script>
     // ============================================================
     // TAXI PROMAX - APP TÀI XẾ (FULL VERSION NÂNG CẤP)
-    // Version: 9.2 - GPS nâng cấp (Grab-style accuracy, retry, force refresh, fare calc ổn định)
+    // Version: 9.2 + MODULE XE GHÉP v5.2 END-TO-END
     // ============================================================
 
     // ==================== FIREBASE ====================
@@ -861,16 +861,16 @@
     let isStreetHail = false;
     let lastDisplayedFare = 0;
     let isGapMode = false;
-    let streetHailTimerInterval = null; // Timer cho đồng hồ chuyến vẫy
+    let streetHailTimerInterval = null;
     let backgroundGeolocation = null;
     let isBackgroundTracking = false;
     let locationHistory = [];
     let isDriverOnline = true;
     let locationPushInterval = null;
     let aiDispatchInterval = null;
-    let soundEnabled = true; // THÊM BIẾN soundEnabled
-    let ratingListener = null; // THÊM BIẾN ratingListener
-    let _cancelListener = null; // THÊM BIẾN _cancelListener
+    let soundEnabled = true;
+    let ratingListener = null;
+    let _cancelListener = null;
     
     // AI Detection
     let lastSpeeds = [];
@@ -891,15 +891,12 @@
         { name: "Trung tâm TP Hạ Long", lat: 20.9511, lng: 107.0800, intensity: 0.95, timeSlots: [8,9,10,11,17,18,19,20] }
     ];
 
-    // Các hằng số GPS (nâng cấp theo Grab / Xanh SM)
+    // Các hằng số GPS
     const GAP_THRESHOLD = 15000;
-    // Giai đoạn 1 (15s đầu): chấp nhận ≤ 80m để hiện marker sớm
-    // Sau đó: chấp nhận ≤ 150m (vẫn tính cước được)
-    // Chỉ loại bỏ khi > 300m (quá nhiễu)
     const ACCURACY_STRICT = 80;
     const ACCURACY_NORMAL = 150;
     const ACCURACY_MAX = 300;
-    const MIN_DISTANCE_DELTA = 0.008; // ~8m – tránh nhiễu khi đứng yên
+    const MIN_DISTANCE_DELTA = 0.008;
     const MAX_HISTORY_SIZE = 500;
     let gpsWatchId = null;
     let gpsFirstFixTime = null;
@@ -921,7 +918,7 @@
 
     // ==================== OSRM API ====================
     async function requestRoadDistance(p1, p2) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${p1.lng},${p1.lat};${p2.lng},${p2.lat}?overview=false`;
+        const url = `https://router.project-osrm.org/route/v1/driving/\( {p1.lng}, \){p1.lat};\( {p2.lng}, \){p2.lat}?overview=false`;
         try {
             const response = await fetch(url);
             const data = await response.json();
@@ -1000,7 +997,7 @@
         }
     }
 
-    // ==================== AI DISPATCH - TỰ ĐỘNG ĐẨY ĐƠN GẦN NHẤT ====================
+    // ==================== AI DISPATCH ====================
     async function checkNearbyOrders() {
         if (!isDriverOnline || isRunning || isLocked || _isModalOpening) return;
         if (!currentLat || !currentLng) return;
@@ -1207,7 +1204,6 @@
     }
     
     function getAccuracyThreshold() {
-        // 15 giây đầu dùng ngưỡng nghiêm, sau đó nới lỏng (kiểu Grab)
         if (!gpsFirstFixTime) return ACCURACY_STRICT;
         const elapsed = Date.now() - gpsFirstFixTime;
         if (elapsed < 15000) return ACCURACY_STRICT;
@@ -1241,7 +1237,6 @@
             text.innerText = `GPS: Rất yếu (±${acc}m)`;
         }
 
-        // Cập nhật profile nếu đang mở
         const profileAcc = document.getElementById('profileAccuracy');
         if (profileAcc) profileAcc.innerText = `±${acc}m`;
     }
@@ -1256,15 +1251,12 @@
 
         if (latitude == null || longitude == null || isNaN(latitude) || isNaN(longitude)) return;
 
-        // Chấp nhận dần dần – không bỏ hết điểm như trước
         const threshold = getAccuracyThreshold();
         if (accuracy > ACCURACY_MAX) {
-            // Vẫn cập nhật status để tài xế biết, nhưng không dùng tính cước
             updateGpsStatusUI(accuracy, false);
             return;
         }
 
-        // Điểm có accuracy kém hơn threshold nhưng vẫn < MAX: vẫn hiện marker, chỉ hạn chế cộng km nếu quá nhiễu
         const isGoodEnoughForFare = accuracy <= threshold || accuracy <= ACCURACY_NORMAL;
 
         if (!gpsFirstFixTime) gpsFirstFixTime = Date.now();
@@ -1280,7 +1272,6 @@
         updateGpsStatusUI(accuracy, false);
         updateDriverMarker(latitude, longitude, true);
 
-        // Chỉ cộng km khi đang chạy chuyến và điểm đủ tốt
         if (isRunning && isGoodEnoughForFare && lastValidPos) {
             const timeDiff = currentTime - lastValidTime;
 
@@ -1288,7 +1279,7 @@
                 showGapNotice();
                 isGapMode = true;
                 requestRoadDistance(lastValidPos, { lat: latitude, lng: longitude }).then(roadKm => {
-                    if (roadKm > 0 && roadKm < 5) { // chống nhảy ảo quá xa
+                    if (roadKm > 0 && roadKm < 5) {
                         totalKm += roadKm;
                         updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
                     }
@@ -1296,7 +1287,6 @@
                 setTimeout(() => { isGapMode = false; }, 5000);
             } else {
                 const dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, latitude, longitude);
-                // Lọc nhiễu: chỉ cộng khi di chuyển thật + tốc độ hợp lý
                 if (dist > MIN_DISTANCE_DELTA && dist < 0.5) {
                     totalKm += dist;
                     updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
@@ -1304,7 +1294,6 @@
             }
         }
 
-        // Luôn cập nhật lastValidPos nếu điểm chấp nhận được (để lần sau tính được)
         if (isGoodEnoughForFare || !lastValidPos) {
             lastValidPos = { lat: latitude, lng: longitude };
             lastValidTime = currentTime;
@@ -1326,7 +1315,6 @@
             driverMarker.setLatLng([lat, lng]);
             const compass = document.getElementById('compass');
             if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
-            // Chỉ auto-center lần đầu hoặc khi đang chạy chuyến
             if ((forceCenter && !hasCenteredMap) || (isRunning && !isStreetHail)) {
                 map.panTo([lat, lng], { animate: true, duration: 0.5 });
             }
@@ -1393,7 +1381,6 @@
             return;
         }
 
-        // Dừng watch cũ nếu có
         if (gpsWatchId != null) {
             navigator.geolocation.clearWatch(gpsWatchId);
             gpsWatchId = null;
@@ -1401,7 +1388,6 @@
 
         updateGpsStatusUI(0, true, 'GPS: Đang xin quyền...');
 
-        // Lấy vị trí cuối cùng ngay (nếu có) để hiện marker sớm
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 processBackgroundLocation({
@@ -1417,7 +1403,6 @@
             { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
         );
 
-        // Watch liên tục – cấu hình giống app taxi thật
         gpsWatchId = navigator.geolocation.watchPosition(
             (pos) => {
                 processBackgroundLocation({
@@ -1433,20 +1418,18 @@
                 console.error('[GPS] error:', err.code, err.message);
                 gpsRetryCount++;
                 let msg = 'GPS: Lỗi';
-                if (err.code === 1) { // PERMISSION_DENIED
+                if (err.code === 1) {
                     msg = 'GPS: Bị từ chối quyền';
                     showToast('⚠️ Hãy bật Quyền Vị trí trong Cài đặt điện thoại');
                     updateGpsStatusUI(0, true, msg);
-                    // Không retry liên tục khi bị từ chối
                     return;
-                } else if (err.code === 2) { // POSITION_UNAVAILABLE
+                } else if (err.code === 2) {
                     msg = 'GPS: Không có tín hiệu';
-                } else if (err.code === 3) { // TIMEOUT
+                } else if (err.code === 3) {
                     msg = 'GPS: Timeout – đang thử lại';
                 }
                 updateGpsStatusUI(0, true, msg);
 
-                // Tự động thử lại sau vài giây (tối đa 5 lần)
                 if (gpsRetryCount <= 5) {
                     setTimeout(() => {
                         if (!lastValidPos) startGPS();
@@ -1456,7 +1439,7 @@
             {
                 enableHighAccuracy: true,
                 timeout: 20000,
-                maximumAge: 3000   // cho phép dùng cache 3s – giảm lag
+                maximumAge: 3000
             }
         );
     }
@@ -1468,14 +1451,12 @@
         }
     }
 
-    // Nút bấm thủ công để làm mới GPS (tài xế hay cần)
     function forceRefreshGPS() {
         showToast('📡 Đang làm mới GPS...');
         gpsFirstFixTime = null;
         hasCenteredMap = false;
         gpsRetryCount = 0;
         startGPS();
-        // Nếu đã có vị trí thì bay tới luôn
         if (currentLat && currentLng && map) {
             map.flyTo([currentLat, currentLng], 17, { duration: 1 });
             hasCenteredMap = true;
@@ -1596,13 +1577,11 @@
             const saved = localStorage.getItem('driverInfo');
             if (saved) driverInfo = JSON.parse(saved);
             
-            // Cập nhật sidebar
             document.getElementById('sidebarName').innerText = driverInfo.name || 'Tài xế';
             document.getElementById('sidebarPhone').innerText = driverInfo.phone || '...';
             document.getElementById('sidebarId').innerHTML = '🆔 ' + (driverInfo.uid?.slice(-8) || '...');
             document.getElementById('sidebarPlan').innerHTML = '⭐ ' + (driverInfo.active_plan || 'MIỄN PHÍ');
             
-            // Cập nhật profile dashboard
             document.getElementById('profileNameFull').innerText = driverInfo.name || '...';
             document.getElementById('profileID').innerText = driverInfo.uid?.slice(-8) || '...';
             document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
@@ -1624,7 +1603,6 @@
             startLocationPushing();
             startAIDispatch();
             
-            // Cập nhật ví demo
             const walletBalance = document.getElementById('walletBalance');
             if (walletBalance) walletBalance.innerText = (Math.random() * 500000 + 100000).toFixed(0) + 'đ';
             
@@ -1675,7 +1653,7 @@
     function drawRoute(fromLat, fromLng, toLat, toLng) {
         if (routeLayer) map.removeLayer(routeLayer);
         if (!fromLat || !fromLng || !toLat || !toLng) return;
-        fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
+        fetch(`https://router.project-osrm.org/route/v1/driving/\( {fromLng}, \){fromLat};\( {toLng}, \){toLat}?overview=full&geometries=geojson`)
             .then(r => r.json())
             .then(data => { 
                 if (data.routes?.[0]) {
@@ -1706,7 +1684,7 @@
             const marker = L.circleMarker([spot.lat, spot.lng], {
                 radius: isActive ? 18 : 8, fillColor: isActive ? '#ff4444' : '#ffaa44', color: '#fff', weight: 2, fillOpacity: 0.7
             }).addTo(map);
-            marker.bindTooltip(`<b>${spot.name}</b><br>${isActive ? '🔥 Đang cao điểm' : '⏰ Sắp cao điểm'}`);
+            marker.bindTooltip(`<b>\( {spot.name}</b><br> \){isActive ? '🔥 Đang cao điểm' : '⏰ Sắp cao điểm'}`);
             heatmapLayers.push(marker);
         });
         showToast('🔥 Đã hiển thị điểm nóng khách hàng');
@@ -1754,7 +1732,6 @@
                 const d = snap.val();
                 const now = Date.now();
                 
-                // planShow có thể không tồn tại trong DOM → phải kiểm tra null
                 const planShow = document.getElementById('planShow');
                 const cdVal = document.getElementById('tp-cd-val');
                 const profilePlan = document.getElementById('profilePlan');
@@ -1921,9 +1898,9 @@
     function navigateToPickup() {
         if (!currentCustomerData) return;
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
-            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentCustomerData.pickupLat},${currentCustomerData.pickupLng}&travelmode=driving`, '_blank');
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=\( {currentLat}, \){currentLng}&destination=\( {currentCustomerData.pickupLat}, \){currentCustomerData.pickupLng}&travelmode=driving`, '_blank');
         } else {
-            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=\( {currentLat}, \){currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
         }
     }
 
@@ -1977,7 +1954,6 @@
     }
 
     function completeTrip() {
-        // Giữ lại giá trị trước khi reset (fixix lỗi luôn hiện 0.00 KM)
         const finalKm = totalKm;
         const finalCost = Math.round(finalKm * currentRate);
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
@@ -2004,7 +1980,6 @@
         lastValidTime = 0; 
         isGapMode = false;
         
-        // Ẩn street hail meter nếu đang mở
         const streetMeter = document.getElementById('streetHailMeter');
         if (streetMeter) streetMeter.classList.remove('show');
         if (typeof streetHailTimerInterval !== 'undefined' && streetHailTimerInterval) {
@@ -2033,7 +2008,7 @@
         
         const endSummary = document.getElementById('endSummary');
         if (endSummary) {
-            endSummary.innerHTML = `Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
+            endSummary.innerHTML = `Quãng đường: <b>\( {finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;"> \){finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
         }
         
         const endModal = document.getElementById('endModal');
@@ -2053,7 +2028,7 @@
         let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
         history.unshift(tripData);
         localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
-        try { await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
+        try { await db.ref(`trips/\( {driverInfo.uid}/ \){now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
         renderHistory();
     }
 
@@ -2070,7 +2045,7 @@
                             <div class="h-info">
                                 <b>${h.time}</b><br>
                                 <small>${h.km.toFixed(2)} KM</small>
-                                <span class="h-source ${h.tripType === 'STREET_HAIL' ? 'street' : 'cloud'}">${h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
+                                <span class="h-source \( {h.tripType === 'STREET_HAIL' ? 'street' : 'cloud'}"> \){h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
                             </div>
                             <div class="h-price">${h.costLabel}đ</div>
                         </div>`).join(''); 
@@ -2085,7 +2060,7 @@
                 <div class="h-info">
                     <b>${h.time}</b><br>
                     <small>${h.km.toFixed(2)} KM</small>
-                    <span class="h-source ${h.tripType === 'STREET_HAIL' ? 'street' : 'local'}">${h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
+                    <span class="h-source \( {h.tripType === 'STREET_HAIL' ? 'street' : 'local'}"> \){h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
                 </div>
                 <div class="h-price">${h.costLabel}đ</div>
             </div>`).join('');
@@ -2130,7 +2105,7 @@
         const time = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
         const div = document.createElement('div'); 
         div.className = 'chat-message ' + (isMe ? 'sent' : 'received');
-        div.innerHTML = `${msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;">${time}</div>`;
+        div.innerHTML = `\( {msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;"> \){time}</div>`;
         container.appendChild(div); 
         container.scrollTop = container.scrollHeight;
     }
@@ -2249,13 +2224,11 @@
             stopForegroundService();
             disableKeepAwake();
             
-            // Hủy tất cả listener Firebase
             if (orderListener) { db.ref('datxe').off(); orderListener = null; }
             if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
             if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
             if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
             
-            // Đồng bộ offline trước khi logout
             if (driverInfo?.uid) {
                 db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
             }
@@ -2265,98 +2238,138 @@
         });
     }
 
-    // ==================== MODULE XE GHÉP CHO TAXI PROMAX ====================
-    // Hoàn toàn độc lập, chỉ dùng node 'shared_rides', không ảnh hưởng module khác
-
+    // ============================================================
+    // 🚐 MODULE XE GHÉP v5.2 — END-TO-END (thay thế bản cũ)
+    // Tương thích ngược: giữ nguyên mọi hàm HTML gốc đã gọi
+    // ============================================================
     const XG_DB_REF = 'shared_rides';
+    const XG_BOOKINGS_REF = 'shared_ride_bookings';
+    const XG_REQUESTS_REF = 'customer_requests';
+    const XG_CHAT_REF = 'chat_xg';
+
     let xgCurrentUser = null;
     let xgSubscription = null;
+    let xgListenersStarted = false;
+    let xgUIInjected = false;
+    let xgGeocodeCache = { pickup: null, dropoff: null };
+    let xgActiveChatBookingId = null;
+    let xgBookingCache = {};
+    let xgRequestCache = {};
 
-    // Khôi phục session Xe Ghép
+    // ---------- Khôi phục session gói Xe Ghép ----------
     function loadXGSession() {
         try {
             const saved = localStorage.getItem('xg_driver_session');
             if (saved) {
                 xgCurrentUser = JSON.parse(saved);
                 const expiry = xgCurrentUser?.expiry || 0;
+                const alertEl = document.getElementById('xgPackageAlert');
+                const textEl = document.getElementById('xgPackageText');
                 if (Date.now() < expiry) {
-                    document.getElementById('xgPackageAlert').style.display = 'none';
+                    if (alertEl) alertEl.style.display = 'none';
                 } else {
-                    document.getElementById('xgPackageAlert').style.display = 'flex';
-                    document.getElementById('xgPackageText').innerText = 'Gói Xe Ghép đã hết hạn! Vui lòng gia hạn.';
+                    if (alertEl) alertEl.style.display = 'flex';
+                    if (textEl) textEl.innerText = 'Gói Xe Ghép đã hết hạn! Vui lòng gia hạn.';
                     xgCurrentUser = null;
                     localStorage.removeItem('xg_driver_session');
                 }
             } else {
-                document.getElementById('xgPackageAlert').style.display = 'flex';
-                document.getElementById('xgPackageText').innerText = 'Đăng ký gói Xe Ghép để đăng chuyến (99.000đ/tháng)';
+                const alertEl = document.getElementById('xgPackageAlert');
+                const textEl = document.getElementById('xgPackageText');
+                if (alertEl) alertEl.style.display = 'flex';
+                if (textEl) textEl.innerText = 'Đăng ký gói Xe Ghép để đăng chuyến (99.000đ/tháng)';
             }
         } catch(e) {}
     }
 
-    // Mở module Xe Ghép
+    // ---------- Mở module ----------
     function openXeGhepModule() {
         loadXGSession();
+        xgInjectUI();
         document.getElementById('xeGhepModal').style.display = 'flex';
         switchXGTab('driver');
-        loadXGRides(); // Tải danh sách chuyến cho tab khách
+        loadXGRides();
+        startXGListeners();
+        // Prefill tên + sđt tài xế
+        try {
+            const n = document.getElementById('xgDriverName');
+            const p = document.getElementById('xgPhone');
+            if (n && !n.value && driverInfo?.name) n.value = driverInfo.name;
+            if (p && !p.value && driverInfo?.phone) p.value = driverInfo.phone;
+        } catch(e) {}
     }
 
     function closeXeGhepModal() {
         document.getElementById('xeGhepModal').style.display = 'none';
     }
 
+    // ---------- Chuyển tab (mở rộng 5 tab) ----------
     function switchXGTab(tab) {
-        const driverPanel = document.getElementById('xgDriverPanel');
-        const passengerPanel = document.getElementById('xgPassengerPanel');
-        const btnDriver = document.getElementById('xgTabDriver');
-        const btnPassenger = document.getElementById('xgTabPassenger');
-        
-        if (tab === 'driver') {
-            driverPanel.style.display = 'block';
-            passengerPanel.style.display = 'none';
-            btnDriver.style.background = '#0054a3';
-            btnDriver.style.color = 'white';
-            btnPassenger.style.background = '#e0e0e0';
-            btnPassenger.style.color = '#333';
-        } else {
-            driverPanel.style.display = 'none';
-            passengerPanel.style.display = 'block';
-            btnPassenger.style.background = '#0054a3';
-            btnPassenger.style.color = 'white';
-            btnDriver.style.background = '#e0e0e0';
-            btnDriver.style.color = '#333';
-            loadXGRides();
+        const panels = {
+            driver: 'xgDriverPanel',
+            passenger: 'xgPassengerPanel',
+            bookings: 'xgBookingsPanel',
+            requests: 'xgRequestsPanel',
+            chat: 'xgChatPanel'
+        };
+        const tabs = {
+            driver: 'xgTabDriver',
+            passenger: 'xgTabPassenger',
+            bookings: 'xgTabBookings',
+            requests: 'xgTabRequests',
+            chat: 'xgTabChat'
+        };
+        for (const key in panels) {
+            const p = document.getElementById(panels[key]);
+            const t = document.getElementById(tabs[key]);
+            if (p) p.style.display = (key === tab) ? 'block' : 'none';
+            if (t) {
+                if (key === tab) { t.style.background = '#0054a3'; t.style.color = 'white'; }
+                else { t.style.background = '#e0e0e0'; t.style.color = '#333'; }
+            }
         }
+        if (tab === 'passenger') loadXGRides();
+        if (tab === 'bookings') renderXGBookings();
+        if (tab === 'requests') renderXGRequests();
+        if (tab === 'chat') renderXGChatList();
     }
 
-    // Hiển thị thanh toán gói Xe Ghép
+    // ---------- Thanh toán gói ----------
     function showXGPayment() {
-        const confirmPay = confirm(`💰 ĐĂNG KÝ GÓI XE GHÉP\n\n• Phí: 99.000đ / tháng\n• Được đăng không giới hạn chuyến\n• Khách hàng liên hệ trực tiếp\n\nBấm OK để thanh toán (Demo - lưu cục bộ)`);
+        const confirmPay = confirm('💰 ĐĂNG KÝ GÓI XE GHÉP\n\n• Phí: 99.000đ / tháng\n• Đăng chuyến không giới hạn\n• Nhận đặt ghế + chat realtime\n\nBấm OK để thanh toán (Demo - lưu cục bộ)');
         if (confirmPay) {
             const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
             xgCurrentUser = {
                 name: driverInfo?.name || 'Tài xế',
-                phone: driverInfo?.phone || document.getElementById('xgPhone')?.value || '',
+                phone: driverInfo?.phone || '',
                 expiry: expiry,
                 registeredAt: Date.now()
             };
             localStorage.setItem('xg_driver_session', JSON.stringify(xgCurrentUser));
-            document.getElementById('xgPackageAlert').style.display = 'none';
+            const alertEl = document.getElementById('xgPackageAlert');
+            if (alertEl) alertEl.style.display = 'none';
             showToast('✅ Đăng ký gói Xe Ghép thành công! Hạn đến: ' + new Date(expiry).toLocaleDateString('vi-VN'));
             speak('Đăng ký gói xe ghép thành công');
         }
     }
 
-    // Đăng chuyến Xe Ghép
+    // ---------- 🆕 Geocode tọa độ (cho AI Match) ----------
+    async function xgGeocode(address) {
+        try {
+            const r = await fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1&countrycodes=vn');
+            const d = await r.json();
+            if (d && d[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+        } catch(e) {}
+        return null;
+    }
+
+    // ---------- Đăng chuyến (có tọa độ) ----------
     async function publishXGRide() {
-        // Kiểm tra gói cước
         if (!xgCurrentUser || Date.now() > xgCurrentUser.expiry) {
             showToast('⚠️ Vui lòng đăng ký gói Xe Ghép trước khi đăng chuyến!');
             showXGPayment();
             return;
         }
-        
         const pickup = document.getElementById('xgPickup').value.trim();
         const dropoff = document.getElementById('xgDropoff').value.trim();
         const departureTimeRaw = document.getElementById('xgDepartureTime').value;
@@ -2365,18 +2378,31 @@
         const vehicle = document.getElementById('xgVehicle').value;
         const driverName = document.getElementById('xgDriverName').value.trim();
         const phone = document.getElementById('xgPhone').value.trim();
-        
+
         if (!pickup || !dropoff || !departureTimeRaw || !price || !seats || !driverName || !phone) {
             showToast('❌ Vui lòng điền đầy đủ thông tin!');
             return;
         }
-        
         if (price < 1000) { showToast('💰 Giá ghế phải lớn hơn 0'); return; }
         if (seats < 1) { showToast('💺 Số ghế phải >= 1'); return; }
-        
+
+        showToast('📍 Đang xác định tọa độ chuyến...');
+
+        // Geocode ngầm (dùng cache nếu có)
+        if (!xgGeocodeCache.pickup || xgGeocodeCache.pickup.addr !== pickup) {
+            const c = await xgGeocode(pickup);
+            xgGeocodeCache.pickup = c ? { addr: pickup, lat: c.lat, lng: c.lng } : { addr: pickup, lat: null, lng: null };
+        }
+        if (!xgGeocodeCache.dropoff || xgGeocodeCache.dropoff.addr !== dropoff) {
+            const c = await xgGeocode(dropoff);
+            xgGeocodeCache.dropoff = c ? { addr: dropoff, lat: c.lat, lng: c.lng } : { addr: dropoff, lat: null, lng: null };
+        }
+        const pu = xgGeocodeCache.pickup;
+        const dr = xgGeocodeCache.dropoff;
+
         const departureTimeFormatted = departureTimeRaw.replace('T', ' ') + ':00';
         const route = `${pickup} → ${dropoff}`;
-        
+
         const rideData = {
             driverId: driverInfo?.uid || `xg_${Date.now()}`,
             driverName: driverName,
@@ -2388,15 +2414,19 @@
             vehicle: vehicle,
             price: price,
             seats: seats,
+            // 🆕 TỌA ĐỘ CHO AI MATCH
+            pickupLat: pu?.lat || (typeof currentLat !== 'undefined' ? currentLat : null),
+            pickupLng: pu?.lng || (typeof currentLng !== 'undefined' ? currentLng : null),
+            dropoffLat: dr?.lat || null,
+            dropoffLng: dr?.lng || null,
             status: 'active',
             timestamp: Date.now(),
             source: 'taxi_promax'
         };
-        
+
         try {
             await db.ref(XG_DB_REF).push(rideData);
             showToast('✅ Đăng chuyến thành công!');
-            // Reset form
             document.getElementById('xgPickup').value = '';
             document.getElementById('xgDropoff').value = '';
             document.getElementById('xgDepartureTime').value = '';
@@ -2404,7 +2434,7 @@
             document.getElementById('xgSeats').value = '3';
             document.getElementById('xgDriverName').value = driverInfo?.name || '';
             document.getElementById('xgPhone').value = driverInfo?.phone || '';
-            loadXGRides(); // Cập nhật danh sách
+            loadXGRides();
             speak('Đã đăng chuyến xe ghép');
         } catch(e) {
             console.error(e);
@@ -2412,54 +2442,44 @@
         }
     }
 
-    // Tải danh sách chuyến Xe Ghép
+    // ---------- Tải danh sách chuyến (giữ nguyên logic gốc) ----------
     async function loadXGRides() {
         const container = document.getElementById('xgRidesList');
         if (!container) return;
-        
         container.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-pulse"></i> Đang tải...</div>';
-        
         try {
             const snapshot = await db.ref(XG_DB_REF).orderByChild('timestamp').once('value');
             const data = snapshot.val();
-            
             if (!data) {
                 container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🚫 Chưa có chuyến xe ghép nào</div>';
                 return;
             }
-            
-            // Lọc chuyến active và sắp xếp mới nhất trước
             let rides = [];
             for (let id in data) {
-                if (data[id].status === 'active') {
-                    rides.push({ id, ...data[id] });
-                }
+                if (data[id].status === 'active') rides.push({ id, ...data[id] });
             }
             rides.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            
             if (rides.length === 0) {
                 container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🚫 Không có chuyến nào đang hoạt động</div>';
                 return;
             }
-            
             let html = '';
             for (const ride of rides) {
                 const priceFormatted = new Intl.NumberFormat('vi-VN').format(ride.price) + ' ₫';
                 const vehicleIcon = ride.vehicle === '4-xang' ? '🚗' : (ride.vehicle === '7-xang' ? '🚙' : (ride.vehicle === '4-dien' ? '⚡' : '🔋'));
-                
                 html += `
-                    <div class="xg-ride-card">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="font-weight: 800; font-size: 14px;">${escapeHtmlXG(ride.route || (ride.pickup + ' → ' + ride.dropoff))}</span>
-                            <span style="background: #e8f5e9; padding: 2px 8px; border-radius: 12px; font-size: 10px;">${vehicleIcon} ${ride.vehicle?.replace('-',' ') || 'Xe'}</span>
+                    <div class="xg-ride-card" style="background:#fff;border:1px solid #eee;border-radius:14px;padding:12px;margin-bottom:10px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                            <span style="font-weight:800;font-size:14px;">${escapeHtmlXG(ride.route || (ride.pickup + ' → ' + ride.dropoff))}</span>
+                            <span style="background:#e8f5e9;padding:2px 8px;border-radius:12px;font-size:10px;">${vehicleIcon} ${(ride.vehicle||'').replace('-',' ') || 'Xe'}</span>
                         </div>
-                        <div style="font-size: 11px; color: #666; margin-bottom: 4px;"><i class="fas fa-map-marker-alt"></i> Đón: ${escapeHtmlXG(ride.pickup)}</div>
-                        <div style="font-size: 11px; color: #666; margin-bottom: 4px;"><i class="fas fa-flag-checkered"></i> Trả: ${escapeHtmlXG(ride.dropoff)}</div>
-                        <div style="font-size: 11px; color: #666; margin-bottom: 4px;"><i class="far fa-clock"></i> ${escapeHtmlXG(ride.departureTime)}</div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-wrap: wrap; gap: 6px;">
-                            <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 12px; font-size: 11px;"><i class="fas fa-chair"></i> ${ride.seats} ghế trống</span>
-                            <span style="color: #d32f2f; font-weight: 800;">${priceFormatted}/ghế</span>
-                            <a href="tel:${ride.phone}" style="background: #00bfa5; color: white; padding: 6px 12px; border-radius: 20px; text-decoration: none; font-size: 12px; font-weight: 700;">
+                        <div style="font-size:11px;color:#666;margin-bottom:4px;"><i class="fas fa-map-marker-alt"></i> Đón: ${escapeHtmlXG(ride.pickup)}</div>
+                        <div style="font-size:11px;color:#666;margin-bottom:4px;"><i class="fas fa-flag-checkered"></i> Trả: ${escapeHtmlXG(ride.dropoff)}</div>
+                        <div style="font-size:11px;color:#666;margin-bottom:4px;"><i class="far fa-clock"></i> ${escapeHtmlXG(ride.departureTime)}</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px;">
+                            <span style="background:#f0f0f0;padding:4px 8px;border-radius:12px;font-size:11px;"><i class="fas fa-chair"></i> ${ride.seats} ghế trống</span>
+                            <span style="color:#d32f2f;font-weight:800;">${priceFormatted}/ghế</span>
+                            <a href="tel:${ride.phone}" style="background:#00bfa5;color:white;padding:6px 12px;border-radius:20px;text-decoration:none;font-size:12px;font-weight:700;">
                                 <i class="fas fa-phone-alt"></i> Liên hệ
                             </a>
                         </div>
@@ -2483,19 +2503,429 @@
         });
     }
 
-    // Tự động tải lại danh sách mỗi 30 giây
+    // ---------- Tự động tải lại ----------
     let xgRefreshInterval = null;
     function startXGAutoRefresh() {
         if (xgRefreshInterval) clearInterval(xgRefreshInterval);
         xgRefreshInterval = setInterval(() => {
             const modal = document.getElementById('xeGhepModal');
             if (modal && modal.style.display === 'flex') {
-                const activeTab = document.getElementById('xgPassengerPanel').style.display === 'block';
-                if (activeTab) loadXGRides();
+                const passPanel = document.getElementById('xgPassengerPanel');
+                if (passPanel && passPanel.style.display === 'block') loadXGRides();
             }
         }, 30000);
     }
+
+    // ============================================================
+    // 🆕 INJECT UI BỔ SUNG (không cần sửa HTML gốc)
+    // ============================================================
+    function xgInjectUI() {
+        if (xgUIInjected) return;
+        xgUIInjected = true;
+
+        // Inject CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .xg-tabbar { display:flex; gap:6px; padding:10px; overflow-x:auto; background:#f5f5f5; }
+            .xg-tabbtn { flex:1; min-width:70px; padding:10px 6px; border:none; border-radius:12px; background:#e0e0e0; color:#333; font-size:11px; font-weight:800; cursor:pointer; position:relative; white-space:nowrap; }
+            .xg-badge { position:absolute; top:-4px; right:-4px; background:#d32f2f; color:#fff; font-size:9px; font-weight:900; min-width:18px; height:18px; border-radius:9px; display:none; align-items:center; justify-content:center; padding:0 4px; }
+            .xg-bcard { background:#fff; border:2px solid #fff3e0; border-radius:14px; padding:12px; margin-bottom:10px; position:relative; }
+            .xg-rcard { background:#fff; border:2px solid #e3f2fd; border-radius:14px; padding:12px; margin-bottom:10px; position:relative; }
+            .xg-actions { display:flex; gap:8px; margin-top:10px; }
+            .xg-actions button, .xg-actions a { flex:1; padding:10px; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; text-align:center; text-decoration:none; }
+            .xg-acc { background:#00bfa5; color:#fff; }
+            .xg-rej { background:#ef5350; color:#fff; }
+            .xg-chatview { position:fixed; inset:0; background:#fff; z-index:17000; display:none; flex-direction:column; }
+            .xg-chatview.show { display:flex; }
+            .xg-chdr { background:linear-gradient(135deg,#0054a3,#00bfa5); color:#fff; padding:14px; display:flex; align-items:center; gap:12px; }
+            .xg-cmsgs { flex:1; overflow-y:auto; padding:14px; background:#f5f5f5; display:flex; flex-direction:column; gap:8px; }
+            .xg-msg { max-width:80%; padding:10px 14px; border-radius:16px; font-size:13px; }
+            .xg-msg.mine { background:linear-gradient(135deg,#0054a3,#00bfa5); color:#fff; align-self:flex-end; }
+            .xg-msg.theirs { background:#fff; color:#333; align-self:flex-start; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+            .xg-cinput { padding:10px; background:#fff; border-top:1px solid #eee; display:flex; gap:8px; }
+            .xg-cinput input { flex:1; padding:10px 14px; background:#f0f0f0; border:none; border-radius:22px; font-size:13px; }
+            .xg-cinput button { width:42px; height:42px; border:none; border-radius:50%; background:linear-gradient(135deg,#0054a3,#00bfa5); color:#fff; cursor:pointer; }
+        `;
+        document.head.appendChild(style);
+
+        // Tìm hàng tabs gốc (cha của xgTabPassenger) để gắn thêm tab mới
+        const anchorTab = document.getElementById('xgTabPassenger');
+        if (anchorTab) {
+            const mk = (id, icon, label) => {
+                const b = document.createElement('button');
+                b.id = id;
+                b.className = 'xg-tabbtn';
+                b.innerHTML = `${icon} \( {label}<span class="xg-badge" id=" \){id}_badge">0</span>`;
+                b.onclick = () => switchXGTab(id.replace('xgTab','').toLowerCase());
+                return b;
+            };
+            const tb = document.getElementById('xgTabBookings') || mk('xgTabBookings','🎫','Đặt ghế');
+            const tr = document.getElementById('xgTabRequests') || mk('xgTabRequests','📨','Yêu cầu');
+            const tc = document.getElementById('xgTabChat') || mk('xgTabChat','💬','Chat');
+            anchorTab.parentElement.appendChild(tb);
+            anchorTab.parentElement.appendChild(tr);
+            anchorTab.parentElement.appendChild(tc);
+        }
+
+        // Gắn thêm 3 panel mới sau xgPassengerPanel
+        const anchorPanel = document.getElementById('xgPassengerPanel');
+        if (anchorPanel) {
+            const mkPanel = (id, html) => {
+                if (document.getElementById(id)) return;
+                const d = document.createElement('div');
+                d.id = id;
+                d.style.display = 'none';
+                d.style.padding = '14px';
+                d.innerHTML = html;
+                anchorPanel.parentElement.appendChild(d);
+            };
+            mkPanel('xgBookingsPanel', '<div id="xgBookingsList"></div>');
+            mkPanel('xgRequestsPanel', '<div id="xgRequestsList"></div>');
+            mkPanel('xgChatPanel', '<div id="xgChatList"></div>');
+        }
+
+        // Tạo khung chat riêng (append vào body)
+        if (!document.getElementById('xgChatView')) {
+            const cv = document.createElement('div');
+            cv.id = 'xgChatView';
+            cv.className = 'xg-chatview';
+            cv.innerHTML = `
+                <div class="xg-chdr">
+                    <button onclick="closeXGChatView()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;">←</button>
+                    <div style="flex:1;">
+                        <div id="xgChatViewName" style="font-weight:800;font-size:14px;">Khách hàng</div>
+                        <div style="font-size:10px;opacity:.9;">Xe Ghép</div>
+                    </div>
+                </div>
+                <div class="xg-cmsgs" id="xgChatViewMessages"></div>
+                <div class="xg-cinput">
+                    <input type="text" id="xgChatViewInput" placeholder="Nhập tin nhắn..." onkeypress="if(event.key==='Enter')sendXGChatMessage()">
+                    <button onclick="sendXGChatMessage()">➤</button>
+                </div>
+            `;
+            document.body.appendChild(cv);
+        }
+    }
+
+    // ============================================================
+    // 🆕 LISTENERS — nhận booking / request / chat realtime
+    // ============================================================
+    function startXGListeners() {
+        if (xgListenersStarted || !driverInfo) return;
+        xgListenersStarted = true;
+
+        // 1. Booking mới
+        db.ref(XG_BOOKINGS_REF).on('child_added', snap => {
+            const b = snap.val();
+            if (!b || b.driverId !== driverInfo.uid) return;
+            xgBookingCache[snap.key] = { id: snap.key, ...b };
+            if (b.status === 'waiting') {
+                updateXGBadge('bookings');
+                showToast(`🎫 Đặt ghế mới từ ${b.customerName || 'Khách'}`);
+                speak('Có đặt ghế xe ghép mới');
+                if (navigator.vibrate) navigator.vibrate([800,300,800]);
+            }
+        });
+        db.ref(XG_BOOKINGS_REF).on('child_changed', snap => {
+            const b = snap.val();
+            if (b && b.driverId === driverInfo.uid) {
+                xgBookingCache[snap.key] = { id: snap.key, ...b };
+                updateXGBadge('bookings');
+            }
+        });
+
+        // 2. Request mới
+        db.ref(XG_REQUESTS_REF).on('child_added', snap => {
+            const r = snap.val();
+            if (!r || r.status !== 'waiting') return;
+            xgRequestCache[snap.key] = { id: snap.key, ...r };
+            updateXGBadge('requests');
+            showToast(`📨 Yêu cầu xe ghép mới: ${r.customerName || 'Khách'}`);
+            speak('Có yêu cầu xe ghép mới');
+        });
+
+        // 3. Chat (đếm tin chưa đọc)
+        db.ref(XG_CHAT_REF).on('value', snap => {
+            window.xgChatData = snap.val() || {};
+            updateXGBadge('chat');
+        });
+    }
+
+    function updateXGBadge(type) {
+        let count = 0;
+        if (type === 'bookings') {
+            count = Object.values(xgBookingCache).filter(b => b.status === 'waiting').length;
+        } else if (type === 'requests') {
+            count = Object.values(xgRequestCache).filter(r => r.status === 'waiting').length;
+        } else if (type === 'chat') {
+            const d = window.xgChatData || {};
+            for (const bid in d) {
+                if (bid.endsWith('_typing')) continue;
+                const msgs = d[bid];
+                if (typeof msgs !== 'object') continue;
+                for (const mid in msgs) {
+                    const m = msgs[mid];
+                    if (m && m.sender === 'customer' && !m.readByDriver) count++;
+                }
+            }
+        }
+        const el = document.getElementById(`xgTab${type.charAt(0).toUpperCase()+type.slice(1)}_badge`);
+        if (el) {
+            el.style.display = count > 0 ? 'flex' : 'none';
+            el.innerText = count;
+        }
+    }
+
+    // ============================================================
+    // 🆕 DANH SÁCH BOOKING ĐẾN
+    // ============================================================
+    async function renderXGBookings() {
+        const box = document.getElementById('xgBookingsList');
+        if (!box) return;
+        box.innerHTML = '<div style="text-align:center;padding:20px;color:#999;"><i class="fas fa-spinner fa-pulse"></i></div>';
+        try {
+            const snap = await db.ref(XG_BOOKINGS_REF).orderByChild('driverId').equalTo(driverInfo.uid).once('value');
+            const data = snap.val();
+            if (!data) { box.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🎫 Chưa có đặt ghế nào</div>'; return; }
+            let list = Object.keys(data).map(id => ({ id, ...data[id] }));
+            list.sort((a,b) => (b.timestamp||0)-(a.timestamp||0));
+            box.innerHTML = list.map(b => {
+                const time = new Date(b.timestamp).toLocaleString('vi-VN');
+                let act = '';
+                if (b.status === 'waiting') {
+                    act = `<div class="xg-actions">
+                        <button class="xg-acc" onclick="acceptXGBooking('${b.id}')">✓ Nhận đặt</button>
+                        <button class="xg-rej" onclick="rejectXGBooking('${b.id}')">✗ Từ chối</button>
+                    </div>`;
+                } else if (b.status === 'accepted') {
+                    act = `<div class="xg-actions">
+                        <a class="xg-acc" href="tel:${b.customerPhone}">📞 Gọi khách</a>
+                        <button class="xg-acc" style="background:#0054a3;" onclick="openXGChat('\( {b.id}',' \){escapeHtmlXG(b.customerName)}')">💬 Chat</button>
+                    </div>`;
+                }
+                return `<div class="xg-bcard">
+                    <div style="font-weight:800;font-size:14px;margin-bottom:6px;">🎫 ${escapeHtmlXG(b.route)}</div>
+                    <div style="font-size:12px;color:#666;line-height:1.6;">
+                        <div>👤 <b>${escapeHtmlXG(b.customerName||'Khách')}</b> · 📞 ${escapeHtmlXG(b.customerPhone||'---')}</div>
+                        <div>💺 \( {b.seats} ghế · <span style="color:#d32f2f;font-weight:800;"> \){(b.totalPrice||0).toLocaleString()}đ</span></div>
+                        ${b.note ? `<div>📝 ${escapeHtmlXG(b.note)}</div>` : ''}
+                        <div>🕐 \( {time} · Trạng thái: <b> \){b.status}</b></div>
+                    </div>
+                    ${act}
+                </div>`;
+            }).join('');
+        } catch(e) { box.innerHTML = '<div style="text-align:center;padding:20px;color:red;">Lỗi tải</div>'; }
+    }
+
+    async function acceptXGBooking(id) {
+        if (!confirm('Chấp nhận đặt ghế này?')) return;
+        await db.ref(XG_BOOKINGS_REF + '/' + id).update({ status: 'accepted', acceptedAt: Date.now() });
+        showToast('✅ Đã chấp nhận đặt ghế');
+        speak('Đã nhận đặt ghế');
+        renderXGBookings();
+        updateXGBadge('bookings');
+    }
+
+    async function rejectXGBooking(id) {
+        if (!confirm('Từ chối đặt ghế này?')) return;
+        await db.ref(XG_BOOKINGS_REF + '/' + id).update({ status: 'rejected', rejectedAt: Date.now() });
+        showToast('Đã từ chối');
+        renderXGBookings();
+        updateXGBadge('bookings');
+    }
+
+    // ============================================================
+    // 🆕 DANH SÁCH YÊU CẦU ĐẾN
+    // ============================================================
+    async function renderXGRequests() {
+        const box = document.getElementById('xgRequestsList');
+        if (!box) return;
+        box.innerHTML = '<div style="text-align:center;padding:20px;color:#999;"><i class="fas fa-spinner fa-pulse"></i></div>';
+        try {
+            const snap = await db.ref(XG_REQUESTS_REF).orderByChild('timestamp').once('value');
+            const data = snap.val();
+            if (!data) { box.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">📨 Chưa có yêu cầu nào</div>'; return; }
+            let list = [];
+            for (const id in data) {
+                const r = data[id];
+                if (r.status !== 'waiting') continue;
+                if (Date.now() - (r.timestamp||0) > 24*60*60*1000) continue;
+                if (r.pickupLatitude && typeof currentLat !== 'undefined' && currentLat) {
+                    const d = xgHaversine(currentLat, currentLng, r.pickupLatitude, r.pickupLongitude||0);
+                    if (d > 30) continue;
+                    r._dist = d;
+                }
+                list.push({ id, ...r });
+            }
+            list.sort((a,b) => (a._dist||99)-(b._dist||99));
+            if (!list.length) { box.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Không có yêu cầu gần bạn (bán kính 30km)</div>'; return; }
+            box.innerHTML = list.map(r => `<div class="xg-rcard">
+                <div style="font-weight:800;font-size:14px;margin-bottom:6px;">📨 ${escapeHtmlXG(r.route)}</div>
+                <div style="font-size:12px;color:#666;line-height:1.6;">
+                    <div>👤 <b>${escapeHtmlXG(r.customerName||'Khách')}</b> · 📞 ${escapeHtmlXG(r.customerPhone||'---')}</div>
+                    <div>💺 \( {r.seats} ghế · <span style="color:#d32f2f;font-weight:800;"> \){(r.estimatedPrice||r.price||0).toLocaleString()}đ</span></div>
+                    <div>🕐 \( {escapeHtmlXG(r.departureTime)} \){r._dist ? ' · 📍 '+r._dist.toFixed(1)+' km' : ''}</div>
+                </div>
+                <div class="xg-actions">
+                    <button class="xg-acc" onclick="acceptXGRequest('${r.id}')">✓ Nhận & tạo chuyến</button>
+                    <button class="xg-rej" onclick="rejectXGRequest('${r.id}')">✗ Bỏ qua</button>
+                </div>
+            </div>`).join('');
+        } catch(e) { box.innerHTML = '<div style="text-align:center;padding:20px;color:red;">Lỗi tải</div>'; }
+    }
+
+    function xgHaversine(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2-lat1)*Math.PI/180;
+        const dLon = (lon2-lon1)*Math.PI/180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    async function acceptXGRequest(id) {
+        const snap = await db.ref(XG_REQUESTS_REF + '/' + id).once('value');
+        if (!snap.exists()) return;
+        const req = snap.val();
+        const price = prompt('💰 Nhập giá/ghế (VNĐ):', req.estimatedPrice || req.price || '150000');
+        if (!price) return;
+        const seats = prompt('💺 Số ghế trống:', '3');
+        if (!seats) return;
+        try {
+            await db.ref(XG_DB_REF).push({
+                driverId: driverInfo.uid,
+                driverName: driverInfo.name,
+                phone: driverInfo.phone,
+                pickup: req.pickup,
+                dropoff: req.dropoff,
+                route: req.route,
+                departureTime: req.departureTime,
+                vehicle: '4-xang',
+                price: parseInt(price),
+                seats: parseInt(seats),
+                pickupLat: req.pickupLatitude || null,
+                pickupLng: req.pickupLongitude || null,
+                dropoffLat: req.dropoffLatitude || null,
+                dropoffLng: req.dropoffLongitude || null,
+                status: 'active',
+                timestamp: Date.now(),
+                source: 'customer_request_accepted',
+                originalRequestId: id
+            });
+            await db.ref(XG_REQUESTS_REF + '/' + id).update({ status: 'accepted', acceptedBy: driverInfo.uid, acceptedAt: Date.now() });
+            showToast('✅ Đã tạo chuyến từ yêu cầu');
+            speak('Đã chấp nhận yêu cầu');
+            renderXGRequests();
+            updateXGBadge('requests');
+        } catch(e) { showToast('Lỗi: ' + e.message); }
+    }
+
+    async function rejectXGRequest(id) {
+        await db.ref(XG_REQUESTS_REF + '/' + id).update({ status: 'rejected', rejectedAt: Date.now() });
+        showToast('Đã bỏ qua');
+        renderXGRequests();
+        updateXGBadge('requests');
+    }
+
+    // ============================================================
+    // 🆕 CHAT XE GHÉP
+    // ============================================================
+    async function renderXGChatList() {
+        const box = document.getElementById('xgChatList');
+        if (!box) return;
+        const bookingsSnap = await db.ref(XG_BOOKINGS_REF).orderByChild('driverId').equalTo(driverInfo.uid).once('value');
+        const bookings = bookingsSnap.val() || {};
+        const chatData = window.xgChatData || {};
+        let list = [];
+        for (const bid in chatData) {
+            if (bid.endsWith('_typing')) continue;
+            const booking = bookings[bid];
+            if (!booking) continue;
+            const msgs = chatData[bid];
+            let last = '', lastTime = 0, unread = 0;
+            for (const mid in msgs) {
+                const m = msgs[mid];
+                if (!m || !m.timestamp) continue;
+                if (m.timestamp > lastTime) { lastTime = m.timestamp; last = m.text || ''; }
+                if (m.sender === 'customer' && !m.readByDriver) unread++;
+            }
+            list.push({ bid, name: booking.customerName || 'Khách', last, lastTime, unread });
+        }
+        list.sort((a,b) => b.lastTime - a.lastTime);
+        if (!list.length) { box.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">💬 Chưa có cuộc trò chuyện</div>'; return; }
+        box.innerHTML = list.map(c => `<div onclick="openXGChat('\( {c.bid}',' \){escapeHtmlXG(c.name)}')" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;">
+            <div style="font-weight:800;font-size:13px;">💬 ${escapeHtmlXG(c.name)} \( {c.unread>0?`<span style="background:#d32f2f;color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;"> \){c.unread}</span>`:''}</div>
+            <div style="font-size:11px;color:#7f8c8d;">${escapeHtmlXG(c.last.substring(0,50))||'Chưa có tin nhắn'}</div>
+        </div>`).join('');
+    }
+
+    function openXGChat(bookingId, name) {
+        xgActiveChatBookingId = bookingId;
+        document.getElementById('xgChatView').classList.add('show');
+        document.getElementById('xgChatViewName').innerText = name || 'Khách hàng';
+        const mc = document.getElementById('xgChatViewMessages');
+        mc.innerHTML = '';
+
+        // Đánh dấu đã đọc
+        db.ref(XG_CHAT_REF + '/' + bookingId).once('value', s => {
+            const upd = {};
+            s.forEach(c => {
+                const m = c.val();
+                if (m && m.sender === 'customer' && !m.readByDriver) upd[c.key + '/readByDriver'] = true;
+            });
+            if (Object.keys(upd).length) db.ref(XG_CHAT_REF + '/' + bookingId).update(upd);
+        });
+
+        if (window.xgChatMsgListener) db.ref(XG_CHAT_REF + '/' + window.xgChatMsgListener).off();
+        window.xgChatMsgListener = bookingId;
+        db.ref(XG_CHAT_REF + '/' + bookingId).orderByChild('timestamp').on('child_added', s => {
+            const m = s.val();
+            if (!m || !m.timestamp) return;
+            const isMine = m.sender === 'driver';
+            const t = new Date(m.timestamp).toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'});
+            const d = document.createElement('div');
+            d.className = 'xg-msg ' + (isMine ? 'mine' : 'theirs');
+            d.innerHTML = `\( {escapeHtmlXG(m.text)}<div style="font-size:9px;opacity:.7;margin-top:3px;"> \){t}</div>`;
+            mc.appendChild(d);
+            mc.scrollTop = mc.scrollHeight;
+        });
+    }
+
+    function closeXGChatView() {
+        document.getElementById('xgChatView').classList.remove('show');
+        if (window.xgChatMsgListener) {
+            db.ref(XG_CHAT_REF + '/' + window.xgChatMsgListener).off();
+            window.xgChatMsgListener = null;
+        }
+        xgActiveChatBookingId = null;
+        updateXGBadge('chat');
+        renderXGChatList();
+    }
+
+    function sendXGChatMessage() {
+        if (!xgActiveChatBookingId) return;
+        const input = document.getElementById('xgChatViewInput');
+        const text = input.value.trim();
+        if (!text) return;
+        db.ref(XG_CHAT_REF + '/' + xgActiveChatBookingId).push({
+            sender: 'driver',
+            senderName: driverInfo.name,
+            text,
+            timestamp: Date.now()
+        });
+        input.value = '';
+    }
+
+    // ---------- Khởi động listeners khi tài xế đăng nhập ----------
+    const xgBootCheck = setInterval(() => {
+        if (driverInfo && !xgListenersStarted) {
+            startXGListeners();
+        }
+    }, 2000);
+
     startXGAutoRefresh();
+    // ============================================================
+    // 🚐 KẾT THÚC MODULE XE GHÉP v5.2
+    // ============================================================
 
     // ==================== ONLINE/OFFLINE ====================
     window.addEventListener('online', () => { 
