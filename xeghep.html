@@ -17,11 +17,14 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f0f4f8; margin: 0; min-height: 100vh; }
         .gradient-bg { background: linear-gradient(135deg, #0054a3 0%, #00bfa5 100%); }
-        .btn-primary { background: linear-gradient(135deg, #0054a3, #00bfa5); color: white; font-weight: 700; }
+        .btn-primary { background: linear-gradient(135deg, #0054a3, #00bfa5); color: white; font-weight: 700; transition: all 0.2s; }
         .btn-primary:active { opacity: 0.9; transform: scale(0.98); }
         .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
-        .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 15px; }
+        .btn-primary .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 15px; transition: border-color 0.2s; }
         .input-field:focus { outline: none; border-color: #00bfa5; }
+        .input-field.error { border-color: #ef4444; }
         .toast { position: fixed; bottom: 100px; left: 16px; right: 16px; background: #1e293b; color: white; padding: 12px 16px; border-radius: 16px; font-size: 13px; text-align: center; z-index: 2000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
         .toast.show { opacity: 1; }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 1000; display: none; align-items: center; justify-content: center; }
@@ -57,6 +60,10 @@
         .autocomplete-item { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
         .star-rating i { font-size: 28px; color: #cbd5e1; cursor: pointer; }
         .star-rating i.active { color: #fbbf24; }
+        .password-strength { height: 4px; border-radius: 2px; margin-top: 6px; transition: all 0.3s; }
+        .strength-weak { background: #ef4444; width: 33%; }
+        .strength-medium { background: #f59e0b; width: 66%; }
+        .strength-strong { background: #22c55e; width: 100%; }
     </style>
 </head>
 <body>
@@ -70,24 +77,40 @@
         </div>
         <div id="loginForm">
             <label class="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-            <input type="tel" id="loginPhone" class="input-field mb-3" placeholder="0xxxxxxxxx" maxlength="10" inputmode="numeric">
+            <input type="tel" id="loginPhone" class="input-field mb-3" placeholder="0xxxxxxxxx" maxlength="10" inputmode="numeric" autocomplete="tel">
             <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
-            <input type="password" id="loginPassword" class="input-field mb-3" placeholder="Nhập mật khẩu">
-            <p id="loginError" class="text-red-500 text-xs text-center mb-2" style="display:none;"></p>
-            <button onclick="doLogin()" class="btn-primary w-full py-3 rounded-xl text-base mb-3">Đăng nhập</button>
+            <div class="relative">
+                <input type="password" id="loginPassword" class="input-field mb-1 pr-10" placeholder="Nhập mật khẩu" autocomplete="current-password">
+                <button type="button" onclick="togglePassword('loginPassword', this)" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+            <p id="loginError" class="text-red-500 text-xs text-center mb-2 mt-1" style="display:none;"></p>
+            <button id="btnLogin" onclick="doLogin()" class="btn-primary w-full py-3 rounded-xl text-base mb-3">Đăng nhập</button>
             <p class="text-center text-sm text-gray-600">Chưa có tài khoản? <button onclick="showRegister()" class="text-blue-600 font-semibold">Đăng ký</button></p>
         </div>
         <div id="registerForm" style="display:none;">
             <label class="block text-sm font-medium text-gray-700 mb-1">Họ và tên</label>
-            <input type="text" id="regName" class="input-field mb-3" placeholder="Nguyễn Văn A">
+            <input type="text" id="regName" class="input-field mb-3" placeholder="Nguyễn Văn A" autocomplete="name">
             <label class="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-            <input type="tel" id="regPhone" class="input-field mb-3" placeholder="0xxxxxxxxx" maxlength="10" inputmode="numeric">
+            <input type="tel" id="regPhone" class="input-field mb-3" placeholder="0xxxxxxxxx" maxlength="10" inputmode="numeric" autocomplete="tel">
             <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu (tối thiểu 6 ký tự)</label>
-            <input type="password" id="regPassword" class="input-field mb-3" placeholder="Tạo mật khẩu">
+            <div class="relative">
+                <input type="password" id="regPassword" class="input-field mb-1 pr-10" placeholder="Tạo mật khẩu" autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
+                <button type="button" onclick="togglePassword('regPassword', this)" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+            <div class="password-strength mb-2"></div>
+            <div id="passwordTips" class="text-xs text-gray-500 mb-2" style="display:none;">
+                <div class="flex items-center gap-1"><i class="fas fa-check text-green-500"></i> Ít nhất 6 ký tự</div>
+                <div class="flex items-center gap-1" id="tipUpper"><i class="fas fa-times text-red-500"></i> Có chữ hoa</div>
+                <div class="flex items-center gap-1" id="tipNumber"><i class="fas fa-times text-red-500"></i> Có số</div>
+            </div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Nhập lại mật khẩu</label>
-            <input type="password" id="regPassword2" class="input-field mb-3" placeholder="Nhập lại">
+            <input type="password" id="regPassword2" class="input-field mb-3" placeholder="Nhập lại" autocomplete="new-password">
             <p id="regError" class="text-red-500 text-xs text-center mb-2" style="display:none;"></p>
-            <button onclick="doRegister()" class="btn-primary w-full py-3 rounded-xl text-base mb-3">Đăng ký</button>
+            <button id="btnRegister" onclick="doRegister()" class="btn-primary w-full py-3 rounded-xl text-base mb-3">Đăng ký</button>
             <p class="text-center text-sm text-gray-600">Đã có tài khoản? <button onclick="showLogin()" class="text-blue-600 font-semibold">Đăng nhập</button></p>
         </div>
         <p class="text-center text-xs text-gray-400 mt-5">Bằng việc tiếp tục, bạn đồng ý Điều khoản sử dụng</p>
@@ -298,10 +321,65 @@ function validPhone(p) { return /^0[3-9]\d{8}$/.test(p); }
 function showLogin() {
     document.getElementById('loginForm').style.display = 'block';
     document.getElementById('registerForm').style.display = 'none';
+    clearErrors();
 }
 function showRegister() {
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('registerForm').style.display = 'block';
+    clearErrors();
+}
+
+function clearErrors() {
+    const loginErr = document.getElementById('loginError');
+    const regErr = document.getElementById('regError');
+    if (loginErr) loginErr.style.display = 'none';
+    if (regErr) regErr.style.display = 'none';
+    document.querySelectorAll('.input-field.error').forEach(el => el.classList.remove('error'));
+}
+
+function togglePassword(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+}
+
+function checkPasswordStrength(password) {
+    const strengthBar = document.querySelector('.password-strength');
+    const tips = document.getElementById('passwordTips');
+    
+    if (!password) {
+        strengthBar.style.display = 'none';
+        tips.style.display = 'none';
+        return;
+    }
+    
+    strengthBar.style.display = 'block';
+    tips.style.display = 'block';
+    
+    const hasUpper = /[A-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasLength = password.length >= 6;
+    
+    document.getElementById('tipUpper').innerHTML = `<i class="fas fa-${hasUpper ? 'check text-green-500' : 'times text-red-500'}"></i> Có chữ hoa`;
+    document.getElementById('tipNumber').innerHTML = `<i class="fas fa-${hasNumber ? 'check text-green-500' : 'times text-red-500'}"></i> Có số`;
+    
+    let strength = 0;
+    if (hasLength) strength++;
+    if (hasUpper) strength++;
+    if (hasNumber) strength++;
+    if (password.length >= 10) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    
+    strengthBar.className = 'password-strength mb-2';
+    if (strength <= 2) strengthBar.classList.add('strength-weak');
+    else if (strength <= 3) strengthBar.classList.add('strength-medium');
+    else strengthBar.classList.add('strength-strong');
 }
 
 function simpleHash(str) {
@@ -310,100 +388,174 @@ function simpleHash(str) {
     return 'h' + Math.abs(h).toString(36) + '_' + str.length;
 }
 
+function setLoading(btnId, isLoading, loadingText = 'Đang xử lý...') {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const originalText = btn.dataset.originalText || btn.innerText;
+    if (isLoading) {
+        btn.dataset.originalText = originalText;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner"></span>${loadingText}`;
+    } else {
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
+}
+
 async function doLogin() {
+    clearErrors();
     const phone = document.getElementById('loginPhone').value.trim();
     const pass = document.getElementById('loginPassword')?.value || '';
     const errEl = document.getElementById('loginError');
-    if (errEl) errEl.style.display = 'none';
-    
+
     if (!validPhone(phone)) {
-        if (errEl) { errEl.textContent = 'SĐT không hợp lệ (10 số, bắt đầu 0)'; errEl.style.display = 'block'; }
+        document.getElementById('loginPhone').classList.add('error');
+        if (errEl) { errEl.textContent = 'SĐT không hợp lệ (10 số, bắt đầu 03-09)'; errEl.style.display = 'block'; }
         else showToast('SĐT không hợp lệ', true);
         return;
     }
     if (!pass) {
-        if (errEl) { errEl.textContent = 'Nhập mật khẩu'; errEl.style.display = 'block'; }
+        document.getElementById('loginPassword').classList.add('error');
+        if (errEl) { errEl.textContent = 'Vui lòng nhập mật khẩu'; errEl.style.display = 'block'; }
         else showToast('Nhập mật khẩu', true);
         return;
     }
+    
+    setLoading('btnLogin', true, 'Đang đăng nhập...');
+    
     try {
-        const snap = await db.ref('customers').orderByChild('phone').equalTo(phone).once('value');
-        if (!snap.exists()) {
+        let snap = await db.ref('customers/' + phone).once('value');
+        let user = null;
+        if (snap.exists()) {
+            user = { id: phone, ...snap.val() };
+        } else {
+            const all = await db.ref('customers').once('value');
+            if (all.exists()) {
+                all.forEach(c => {
+                    const v = c.val();
+                    if (v && String(v.phone) === phone) user = { id: c.key, ...v };
+                });
+            }
+        }
+        if (!user) {
             if (errEl) { errEl.textContent = 'Chưa có tài khoản — vui lòng đăng ký'; errEl.style.display = 'block'; }
             document.getElementById('regPhone').value = phone;
             showRegister();
+            setLoading('btnLogin', false);
             return;
         }
-        let user = null;
-        snap.forEach(c => { user = { id: c.key, ...c.val() }; });
-        
+
         const hash = simpleHash(pass + phone);
-        // Tài khoản cũ không có passwordHash → chấp nhận và cập nhật
         if (user.passwordHash && user.passwordHash !== hash) {
+            document.getElementById('loginPassword').classList.add('error');
             if (errEl) { errEl.textContent = 'Sai mật khẩu'; errEl.style.display = 'block'; }
             else showToast('Sai mật khẩu', true);
+            setLoading('btnLogin', false);
             return;
         }
         if (!user.passwordHash) {
-            await db.ref('customers/' + user.id).update({ passwordHash: hash });
+            await db.ref('customers/' + user.id).update({ passwordHash: hash, phone: phone });
         }
-        
-        currentUser = { id: user.id, name: user.name, phone: user.phone };
+
+        currentUser = { id: user.id, name: user.name || 'Khách', phone: phone };
         localStorage.setItem('xg_user', JSON.stringify(currentUser));
         enterApp();
-        showToast('Xin chào ' + (user.name || phone));
+        showToast('Xin chào ' + currentUser.name);
     } catch (e) {
-        if (errEl) { errEl.textContent = 'Lỗi: ' + e.message; errEl.style.display = 'block'; }
+        console.error(e);
+        if (errEl) { errEl.textContent = 'Lỗi: ' + (e.message || e); errEl.style.display = 'block'; }
         else showToast('Lỗi đăng nhập: ' + e.message, true);
+    } finally {
+        setLoading('btnLogin', false);
     }
 }
 
 async function doRegister() {
+    clearErrors();
     const name = document.getElementById('regName').value.trim();
     const phone = document.getElementById('regPhone').value.trim();
     const pass = document.getElementById('regPassword')?.value || '';
     const pass2 = document.getElementById('regPassword2')?.value || '';
     const errEl = document.getElementById('regError');
-    if (errEl) errEl.style.display = 'none';
-    
-    if (!name || name.length < 2) { if (errEl) { errEl.textContent = 'Nhập họ tên'; errEl.style.display = 'block'; } return; }
-    if (!validPhone(phone)) { if (errEl) { errEl.textContent = 'SĐT không hợp lệ'; errEl.style.display = 'block'; } return; }
-    if (pass.length < 6) { if (errEl) { errEl.textContent = 'Mật khẩu tối thiểu 6 ký tự'; errEl.style.display = 'block'; } return; }
-    if (pass !== pass2) { if (errEl) { errEl.textContent = 'Mật khẩu nhập lại không khớp'; errEl.style.display = 'block'; } return; }
-    
+
+    if (!name || name.length < 2) {
+        document.getElementById('regName').classList.add('error');
+        if (errEl) { errEl.textContent = 'Vui lòng nhập họ tên (ít nhất 2 ký tự)'; errEl.style.display = 'block'; }
+        return;
+    }
+    if (!validPhone(phone)) {
+        document.getElementById('regPhone').classList.add('error');
+        if (errEl) { errEl.textContent = 'SĐT không hợp lệ (10 số, 03-09...)'; errEl.style.display = 'block'; }
+        return;
+    }
+    if (pass.length < 6) {
+        document.getElementById('regPassword').classList.add('error');
+        if (errEl) { errEl.textContent = 'Mật khẩu tối thiểu 6 ký tự'; errEl.style.display = 'block'; }
+        return;
+    }
+    if (pass !== pass2) {
+        document.getElementById('regPassword2').classList.add('error');
+        if (errEl) { errEl.textContent = 'Mật khẩu nhập lại không khớp'; errEl.style.display = 'block'; }
+        return;
+    }
+
+    setLoading('btnRegister', true, 'Đang tạo tài khoản...');
+
     try {
-        const snap = await db.ref('customers').orderByChild('phone').equalTo(phone).once('value');
-        if (snap.exists()) {
-            if (errEl) { errEl.textContent = 'SĐT đã đăng ký — hãy đăng nhập'; errEl.style.display = 'block'; }
+        const snap = await db.ref('customers/' + phone).once('value');
+        let exists = snap.exists();
+        if (!exists) {
+            try {
+                const all = await db.ref('customers').once('value');
+                if (all.exists()) {
+                    all.forEach(c => {
+                        const v = c.val();
+                        if (v && String(v.phone) === phone) exists = true;
+                    });
+                }
+            } catch (e2) {}
+        }
+        if (exists) {
+            if (errEl) { errEl.textContent = 'SĐT đã được đăng ký — hãy đăng nhập'; errEl.style.display = 'block'; }
             document.getElementById('loginPhone').value = phone;
             showLogin();
+            setLoading('btnRegister', false);
             return;
         }
+
         const data = {
             name, phone,
             passwordHash: simpleHash(pass + phone),
             createdAt: Date.now(),
             source: 'xeghep'
         };
-        const ref = await db.ref('customers').push(data);
-        currentUser = { id: ref.key, name, phone };
+        await db.ref('customers/' + phone).set(data);
+        currentUser = { id: phone, name, phone };
         localStorage.setItem('xg_user', JSON.stringify(currentUser));
         enterApp();
-        showToast('Đăng ký thành công!');
+        showToast('Đăng ký thành công! 🎉');
     } catch (e) {
-        if (errEl) { errEl.textContent = 'Lỗi: ' + e.message; errEl.style.display = 'block'; }
+        console.error(e);
+        if (errEl) { errEl.textContent = 'Lỗi: ' + (e.message || e); errEl.style.display = 'block'; }
         else showToast('Lỗi đăng ký: ' + e.message, true);
+    } finally {
+        setLoading('btnRegister', false);
     }
 }
 
 function doLogout() {
-    if (driverLocListener) { driverLocListener.off(); driverLocListener = null; }
-    if (chatListener) { chatListener.off(); chatListener = null; }
-    localStorage.removeItem('xg_user');
-    currentUser = null;
-    currentBooking = null;
-    document.getElementById('mainApp').style.display = 'none';
-    document.getElementById('authScreen').style.display = 'flex';
+    if (confirm('Bạn có chắc muốn đăng xuất?')) {
+        if (driverLocListener) { driverLocListener.off(); driverLocListener = null; }
+        if (chatListener) { chatListener.off(); chatListener = null; }
+        localStorage.removeItem('xg_user');
+        currentUser = null;
+        currentBooking = null;
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('authScreen').style.display = 'flex';
+        document.getElementById('loginPhone').value = '';
+        document.getElementById('loginPassword').value = '';
+        showLogin();
+    }
 }
 
 function enterApp() {
@@ -837,7 +989,6 @@ function filterRides() {
         box.innerHTML = '<div class="text-center text-gray-400 py-10 text-sm">Không tìm thấy chuyến phù hợp<br><button onclick="document.getElementById(\'filterPickup\').value=\'\';document.getElementById(\'filterDropoff\').value=\'\';filterRides();" class="text-blue-600 text-xs mt-2">Xóa bộ lọc</button></div>';
         return;
     }
-    // Re-use render by temporarily calling load is heavy - simple re-render cards
     box.innerHTML = rides.map(r => {
         const route = r.route || ((r.pickup||r.from||'') + ' → ' + (r.dropoff||r.to||''));
         const price = (r.price || r.pricePerSeat || 0).toLocaleString('vi-VN');
