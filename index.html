@@ -69,33 +69,28 @@
         body.dark-mode .xg-tabbtn { background: #2a2a4a; color: #aaa; }
         body.dark-mode .xg-tabbtn[style*="background: #0054a3"] { background: #0054a3 !important; color: white !important; }
         
-        /* Fix sidebar */
+        /* Fix sidebar scroll */
         .sidebar{display:flex;flex-direction:column;overflow:hidden;}
         .sidebar-menu{flex:1;overflow-y:auto;padding-bottom:10px !important;}
         .sidebar-footer{position:relative !important;bottom:auto !important;background:#fff;border-top:1px solid #eee;padding:12px 20px !important;}
         .sidebar-footer .badge{display:block !important;margin:4px 0 !important;}
         
-        /* Ẩn nút ngôn ngữ nổi */
-        #langSwitcher{display:none !important;}
+        /* Ẩn nút nổi */
+        #langSwitcher,#aiBtn,#fixGpsBtn,[id*="aiBtn"],[id*="AiBtn"]{display:none !important;}
         
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; } 
 
         .header { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: flex-start; z-index: 1000; pointer-events: none; gap: 8px; }
         .menu-btn { pointer-events: auto; background: var(--glass); padding: 10px 14px; border-radius: 30px; box-shadow: var(--shadow); font-size: 18px; font-weight: 800; color: var(--primary); border: none; cursor: pointer; backdrop-filter: blur(4px); }
+        .dark-toggle-btn { pointer-events: auto; background: var(--glass); padding: 10px 14px; border-radius: 30px; box-shadow: var(--shadow); font-size: 18px; border: none; cursor: pointer; backdrop-filter: blur(4px); }
 
         .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; }
         .sidebar { position: fixed; top: 0; left: 0; width: 280px; height: 100%; background: white; z-index: 10001; transform: translateX(-100%); transition: transform 0.3s ease; box-shadow: 2px 0 20px rgba(0,0,0,0.2); }
         .sidebar.open { transform: translateX(0); }
-        .sidebar-header { padding: 24px 20px; background: linear-gradient(135deg, var(--primary), #003d7a); color: white; }
+        .sidebar-header { padding: 24px 20px; background: linear-gradient(135deg, var(--primary), #003d7a); color: white; flex-shrink: 0; }
         .sidebar-header .driver-avatar { width: 60px; height: 60px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 12px; }
         .sidebar-header .driver-name { font-size: 16px; font-weight: 800; }
         .sidebar-header .driver-phone { font-size: 11px; opacity: 0.8; margin-top: 4px; }
-        .sidebar-menu { padding: 16px 0; }
-        .sidebar-item { display: flex; align-items: center; gap: 14px; padding: 14px 20px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #f0f0f0; }
-        .sidebar-item:active { background: #f5f5f5; }
-        .sidebar-item i { width: 24px; font-size: 18px; color: var(--primary); }
-        .sidebar-item span { font-size: 14px; font-weight: 600; color: var(--dark); }
-        .sidebar-footer { position: absolute; bottom: 30px; left: 0; right: 0; padding: 16px 20px; border-top: 1px solid #eee; }
         .close-sidebar { position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
 
         .gps-status-bar {
@@ -558,7 +553,7 @@
             <div class="driver-name" id="sidebarName">Tài xế</div>
             <div class="driver-phone" id="sidebarPhone">...</div>
         </div>
-        <div class="sidebar-menu">
+        <div class="sidebar-menu" id="sidebarMenu">
             <div class="sidebar-item" onclick="closeSidebar(); showTab('home', document.querySelector('.nav-item'))">
                 <i class="fas fa-home"></i><span>Trang chủ</span>
             </div>
@@ -586,6 +581,7 @@
             <div class="sidebar-item" onclick="closeSidebar(); openXeGhepModule()">
                 <i class="fas fa-people-arrows"></i><span>🚐 XE GHÉP <span style="background:#00bfa5; padding:2px 6px; border-radius:10px; font-size:9px; margin-left:6px;">PRO</span></span>
             </div>
+            <!-- Các item sẽ được thêm bởi Clean Fix -->
             <div class="sidebar-item" onclick="closeSidebar(); doLogout()">
                 <i class="fas fa-sign-out-alt"></i><span>Đăng xuất</span>
             </div>
@@ -601,6 +597,7 @@
 
     <div class="header">
         <button class="menu-btn" onclick="openSidebar()">☰</button>
+        <button class="dark-toggle-btn" onclick="toggleDarkMode()" title="Chế độ tối">🌙</button>
     </div>
 
     <div class="gps-status-bar" id="gpsStatusBar" onclick="forceRefreshGPS()" title="Bấm để làm mới GPS" style="cursor:pointer;">
@@ -897,6 +894,7 @@
         </div>
     </div>
 
+    <!-- ========== FIREBASE & LIBS ========== -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
@@ -3590,18 +3588,21 @@
     </script>
 
     <!-- ============================================================ -->
-    <!-- PHẦN 2: ALL-IN-ONE FIX v3 - GPS + MENU + AI + NÚT MENU      -->
+    <!-- PHẦN 2: CLEAN FIX v4 - GPS + MENU + AI                        -->
     <!-- ============================================================ -->
     <script>
+    // ============================================================
+    // 🧰 CLEAN FIX v4: GPS + MENU + AI (KHÔNG tạo nút nổi)
+    // ============================================================
     (function(){
-        /* ===== CSS: sửa menu chồng chữ + ẩn nút ngôn ngữ nổi ===== */
+        /* ===== CSS: sửa menu chồng chữ + ẩn các nút nổi còn sót ===== */
         var css = document.createElement('style');
         css.textContent =
             '.sidebar{display:flex;flex-direction:column;overflow:hidden;}' +
             '.sidebar-menu{flex:1;overflow-y:auto;padding-bottom:10px !important;}' +
             '.sidebar-footer{position:relative !important;bottom:auto !important;background:#fff;border-top:1px solid #eee;padding:12px 20px !important;}' +
             '.sidebar-footer .badge{display:block !important;margin:4px 0 !important;}' +
-            '#langSwitcher{display:none !important;}';
+            '#langSwitcher,#aiBtn,#fixGpsBtn,[id*="aiBtn"],[id*="AiBtn"]{display:none !important;}';
         document.head.appendChild(css);
 
         /* ===== 1) FIX GPS: luôn vẽ vị trí + bản đồ chạy theo ===== */
@@ -3620,7 +3621,7 @@
             if (typeof updateGpsStatusUI === 'function') updateGpsStatusUI(acc, false);
             if (acc > 150 && !gpsHinted) {
                 gpsHinted = true;
-                if (typeof showToast === 'function') showToast('📍 GPS yếu: bật "Vị trí chính xác" trong Cài đặt điện thoại');
+                if (typeof showToast === 'function') showToast('📍 GPS yếu: bật "Vị trí chính xác" trong Cài đặt');
             }
         }
         function startFixGps() {
@@ -3632,25 +3633,19 @@
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 2000 }
             );
         }
-        function makeGpsBtn() {
-            if (document.getElementById('fixGpsBtn')) return;
-            var b = document.createElement('button');
-            b.id = 'fixGpsBtn'; b.innerHTML = '🎯';
-            b.style.cssText = 'position:fixed;right:12px;bottom:190px;z-index:5000;width:52px;height:52px;border-radius:50%;border:none;background:#00bfa5;box-shadow:0 4px 15px rgba(0,0,0,.25);font-size:22px;cursor:pointer;';
-            b.onclick = function() {
-                followMode = !followMode;
-                b.style.background = followMode ? '#00bfa5' : '#fff';
-                try { if (currentLat && map) map.flyTo([currentLat, currentLng], 17, { duration: 1 }); } catch(e) {}
-                if (typeof forceRefreshGPS === 'function') forceRefreshGPS();
-                if (typeof showToast === 'function') showToast(followMode ? '🎯 BẬT theo dõi vị trí' : '🎯 TẮT theo dõi vị trí');
-            };
-            document.body.appendChild(b);
+        function toggleFollow() {
+            followMode = !followMode;
+            if (followMode && typeof currentLat !== 'undefined' && currentLat && typeof map !== 'undefined' && map) {
+                map.flyTo([currentLat, currentLng], 17, { duration: 1 });
+            }
+            if (typeof forceRefreshGPS === 'function') forceRefreshGPS();
+            if (typeof showToast === 'function') showToast(followMode ? '🎯 BẬT theo dõi vị trí' : '🎯 TẮT theo dõi vị trí');
         }
 
-        /* ===== 2) Ẩn nút mặt trăng nổi trên đầu ===== */
+        /* ===== 2) Ẩn nút mặt trăng/sáng tối nổi trên đầu ===== */
         function hideFloatingMoon() {
             document.querySelectorAll('button, div').forEach(function(el) {
-                if (el.closest('.sidebar') || el.id === 'fixGpsBtn' || el.id === 'aiBtn') return;
+                if (el.closest('.sidebar')) return;
                 var t = (el.textContent || '').trim();
                 var hasIcon = el.querySelector ? el.querySelector('.fa-moon, .fa-sun') : null;
                 if (t === '🌙' || t === '☀️' || t === '🌛' || t === '🌜' || hasIcon) {
@@ -3660,7 +3655,7 @@
             });
         }
 
-        /* ===== 3) Thêm Ngôn ngữ + Sáng/Tối vào menu ===== */
+        /* ===== 3) Thêm Ngôn ngữ + Sáng/Tối + AI + GPS vào menu ===== */
         function triggerLang() {
             var cur = localStorage.getItem('promax_lang') || 'vi';
             localStorage.setItem('promax_lang', cur === 'vi' ? 'en' : 'vi');
@@ -3671,29 +3666,6 @@
             for (var i = 0; i < fns.length; i++) { if (typeof window[fns[i]] === 'function') { window[fns[i]](); return; } }
             var item = Array.from(document.querySelectorAll('.sidebar-item')).find(function(x) { return (x.innerText || '').includes('Chế độ tối'); });
             if (item) item.click();
-        }
-        function addMenuItems() {
-            var menu = document.querySelector('.sidebar-menu');
-            if (!menu || menu.dataset.mcAdded) return;
-            menu.dataset.mcAdded = '1';
-            var logout = Array.from(menu.querySelectorAll('.sidebar-item')).find(function(x) { return (x.innerText || '').includes('Đăng xuất'); });
-            var hasDark = Array.from(menu.querySelectorAll('.sidebar-item')).some(function(x) { return (x.innerText || '').includes('Chế độ tối'); });
-            var mk = function(icon, label, fn) {
-                var d = document.createElement('div');
-                d.className = 'sidebar-item';
-                d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">' + icon + '</span><span>' + label + '</span>';
-                d.onclick = fn;
-                return d;
-            };
-            var langItem = mk('🌐', 'Ngôn ngữ: ' + ((localStorage.getItem('promax_lang') || 'vi') === 'vi' ? 'Tiếng Việt' : 'English'), triggerLang);
-            var darkItem = mk('🌓', 'Sáng / Tối', triggerDark);
-            if (logout) {
-                menu.insertBefore(langItem, logout);
-                if (!hasDark) menu.insertBefore(darkItem, logout);
-            } else {
-                menu.appendChild(langItem);
-                if (!hasDark) menu.appendChild(darkItem);
-            }
         }
 
         /* ===== 4) AI TRỢ LÝ TÀI XẾ ===== */
@@ -3753,33 +3725,47 @@
         }
         function toggleAI(on) {
             aiOn = (on === undefined) ? !aiOn : on;
-            var b = document.getElementById('aiBtn');
-            if (b) b.style.background = aiOn ? '#d32f2f' : '#fff';
             if (aiOn) {
                 aiCheckWeather(); aiDraw();
                 if (!aiTimer) aiTimer = setInterval(function() { aiCheckWeather(); aiDraw(); }, 600000);
+                if (typeof showToast === 'function') showToast('🤖 Đã bật AI trợ lý');
             } else {
                 aiLayers.forEach(function(l) { try { map.removeLayer(l); } catch(e) {} });
                 aiLayers = [];
                 if (aiTimer) { clearInterval(aiTimer); aiTimer = null; }
+                if (typeof showToast === 'function') showToast('🤖 Đã tắt AI trợ lý');
             }
         }
-        function makeAiBtn() {
-            if (document.getElementById('aiBtn')) return;
-            var b = document.createElement('button');
-            b.id = 'aiBtn'; b.innerHTML = '🤖';
-            b.style.cssText = 'position:fixed;right:12px;bottom:250px;z-index:5000;width:52px;height:52px;border-radius:50%;border:none;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.25);font-size:22px;cursor:pointer;';
-            b.onclick = function() { toggleAI(); };
-            document.body.appendChild(b);
-        }
-        if (typeof window.openHeatmap === 'function') {
-            var oldHeat = window.openHeatmap;
-            window.openHeatmap = function() { toggleAI(true); try { oldHeat(); } catch(e) {} };
+        window.toggleAI = toggleAI;
+
+        function addMenuItems() {
+            var menu = document.querySelector('.sidebar-menu');
+            if (!menu || menu.dataset.cleanFixAdded) return;
+            menu.dataset.cleanFixAdded = '1';
+            var logout = Array.from(menu.querySelectorAll('.sidebar-item')).find(function(x) { return (x.innerText || '').includes('Đăng xuất'); });
+            var hasDark = Array.from(menu.querySelectorAll('.sidebar-item')).some(function(x) { return (x.innerText || '').includes('Chế độ tối'); });
+            var hasLang = Array.from(menu.querySelectorAll('.sidebar-item')).some(function(x) { return (x.innerText || '').includes('Ngôn ngữ'); });
+            var hasAI = Array.from(menu.querySelectorAll('.sidebar-item')).some(function(x) { return (x.innerText || '').includes('Bản đồ nhiệt AI'); });
+            var hasGPS = Array.from(menu.querySelectorAll('.sidebar-item')).some(function(x) { return (x.innerText || '').includes('Theo dõi vị trí'); });
+            var mk = function(icon, label, fn) {
+                var d = document.createElement('div');
+                d.className = 'sidebar-item';
+                d.innerHTML = '<span style="width:24px;text-align:center;font-size:18px;">' + icon + '</span><span>' + label + '</span>';
+                d.onclick = fn;
+                return d;
+            };
+            var items = [];
+            if (!hasAI) items.push(mk('🤖', 'Bản đồ nhiệt AI', function(){ toggleAI(); }));
+            if (!hasGPS) items.push(mk('🎯', 'Theo dõi vị trí', toggleFollow));
+            if (!hasLang) items.push(mk('🌐', 'Ngôn ngữ: ' + ((localStorage.getItem('promax_lang') || 'vi') === 'vi' ? 'Tiếng Việt' : 'English'), triggerLang));
+            if (!hasDark) items.push(mk('🌓', 'Sáng / Tối', triggerDark));
+            if (logout) { items.reverse().forEach(function(it) { menu.insertBefore(it, logout); }); }
+            else { items.forEach(function(it) { menu.appendChild(it); }); }
         }
 
         /* ===== KHỞI ĐỘNG ===== */
         function boot() {
-            makeGpsBtn(); makeAiBtn(); hideFloatingMoon(); addMenuItems();
+            hideFloatingMoon(); addMenuItems();
             var t = setInterval(function() {
                 if (typeof map !== 'undefined' && map) { startFixGps(); clearInterval(t); }
             }, 1000);
@@ -3789,6 +3775,5 @@
         else boot();
     })();
     </script>
-
 </body>
 </html>
