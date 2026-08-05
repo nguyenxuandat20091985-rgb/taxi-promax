@@ -1,954 +1,1081 @@
-# TAXI PROMAX — SYSTEM ARCHITECTURE V2.0
+# TAXI PROMAX — SYSTEM ARCHITECTURE
 **Cập nhật: 06/08/2026 — Phản ánh 100% kiến trúc thực tế**
 
 ---
 
-## 1. TỔNG QUAN KIẾN TRÚC
+## 1. HIGH-LEVEL ARCHITECTURE
 
-### Mô hình: Client-Side Heavy Architecture
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    CLIENT-SIDE (Browser/PWA)                 │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ App Tài Xế   │  │ App Khách    │  │ App Xe Ghép  │       │
-│  │ index.html   │  │ khachhang    │  │ xeghep.html  │       │
-│  │              │  │ .html        │  │              │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Admin        │  │ Service      │  │ Manifest     │       │
-│  │ admin.html   │  │ Worker v4.0  │  │ .json        │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-└─────────────────────────────────────────────────────────────┘
-                          ↕ HTTPS
-┌─────────────────────────────────────────────────────────────┐
-│              FIREBASE REALTIME DATABASE                       │
-├─────────────────────────────────────────────────────────────┤
-│  drivers/  customers/  datxe/  trips/  receipts/  ratings/  │
-│  sos/  emergencies/  shared_rides/  chat/  tai_xe_online/   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER                              │
+├──────────────┬──────────────┬──────────────┬───────────────────┤
+│  index.html  │khachhang.html│ xeghep.html  │   admin.html      │
+│  (Tài xế)    │  (Khách)     │ (Xe ghép)    │   (Admin)         │
+└──────┬───────┴──────┬───────┴──────┬───────┴────────┬──────────┘
+       │              │              │                │
+       │              │              │                │
+       ▼              ▼              ▼                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      PWA LAYER (Service Worker v4.0)             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │   Cache     │  │   Offline   │  │    Push     │             │
+│  │  Strategy   │  │  Fallback   │  │Notification │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      FIREBASE LAYER                              │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              Realtime Database (15 nodes)                │   │
+│  │  drivers/  customers/  datxe/  trips/  receipts/        │   │
+│  │  ratings/  sos/  emergencies/  shared_rides/            │   │
+│  │  shared_ride_bookings/  chat/  chat_xg/                 │   │
+│  │  tai_xe_online/  customer_requests/  promos/            │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    EXTERNAL APIs LAYER                           │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
+│  │Nominatim │ │  OSRM    │ │Open-Meteo│ │ Overpass │          │
+│  │(Geocode) │ │(Routing) │ │(Weather) │ │  (POI)   │          │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
+│  ┌──────────┐ ┌──────────┐                                     │
+│  │QR Server │ │placehold │                                     │
+│  │  (QR)    │ │ (Icons)  │                                     │
+│  └──────────┘ └──────────┘                                     │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-### Đặc điểm kiến trúc
-- **NO Backend Server**: Không có Cloud Functions, không có Vercel Functions
-- **Client-Side Heavy**: Tất cả logic xử lý trên browser
-- **Realtime Listener**: Firebase `on('child_added')` thay vì polling
-- **PWA Native**: Service Worker + Manifest + Offline fallback
 
 ---
 
-## 2. COMPONENTS CHÍNH
+## 2. CLIENT APPS
 
-### 2.1 Frontend Apps (Single-file HTML)
+### 2.1 App Tài Xế (`index.html`)
+**Vai trò:** Nhận đơn, chạy chuyến, quản lý profile
+**Users:** Tài xế (đã KYC)
 
-| App | File | Chức năng chính |
+**Features:**
+- Auth (đăng nhập/đăng ký/quên MK)
+- GPS realtime + bản đồ Leaflet
+- Nhận đơn từ `datxe/` (realtime listener)
+- Đồng hồ tính cước (km × rate)
+- Chat với khách
+- SOS ghi âm 2 phút + live location
+- KYC (CCCD + bằng lái + selfie)
+- Ví tiền + Gói cước SaaS
+- Hóa đơn điện tử
+- Trạm sạc EV + Báo pin + Eco score
+- AI Heatmap (gợi ý điểm đón)
+- Menu sidebar đầy đủ
+
+**Firebase nodes accessed:**
+- `drivers/{uid}` (read/write profile, KYC, wallet)
+- `datxe/` (read orders, write status updates)
+- `tai_xe_online/{uid}` (write location)
+- `chat/{orderId}` (read/write messages)
+- `trips/{uid}` (write trip history)
+- `receipts/` (write receipts)
+- `sos/{code}` (write SOS data)
+- `ratings/{orderId}` (read ratings)
+
+**External APIs:**
+- Leaflet + OSM tiles (map)
+- Nominatim (geocoding)
+- OSRM (routing)
+- Open-Meteo (weather)
+- Overpass API (EV charging stations)
+- api.qrserver.com (QR codes)
+
+---
+
+### 2.2 App Khách Hàng (`khachhang.html`)
+**Vai trò:** Đặt xe, theo dõi tài xế, thanh toán
+**Users:** Khách hàng (đã đăng ký)
+
+**Features:**
+- Auth (đăng nhập/đăng ký/quên MK)
+- Đặt xe (chọn điểm đón/đến, loại xe)
+- Tính giá OSRM (km × rate)
+- Theo dõi tài xế realtime
+- Chat với tài xế
+- Đánh giá + tip sau chuyến
+- SOS ghi âm 30s + live location
+- Hóa đơn điện tử
+- Legal links (Chính sách bảo mật, Điều khoản)
+
+**Firebase nodes accessed:**
+- `customers/{uid}` (read/write profile)
+- `datxe/` (write orders, read status)
+- `tai_xe_online/{driverId}` (read location)
+- `chat/{orderId}` (read/write messages)
+- `ratings/{orderId}` (write ratings)
+- `receipts/` (read receipts)
+- `emergencies/{code}` (write SOS data)
+
+**External APIs:**
+- Leaflet + OSM tiles (map)
+- Nominatim (geocoding)
+- OSRM (routing)
+
+---
+
+### 2.3 App Xe Ghép (`xeghep.html`)
+**Vai trò:** Đăng chuyến (tài xế) + Đặt ghế (khách)
+**Users:** Tài xế + Khách hàng
+
+**Features:**
+- Auth (đăng nhập/đăng ký/quên MK)
+- **Tài xế:**
+  - Đăng chuyến (pickup, dropoff, time, price, seats)
+  - Quản lý chuyến của mình
+  - Chat với khách đặt ghế
+- **Khách:**
+  - Tìm chuyến (filter pickup/dropoff)
+  - AI Match (chấm điểm chuyến phù hợp)
+  - Smart Suggestions (gợi ý theo giờ)
+  - Đặt ghế + QR code vé
+  - Timeline 6 bước
+  - Tracking realtime
+  - Chat với tài xế (typing indicator)
+  - Rating sau chuyến
+  - Cancellation policy (phí 20% sát giờ)
+  - Promo codes
+  - Weather API
+  - Driver profile
+
+**Firebase nodes accessed:**
+- `customers/{uid}` (read/write profile)
+- `shared_rides/` (read/write rides)
+- `shared_ride_bookings/` (read/write bookings)
+- `chat_xg/{bookingId}` (read/write messages)
+- `tai_xe_online/{driverId}` (read location)
+- `ratings/{bookingId}` (write ratings)
+- `promos/` (read promo codes)
+
+**External APIs:**
+- Leaflet + OSM tiles (map)
+- Nominatim (geocoding)
+- OSRM (routing)
+- Open-Meteo (weather)
+- qrcodejs (QR codes)
+
+---
+
+### 2.4 Admin Dashboard (`admin.html`)
+**Vai trò:** Quản lý hệ thống, duyệt KYC/thanh toán, giám sát SOS
+**Users:** Admin (SĐT `0388724966`, mật khẩu `admin123`)
+
+**Features:**
+- **8 tabs:**
+  1. 📊 Dashboard — 8 stat cards + recent activity
+  2. 🔐 Duyệt KYC — danh sách chờ + ảnh 4 mặt + Duyệt/Từ chối
+  3. 💰 Thanh toán — giao dịch pending + nút duyệt (tự gia hạn gói)
+  4. 🚨 SOS — danh sách SOS + bản đồ + nghe ghi âm + đánh dấu an toàn
+  5. 🚕 Tài xế — danh sách + search + KYC status
+  6. 👥 Khách hàng — danh sách khách
+  7. 🚐 Xe Ghép — danh sách chuyến
+  8. 🗺 Bản đồ — realtime tài xế online (Leaflet circle markers)
+- Auto refresh 30s
+- Badge realtime (đếm pending KYC/TT/SOS)
+
+**Firebase nodes accessed:**
+- `drivers/` (read all, write KYC status, wallet status)
+- `customers/` (read all)
+- `datxe/` (read all)
+- `trips/` (read all)
+- `receipts/` (read all)
+- `sos/` (read all, write status)
+- `emergencies/` (read all)
+- `shared_rides/` (read all)
+- `tai_xe_online/` (read all)
+
+**External APIs:**
+- Leaflet + OSM tiles (map)
+
+---
+
+## 3. FIREBASE DATABASE SCHEMA
+
+### 3.1 Root Nodes (15 nodes)
+
+```
+drivers/{uid}/
+├── profile (name, phone, cccd, plate, carModel, fuelType, carClass)
+├── passwordHash (Java-style hash)
+├── status (online/offline)
+├── rating, totalRides, totalRevenue
+├── tp_expiry (Unix timestamp — hết hạn gói)
+├── active_plan (TRIAL 7D / PROMAX)
+├── documents/ (KYC: front, back, license, selfie, status)
+├── wallet/transactions/{tid} (plan, amount, status, code)
+└── battery/ (level, updatedAt)
+
+customers/{uid}/
+├── profile (name, phone)
+├── passwordHash
+└── statistics (totalTrips, cancelledTrips)
+
+datxe/{orderId}/
+├── status (waiting/driving/completed/cancelled)
+├── customer info (phone, name, customerId)
+├── pickup/dropoff (address, lat, lng)
+├── carType, estimateKm, estimatePrice
+├── driver info (driverId, name, phone, plate)
+├── timestamps (createdAt, acceptedAt, completedAt)
+└── cancellation info (cancelledBy, cancelAt, cancelReason)
+
+trips/{driverUid}/{tripId}/
+├── km, cost, costLabel, time, timestamp
+├── rate, driverId
+└── tripType (STREET_HAIL / APP_BOOKING)
+
+receipts/{code}/
+├── code, createdAt, orderId
+├── driver info (name, phone, plate)
+├── customerName, pickup, dropoff
+├── km, price
+└── tripType
+
+ratings/{orderId}/
+├── orderId, driverId, customerId
+├── overall (1-5), comment, tip
+└── timestamp
+
+sos/{code}/
+├── code, driverUid, driverName, phone, plate
+├── lat, lng, createdAt, status
+├── lastUpdate (live location)
+├── audio (base64, 2 phút)
+└── timestamps (cancelledAt, safeAt, endedAt)
+
+emergencies/{code}/
+├── code, customerId, customerPhone, customerName
+├── orderId, lat, lng, timestamp, status
+├── source (xeghep / khachhang)
+├── audio (base64, 30s)
+└── timestamps (lastUpdate, endedAt)
+
+shared_rides/{rideId}/
+├── driverId, driverName, phone
+├── pickup, dropoff, route, departureTime
+├── vehicle, price, seats, status
+└── timestamp, source
+
+shared_ride_bookings/{bookingId}/
+├── rideId, customerId, customerName, customerPhone
+├── driverId, driverName, driverPhone
+├── route, departureTime, seats, price, totalPrice
+├── bookingCode, status, timestamp
+├── paymentMethod, paymentStatus
+├── pickup/dropoff (lat, lng)
+├── cancelledAt, cancellationFee
+└── rating/ (score, comment, timestamp)
+
+chat/{orderId}/{messageId}/
+├── sender, from, senderName, text
+└── timestamp
+
+chat/{orderId}_typing/
+├── driver (boolean)
+└── customer (boolean)
+
+chat_xg/{bookingId}/{messageId}/
+├── sender, senderName, text
+└── timestamp
+
+chat_xg/{bookingId}_typing/
+├── driver (boolean)
+└── customer (boolean)
+
+tai_xe_online/{driverUid}/
+├── lat, lng, heading, speed, accuracy
+├── timestamp, online, name
+
+customer_requests/{requestId}/
+├── customerId, customerName, customerPhone
+├── pickup, dropoff, route, departureTime
+├── seats, price, estimatedPrice, status
+├── timestamp, source
+├── pickup/dropoff (lat, lng)
+└── promoCode
+
+promos/{code}/
+├── code, discount, active
+├── expiresAt, createdAt
+```
+
+### 3.2 Database Rules (hiện tại)
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}
+```
+
+**⚠️ Chưa có security rules** — cần implement Firebase Rules với authentication checks.
+
+---
+
+## 4. MODULE SYSTEM
+
+### 4.1 Danh sách Modules (13 modules)
+
+| Module | Tên | Chức năng | Firebase nodes |
+|---|---|---|---|
+| A | FULL AUTH v1 | Đăng nhập/đăng ký/quên MK + passwordHash | `drivers/`, `customers/` |
+| B | I18N v1 | Đa ngôn ngữ VI/EN + MutationObserver | - |
+| C | CLEAN FIX v4 | GPS + Menu + AI Heatmap | `tai_xe_online/` |
+| D | KYC v1 | Xác thực CCCD + bằng lái + selfie | `drivers/{uid}/documents/` |
+| E | LEGAL v1 | Chính sách bảo mật + Điều khoản | - |
+| F | EV v1 | Trạm sạc + Báo pin + Eco score | `drivers/{uid}/battery/` |
+| G | WALLET v1 | Ví tiền + Gói cước SaaS | `drivers/{uid}/wallet/transactions/` |
+| H | RECEIPT v1 | Hóa đơn điện tử link công khai | `receipts/` |
+| I | SOS v1 | Ghi âm + Live location + Admin giám sát | `sos/`, `emergencies/` |
+| J | CUSTOMER ENHANCEMENTS | Auth + Legal + Receipt + SOS cho khách | `customers/`, `emergencies/`, `receipts/` |
+| K | XE GHEP ENHANCEMENTS | PWA + Legal + SOS + Receipt + i18n cho xe ghép | `shared_rides/`, `shared_ride_bookings/` |
+| - | PREMIUM UI v1 | Tab xịn + Hộp thoại đẹp | - |
+| - | PWA BOOT v1 | Service Worker registration | - |
+
+### 4.2 Module Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    index.html (App Tài Xế)                   │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Code gốc (nhận đơn, tính cước, chat, rating...)     │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  MODULE A: FULL AUTH v1 (IIFE)                       │  │
+│  │  - hashPassword(), doLogin(), doRegister()           │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  MODULE B: I18N v1 (IIFE)                            │  │
+│  │  - Từ điển VI/EN, MutationObserver                   │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  MODULE C: CLEAN FIX v4 (IIFE)                       │  │
+│  │  - GPS fix, menu fix, AI heatmap                     │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ... (các module D-K) ...                                   │
+│                                                              │
+│  </body>                                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Quy tắc:**
+- Mỗi module là 1 IIFE (Immediately Invoked Function Expression)
+- Dán TRƯỚC `</body>` — KHÔNG sửa code gốc
+- Defensive coding: kiểm tra `typeof` trước khi gọi hàm global
+- Chống trùng lặp: kiểm tra `dataset` hoặc `id` trước khi tạo
+- Override an toàn: monkey-patch `window.xxx` khi cần
+
+---
+
+## 5. DATA FLOWS
+
+### 5.1 Booking Flow (Đặt xe thường)
+
+```
+┌──────────┐
+│  Khách   │
+└────┬─────┘
+     │ 1. Chọn điểm đón/đến
+     │ 2. Chọn loại xe
+     │ 3. Bấm "Đặt xe"
+     ▼
+┌──────────────────┐
+│  khachhang.html  │
+│  - Tính giá OSRM │
+│  - Tạo order     │
+└────┬─────────────┘
+     │ 4. Write to datxe/{orderId}
+     │    status: 'waiting'
+     ▼
+┌──────────────────┐
+│ Firebase datxe/  │
+│  (realtime)      │
+└────┬─────────────┘
+     │ 5. child_added event
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ (App Tài Xế)     │
+│ - Filter: radius │
+│ - Show modal     │
+└────┬─────────────┘
+     │ 6. Tài xế bấm "Nhận"
+     │ 7. Update status: 'driving'
+     │    + driverId/name/phone
+     ▼
+┌──────────────────┐
+│ Firebase datxe/  │
+│  (realtime)      │
+└────┬─────────────┘
+     │ 8. value event
+     ▼
+┌──────────────────┐
+│  khachhang.html  │
+│ - Hiện info tài  │
+│   xế             │
+│ - Track location │
+└────┬─────────────┘
+     │ 9. Tài xế đón khách
+     │ 10. Update status: 'picked_up'
+     │ 11. Chạy chuyến (GPS tracking)
+     │ 12. Update status: 'in_progress'
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ - Bấm "Kết thúc" │
+│ - Update status: │
+│   'completed'    │
+│ - Tạo receipt    │
+└────┬─────────────┘
+     │ 13. value event
+     ▼
+┌──────────────────┐
+│  khachhang.html  │
+│ - Hiện "Hoàn     │
+│   thành"         │
+│ - Rating modal   │
+└──────────────────┘
+```
+
+---
+
+### 5.2 Xe Ghép Flow
+
+```
+┌──────────┐
+│ Tài xế   │
+└────┬─────┘
+     │ 1. Đăng chuyến
+     │    (pickup, dropoff, time, price, seats)
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ (openXeGhepModule│
+│  publishXGRide)  │
+└────┬─────────────┘
+     │ 2. Write to shared_rides/{rideId}
+     │    status: 'active'
+     ▼
+┌──────────────────┐
+│Firebase          │
+│shared_rides/     │
+└────┬─────────────┘
+     │ 3. Khách tìm chuyến
+     │    (filter pickup/dropoff)
+     │ 4. AI Match (chấm điểm)
+     ▼
+┌──────────────────┐
+│  xeghep.html     │
+│ - Hiện danh sách │
+│ - Khách bấm      │
+│   "Đặt ghế"      │
+└────┬─────────────┘
+     │ 5. Write to shared_ride_bookings/{bookingId}
+     │    status: 'waiting'
+     ▼
+┌──────────────────┐
+│Firebase          │
+│shared_ride_      │
+│bookings/         │
+└────┬─────────────┘
+     │ 6. Tài xế nhận booking
+     │ 7. Update status: 'accepted'
+     ▼
+┌──────────────────┐
+│  xeghep.html     │
+│ - Chat           │
+│ - Timeline       │
+│ - QR code vé     │
+│ - Tracking       │
+└────┬─────────────┘
+     │ 8. Chuyến hoàn thành
+     │ 9. Update status: 'completed'
+     ▼
+┌──────────────────┐
+│  xeghep.html     │
+│ - Rating modal   │
+└──────────────────┘
+```
+
+---
+
+### 5.3 SOS Flow (Tài xế)
+
+```
+┌──────────┐
+│ Tài xế   │
+└────┬─────┘
+     │ 1. Bấm SOS
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ (triggerSOS)     │
+└────┬─────────────┘
+     │ 2. Write to sos/{code}
+     │    status: 'active'
+     │ 3. Start MediaRecorder (2 phút)
+     │ 4. Start live location (5s/10 phút)
+     ▼
+┌──────────────────┐
+│ Firebase sos/    │
+│  (realtime)      │
+└────┬─────────────┘
+     │ 5. Admin nhận notification
+     ▼
+┌──────────────────┐
+│   admin.html     │
+│ - Hiện SOS       │
+│ - Xem bản đồ     │
+│ - Nghe ghi âm    │
+│ - Gọi tài xế     │
+└────┬─────────────┘
+     │ 6. Admin bấm "Đánh dấu an toàn"
+     │ 7. Update status: 'safe'
+     ▼
+┌──────────────────┐
+│ Firebase sos/    │
+│  (realtime)      │
+└────┬─────────────┘
+     │ 8. value event
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ - Hiện "An toàn" │
+└──────────────────┘
+```
+
+---
+
+### 5.4 Payment Flow (SaaS)
+
+```
+┌──────────┐
+│ Tài xế   │
+└────┬─────┘
+     │ 1. Chọn gói (99k/249k/799k)
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ (openWallet)     │
+│ - Hiện QR code   │
+│ - Thông tin bank │
+└────┬─────────────┘
+     │ 2. Quét QR + chuyển khoản
+     │ 3. Bấm "Đã chuyển khoản"
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ - Write to       │
+│   drivers/{uid}/ │
+│   wallet/        │
+│   transactions/  │
+│   {tid}          │
+│   status:'pending│
+└────┬─────────────┘
+     │ 4. value event
+     ▼
+┌──────────────────┐
+│   admin.html     │
+│ - Hiện giao dịch │
+│   pending        │
+└────┬─────────────┘
+     │ 5. Admin kiểm tra bank
+     │ 6. Bấm "Duyệt"
+     │ 7. Update status: 'paid'
+     │ 8. Update tp_expiry
+     │    (+30/90/365 ngày)
+     ▼
+┌──────────────────┐
+│ Firebase         │
+│ drivers/{uid}/   │
+│  wallet/         │
+│  transactions/   │
+└────┬─────────────┘
+     │ 9. value event
+     ▼
+┌──────────────────┐
+│   index.html     │
+│ - Hiện "Đã duyệt│
+│ - Gia hạn gói    │
+└──────────────────┘
+```
+
+---
+
+## 6. EXTERNAL APIs
+
+### 6.1 Map & Location
+
+| API | Purpose | Endpoint | Rate Limit |
+|---|---|---|---|
+| **Leaflet** | Map rendering | CDN | Unlimited |
+| **OpenStreetMap tiles** | Map tiles | `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` | 2 req/sec |
+| **Nominatim** | Geocoding (address → lat/lng) | `https://nominatim.openstreetmap.org/search` | 1 req/sec |
+| **OSRM** | Routing (tính đường đi) | `https://router.project-osrm.org/route/v1/driving/` | Unlimited |
+| **CartoDB tiles** | Map tiles (alternative) | `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png` | Unlimited |
+
+### 6.2 Weather & POI
+
+| API | Purpose | Endpoint | Rate Limit |
+|---|---|---|---|
+| **Open-Meteo** | Weather data | `https://api.open-meteo.com/v1/forecast` | Unlimited |
+| **Overpass API** | POI query (EV charging stations) | `https://overpass-api.de/api/interpreter` | 10 req/min |
+
+### 6.3 QR & Icons
+
+| API | Purpose | Endpoint | Rate Limit |
+|---|---|---|---|
+| **api.qrserver.com** | QR code generation | `https://api.qrserver.com/v1/create-qr-code/` | Unlimited |
+| **placehold.co** | Placeholder icons | `https://placehold.co/` | Unlimited |
+| **Font Awesome** | Icons | CDN | Unlimited |
+| **Google Fonts** | Fonts (Inter, Plus Jakarta Sans) | CDN | Unlimited |
+
+---
+
+## 7. PWA ARCHITECTURE
+
+### 7.1 Service Worker v4.0
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Service Worker v4.0                       │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  INSTALL                                                │ │
+│  │  - Cache core assets (4 HTML files, manifest, SDK)     │ │
+│  │  - Cache CDN resources (Leaflet, Font Awesome, fonts)  │ │
+│  │  - skipWaiting()                                       │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  ACTIVATE                                               │ │
+│  │  - Delete old caches (taxi-promax-v1, v2, v3)         │ │
+│  │  - clients.claim()                                     │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  FETCH (Network First Strategy)                         │ │
+│  │  - Try network first                                   │ │
+│  │  - If success: update cache + return response          │ │
+│  │  - If fail: return from cache                          │ │
+│  │  - Exclude: Firebase, PayOS, QR API, Nominatim, OSRM  │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  PUSH NOTIFICATION                                      │ │
+│  │  - Handle push events                                  │ │
+│  │  - Show notifications                                  │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  BACKGROUND SYNC                                        │ │
+│  │  - Sync pending trips when back online                 │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.2 Manifest.json
+
+```json
+{
+  "name": "TAXI PROMAX ĐIỀU HÀNH",
+  "short_name": "Taxi ProMax",
+  "description": "Nền tảng gọi xe chuyên nghiệp",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#040a08",
+  "theme_color": "#00bfa5",
+  "icons": [
+    { "src": "assets/logo.png", "sizes": "192x192", "purpose": "any" },
+    { "src": "assets/logo.png", "sizes": "512x512", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "App Tài Xế", "url": "/index.html" },
+    { "name": "App Khách Hàng", "url": "/khachhang.html" },
+    { "name": "Xe Ghép", "url": "/xeghep.html" }
+  ],
+  "categories": ["travel", "navigation", "transportation"],
+  "lang": "vi"
+}
+```
+
+---
+
+## 8. SECURITY & COMPLIANCE
+
+### 8.1 Authentication
+
+**Custom auth (KHÔNG Firebase Auth):**
+```javascript
+function hashPassword(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+        h = ((h << 5) - h) + str.charCodeAt(i);
+        h |= 0;
+    }
+    return 'h' + Math.abs(h).toString(36) + '_' + str.length;
+}
+```
+
+**Flow:**
+1. Register: tạo `drivers/{uid}` hoặc `customers/{uid}` với `passwordHash`
+2. Login: quét theo phone, so hash(password + phone) hoặc hash(password)
+3. Session: lưu `driverInfo` hoặc `customerInfo` vào localStorage
+4. Logout: xóa localStorage + reload
+
+**⚠️ Chưa có:**
+- JWT authentication
+- 2FA (two-factor authentication)
+- Rate limiting
+- Firebase Rules (hiện tại `.read: true, .write: true`)
+
+---
+
+### 8.2 KYC (Know Your Customer)
+
+**Flow:**
+1. Tài xế chụp CCCD (trước/sau) + bằng lái + selfie
+2. Nén ảnh canvas (max 800px, JPEG 0.7)
+3. Upload base64 vào `drivers/{uid}/documents/`
+4. Admin duyệt → badge ✅
+
+**Firebase node:**
+```
+drivers/{uid}/documents/
+├── front: base64
+├── back: base64
+├── license: base64
+├── selfie: base64
+├── status: "pending" | "approved" | "rejected"
+├── submittedAt: timestamp
+├── decidedAt: timestamp
+└── rejectReason: string?
+```
+
+---
+
+### 8.3 Legal Compliance
+
+**Bắt buộc cho CH Play:**
+- ✅ Chính sách bảo mật (theo NĐ 13/2023/NĐ-CP)
+- ✅ Điều khoản sử dụng
+- ✅ Link công khai: `?legal=privacy`, `?legal=terms`
+- ✅ Data Safety form (khai báo dữ liệu thu thập)
+- ✅ Demo account cho Google review
+
+**Mô hình SaaS (lá chắn pháp lý):**
+- App là **phần mềm kết nối**, không phải vận tải
+- Không thu % chuyến đi
+- Không thu tiền từ khách
+- Chỉ thu phí thuê bao từ tài xế (99k/tháng)
+
+---
+
+## 9. DEPLOYMENT ARCHITECTURE
+
+### 9.1 Production Stack
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      GitHub Repository                       │
+│  https://github.com/nguyenxuandat20091985-rgb/taxi-promax   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           │ Git push
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         Vercel                               │
+│  - Auto-deploy từ GitHub                                    │
+│  - CDN toàn cầu                                             │
+│  - HTTPS                                                    │
+│  - URL: https://taxi-promax.vercel.app                      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           │ HTTPS
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Firebase Realtime DB                      │
+│  - Region: asia-southeast1 (Singapore)                      │
+│  - URL: https://taxipromax-new-default-rtdb.asia-          │
+│         southeast1.firebasedatabase.app                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 CI/CD Pipeline
+
+```
+Developer push code
+       ↓
+GitHub Actions (future)
+       ↓
+Vercel auto-deploy
+       ↓
+Production live (30s)
+```
+
+---
+
+## 10. FUTURE ARCHITECTURE (Q3/2026+)
+
+### 10.1 Cloud Functions Integration
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Cloud Functions Layer                     │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  autoDispatch()                                         │ │
+│  │  - Trigger: datxe/ child_added                          │ │
+│  │  - Logic: tìm tài xế gần nhất (geo query)              │ │
+│  │  - Assign: update driverId                              │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  paymentWebhook()                                       │ │
+│  │  - Trigger: PayOS webhook                               │ │
+│  │  - Logic: verify signature, update transaction          │ │
+│  │  - Extend: tp_expiry                                    │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  sendPushNotification()                                 │ │
+│  │  - Trigger: datxe/ child_changed                        │ │
+│  │  - Logic: FCM push to driver/customer                   │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  fakeGpsDetection()                                     │ │
+│  │  - Trigger: tai_xe_online/ child_changed                │ │
+│  │  - Logic: validate speed, distance, accuracy            │ │
+│  │  - Action: flag suspicious drivers                      │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Firebase Rules (Security)
+
+```json
+{
+  "rules": {
+    "drivers": {
+      "$uid": {
+        ".read": "auth.uid === $uid || root.child('admin').val() === auth.uid",
+        ".write": "auth.uid === $uid || root.child('admin').val() === auth.uid",
+        "documents": {
+          ".read": "auth.uid === $uid || root.child('admin').val() === auth.uid",
+          ".write": "auth.uid === $uid"
+        },
+        "wallet": {
+          "transactions": {
+            "$tid": {
+              ".read": "auth.uid === $uid || root.child('admin').val() === auth.uid",
+              ".write": "auth.uid === $uid"
+            }
+          }
+        }
+      }
+    },
+    "datxe": {
+      "$orderId": {
+        ".read": true,
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['status', 'pickup', 'dropoff'])"
+      }
+    },
+    "sos": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 11. PERFORMANCE OPTIMIZATION
+
+### 11.1 Current Optimizations
+
+| Optimization | Implementation | Impact |
 |---|---|---|
-| **App Tài Xế** | `index.html` | Nhận đơn, GPS, SOS, KYC, Wallet, Receipt |
-| **App Khách Hàng** | `khachhang.html` | Đặt xe, theo dõi, chat, SOS, đánh giá |
-| **App Xe Ghép** | `xeghep.html` | Đăng/tìm chuyến, đặt ghế, QR vé |
-| **Admin Dashboard** | `admin.html` | Quản lý tài xế, duyệt KYC/TT, giám sát SOS |
+| **Realtime listener** | `on('child_added')` thay vì polling | Giảm Firebase reads 90% |
+| **Client-side filter** | Radius, carType filter trước khi show modal | Giảm UI lag |
+| **Processed orders Set** | Tránh duplicate processing | Giảm CPU usage |
+| **Image compression** | Canvas max 800px, JPEG 0.7 | Giảm storage 70% |
+| **Service Worker cache** | Network First strategy | Offline support, giảm latency |
+| **localStorage cache** | Cache dữ liệu ít thay đổi | Giảm Firebase reads |
 
-### 2.2 Firebase Database Nodes (15 nodes)
+### 11.2 Future Optimizations
 
-```
-Firebase Realtime Database
-│
-├── drivers/                    → Hồ sơ tài xế + KYC + wallet
-│   └── {driverUid}/
-│       ├── profile (name, phone, plate...)
-│       ├── documents/ (KYC: CCCD, bằng lái, selfie)
-│       ├── wallet/transactions/ (gói cước)
-│       └── battery/ (EV module)
-│
-├── customers/                  → Hồ sơ khách hàng
-│   └── {customerUid}/
-│       └── profile (name, phone)
-│
-├── datxe/                      → Đơn đặt xe (KHÔNG dùng /orders/)
-│   └── {orderId}/
-│       ├── status: 'waiting' | 'driving' | 'completed'
-│       ├── pickup/dropoff (lat, lng, address)
-│       ├── driverId, driverName, driverPhone
-│       └── estimateKm, estimatePrice
-│
-├── trips/                      → Lịch sử chuyến của tài xế
-│   └── {driverUid}/{tripId}/
-│       └── km, cost, timestamp, tripType
-│
-├── receipts/                   → Hóa đơn điện tử
-│   └── {code}/ (VD: "HDABC123")
-│       └── driverName, customerName, km, price
-│
-├── ratings/                    → Đánh giá sau chuyến
-│   └── {orderId}/
-│       └── overall (1-5), comment, tip
-│
-├── sos/                        → Báo động SOS tài xế
-│   └── {code}/
-│       ├── status: 'active' | 'safe' | 'ended'
-│       ├── lat, lng (live mỗi 5s)
-│       └── audio (base64 ghi âm 2 phút)
-│
-├── emergencies/                → Báo động SOS khách
-│   └── {code}/
-│       └── tương tự sos/ nhưng 30s ghi âm
-│
-├── shared_rides/               → Chuyến xe ghép (tài xế đăng)
-│   └── {rideId}/
-│       └── route, seats, price, departureTime
-│
-├── shared_ride_bookings/       → Đặt ghế xe ghép
-│   └── {bookingId}/
-│       └── rideId, customerId, status, bookingCode
-│
-├── chat/                       → Chat driver ↔ customer
-│   └── {orderId}/
-│       └── {messageId}/ (sender, text, timestamp)
-│
-├── chat_xg/                    → Chat xe ghép
-│   └── {bookingId}/
-│       └── tương tự chat/
-│
-├── tai_xe_online/              → Vị trí realtime tài xế
-│   └── {driverUid}/
-│       └── lat, lng, timestamp (update mỗi 5-10s)
-│
-├── customer_requests/          → Yêu cầu đặt xe từ khách
-│   └── {requestId}/
-│       └── pickup, dropoff, seats, status
-│
-└── promos/                     → Mã giảm giá
-    └── {code}/
-        └── discount, active, expiresAt
-```
-
-### 2.3 Module System (15 modules)
-
-```
-MODULE A: FULL AUTH v1
-├── hashPassword() → Java-style hash
-├── doLogin() → quét drivers/ theo phone
-├── doRegister() → tạo DRV_ + base36
-└── doForgotPassword() → xác minh CCCD/biển số
-
-MODULE B: I18N v1
-├── Từ điển VI→EN (50+ pairs)
-├── MutationObserver dịch DOM
-└── localStorage: promax_lang
-
-MODULE C: CLEAN FIX v4
-├── fixGpsTick() → LUÔN vẽ marker
-├── toggleFollow() → bật/tắt panTo
-└── AI Heatmap → HOTSPOTS HN/HCM
-
-MODULE D: KYC v1
-├── openKYC() → 4 ô chụp ảnh
-├── compressImage() → canvas max 800px
-└── openKYCAdmin() → duyệt hồ sơ
-
-MODULE E: LEGAL v1
-├── openLegal('privacy'|'terms')
-└── URL: ?legal=privacy / ?legal=terms
-
-MODULE F: EV v1
-├── findStations() → Overpass API
-├── evSaveBatt() → lưu Firebase
-└── startEco() → trừ điểm phanh gấp
-
-MODULE G: WALLET v1
-├── openWallet() → 3 gói SaaS
-├── confirmPaid() → tạo transaction
-└── wmApprove() → admin duyệt + gia hạn
-
-MODULE H: RECEIPT v1
-├── createReceipt() → monkey-patch completeTrip
-├── showReceipt() → giấy biên lai
-└── URL: ?receipt={code}
-
-MODULE I: SOS v1
-├── triggerSOS() → ghi âm 2 phút + live 10 phút
-├── openSOSAdmin() → giám sát
-└── playSOSAudio() → nghe lại
-
-MODULE J-K: ENHANCEMENTS
-├── Customer App: Auth + Legal + Receipt + SOS
-└── Xe Ghép App: PWA + Legal + SOS + Receipt + i18n
-
-UTILITY MODULES:
-├── PREMIUM UI v1 → Tab xịn + hộp thoại đẹp
-├── PWA BOOT v1 → Register Service Worker
-├── MENU MOVE v2 → Đưa nút vào sidebar
-└── MENU RESTYLE v1 → Khôi phục menu đẹp
-```
+| Optimization | Implementation | Expected Impact |
+|---|---|---|
+| **Cloud Functions** | Server-side matching | Giảm client CPU 50% |
+| **Firebase indexes** | Add indexes trên `status`, `timestamp` | Tăng query speed 10x |
+| **CDN** | Cloudflare cho static assets | Giảm latency 60% |
+| **Image CDN** | Cloudinary cho ảnh KYC | Giảm storage 80% |
+| **Queue processing** | BullMQ cho background jobs | Tăng throughput 5x |
 
 ---
 
-## 3. DATA FLOWS CHI TIẾT
+## 12. MONITORING & LOGGING
 
-### 3.1 Flow: Khách đặt xe → Tài xế nhận đơn
+### 12.1 Current Monitoring
 
-```
-┌─────────────┐
-│ App Khách   │
-│ khachhang   │
-│ .html       │
-└──────┬──────┘
-       │ 1. bookRide()
-       │    - Thu thập: pickup, dropoff, carType
-       │    - Tính giá: OSRM API → estimateKm × rate
-       │
-       │ 2. Firebase push
-       │    db.ref('datxe').push(orderData)
-       │
-       ▼
-┌─────────────────────────────────────┐
-│ Firebase: datxe/{orderId}           │
-│ status: 'waiting'                   │
-│ pickup: {lat, lng, address}         │
-│ dropoff: {lat, lng, address}        │
-│ carType: '4_seats'                  │
-│ estimateKm: 5.2                     │
-│ estimatePrice: 78000                │
-│ timestamp: 1723048800000            │
-└──────────────────┬──────────────────┘
-                   │
-                   │ 3. Realtime listener
-                   │    db.ref('datxe')
-                   │      .on('child_added')
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│ App Tài Xế (nhiều người)            │
-│ index.html                          │
-│                                     │
-│ startOrderListener()                │
-│   - Filter: carType match           │
-│   - Filter: radius < 10km           │
-│   - Filter: chưa xử lý              │
-│                                     │
-│ showOrderModal(orderId)             │
-│   - Hiện modal với thông tin        │
-│   - Countdown 15 giây               │
-│   - Nút "Nhận" / "Bỏ qua"           │
-└──────────┬──────────────────────────┘
-           │
-           │ 4. Tài xế bấm "Nhận"
-           │    acceptOrder()
-           │
-           │ 5. Firebase update
-           │    db.ref('datxe/{orderId}').update({
-           │      status: 'driving',
-           │      driverId: 'DRV_ABC',
-           │      driverName: 'Nguyễn Văn A',
-           │      driverPhone: '0388724966',
-           │      driverPlate: '14H 06321',
-           │      acceptedAt: Date.now()
-           │    })
-           │
-           ▼
-┌─────────────────────────────────────┐
-│ Firebase: datxe/{orderId}           │
-│ status: 'driving'                   │
-│ driverId: 'DRV_ABC'                 │
-│ driverName: 'Nguyễn Văn A'          │
-│ driverPhone: '0388724966'           │
-│ driverPlate: '14H 06321'            │
-│ acceptedAt: 1723048860000           │
-└──────────────────┬──────────────────┘
-                   │
-                   │ 6. Realtime listener (App Khách)
-                   │    db.ref('datxe/{orderId}')
-                   │      .on('value')
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│ App Khách                           │
-│                                     │
-│ listenToOrder(orderId)              │
-│   - Phát hiện status = 'driving'    │
-│   - Hiện thông tin tài xế           │
-│   - trackDriverLocation()           │
-│   - Vẽ marker tài xế trên map       │
-│                                     │
-│ showBookingScreen('screenDriving')  │
-└─────────────────────────────────────┘
+**Client-side:**
+- `console.log()` cho debugging
+- `console.error()` cho errors
+- Toast notifications cho user feedback
+
+**Firebase:**
+- Firebase Console → Database → Realtime viewer
+- Firebase Console → Analytics (basic)
+
+### 12.2 Future Monitoring
+
+**Server-side (Cloud Functions):**
+```javascript
+// Error logging
+functions.logger.error('Error in autoDispatch', error);
+
+// Performance logging
+functions.logger.info('autoDispatch latency', { latency: Date.now() - start });
+
+// Security logging
+functions.logger.warn('Suspicious GPS pattern', { driverId, speed, accuracy });
 ```
 
-### 3.2 Flow: Tài xế hoàn thành chuyến → Hóa đơn + Đánh giá
-
-```
-┌─────────────┐
-│ App Tài Xế  │
-│ index.html  │
-└──────┬──────┘
-       │
-       │ 1. Tài xế bấm "Kết thúc chuyến"
-       │    completeTrip()
-       │
-       │ 2. Tính toán
-       │    finalKm = totalKm
-       │    finalCost = finalKm × currentRate
-       │
-       │ 3. Firebase update
-       │    db.ref('datxe/{orderId}').update({
-       │      status: 'completed',
-       │      completedAt: Date.now(),
-       │      actualKm: 5.2,
-       │      actualPrice: 78000
-       │    })
-       │
-       │ 4. Lưu lịch sử
-       │    db.ref('trips/{driverUid}/{tripId}').set({
-       │      km: 5.2,
-       │      cost: 78000,
-       │      timestamp: Date.now(),
-       │      tripType: 'APP_BOOKING'
-       │    })
-       │
-       │ 5. Monkey-patch: createReceipt()
-       │    code = 'HD' + base36(Date.now())
-       │    db.ref('receipts/' + code).set({
-       │      code: code,
-       │      driverName: 'Nguyễn Văn A',
-       │      customerName: 'Trần Thị B',
-       │      pickup: 'Hà Nội',
-       │      dropoff: 'Hải Phòng',
-       │      km: 5.2,
-       │      price: 78000,
-       │      createdAt: Date.now()
-       │    })
-       │
-       │ 6. Hiện modal đánh giá (App Khách)
-       │    showRatingModal()
-       │
-       ▼
-┌─────────────────────────────────────┐
-│ App Khách                           │
-│                                     │
-│ ratingModal mở                      │
-│   - 5 sao rating                    │
-│   - Comment text                    │
-│   - Tip (10k/20k/50k)               │
-│                                     │
-│ submitRating()                      │
-│   db.ref('ratings/{orderId}').set({ │
-│     overall: 5,                     │
-│     comment: 'Tài xế rất tốt',      │
-│     tip: 20000,                     │
-│     timestamp: Date.now()           │
-│   })                                │
-└─────────────────────────────────────┘
-```
-
-### 3.3 Flow: SOS khẩn cấp (tài xế)
-
-```
-┌─────────────┐
-│ App Tài Xế  │
-│ index.html  │
-└──────┬──────┘
-       │
-       │ 1. Tài xế bấm "SOS cứu hộ"
-       │    triggerSOS()
-       │
-       │ 2. Tạo SOS record
-       │    code = 'SOS' + base36(Date.now())
-       │    db.ref('sos/' + code).set({
-       │      code: code,
-       │      driverUid: 'DRV_ABC',
-       │      driverName: 'Nguyễn Văn A',
-       │      phone: '0388724966',
-       │      lat: currentLat,
-       │      lng: currentLng,
-       │      status: 'active',
-       │      createdAt: Date.now()
-       │    })
-       │
-       │ 3. Ghi âm 2 phút
-       │    navigator.mediaDevices.getUserMedia({audio: true})
-       │    new MediaRecorder(stream, {audioBitsPerSecond: 16000})
-       │    setTimeout(stop, 120000)
-       │    → Lưu base64 vào sos/{code}/audio
-       │
-       │ 4. Live location mỗi 5s trong 10 phút
-       │    setInterval(() => {
-       │      db.ref('sos/' + code).update({
-       │        lat: currentLat,
-       │        lng: currentLng,
-       │        lastUpdate: Date.now()
-       │      })
-       │    }, 5000)
-       │    setTimeout(clearInterval, 600000)
-       │
-       │ 5. Auto call 113 sau 1.5s
-       │    setTimeout(() => {
-       │      window.location.href = 'tel:113'
-       │    }, 1500)
-       │
-       ▼
-┌─────────────────────────────────────┐
-│ Admin Dashboard                     │
-│ admin.html                          │
-│                                     │
-│ openSOSAdmin()                      │
-│   - Load danh sách SOS              │
-│   - Hiển thị:                       │
-│     • Tên tài xế                    │
-│     • SĐT                           │
-│     • Link Google Maps              │
-│     • Nút nghe ghi âm               │
-│     • Nút đánh dấu an toàn          │
-│                                     │
-│ playSOSAudio(i)                     │
-│   - Phát audio base64               │
-│                                     │
-│ markSOSSafe(i)                      │
-│   db.ref('sos/{code}').update({     │
-│     status: 'safe',                 │
-│     safeAt: Date.now()              │
-│   })                                │
-└─────────────────────────────────────┘
-```
-
-### 3.4 Flow: Thanh toán gói cước SaaS
-
-```
-┌─────────────┐
-│ App Tài Xế  │
-│ index.html  │
-└──────┬──────┘
-       │
-       │ 1. Tài xế mở "Ví tiền & Gói cước"
-       │    openWallet()
-       │
-       │ 2. Chọn gói
-       │    - m1: 99k/30 ngày
-       │    - m3: 249k/90 ngày
-       │    - m12: 799k/365 ngày
-       │
-       │ 3. Quét QR chuyển khoản
-       │    QR code: api.qrserver.com
-       │    Nội dung: "PROMAX {phone}"
-       │    Ngân hàng: MB Bank 0388724966
-       │
-       │ 4. Bấm "Đã chuyển khoản"
-       │    confirmPaid()
-       │    tid = 'tx_' + Date.now()
-       │    db.ref('drivers/{uid}/wallet/transactions/' + tid).set({
-       │      plan: 'm3',
-       │      planName: '3 tháng',
-       │      amount: 249000,
-       │      code: 'PROMAX 0388724966',
-       │      status: 'pending',
-       │      createdAt: Date.now()
-       │    })
-       │
-       ▼
-┌─────────────────────────────────────┐
-│ Admin Dashboard                     │
-│ admin.html                          │
-│                                     │
-│ loadWallet()                        │
-│   - Load transactions pending       │
-│   - Hiển thị:                       │
-│     • Tên tài xế                    │
-│     • Gói đã chọn                   │
-│     • Số tiền                       │
-│     • Mã giao dịch                  │
-│                                     │
-│ Admin kiểm tra ngân hàng            │
-│   - Mở app MB Bank                  │
-│   - Tìm giao dịch với mã            │
-│   - Xác nhận đã nhận tiền           │
-│                                     │
-│ approveWallet(uid, tid)             │
-│   db.ref('drivers/' + uid).update({ │
-│     'wallet/transactions/' + tid    │
-│       + '/status': 'paid',          │
-│     'wallet/transactions/' + tid    │
-│       + '/approvedAt': Date.now(),  │
-│     tp_expiry: Date.now() +         │
-│       90*86400000,                  │
-│     active_plan: 'PROMAX'           │
-│   })                                │
-└──────────────────┬──────────────────┘
-                   │
-                   │ 5. Realtime listener (App Tài Xế)
-                   │    db.ref('drivers/{uid}/tp_expiry')
-                   │      .on('value')
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│ App Tài Xế                          │
-│                                     │
-│ initCountdown()                     │
-│   - Phát hiện tp_expiry mới         │
-│   - Cập nhật UI:                    │
-│     • "Gói PROMAX - còn 89 ngày"    │
-│     • Unlock nhận đơn               │
-│   - Countdown timer                 │
-│                                     │
-│ Tài xế có thể nhận đơn bình thường │
-└─────────────────────────────────────┘
-```
+**External tools:**
+- **Sentry**: Error tracking
+- **LogRocket**: Session replay
+- **Firebase Crashlytics**: Crash reporting
+- **Google Analytics**: User behavior
 
 ---
 
-## 4. KIẾN TRÚC KỸ THUẬT
+## 13. SCALABILITY ROADMAP
 
-### 4.1 Tech Stack
+### 13.1 Current Limits
 
-```
-┌─────────────────────────────────────────┐
-│ FRONTEND                                │
-├─────────────────────────────────────────┤
-│ HTML5 + CSS3 + JavaScript ES6+          │
-│ Leaflet.js (maps)                       │
-│ Font Awesome 6.4.0 (icons)              │
-│ Inter + Plus Jakarta Sans (fonts)       │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ PWA LAYER                               │
-├─────────────────────────────────────────┤
-│ Service Worker v4.0                     │
-│   - Network First strategy              │
-│   - Cache CDN (OSM, Leaflet, FA)        │
-│   - Offline fallback                    │
-│                                         │
-│ Manifest.json                           │
-│   - Icons (192x192, 512x512)            │
-│   - Shortcuts (3 apps)                  │
-│   - Categories: travel, navigation      │
-└─────────────────────────────────────────┘
-                    ↕ HTTPS
-┌─────────────────────────────────────────┐
-│ DATABASE                                │
-├─────────────────────────────────────────┤
-│ Firebase Realtime Database              │
-│   - 15 root nodes                       │
-│   - Realtime listeners                  │
-│   - Client-side queries                 │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ EXTERNAL APIs                           │
-├─────────────────────────────────────────┤
-│ Nominatim (geocoding)                   │
-│ OSRM (routing)                          │
-│ Open-Meteo (weather)                    │
-│ Overpass (POI search)                   │
-│ api.qrserver.com (QR codes)             │
-└─────────────────────────────────────────┘
-```
+| Resource | Current Limit | Bottleneck |
+|---|---|---|
+| **Firebase RTDB** | 200k concurrent connections | Database size |
+| **Vercel** | 100GB bandwidth/month | CDN |
+| **Client-side matching** | 1000 drivers online | CPU usage |
+| **Image storage** | 10GB Firebase storage | KYC images |
 
-### 4.2 Security Architecture
+### 13.2 Scaling Strategy
 
-```
-┌─────────────────────────────────────────┐
-│ AUTHENTICATION                          │
-├─────────────────────────────────────────┤
-│ Custom Auth (KHÔNG Firebase Auth)       │
-│                                         │
-│ hashPassword(str):                      │
-│   h = 0                                 │
-│   for each char: h = (h<<5) - h + char  │
-│   return 'h' + base36(abs(h)) + '_' +   │
-│          str.length                     │
-│                                         │
-│ Login:                                  │
-│   - Quét drivers/ theo phone            │
-│   - So hash(password + phone)           │
-│   - Hoặc hash(password)                 │
-│                                         │
-│ Session:                                │
-│   - localStorage: driverInfo            │
-│   - localStorage: customerInfo          │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ DATA PROTECTION                         │
-├─────────────────────────────────────────┤
-│ Password: hash (không plaintext)        │
-│ KYC images: base64 + nén JPEG 0.7       │
-│ SOS audio: base64 + nén 16kbps          │
-│ Secrets: không hardcode (dùng const)    │
-│                                         │
-│ Firebase Rules:                         │
-│   .read: true                           │
-│   .write: true                          │
-│   (cần cải thiện trong tương lai)       │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ COMPLIANCE                              │
-├─────────────────────────────────────────┤
-│ NĐ 13/2023/NĐ-CP (bảo vệ dữ liệu)      │
-│   - Chính sách bảo mật                  │
-│   - Điều khoản sử dụng                  │
-│   - Link: ?legal=privacy / ?legal=terms │
-│                                         │
-│ CH Play Data Safety                     │
-│   - Khai báo dữ liệu thu thập           │
-│   - Mã hóa khi truyền (HTTPS)           │
-│   - Cho phép xóa dữ liệu                │
-└─────────────────────────────────────────┘
-```
+**Phase 1 (Q3/2026): 1000 drivers**
+- ✅ Client-side matching (hiện tại)
+- ✅ Firebase RTDB (hiện tại)
+- ✅ Vercel CDN (hiện tại)
+
+**Phase 2 (Q4/2026): 5000 drivers**
+- ⏳ Cloud Functions (server-side matching)
+- ⏳ Firebase indexes
+- ⏳ Image CDN (Cloudinary)
+
+**Phase 3 (2027): 10000 drivers**
+- ⏳ Firestore (thay RTDB)
+- ⏳ Multi-region deployment
+- ⏳ Queue processing (BullMQ)
+- ⏳ Kubernetes (nếu cần)
 
 ---
 
-## 5. DEPLOYMENT ARCHITECTURE
+## 14. DISASTER RECOVERY
 
-```
-┌─────────────────────────────────────────┐
-│ DEVELOPMENT                             │
-├─────────────────────────────────────────┤
-│ Local Machine                           │
-│   - Edit HTML files                     │
-│   - Test trên localhost                 │
-│   - Git commit                          │
-└──────────────────┬──────────────────────┘
-                   │
-                   │ git push
-                   │
-                   ▼
-┌─────────────────────────────────────────┐
-│ GITHUB                                  │
-├─────────────────────────────────────────┤
-│ Repository:                             │
-│   nguyenxuandat20091985-rgb/            │
-│     taxi-promax                         │
-│                                         │
-│ Branches:                               │
-│   - main (production)                   │
-│   - feature/* (development)             │
-└──────────────────┬──────────────────────┘
-                   │
-                   │ Webhook
-                   │
-                   ▼
-┌─────────────────────────────────────────┐
-│ VERCEL                                  │
-├─────────────────────────────────────────┤
-│ Auto-deploy từ GitHub                   │
-│                                         │
-│ Build:                                  │
-│   - Static HTML files                   │
-│   - No build process                    │
-│                                         │
-│ CDN:                                    │
-│   - Global edge network                 │
-│   - HTTPS enabled                       │
-│                                         │
-│ Domain:                                 │
-│   taxi-promax.vercel.app                │
-└──────────────────┬──────────────────────┘
-                   │
-                   │ Firebase SDK
-                   │
-                   ▼
-┌─────────────────────────────────────────┐
-│ FIREBASE                                │
-├─────────────────────────────────────────┤
-│ Project: taxipromax-new                 │
-│ Region: asia-southeast1                 │
-│                                         │
-│ Database:                               │
-│   taxipromax-new-default-rtdb.          │
-│     asia-southeast1.firebasedatabase    │
-│     .app                                │
-│                                         │
-│ Realtime sync                           │
-│ Client-side queries                     │
-└─────────────────────────────────────────┘
-```
+### 14.1 Backup Strategy
+
+**Firebase Database:**
+- **Daily backup**: Firebase Console → Database → Export
+- **Weekly backup**: Automated script → Google Cloud Storage
+- **Monthly backup**: Download + store offline
+
+**Code:**
+- **GitHub**: Version control (đã có)
+- **Local backup**: Clone repo weekly
+
+**Images (KYC):**
+- **Firebase Storage**: Primary storage
+- **Google Cloud Storage**: Backup (future)
+
+### 14.2 Recovery Plan
+
+**Scenario 1: Firebase data corruption**
+1. Stop all writes
+2. Restore từ daily backup
+3. Replay transactions từ logs
+4. Verify data integrity
+
+**Scenario 2: Vercel downtime**
+1. Switch to backup hosting (Netlify)
+2. Update DNS
+3. Monitor recovery
+
+**Scenario 3: Code bug**
+1. Revert to previous commit
+2. Deploy hotfix
+3. Notify users
 
 ---
 
-## 6. PERFORMANCE ARCHITECTURE
+## 15. CONCLUSION
 
-### 6.1 Firebase Optimization
+### 15.1 Architecture Strengths
 
-```
-┌─────────────────────────────────────────┐
-│ REALTIME LISTENERS                      │
-├─────────────────────────────────────────┤
-│ ✅ Dùng:                                │
-│   db.ref('datxe').on('child_added')     │
-│   db.ref('tai_xe_online/{uid}')         │
-│     .on('value')                        │
-│                                         │
-│ ❌ KHÔNG dùng:                          │
-│   setInterval(fetch)                    │
-│   Polling                               │
-│   Geo queries phức tạp                  │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ INDEXES                                 │
-├─────────────────────────────────────────┤
-│ datxe/ → status, timestamp, driverId    │
-│ trips/{uid}/ → timestamp                │
-│ receipts/ → customerPhone, createdAt    │
-│ shared_rides/ → timestamp, status       │
-│ sos/ → createdAt, status                │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ LIMIT QUERIES                           │
-├─────────────────────────────────────────┤
-│ .limitToLast(50) cho history            │
-│ .limitToLast(30) cho receipts           │
-│ .limitToLast(20) cho SOS                │
-└─────────────────────────────────────────┘
-```
+- ✅ **Simple**: Single-file HTML, không có backend phức tạp
+- ✅ **Realtime**: Firebase RTDB cho sync tức thì
+- ✅ **PWA**: Offline support, installable
+- ✅ **Modular**: 13 modules độc lập, dễ maintain
+- ✅ **Scalable**: Có thể scale đến 1000 drivers với kiến trúc hiện tại
 
-### 6.2 Client-Side Optimization
+### 15.2 Architecture Weaknesses
 
-```
-┌─────────────────────────────────────────┐
-│ SERVICE WORKER CACHE                    │
-├─────────────────────────────────────────┤
-│ Cache CDN:                              │
-│   - OSM tiles                           │
-│   - Leaflet.js                          │
-│   - Font Awesome                        │
-│   - Google Fonts                        │
-│                                         │
-│ Cache App:                              │
-│   - index.html                          │
-│   - khachhang.html                      │
-│   - xeghep.html                         │
-│   - admin.html                          │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ LOCALSTORAGE                            │
-├─────────────────────────────────────────┤
-│ Session:                                │
-│   - driverInfo                          │
-│   - customerInfo                        │
-│                                         │
-│ Cache:                                  │
-│   - promax_lang (i18n)                  │
-│   - promax_battery (EV)                 │
-│   - promax_eco (EV score)               │
-│   - trip_history                        │
-│   - driver_ratings                      │
-└─────────────────────────────────────────┘
-```
+- ⚠️ **Security**: Firebase Rules chưa implement
+- ⚠️ **Authentication**: Custom auth, không có JWT/2FA
+- ⚠️ **Matching**: Client-side, không tối ưu cho scale lớn
+- ⚠️ **Monitoring**: Thiếu centralized logging
+- ⚠️ **Testing**: Không có unit/integration tests
 
----
+### 15.3 Next Steps
 
-## 7. SCALABILITY ARCHITECTURE
+**Q3/2026:**
+1. Implement Firebase Rules
+2. Add Cloud Functions cho auto dispatch
+3. Integrate PayOS webhook
+4. Setup Sentry cho error tracking
 
-### 7.1 Current Limits
+**Q4/2026:**
+1. Migrate to Firestore (nếu cần)
+2. Add fake GPS detection
+3. Implement withdrawal feature
+4. Expand i18n (Trung/Hàn/Nhật)
 
-```
-┌─────────────────────────────────────────┐
-│ FIREBASE SPARK PLAN (Free)              │
-├─────────────────────────────────────────┤
-│ 100 simultaneous connections            │
-│ 1 GB storage                            │
-│ 10 GB/month transfer                    │
-│                                         │
-│ Ước tính:                               │
-│   100 tài xế online                     │
-│   500 khách hàng online                 │
-└─────────────────────────────────────────┘
-```
-
-### 7.2 Future Scaling (Q3/2026+)
-
-```
-┌─────────────────────────────────────────┐
-│ FIREBASE BLAZE PLAN (Pay-as-you-go)     │
-├─────────────────────────────────────────┤
-│ Unlimited connections                   │
-│ Unlimited storage                       │
-│ Unlimited transfer                      │
-│                                         │
-│ Mục tiêu:                               │
-│   1000 tài xế online                    │
-│   5000 khách hàng online                │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ CLOUD FUNCTIONS (tương lai)             │
-├─────────────────────────────────────────┤
-│ Auto Dispatch:                          │
-│   - Server-side matching                │
-│   - Tìm tài xế gần nhất                 │
-│   - Auto assign đơn                     │
-│                                         │
-│ Webhook Processing:                     │
-│   - PayOS payment confirmation          │
-│   - Auto approve transactions           │
-│                                         │
-│ Background Jobs:                        │
-│   - Cleanup old data                    │
-│   - Send scheduled notifications        │
-└─────────────────────────────────────────┘
-```
-
----
-
-## 8. MODULE DEPENDENCIES
-
-```
-┌─────────────────────────────────────────┐
-│ CORE MODULES (bắt buộc)                 │
-├─────────────────────────────────────────┤
-│ A: FULL AUTH v1                         │
-│   └── Dùng bởi: tất cả apps            │
-│                                         │
-│ C: CLEAN FIX v4                         │
-│   └── Dùng bởi: index.html             │
-│                                         │
-│ PWA BOOT v1                             │
-│   └── Dùng bởi: tất cả apps            │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ FEATURE MODULES (tùy chọn)              │
-├─────────────────────────────────────────┤
-│ D: KYC v1                               │
-│   └── Dùng bởi: index.html + admin     │
-│                                         │
-│ G: WALLET v1                            │
-│   └── Dùng bởi: index.html + admin     │
-│                                         │
-│ H: RECEIPT v1                           │
-│   └── Dùng bởi: index.html + khachhang │
-│                                         │
-│ I: SOS v1                               │
-│   └── Dùng bởi: tất cả apps + admin    │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ ENHANCEMENT MODULES (app-specific)      │
-├─────────────────────────────────────────┤
-│ J: CUSTOMER ENHANCEMENTS                │
-│   └── Dùng bởi: khachhang.html         │
-│                                         │
-│ K: XE GHEP ENHANCEMENTS                 │
-│   └── Dùng bởi: xeghep.html            │
-└─────────────────────────────────────────┘
-```
-
----
-
-## 9. TESTING ARCHITECTURE
-
-### 9.1 Manual Testing Checklist
-
-```
-┌─────────────────────────────────────────┐
-│ APP TÀI XẾ                              │
-├─────────────────────────────────────────┤
-│ □ Đăng nhập/đăng ký                     │
-│ □ GPS cập nhật vị trí                   │
-│ □ Nhận đơn realtime                     │
-│ □ Bắt đầu/kết thúc chuyến               │
-│ □ Chat với khách                        │
-│ □ SOS ghi âm + live location            │
-│ □ KYC upload ảnh                        │
-│ □ Thanh toán gói + admin duyệt          │
-│ □ Hóa đơn điện tử                       │
-│ □ Trạm sạc EV                           │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ APP KHÁCH HÀNG                          │
-├─────────────────────────────────────────┤
-│ □ Đăng nhập/đăng ký                     │
-│ □ Đặt xe + tính giá                     │
-│ □ Theo dõi tài xế realtime              │
-│ □ Chat với tài xế                       │
-│ □ Đánh giá sau chuyến                   │
-│ □ SOS ghi âm + live location            │
-│ □ Xem hóa đơn điện tử                   │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ ADMIN DASHBOARD                         │
-├─────────────────────────────────────────┤
-│ □ Đăng nhập admin                       │
-│ □ Dashboard 8 stat cards                │
-│ □ Duyệt KYC (xem ảnh 4 mặt)             │
-│ □ Duyệt thanh toán                      │
-│ □ Giám sát SOS (bản đồ + nghe ghi âm)   │
-│ □ Quản lý tài xế/khách                  │
-│ □ Realtime map tài xế online            │
-└─────────────────────────────────────────┘
-```
-
-### 9.2 Future Testing (Q4/2026+)
-
-```
-┌─────────────────────────────────────────┐
-│ UNIT TESTS (Jest/Mocha)                 │
-├─────────────────────────────────────────┤
-│ □ hashPassword()                        │
-│ □ calculateDistance()                   │
-│ □ compressImage()                       │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ E2E TESTS (Cypress/Playwright)          │
-├─────────────────────────────────────────┤
-│ □ Flow: đặt xe → nhận đơn → hoàn thành  │
-│ □ Flow: thanh toán gói → admin duyệt    │
-│ □ Flow: SOS → admin giám sát            │
-└─────────────────────────────────────────┘
-```
-
----
-
-## 10. FUTURE ARCHITECTURE (2027+)
-
-```
-┌─────────────────────────────────────────┐
-│ MICROSERVICES (tương lai xa)            │
-├─────────────────────────────────────────┤
-│ Auth Service                            │
-│   - JWT authentication                  │
-│   - OAuth2 integration                  │
-│                                         │
-│ Order Service                           │
-│   - Server-side matching                │
-│   - Auto dispatch                       │
-│                                         │
-│ Payment Service                         │
-│   - PayOS integration                   │
-│   - MoMo integration                    │
-│                                         │
-│ Notification Service                    │
-│   - FCM push                            │
-│   - Email/SMS                           │
-└─────────────────────────────────────────┘
-                    ↕
-┌─────────────────────────────────────────┐
-│ CLOUD INFRASTRUCTURE                    │
-├─────────────────────────────────────────┤
-│ Google Cloud Run                        │
-│   - Containerized services              │
-│   - Auto-scaling                        │
-│                                         │
-│ Cloud SQL (PostgreSQL)                  │
-│   - Relational data                     │
-│   - Complex queries                     │
-│                                         │
-│ Cloud Storage                           │
-│   - KYC images                          │
-│   - SOS audio recordings                │
-│                                         │
-│ Cloud CDN                               │
-│   - Static assets                       │
-│   - Media files                         │
-└─────────────────────────────────────────┘
-```
+**2027:**
+1. Multi-city expansion
+2. Advanced analytics dashboard
+3. Unit/E2E tests
+4. CDN optimization
 
 ---
 
 *System Architecture cập nhật lần cuối: 06/08/2026 — NGUYỄN XUÂN ĐẠT*
+```
+
