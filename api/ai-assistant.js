@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
     try {
         const r = await fetch(
-            'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + key,
+            'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + key,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
