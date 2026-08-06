@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
     try {
         const r = await fetch(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key,
+            'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + key,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -31,7 +31,6 @@ export default async function handler(req, res) {
         );
         const d = await r.json();
 
-        // Nếu Google trả về lỗi, hiện nguyên văn lỗi để dễ kiểm tra
         if (d.error) {
             return res.status(500).json({ error: 'Lỗi từ Google: ' + d.error.message });
         }
