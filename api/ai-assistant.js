@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
     try {
         const r = await fetch(
-            'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + key,
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -35,7 +35,12 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: 'Lỗi từ Google: ' + d.error.message });
         }
 
-        const answer = d?.candidates?.[0]?.content?.parts?.[0]?.text || 'Xin lỗi, tôi chưa nhận được phản hồi từ AI.';
+        const candidate = d?.candidates?.[0];
+        if (!candidate) {
+            return res.status(500).json({ error: 'Google không trả về kết quả. Phản hồi: ' + JSON.stringify(d) });
+        }
+
+        const answer = candidate?.content?.parts?.[0]?.text || 'AI trả về nội dung trống.';
         return res.status(200).json({ success: true, answer: answer });
     } catch (e) {
         return res.status(500).json({ error: e.message });
