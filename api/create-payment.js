@@ -1,14 +1,7 @@
 /**
- * PAYOS CREATE PAYMENT — Vercel Serverless Function
- * Tạo link thanh toán + lưu ánh xạ orderCode → {uid, plan} vào Firebase
+ * 💳 PAYOS CREATE PAYMENT — Vercel Serverless Function
  */
 import PayOS from '@payos/node';
-
-const payos = new PayOS(
-    process.env.PAYOS_CLIENT_ID,
-    process.env.PAYOS_API_KEY,
-    process.env.PAYOS_CHECKSUM_KEY
-);
 
 const FIREBASE_URL = 'https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app';
 
@@ -19,37 +12,46 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
-    try {
-        const { amount, plan, driverUid } = req.body;
+    if (!process.env.PAYOS_CLIENT_ID || !process.env.PAYOS_API_KEY || !process.env.PAYOS_CHECKSUM_KEY) {
+        return res.status(500).json({ success: false, error: 'Thiếu env PAYOS trên Vercel' });
+    }
 
-        if (!amount || !plan || !driverUid) {
-            return res.status(400).json({ success: false, error: 'Thiếu amount/plan/driverUid' });
+    try {
+        const { amount, plan, planName, driverUid, phone } = req.body || {};
+        const planFinal = plan || planName;
+        const uid = driverUid || phone;
+
+        if (!amount || !planFinal || !uid) {
+            return res.status(400).json({ success: false, error: 'Thiếu thông tin' });
         }
+
+        const payos = new PayOS(
+            process.env.PAYOS_CLIENT_ID,
+            process.env.PAYOS_API_KEY,
+            process.env.PAYOS_CHECKSUM_KEY
+        );
 
         const orderCode = Date.now();
 
-        // Lưu ánh xạ để webhook biết nạp cho AI, gói nào (không phụ thuộc description)
+        // Lưu ánh xạ để webhook biết nạp gói cho ai
         await fetch(`${FIREBASE_URL}/payment_pending/${orderCode}.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: driverUid, plan: plan, amount: amount, createdAt: Date.now() })
+            body: JSON.stringify({ uid: uid, plan: planFinal, amount: amount, createdAt: Date.now() })
         });
 
-        const baseUrl = process.env.BASE_URL || 'https://taxi-promax.vercel.app';
-
-        const paymentLink = await payos.createPaymentLink({
+        const baseUrl = 'https://taxi-promax.vercel.app';
+        const link = await payos.createPaymentLink({
             orderCode: orderCode,
             amount: amount,
             description: 'PROMAX ' + orderCode,
-            returnUrl: `${baseUrl}/?status=success&order=${orderCode}`,
-            cancelUrl: `${baseUrl}/?status=cancel`
+            returnUrl: baseUrl + '/?status=success&order=' + orderCode,
+            cancelUrl: baseUrl + '/?status=cancel'
         });
 
-        console.log(`[create-payment] ✅ order=${orderCode} amount=${amount} plan=${plan} uid=${driverUid}`);
-        return res.status(200).json({ success: true, checkoutUrl: paymentLink.checkoutUrl, orderCode: orderCode });
+        return res.status(200).json({ success: true, checkoutUrl: link.checkoutUrl, orderCode: orderCode });
 
     } catch (e) {
-        console.error('[create-payment] ❌', e.message);
         return res.status(500).json({ success: false, error: e.message });
     }
 }
