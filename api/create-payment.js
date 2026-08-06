@@ -14,9 +14,16 @@ export default async function handler(req, res) {
         const plan = body.plan || body.planName || 'PRO';
         const uid = body.driverUid || body.phone || 'KHACH';
 
-        if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'So tien sai' });
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ success: false, error: 'So tien sai' });
+        }
 
-        const payos = new PayOS(process.env.PAYOS_CLIENT_ID, process.env.PAYOS_API_KEY, process.env.PAYOS_CHECKSUM_KEY);
+        const payos = new PayOS(
+            process.env.PAYOS_CLIENT_ID,
+            process.env.PAYOS_API_KEY,
+            process.env.PAYOS_CHECKSUM_KEY
+        );
+
         const orderCode = Date.now();
 
         await fetch(FIREBASE_URL + '/payment_pending/' + orderCode + '.json', {
@@ -34,6 +41,7 @@ export default async function handler(req, res) {
         });
 
         return res.status(200).json({ success: true, checkoutUrl: link.checkoutUrl, orderCode: orderCode });
+
     } catch (e) {
         return res.status(500).json({ success: false, error: e.message });
     }
