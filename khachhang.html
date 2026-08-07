@@ -1861,7 +1861,7 @@
 <body>
 
 <!-- ============================================ -->
-<!-- AUTH SCREEN                                  -->
+<!-- AUTH SCREEN - Nâng cấp có mật khẩu + quên MK -->
 <!-- ============================================ -->
 <div class="auth-screen" id="authScreen">
     <div class="auth-logo">🚖</div>
@@ -1869,9 +1869,11 @@
     <div class="auth-subtitle">Đặt xe công nghệ — Nhanh chóng & An toàn</div>
 
     <div class="auth-box">
+        <!-- ĐĂNG KÝ -->
         <div id="stepRegister">
-            <input type="text" class="auth-input" id="regName" placeholder="Họ và tên của bạn">
-            <input type="tel" class="auth-input" id="regPhone" placeholder="Số điện thoại (VD: 0388724966)">
+            <input type="text" class="auth-input" id="regName" placeholder="Họ và tên của bạn" autocomplete="name">
+            <input type="tel" class="auth-input" id="regPhone" placeholder="Số điện thoại (VD: 0388724966)" autocomplete="tel">
+            <input type="password" class="auth-input" id="regPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password">
             <button class="auth-btn" id="btnRegister" onclick="doRegister()">
                 <i class="fas fa-user-plus"></i>
                 <span id="btnRegText">Đăng ký ngay</span>
@@ -1879,13 +1881,36 @@
             <div class="auth-error" id="regError"></div>
         </div>
 
+        <!-- ĐĂNG NHẬP -->
         <div id="stepLogin" style="display:none;">
-            <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
+            <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký" autocomplete="tel">
+            <input type="password" class="auth-input" id="loginPassword" placeholder="Mật khẩu" autocomplete="current-password">
             <button class="auth-btn" id="btnLogin" onclick="doLogin()">
                 <i class="fas fa-sign-in-alt"></i>
                 <span id="btnLoginText">Đăng nhập</span>
             </button>
+            <div style="text-align:right;margin:8px 0 4px;">
+                <a href="javascript:void(0)" onclick="showForgotPassword()" style="font-size:13px;color:var(--primary);font-weight:600;text-decoration:none;">
+                    Quên mật khẩu?
+                </a>
+            </div>
             <div class="auth-error" id="loginError"></div>
+        </div>
+
+        <!-- QUÊN MẬT KHẨU -->
+        <div id="stepForgot" style="display:none;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text-primary);">🔑 Quên mật khẩu</div>
+            <input type="tel" class="auth-input" id="forgotPhone" placeholder="Số điện thoại đã đăng ký" autocomplete="tel">
+            <input type="password" class="auth-input" id="forgotNewPassword" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" style="display:none;" autocomplete="new-password">
+            <input type="password" class="auth-input" id="forgotConfirmPassword" placeholder="Xác nhận mật khẩu mới" style="display:none;" autocomplete="new-password">
+            <button class="auth-btn" id="btnForgot" onclick="doForgot()">
+                <i class="fas fa-key"></i>
+                <span id="btnForgotText">Gửi mã xác nhận</span>
+            </button>
+            <div class="auth-error" id="forgotError"></div>
+            <button class="auth-toggle" onclick="showLoginFromForgot()" style="margin-top:12px;">
+                ← Quay lại đăng nhập
+            </button>
         </div>
 
         <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">
@@ -2769,9 +2794,19 @@ const TYPE_COLORS = {
 };
 
 // ==================== AUTHENTICATION ====================
+function hashPassword(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+        h = ((h << 5) - h) + str.charCodeAt(i);
+        h |= 0;
+    }
+    return 'h' + Math.abs(h).toString(36) + '_' + str.length;
+}
+
 async function doRegister() {
     const name = document.getElementById('regName').value.trim();
     const phone = document.getElementById('regPhone').value.trim();
+    const password = (document.getElementById('regPassword')?.value || '').trim();
     const btn = document.getElementById('btnRegister');
     const btnText = document.getElementById('btnRegText');
     const errorEl = document.getElementById('regError');
@@ -2789,6 +2824,12 @@ async function doRegister() {
         errorEl.style.display = 'block';
         return;
     }
+
+    if (!password || password.length < 6) {
+        errorEl.textContent = '⚠️ Mật khẩu tối thiểu 6 ký tự';
+        errorEl.style.display = 'block';
+        return;
+    }
     
     btn.disabled = true;
     btnText.textContent = 'Đang xử lý...';
@@ -2796,7 +2837,7 @@ async function doRegister() {
     try {
         const snapshot = await db.ref('customers').once('value');
         const allUsers = snapshot.val() || {};
-        const exists = Object.values(allUsers).some(user => user.phone === phone);
+        const exists = Object.values(allUsers).some(user => user && user.phone === phone);
         
         if (exists) {
             errorEl.textContent = '⚠️ Số điện thoại đã đăng ký! Vui lòng đăng nhập.';
@@ -2811,6 +2852,7 @@ async function doRegister() {
             uid: uid,
             name: name,
             phone: phone,
+            passwordHash: hashPassword(password + phone),
             createdAt: Date.now(),
             totalRides: 0,
             rating: 5.0,
@@ -2837,6 +2879,7 @@ async function doRegister() {
 
 async function doLogin() {
     const phone = document.getElementById('loginPhone').value.trim();
+    const password = (document.getElementById('loginPassword')?.value || '').trim();
     const btn = document.getElementById('btnLogin');
     const btnText = document.getElementById('btnLoginText');
     const errorEl = document.getElementById('loginError');
@@ -2848,6 +2891,12 @@ async function doLogin() {
         errorEl.style.display = 'block';
         return;
     }
+
+    if (!password) {
+        errorEl.textContent = '⚠️ Vui lòng nhập mật khẩu';
+        errorEl.style.display = 'block';
+        return;
+    }
     
     btn.disabled = true;
     btnText.textContent = 'Đang xử lý...';
@@ -2855,12 +2904,23 @@ async function doLogin() {
     try {
         const snapshot = await db.ref('customers').once('value');
         const allUsers = snapshot.val() || {};
-        const user = Object.values(allUsers).find(u => u.phone === phone);
+        const user = Object.values(allUsers).find(u => u && u.phone === phone);
         
         if (!user) {
             errorEl.textContent = '⚠️ Số điện thoại chưa đăng ký!';
             errorEl.style.display = 'block';
             return;
+        }
+
+        // Hỗ trợ cả tài khoản cũ (chưa có mật khẩu) và tài khoản mới
+        if (user.passwordHash) {
+            const h1 = hashPassword(password + phone);
+            const h2 = hashPassword(password);
+            if (user.passwordHash !== h1 && user.passwordHash !== h2) {
+                errorEl.textContent = '⚠️ Sai mật khẩu';
+                errorEl.style.display = 'block';
+                return;
+            }
         }
         
         currentUser = user;
@@ -2881,9 +2941,13 @@ async function doLogin() {
 function toggleAuth() {
     const registerStep = document.getElementById('stepRegister');
     const loginStep = document.getElementById('stepLogin');
+    const forgotStep = document.getElementById('stepForgot');
     const toggleBtn = document.getElementById('btnToggle');
     
-    if (document.getElementById('stepRegister').style.display !== 'none') {
+    if (forgotStep) forgotStep.style.display = 'none';
+    if (toggleBtn) toggleBtn.style.display = 'block';
+    
+    if (registerStep.style.display !== 'none') {
         registerStep.style.display = 'none';
         loginStep.style.display = 'block';
         toggleBtn.textContent = 'Chưa có tài khoản? Đăng ký';
@@ -2891,6 +2955,133 @@ function toggleAuth() {
         registerStep.style.display = 'block';
         loginStep.style.display = 'none';
         toggleBtn.textContent = 'Đã có tài khoản? Đăng nhập';
+    }
+}
+
+function showForgotPassword() {
+    document.getElementById('stepRegister').style.display = 'none';
+    document.getElementById('stepLogin').style.display = 'none';
+    document.getElementById('stepForgot').style.display = 'block';
+    const toggleBtn = document.getElementById('btnToggle');
+    if (toggleBtn) toggleBtn.style.display = 'none';
+
+    // Reset form quên mật khẩu
+    document.getElementById('forgotPhone').style.display = 'block';
+    document.getElementById('forgotPhone').value = '';
+    document.getElementById('forgotNewPassword').style.display = 'none';
+    document.getElementById('forgotNewPassword').value = '';
+    document.getElementById('forgotConfirmPassword').style.display = 'none';
+    document.getElementById('forgotConfirmPassword').value = '';
+    document.getElementById('btnForgotText').textContent = 'Gửi mã xác nhận';
+    document.getElementById('forgotError').style.display = 'none';
+    window._forgotStep = 1;
+    window._forgotUser = null;
+    window._forgotUid = null;
+}
+
+function showLoginFromForgot() {
+    document.getElementById('stepForgot').style.display = 'none';
+    document.getElementById('stepLogin').style.display = 'block';
+    const toggleBtn = document.getElementById('btnToggle');
+    if (toggleBtn) {
+        toggleBtn.style.display = 'block';
+        toggleBtn.textContent = 'Chưa có tài khoản? Đăng ký';
+    }
+}
+
+async function doForgot() {
+    const phone = document.getElementById('forgotPhone').value.trim();
+    const newPass = (document.getElementById('forgotNewPassword')?.value || '').trim();
+    const confirmPass = (document.getElementById('forgotConfirmPassword')?.value || '').trim();
+    const errorEl = document.getElementById('forgotError');
+    const btnText = document.getElementById('btnForgotText');
+    const btn = document.getElementById('btnForgot');
+    
+    errorEl.style.display = 'none';
+    
+    // Bước 1: Kiểm tra số điện thoại
+    if (!window._forgotStep || window._forgotStep === 1) {
+        if (!/^0[0-9]{9}$/.test(phone)) {
+            errorEl.textContent = '⚠️ Số điện thoại không hợp lệ';
+            errorEl.style.display = 'block';
+            return;
+        }
+        
+        btn.disabled = true;
+        btnText.textContent = 'Đang kiểm tra...';
+        
+        try {
+            const snapshot = await db.ref('customers').once('value');
+            const allUsers = snapshot.val() || {};
+            let foundUid = null;
+            let foundUser = null;
+            
+            for (const [key, u] of Object.entries(allUsers)) {
+                if (u && u.phone === phone) {
+                    foundUid = key;
+                    foundUser = u;
+                    break;
+                }
+            }
+            
+            if (!foundUser) {
+                errorEl.textContent = '⚠️ Số điện thoại chưa đăng ký';
+                errorEl.style.display = 'block';
+                return;
+            }
+            
+            // Demo: giả lập gửi mã SMS, chuyển sang bước đặt lại mật khẩu
+            showToast('✅ Đã gửi mã xác nhận (demo). Vui lòng đặt mật khẩu mới', 'success');
+            document.getElementById('forgotPhone').style.display = 'none';
+            document.getElementById('forgotNewPassword').style.display = 'block';
+            document.getElementById('forgotConfirmPassword').style.display = 'block';
+            btnText.textContent = 'Đặt lại mật khẩu';
+            window._forgotStep = 2;
+            window._forgotUser = foundUser;
+            window._forgotUid = foundUid;
+            
+        } catch (e) {
+            errorEl.textContent = '⚠️ Lỗi: ' + e.message;
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            if (window._forgotStep === 1) btnText.textContent = 'Gửi mã xác nhận';
+        }
+        return;
+    }
+    
+    // Bước 2: Đặt mật khẩu mới
+    if (newPass.length < 6) {
+        errorEl.textContent = '⚠️ Mật khẩu tối thiểu 6 ký tự';
+        errorEl.style.display = 'block';
+        return;
+    }
+    if (newPass !== confirmPass) {
+        errorEl.textContent = '⚠️ Mật khẩu xác nhận không khớp';
+        errorEl.style.display = 'block';
+        return;
+    }
+    
+    btn.disabled = true;
+    btnText.textContent = 'Đang cập nhật...';
+    
+    try {
+        const newHash = hashPassword(newPass + phone);
+        await db.ref('customers/' + window._forgotUid).update({
+            passwordHash: newHash
+        });
+        
+        showToast('✅ Đặt lại mật khẩu thành công! Vui lòng đăng nhập', 'success');
+        showLoginFromForgot();
+        document.getElementById('loginPhone').value = phone;
+        document.getElementById('loginPassword').value = '';
+        
+    } catch (e) {
+        errorEl.textContent = '⚠️ Lỗi: ' + e.message;
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Đặt lại mật khẩu';
     }
 }
 
@@ -4121,168 +4312,10 @@ console.log('⚡ Suy đoán điểm đến nhanh');
         });
     }
 
-    /* ===== 2) AUTH MODULE - Đăng nhập/đăng ký/quên MK ===== */
-    function hashPassword(str) {
-        var h = 0;
-        for (var i = 0; i < str.length; i++) {
-            h = ((h << 5) - h) + str.charCodeAt(i);
-            h |= 0;
-        }
-        return 'h' + Math.abs(h).toString(36) + '_' + str.length;
-    }
-
-    // Kiểm tra xem đã có form auth chưa
-    function checkAuthUI() {
-        var authScreen = document.getElementById('authScreen');
-        if (!authScreen) {
-            createAuthUI();
-        }
-    }
-
-    function createAuthUI() {
-        var authHTML = `
-        <div id="authScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0066FF,#00C853);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;">
-            <div style="background:#fff;border-radius:24px;padding:32px;width:100%;max-width:400px;">
-                <div style="text-align:center;margin-bottom:24px;">
-                    <div style="font-size:48px;">🚖</div>
-                    <div style="font-size:24px;font-weight:900;color:#0066FF;">Taxi ProMax</div>
-                    <div style="font-size:13px;color:#666;">Đặt xe nhanh chóng, an toàn</div>
-                </div>
-                
-                <div id="authMode" style="display:none;">
-                    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🔐 Đăng nhập</div>
-                    <input id="loginPhone" type="tel" placeholder="Số điện thoại" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
-                    <input id="loginPassword" type="password" placeholder="Mật khẩu" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
-                    <button onclick="doLogin()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Đăng nhập</button>
-                    <button onclick="showForgot()" style="width:100%;padding:12px;background:transparent;color:#0066FF;border:none;font-weight:600;margin-top:8px;cursor:pointer;">Quên mật khẩu?</button>
-                    <div style="text-align:center;margin-top:16px;">
-                        <span style="color:#666;font-size:13px;">Chưa có tài khoản? </span>
-                        <a href="#" onclick="showRegister();return false;" style="color:#0066FF;font-weight:700;">Đăng ký</a>
-                    </div>
-                </div>
-
-                <div id="registerMode" style="display:none;">
-                    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">📝 Đăng ký</div>
-                    <input id="regName" type="text" placeholder="Họ và tên" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
-                    <input id="regPhone" type="tel" placeholder="Số điện thoại" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
-                    <input id="regPassword" type="password" placeholder="Mật khẩu (6+ ký tự)" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:16px;font-size:14px;">
-                    <button onclick="doRegister()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Đăng ký</button>
-                    <div style="text-align:center;margin-top:16px;">
-                        <span style="color:#666;font-size:13px;">Đã có tài khoản? </span>
-                        <a href="#" onclick="showLogin();return false;" style="color:#0066FF;font-weight:700;">Đăng nhập</a>
-                    </div>
-                </div>
-
-                <div id="forgotMode" style="display:none;">
-                    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🔑 Quên mật khẩu</div>
-                    <input id="forgotPhone" type="tel" placeholder="Số điện thoại đã đăng ký" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">
-                    <button onclick="doForgot()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Gửi mã xác nhận</button>
-                    <button onclick="showLogin()" style="width:100%;padding:12px;background:transparent;color:#0066FF;border:none;font-weight:600;margin-top:8px;cursor:pointer;">← Quay lại đăng nhập</button>
-                </div>
-            </div>
-        </div>`;
-        document.body.insertAdjacentHTML('afterbegin', authHTML);
-        showLogin();
-    }
-
-    window.showLogin = function() {
-        document.getElementById('authMode').style.display = 'block';
-        document.getElementById('registerMode').style.display = 'none';
-        document.getElementById('forgotMode').style.display = 'none';
-    };
-
-    window.showRegister = function() {
-        document.getElementById('authMode').style.display = 'none';
-        document.getElementById('registerMode').style.display = 'block';
-        document.getElementById('forgotMode').style.display = 'none';
-    };
-
-    window.showForgot = function() {
-        document.getElementById('authMode').style.display = 'none';
-        document.getElementById('registerMode').style.display = 'none';
-        document.getElementById('forgotMode').style.display = 'block';
-    };
-
-    window.doLogin = async function() {
-        var phone = document.getElementById('loginPhone').value.trim();
-        var password = document.getElementById('loginPassword').value;
-        if (!phone || !password) {
-            showToast('⚠️ Vui lòng điền đầy đủ', 'error');
-            return;
-        }
-        try {
-            var snap = await db.ref('customers').once('value');
-            var user = null, uid = null;
-            if (snap.exists()) {
-                snap.forEach(function(c) {
-                    var v = c.val();
-                    if (v && (String(v.phone) === phone || c.key === phone)) {
-                        uid = c.key;
-                        user = v;
-                    }
-                });
-            }
-            if (!user) {
-                showToast('❌ SĐT chưa đăng ký', 'error');
-                return;
-            }
-            var h1 = hashPassword(password + phone);
-            var h2 = hashPassword(password);
-            if (user.passwordHash && user.passwordHash !== h1 && user.passwordHash !== h2) {
-                showToast('❌ Sai mật khẩu', 'error');
-                return;
-            }
-            user.uid = uid;
-            window.currentUser = user;
-            localStorage.setItem('customerInfo', JSON.stringify(user));
-            document.getElementById('authScreen').style.display = 'none';
-            showToast('✅ Chào ' + user.name, 'success');
-        } catch(e) {
-            showToast('❌ Lỗi: ' + e.message, 'error');
-        }
-    };
-
-    window.doRegister = async function() {
-        var name = document.getElementById('regName').value.trim();
-        var phone = document.getElementById('regPhone').value.trim();
-        var password = document.getElementById('regPassword').value;
-        if (!name || !phone || !password) {
-            showToast('⚠️ Vui lòng điền đầy đủ', 'error');
-            return;
-        }
-        if (password.length < 6) {
-            showToast('⚠️ Mật khẩu tối thiểu 6 ký tự', 'error');
-            return;
-        }
-        var uid = 'KH_' + Date.now().toString(36).toUpperCase();
-        var data = {
-            uid: uid,
-            name: name,
-            phone: phone,
-            passwordHash: hashPassword(password + phone),
-            createdAt: Date.now()
-        };
-        try {
-            await db.ref('customers/' + uid).set(data);
-            window.currentUser = data;
-            localStorage.setItem('customerInfo', JSON.stringify(data));
-            document.getElementById('authScreen').style.display = 'none';
-            showToast('✅ Đăng ký thành công!', 'success');
-        } catch(e) {
-            showToast('❌ Lỗi: ' + e.message, 'error');
-        }
-    };
-
-    window.doForgot = async function() {
-        var phone = document.getElementById('forgotPhone').value.trim();
-        if (!phone) {
-            showToast('⚠️ Nhập số điện thoại', 'error');
-            return;
-        }
-        showToast('✅ Đã gửi mã xác nhận về SMS (demo)', 'success');
-        setTimeout(showLogin, 2000);
-    };
-
+    /* ===== 2) AUTH MODULE - ĐÃ TẮT (đã tích hợp vào auth gốc) ===== */
+    // Auth chính đã được nâng cấp ở phần AUTHENTICATION phía trên.
+    // Không tạo UI trùng và không ghi đè doLogin / doRegister nữa.
+    
     /* ===== 3) LEGAL LINKS - Thêm vào menu ===== */
     function addLegalLinks() {
         var menuSidebar = document.getElementById('menuSidebar');
@@ -4433,7 +4466,7 @@ console.log('⚡ Suy đoán điểm đến nhanh');
 
     /* ===== 7) BOOT - Khởi động ===== */
     function boot() {
-        checkAuthUI();
+        // Auth UI đã tích hợp sẵn trong HTML gốc
         addLegalLinks();
         addCustomerMenuItems();
         
