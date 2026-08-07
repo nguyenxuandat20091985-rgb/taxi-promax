@@ -4642,5 +4642,68 @@ console.log('⚡ Suy đoán điểm đến nhanh');
     console.log('✅ AUTH RESCUE v1 loaded');
 })();
 </script>
+<!-- ========== 🔐 AUTH RESCUE v2 - đè ngược mọi bản vá hỏng ========== -->
+<script>
+(function(){
+    function hashPassword(str){ var h=0; for(var i=0;i<str.length;i++){ h=((h<<5)-h)+str.charCodeAt(i); h|=0; } return 'h'+Math.abs(h).toString(36)+'_'+str.length; }
+    function showErr(m){
+        var e=document.getElementById('regError')||document.getElementById('loginError');
+        if(e){ e.textContent=m; e.style.display='block'; }
+        if(typeof showToast==='function') showToast(m,'error');
+    }
+    function enterApp(u){
+        window.currentUser=u;
+        try{ localStorage.setItem('txUser',JSON.stringify(u)); localStorage.setItem('customerInfo',JSON.stringify(u)); }catch(e){}
+        var as=document.getElementById('authScreen'); if(as) as.style.display='none';
+        if(typeof showToast==='function') showToast('✅ Chào '+(u.name||'bạn')+'!','success');
+        if(typeof initializeApp==='function') setTimeout(initializeApp,300);
+    }
+
+    function myRegister(){
+        var name=((document.getElementById('regName')||{}).value||'').trim();
+        var phone=((document.getElementById('regPhone')||{}).value||'').trim();
+        if(name.length<2) return showErr('⚠️ Vui lòng nhập họ tên');
+        if(!/^0[0-9]{9,10}$/.test(phone)) return showErr('⚠️ SĐT không hợp lệ (VD: 0388724966)');
+        var btn=document.getElementById('btnRegister'), txt=document.getElementById('btnRegText');
+        if(btn)btn.disabled=true; if(txt)txt.textContent='Đang xử lý...';
+        db.ref('customers').once('value').then(function(snap){
+            var exists=false, val=snap.val()||{};
+            Object.keys(val).forEach(function(k){ if(val[k]&&String(val[k].phone)===phone) exists=true; });
+            if(exists){ showErr('⚠️ SĐT đã đăng ký — bấm Đăng nhập'); return; }
+            var uid='kh_'+Date.now();
+            var u={ uid:uid, name:name, phone:phone, createdAt:Date.now(), totalRides:0, rating:5.0, inviteCode:uid.slice(-8).toUpperCase(), coins:0 };
+            return db.ref('customers/'+uid).set(u).then(function(){ enterApp(u); });
+        }).catch(function(e){ showErr('⚠️ Lỗi: '+e.message); })
+        .finally(function(){ if(btn)btn.disabled=false; if(txt)txt.textContent='Đăng ký ngay'; });
+    }
+
+    function myLogin(){
+        var phone='', pass='';
+        var inputs=document.querySelectorAll('#authScreen input');
+        for(var i=0;i<inputs.length;i++){
+            var el=inputs[i]; if(el.offsetParent===null) continue;
+            if(el.type==='tel') phone=el.value.trim();
+            if(el.type==='password') pass=el.value;
+        }
+        if(!phone) return showErr('⚠️ Nhập số điện thoại');
+        db.ref('customers').once('value').then(function(snap){
+            var found=null, fuid=null, val=snap.val()||{};
+            Object.keys(val).forEach(function(k){ if(val[k]&&String(val[k].phone)===phone){ found=val[k]; fuid=k; } });
+            if(!found) return showErr('❌ SĐT chưa đăng ký — bấm Đăng ký');
+            if(found.passwordHash){
+                var h1=hashPassword(pass+phone), h2=hashPassword(pass);
+                if(found.passwordHash!==h1 && found.passwordHash!==h2) return showErr('❌ Sai mật khẩu');
+            }
+            found.uid=fuid; enterApp(found);
+        }).catch(function(e){ showErr('⚠️ Lỗi: '+e.message); });
+    }
+
+    /* GIỮ CHẮC: đè lại 6 lần trong 5 giây — không bản vá nào cướp được */
+    function assert(){ window.doRegister=myRegister; window.doLogin=myLogin; }
+    assert();
+    var c=0; var iv=setInterval(function(){ assert(); if(++c>6) clearInterval(iv); },800);
+    console.log('✅ AUTH RESCUE v2 loaded');
+})();
+</script>
 </body>
 </html>
