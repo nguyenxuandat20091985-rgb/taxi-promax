@@ -113,3 +113,20 @@ function setupCustomerMarker(lat, lng, clientName) {
         map.setView([lat, lng], 16);
     }
 }
+// Tự động bật xin quyền GPS ngay khi app vừa mở lên
+window.addEventListener('DOMContentLoaded', function() {
+    // Đợi 1 giây cho app load ổn định rồi tự động gọi bảng xin quyền
+    setTimeout(function() {
+        if (window.ProMaxLocation) {
+            ProMaxLocation.ensurePermission().then(function(granted) {
+                if (granted) {
+                    console.log("🟢 Tài xế đã cấp quyền GPS, bắt đầu chạy định vị...");
+                    startTracking(); // Gọi hàm chạy GPS và đồng hồ
+                } else {
+                    // Nếu tài xế lỡ bấm Chặn trước đó, hiện bảng thông báo to để hướng dẫn chạm vào ổ khóa bật lại
+                    alert("⚠️ Taxi Promax cần quyền GPS để tính cước. Vui lòng bấm 'Cho phép' khi trình duyệt hỏi, hoặc bấm vào biểu tượng ổ khóa trên thanh địa chỉ để bật lại vị trí!");
+                }
+            });
+        }
+    }, 1000);
+});
