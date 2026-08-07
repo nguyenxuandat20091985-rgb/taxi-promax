@@ -32,10 +32,18 @@ export default async function handler(req, res) {
             body: JSON.stringify({ uid: uid, plan: plan, amount: amount, createdAt: Date.now() })
         });
 
+        // Đã bổ sung thêm trường items bắt buộc của PayOS
         const link = await payos.createPaymentLink({
             orderCode: orderCode,
-            amount: amount,
+            amount: Number(amount),
             description: 'PROMAX ' + orderCode,
+            items: [
+                {
+                    name: 'Gói cước ' + plan,
+                    quantity: 1,
+                    price: Number(amount)
+                }
+            ],
             returnUrl: 'https://taxi-promax.vercel.app/?status=success',
             cancelUrl: 'https://taxi-promax.vercel.app/?status=cancel'
         });
