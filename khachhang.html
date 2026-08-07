@@ -4458,4 +4458,124 @@ console.log('⚡ Suy đoán điểm đến nhanh');
 </script>
 <script src="js/location-core.js"></script>
 </body>
+<!-- ========== 🔐 AUTH PRO v1 - đăng ký/đăng nhập chống lỗi ========== -->
+<script>
+(function(){
+    var tries = 0;
+    function hashPassword(str){ var h=0; for(var i=0;i<str.length;i++){ h=((h<<5)-h)+str.charCodeAt(i); h|=0; } return 'h'+Math.abs(h).toString(36)+'_'+str.length; }
+    function err(msg){ console.error('[AUTH]',msg); if(typeof showToast==='function')showToast(msg,'error'); var e=document.getElementById('authErr'); if(e){e.textContent=msg;e.style.display='block';} }
+    function ok(msg){ if(typeof showToast==='function')showToast(msg,'success'); }
+
+    /* ===== Vào app: lưu phiên + cập nhật menu ===== */
+    function enterApp(u){
+        window.currentUser = u;
+        try{ localStorage.setItem('customerInfo', JSON.stringify(u)); }catch(e){}
+        var as=document.getElementById('authScreen'); if(as) as.remove();
+        /* dummy chặn module cũ tạo lại form */
+        var dummy=document.createElement('div'); dummy.id='authScreen'; dummy.style.display='none'; document.body.appendChild(dummy);
+        try{
+            var n=document.querySelector('.menu-user-name'); if(n)n.textContent=u.name||'Khách';
+            var p=document.querySelector('.menu-user-phone'); if(p)p.textContent=u.phone||'';
+            var idEl=document.querySelector('.menu-user-id'); if(idEl)idEl.textContent=u.uid||'';
+            var badge=document.querySelector('.user-badge'); if(badge){ badge.style.display='flex'; var un=badge.querySelector('.user-name'); if(un)un.textContent=u.name||''; }
+        }catch(e){}
+        ok('✅ Chào '+(u.name||'bạn')+'!');
+    }
+
+    /* ===== Đăng nhập ===== */
+    function doLogin(){
+        var phone=(document.getElementById('loginPhone').value||'').trim();
+        var pass=document.getElementById('loginPassword').value||'';
+        if(!/^0\d{9,10}$/.test(phone)) return err('⚠️ SĐT không hợp lệ');
+        if(!pass) return err('⚠️ Nhập mật khẩu');
+        db.ref('customers').once('value').then(function(snap){
+            var found=null, fuid=null;
+            snap.forEach(function(c){ var v=c.val(); if(v&&String(v.phone)===phone){ found=v; fuid=c.key; } });
+            if(!found) return err('❌ SĐT chưa đăng ký');
+            var h1=hashPassword(pass+phone), h2=hashPassword(pass);
+            if(found.passwordHash && found.passwordHash!==h1 && found.passwordHash!==h2) return err('❌ Sai mật khẩu');
+            found.uid=fuid; enterApp(found);
+        }).catch(function(e){ err('❌ Lỗi kết nối: '+e.message); });
+    }
+
+    /* ===== Đăng ký ===== */
+    function doRegister(){
+        var name=(document.getElementById('regName').value||'').trim();
+        var phone=(document.getElementById('regPhone').value||'').trim();
+        var pass=document.getElementById('regPassword').value||'';
+        if(name.length<2) return err('⚠️ Nhập họ tên');
+        if(!/^0\d{9,10}$/.test(phone)) return err('⚠️ SĐT không hợp lệ');
+        if(pass.length<6) return err('⚠️ Mật khẩu tối thiểu 6 ký tự');
+        db.ref('customers').once('value').then(function(snap){
+            var dup=false;
+            snap.forEach(function(c){ var v=c.val(); if(v&&String(v.phone)===phone) dup=true; });
+            if(dup) return err('❌ SĐT đã đăng ký — hãy đăng nhập');
+            var uid='KH_'+Date.now().toString(36).toUpperCase();
+            var data={ uid:uid, name:name, phone:phone, passwordHash:hashPassword(pass+phone), createdAt:Date.now() };
+            return db.ref('customers/'+uid).set(data).then(function(){ enterApp(data); });
+        }).catch(function(e){ err('❌ Lỗi đăng ký: '+e.message); });
+    }
+
+    /* ===== Quên mật khẩu (demo) ===== */
+    function doForgot(){ err('📞 Gọi 0388724966 để lấy lại mật khẩu'); }
+
+    function showMode(m){
+        ['authMode','registerMode','forgotMode'].forEach(function(id){
+            var el=document.getElementById(id); if(el) el.style.display=(id===m)?'block':'none';
+        });
+        var e=document.getElementById('authErr'); if(e) e.style.display='none';
+    }
+
+    /* ===== Dựng form (buộc nút bằng addEventListener — không dùng onclick) ===== */
+    function buildAuth(){
+        var old=document.getElementById('authScreen'); if(old) old.remove();
+        var div=document.createElement('div');
+        div.id='authScreen';
+        div.style.cssText='position:fixed;inset:0;background:linear-gradient(135deg,#0066FF,#00C853);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
+        div.innerHTML=
+        '<div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:400px;">' +
+        '<div style="text-align:center;margin-bottom:20px;"><div style="font-size:44px;">🚖</div><div style="font-size:22px;font-weight:900;color:#0066FF;">Taxi ProMax</div><div style="font-size:12px;color:#666;">Đặt xe nhanh chóng, an toàn</div></div>' +
+        '<div id="authErr" style="display:none;background:#FFEBEE;color:#D32F2F;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:12px;"></div>' +
+        '<div id="authMode"><div style="font-size:15px;font-weight:700;margin-bottom:12px;">🔐 Đăng nhập</div>' +
+        '<input id="loginPhone" type="tel" placeholder="Số điện thoại" style="width:100%;padding:13px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:10px;font-size:14px;">' +
+        '<input id="loginPassword" type="password" placeholder="Mật khẩu" style="width:100%;padding:13px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">' +
+        '<button id="btnLogin" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Đăng nhập</button>' +
+        '<div style="text-align:center;margin-top:14px;"><span style="color:#666;font-size:13px;">Chưa có tài khoản? </span><a href="#" id="linkRegister" style="color:#0066FF;font-weight:700;">Đăng ký</a></div></div>' +
+        '<div id="registerMode" style="display:none;"><div style="font-size:15px;font-weight:700;margin-bottom:12px;">📝 Đăng ký</div>' +
+        '<input id="regName" type="text" placeholder="Họ và tên" style="width:100%;padding:13px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:10px;font-size:14px;">' +
+        '<input id="regPhone" type="tel" placeholder="Số điện thoại" style="width:100%;padding:13px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:10px;font-size:14px;">' +
+        '<input id="regPassword" type="password" placeholder="Mật khẩu (6+ ký tự)" style="width:100%;padding:13px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">' +
+        '<button id="btnRegister" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;">Đăng ký</button>' +
+        '<div style="text-align:center;margin-top:14px;"><span style="color:#666;font-size:13px;">Đã có tài khoản? </span><a href="#" id="linkLogin" style="color:#0066FF;font-weight:700;">Đăng nhập</a></div></div>' +
+        '<div id="forgotMode" style="display:none;"><div style="font-size:15px;font-weight:700;margin-bottom:12px;">🔑 Quên mật khẩu</div>' +
+        '<input id="forgotPhone" type="tel" placeholder="SĐT đã đăng ký" style="width:100%;padding:13px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:12px;font-size:14px;">' +
+        '<button id="btnForgot" style="width:100%;padding:14px;background:linear-gradient(135deg,#0066FF,#00C853);color:#fff;border:none;border-radius:12px;font-weight:800;cursor:pointer;">Lấy lại mật khẩu</button>' +
+        '<div style="text-align:center;margin-top:10px;"><a href="#" id="linkLogin2" style="color:#0066FF;font-weight:700;font-size:13px;">← Quay lại đăng nhập</a></div></div>' +
+        '</div>';
+        document.body.appendChild(div);
+        div.querySelector('#btnLogin').addEventListener('click', doLogin);
+        div.querySelector('#btnRegister').addEventListener('click', doRegister);
+        div.querySelector('#btnForgot').addEventListener('click', doForgot);
+        div.querySelector('#linkRegister').addEventListener('click', function(e){ e.preventDefault(); showMode('registerMode'); });
+        div.querySelector('#linkLogin').addEventListener('click', function(e){ e.preventDefault(); showMode('authMode'); });
+        div.querySelector('#linkLogin2').addEventListener('click', function(e){ e.preventDefault(); showMode('authMode'); });
+        /* ghi đè hàm cũ để nút cũ (nếu còn) cũng chạy code mới */
+        window.doLogin = doLogin; window.doRegister = doRegister;
+        showMode('authMode');
+    }
+
+    /* ===== Boot: chờ Firebase, tự đăng nhập nếu có phiên ===== */
+    function boot(){
+        tries++;
+        if (typeof db === 'undefined') { if (tries < 10) setTimeout(boot, 800); else err('❌ Lỗi khởi động Firebase'); return; }
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem('customerInfo') || 'null'); } catch(e){}
+        if (saved && saved.uid) enterApp(saved);
+        else buildAuth();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+    console.log('✅ AUTH PRO v1 loaded');
+})();
+</script>
 </html>
