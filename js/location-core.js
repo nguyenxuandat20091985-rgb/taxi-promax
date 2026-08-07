@@ -49,7 +49,7 @@ M.ensurePermission = function(){
 var drvTimer=null, speed=0;
 M.startDriver = function(opts){
     opts=opts||{};
-    function interval(){ return speed>80?500:(speed>20?1000:(speed>2?1800:6000)); } // tối ưu pin
+    function interval(){ return speed>80?500:(speed>20?1000:1500); } // Tối ưu pin - thay đổi theo yêu cầu
     (function loop(){
         drvTimer=setTimeout(function(){
             navigator.geolocation.getCurrentPosition(function(p){
