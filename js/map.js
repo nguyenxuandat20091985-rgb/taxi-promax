@@ -1,4 +1,4 @@
-// js/map.js - Quản lý bản đồ và GPS
+// js/map.js - Quản lý bản đồ và GPS (Tích hợp ProMaxLocation Core)
 var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -17,7 +17,6 @@ var smIcon = L.divIcon({
 });
 
 var marker = null;
-var lastPos = null;
 var currentHeading = 0;
 var customerMarker = null;
 
@@ -39,46 +38,51 @@ function updateMarkerRotation() {
     }
 }
 
-// Định vị GPS
+// Định vị GPS - Sử dụng ProMaxLocation Core để chống trôi và tiết kiệm pin
 function startTracking() {
-    if ("geolocation" in navigator) {
-        navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude, speed, heading } = pos.coords;
-            const newPos = L.latLng(latitude, longitude);
-            
-            if (heading !== null && heading !== undefined && !isNaN(heading)) {
-                currentHeading = Math.round(heading);
+    if (window.ProMaxLocation) {
+        ProMaxLocation.ensurePermission().then(function(granted) {
+            if (!granted) {
+                console.warn("Chưa được cấp quyền vị trí!");
+                return;
             }
 
-            if (!marker) {
-                marker = L.marker(newPos, { icon: smIcon }).addTo(map);
-                map.setView(newPos, 16);
-            } else {
-                marker.setLatLng(newPos);
-            }
-            
-            updateMarkerRotation();
-            
-            const currentSpeed = (speed !== null && speed !== undefined) ? speed : 0;
-            
-            // Xử lý logic hành trình (gọi hàm từ index.html)
-            if(typeof onLocationUpdate === 'function') {
-                onLocationUpdate(newPos, currentSpeed);
-            }
+            ProMaxLocation.startDriver({
+                onFix: function(fix) {
+                    const newPos = L.latLng(fix.lat, fix.lng);
+                    
+                    if (!marker) {
+                        marker = L.marker(newPos, { icon: smIcon }).addTo(map);
+                        map.setView(newPos, 16);
+                    } else {
+                        marker.setLatLng(newPos);
+                    }
+                    
+                    updateMarkerRotation();
+                    
+                    // Xử lý logic hành trình (gọi hàm từ index.html)
+                    if(typeof onLocationUpdate === 'function') {
+                        onLocationUpdate(newPos, fix.speed);
+                    }
 
-            lastPos = newPos;
-            syncDriverLocationToFirebase(latitude, longitude);
-
-        }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
+                    // Đồng bộ lên Firebase
+                    syncDriverLocationToFirebase(fix.lat, fix.lng, fix.speed);
+                }
+            });
+        });
+    } else {
+        console.error("Lỗi: Chưa nạp file location-core.js trước map.js!");
     }
 }
 
-function syncDriverLocationToFirebase(lat, lng) {
-    // Lưu ý: FIREBASE_BASE_URL và TX_ID được định nghĩa ở index.html
+function syncDriverLocationToFirebase(lat, lng, speed) {
+    if (typeof FIREBASE_BASE_URL === 'undefined' || typeof TX_ID === 'undefined') return;
+
     const driverData = {
         lat: lat,
         lng: lng,
         heading: currentHeading, 
+        speed: speed,
         lastUpdated: Date.now(),
         status: (typeof isRunning !== 'undefined' && isRunning) ? "busy" : "ready",
         carType: "4_seats"
