@@ -6853,5 +6853,96 @@
     console.log('✅ [GPS FINAL v4] Loaded');
 })();
 </script>
+<!-- ========== 🧓 AUTO GPS GUIDE v1 - tự phát hiện + tự mở cài đặt ========== -->
+<script>
+(function(){
+    var shown = sessionStorage.getItem('gpsGuideShown') === '1';
+
+    /* ===== Overlay chữ TO cho người trung tuổi ===== */
+    function buildOverlay(){
+        var ov = document.getElementById('gpsGuide');
+        if (ov) return ov;
+        ov = document.createElement('div');
+        ov.id = 'gpsGuide';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:40000;display:none;align-items:center;justify-content:center;padding:16px;';
+        ov.innerHTML =
+        '<div style="background:#fff;border-radius:24px;padding:24px;max-width:400px;width:100%;text-align:center;">' +
+        '<div style="font-size:44px;">📡</div>' +
+        '<div style="font-size:20px;font-weight:900;margin:8px 0;">GPS chưa chính xác</div>' +
+        '<div style="font-size:15px;color:#475569;line-height:1.6;">Máy đang <b>che vị trí thật</b> của anh.<br>Chỉ cần <b>1 chạm</b> dưới đây là xong!</div>' +
+        '<button id="ggOpen" style="width:100%;margin-top:16px;padding:18px;border:none;border-radius:16px;background:#16a34a;color:#fff;font-size:18px;font-weight:900;cursor:pointer;">🔧 MỞ CÀI ĐẶT NGAY</button>' +
+        '<div id="ggSteps" style="display:none;margin-top:14px;background:#f0fdf4;border:2px dashed #86efac;border-radius:14px;padding:14px;text-align:left;font-size:15px;line-height:2;">' +
+        '<b>3 BƯỚC (1 phút):</b><br>1️⃣ Màn hình Cài đặt vừa mở ra<br>2️⃣ Tìm dòng <b>"Vị trí chính xác"</b> → gạt sang <b>BẬT</b> ✅<br>3️⃣ Quay lại app — tự app kiểm tra, không phải bấm gì thêm</div>' +
+        '<button id="ggClose" style="width:100%;margin-top:10px;padding:14px;border:none;border-radius:14px;background:#e2e8f0;font-size:15px;font-weight:800;cursor:pointer;">Để sau</button>' +
+        '</div>';
+        document.body.appendChild(ov);
+        ov.querySelector('#ggOpen').onclick = function(){
+            ov.querySelector('#ggSteps').style.display = 'block';
+            try { window.location.href = 'intent:#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end'; } catch(e){}
+        };
+        ov.querySelector('#ggClose').onclick = function(){ ov.style.display = 'none'; };
+        return ov;
+    }
+
+    function showGuide(){
+        if (shown) return;
+        shown = true;
+        sessionStorage.setItem('gpsGuideShown', '1');
+        buildOverlay().style.display = 'flex';
+        if (typeof speak === 'function') speak('GPS chưa chính xác. Bấm nút mở cài đặt và bật vị trí chính xác.');
+    }
+
+    /* ===== Tự phát hiện vị trí "gần đúng" ===== */
+    var coarseCount = 0;
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(function(p){
+            var acc = p.coords.accuracy || 0;
+            if (acc > 800) {
+                coarseCount++;
+                if (coarseCount >= 2) showGuide();
+                var t = document.getElementById('gpsStatusText');
+                if (t) t.innerText = '⚠️ Cần bật "Vị trí chính xác"';
+            } else {
+                coarseCount = 0;
+                var ov = document.getElementById('gpsGuide');
+                if (ov && ov.style.display === 'flex') {
+                    ov.style.display = 'none';
+                    if (typeof showToast === 'function') showToast('✅ GPS đã chính xác! Chúc anh thượng lộ bình an');
+                }
+            }
+        }, function(){}, { enableHighAccuracy: false, maximumAge: 5000 });
+    }
+
+    /* ===== Quay lại app → TỰ kiểm tra lại, không phải bấm gì ===== */
+    document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible' && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(p){
+                if ((p.coords.accuracy || 9999) <= 100) {
+                    var ov = document.getElementById('gpsGuide');
+                    if (ov) ov.style.display = 'none';
+                    shown = false; sessionStorage.removeItem('gpsGuideShown');
+                    if (typeof showToast === 'function') showToast('✅ GPS đã chính xác (±' + Math.round(p.coords.accuracy) + 'm)');
+                    if (typeof speak === 'function') speak('GPS đã chính xác. Đồng hồ sẵn sàng.');
+                } else {
+                    shown = false; // cho hiện lại hướng dẫn
+                    showGuide();
+                }
+            }, function(){}, { enableHighAccuracy: true, timeout: 8000 });
+        }
+    });
+
+    /* Bấm vào pill GPS cũng mở hướng dẫn */
+    setInterval(function(){
+        var pill = document.querySelector('.gps-status-bar');
+        if (pill && !pill.dataset.gg) {
+            pill.dataset.gg = '1';
+            pill.style.cursor = 'pointer';
+            pill.addEventListener('click', function(){ shown = false; showGuide(); });
+        }
+    }, 1500);
+
+    console.log('✅ AUTO GPS GUIDE v1 loaded');
+})();
+</script>
 </body>
 </html>
