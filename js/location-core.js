@@ -83,6 +83,14 @@ M.distanceTo = function(lat,lng){
     return Math.round(M.haversine(last.lat,last.lng,lat,lng)*10)/10;
 };
 
+/* ===== 8) Mở Google Maps dẫn đường (Deep Link) =====
+   @param {number} lat - Vĩ độ điểm đến
+   @param {number} lng - Kinh độ điểm đến */
+M.moGoogleMaps = function(lat, lng) {
+    var url = "https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lng + "&travelmode=driving";
+    window.open(url, '_blank');
+};
+
 window.ProMaxLocation = M;
 console.log('🛰️ ProMaxLocation Core v1 ready');
 })();
