@@ -710,5 +710,51 @@ setInterval(() => {
     else boot();
 })();
 </script>
+<!-- ========== ✍️ DRAFT AI v1 - soạn trả lời FB/Zalo cho admin ========== -->
+<script>
+(function(){
+    function addBtn(){
+        if(document.getElementById('draftBtn'))return;
+        var topbar=document.querySelector('.topbar'); if(!topbar)return;
+        var b=document.createElement('button'); b.id='draftBtn';
+        b.style.cssText='background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;border:none;padding:10px 14px;border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;margin-left:8px;';
+        b.innerHTML='✍️ Soạn trả lời FB/Zalo';
+        b.onclick=openDraft;
+        var u=topbar.querySelector('.user'); if(u)u.insertAdjacentElement('afterend',b); else topbar.appendChild(b);
+    }
+    function openDraft(){
+        var ov=document.getElementById('draftOv');
+        if(!ov){
+            ov=document.createElement('div'); ov.id='draftOv';
+            ov.style.cssText='position:fixed;inset:0;background:rgba(10,15,25,.7);z-index:20000;display:none;align-items:flex-end;justify-content:center;';
+            ov.innerHTML='<div style="background:#fff;width:100%;max-width:560px;border-radius:24px 24px 0 0;padding:16px;max-height:85vh;overflow-y:auto;">'+
+            '<b style="font-size:15px;">✍️ Dán tin nhắn khách/tài xế (FB hoặc Zalo)</b>'+
+            '<textarea id="dIn" style="width:100%;min-height:90px;margin:10px 0;padding:12px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;" placeholder="VD: Sao app không hiện vị trí vậy ad?"></textarea>'+
+            '<button id="dGo" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;font-weight:800;cursor:pointer;">🤖 Soạn trả lời</button>'+
+            '<div id="dOut" style="display:none;margin-top:12px;background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:12px;padding:12px;font-size:14px;line-height:1.6;white-space:pre-line;"></div>'+
+            '<button id="dCopy" style="display:none;width:100%;margin-top:8px;padding:12px;border:none;border-radius:12px;background:#16a34a;color:#fff;font-weight:800;cursor:pointer;">📋 Copy trả lời</button>'+
+            '<button id="dX" style="width:100%;margin-top:8px;padding:12px;border:none;border-radius:12px;background:#e2e8f0;font-weight:800;cursor:pointer;">Đóng</button></div>';
+            document.body.appendChild(ov);
+            ov.querySelector('#dX').onclick=function(){ov.style.display='none';};
+            ov.querySelector('#dGo').onclick=function(){
+                var q=(ov.querySelector('#dIn').value||'').trim(); if(!q)return;
+                var out=ov.querySelector('#dOut'); out.style.display='block'; out.textContent='⏳ Đang soạn...';
+                fetch('/api/support-ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,mode:'draft'})})
+                .then(function(r){return r.json();})
+                .then(function(d){
+                    out.textContent=d.success?d.answer:('❌ '+(d.error||'Lỗi'));
+                    ov.querySelector('#dCopy').style.display=d.success?'block':'none';
+                }).catch(function(){out.textContent='❌ Mất kết nối.';});
+            };
+            ov.querySelector('#dCopy').onclick=function(){
+                var t=ov.querySelector('#dOut').textContent;
+                try{ navigator.clipboard.writeText(t); if(typeof showToast==='function')showToast('📋 Đã copy'); }catch(e){}
+            };
+        }
+        ov.style.display='flex';
+    }
+    var iv=setInterval(function(){ if(document.querySelector('.topbar')){ addBtn(); clearInterval(iv); } },500);
+})();
+</script>
 </body>
 </html>
