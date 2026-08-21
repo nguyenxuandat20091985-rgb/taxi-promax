@@ -1,59 +1,44 @@
 /**
- * 🤖 ADMIN AI ASSISTANT - Proxy Groq (context-aware)
- * System prompt cho admin (khác tài xế)
+ * Admin Assistant compatibility endpoint.
+ * Deterministic and self-contained: no external AI provider or API key.
  */
+import { applyCors, rejectInvalidMethod, readJsonBody, cleanText, verifyAdminSession } from '../lib/api-security.js';
+import { queryKnowledge, getKnowledgeBaseMeta } from '../lib/knowledge-base.js';
+
 export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    applyCors(req, res, 'POST, OPTIONS');
+    if (rejectInvalidMethod(req, res)) return;
+    if (!verifyAdminSession(req)) {
+        return res.status(401).json({ success: false, error: 'Admin session required' });
+    }
 
-    const key = process.env.GROQ_API_KEY;
-    if (!key) return res.status(500).json({ error: 'Chưa cấu hình GROQ_API_KEY' });
-
-    const { question, context } = req.body || {};
-    if (!question) return res.status(400).json({ error: 'Thiếu câu hỏi' });
-
-    const systemPrompt = `Bạn là trợ lý AI của ADMIN quản trị hệ thống Taxi ProMax tại Việt Nam.
-Nhiệm vụ: hỗ trợ admin ra quyết định nhanh, phân tích dữ liệu, cảnh báo bất thường.
-
-CONTEXT HIỆN TẠI (dữ liệu thật từ Firebase):
-${JSON.stringify(context, null, 2)}
-
-QUY TẮC TRẢ LỜI:
-- Tiếng Việt, ngắn gọn dưới 150 từ
-- Dùng số liệu từ CONTEXT khi có
-- Gợi ý hành động cụ thể nếu phù hợp
-- Nếu không có dữ liệu, nói rõ "chưa có dữ liệu"
-- Không bịa số liệu
-
-VÍ DỤ CÂU HỎI & CÁCH TRẢ LỜI:
-- "Có gì cần chú ý?" → Liệt kê SOS active, KYC pending, gói hết hạn
-- "Doanh thu tuần này?" → Sum từ context.trips
-- "Tài xế nào uy tín thấp?" → Sort drivers theo trustScore`;
+    const body = readJsonBody(req);
+    const question = cleanText(body.question || body.query, 1200);
+    if (!question) return res.status(400).json({ success: false, error: 'Thiếu câu hỏi' });
 
     try {
-        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + key
-            },
-            body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: question }
-                ],
-                max_tokens: 200,
-                temperature: 0.3
-            })
+        const matches = queryKnowledge(question, {
+            category: cleanText(body.category, 40) || 'all',
+            limit: body.limit || 5
         });
-        const d = await r.json();
-        if (d.error) return res.status(500).json({ error: 'Lỗi Groq: ' + (d.error.message || '') });
-        const answer = d?.choices?.[0]?.message?.content || 'Không nhận được phản hồi.';
-        return res.status(200).json({ success: true, answer });
-    } catch (e) {
-        return res.status(500).json({ error: e.message });
+        const answer = matches.length
+            ? matches.map((result, index) => {
+                const item = result.item || result;
+                const title = item.title || item.name || `Mục ${index + 1}`;
+                const content = item.content || item.text || item.summary || (item.steps ? item.steps.join(' ') : JSON.stringify(item));
+                return `${index + 1}. ${title}\n${content}`;
+            }).join('\n\n')
+            : 'Chưa tìm thấy nội dung phù hợp trong knowledge-base nội bộ.';
+        return res.status(200).json({
+            success: true,
+            autonomous: true,
+            answer,
+            matches,
+            knowledgeBase: getKnowledgeBaseMeta()
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, autonomous: true, error: 'Knowledge service unavailable' });
     }
 }
+
+export const config = { runtime: 'nodejs20.x' };
