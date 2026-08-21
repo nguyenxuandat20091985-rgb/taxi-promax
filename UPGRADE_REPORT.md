@@ -64,3 +64,11 @@ Các commit đang nằm ở bản clone local, branch `main`, chưa push lên Gi
 Admin Dashboard đã có tab **AI System Health & Diagnostic**, tự chạy sau khi đăng nhập và hiển thị trạng thái, file liên quan, mức độ ưu tiên và tiêu chí nghiệm thu. Nút **Xem report** chỉ tải Markdown; nút **Cập nhật UPGRADE_REPORT** yêu cầu xác nhận admin và chỉ commit khi Vercel có `GITHUB_TOKEN` với quyền Contents Read/Write cùng `ALLOW_DIAGNOSTIC_COMMIT=true`.
 
 Agent không tự ý sửa code, đổi Firebase Rules hoặc deploy production. Mọi thay đổi có tác động phải đi qua human approval, branch/PR và CI. Smoke test hiện gồm security contract và diagnostic contract; cả hai đã đạt.
+
+## Clean URLs và cô lập phân hệ trên Vercel
+
+Đã chuẩn hóa `vercel.json` với `cleanUrls: true`, redirect vĩnh viễn từ `index.html`, `khachhang.html`, `xeghep.html`, `admin.html` về `/`, `/khachhang`, `/xeghep`, `/admin`, và rewrite riêng cho từng phân hệ. Các API vẫn được Vercel tự nhận diện dưới `/api/*`; không dùng rewrite vòng cho API.
+
+Đã cập nhật `manifest.json` để shortcut PWA dùng clean routes. Service Worker tăng cache version lên v5, cache các clean route và chọn fallback offline theo đúng phân hệ thay vì luôn trả app tài xế. Bổ sung navigation nội bộ ở màn hình xác thực: tài xế → `/khachhang`, `/xeghep`; khách hàng → `/`, `/xeghep`; xe ghép → `/`, `/khachhang`.
+
+Route admin vẫn hiển thị màn hình đăng nhập khi chưa có session; nội dung app và API quản trị không được mở trước khi xác thực. Vercel thêm `Cache-Control: no-store` và `X-Robots-Tag: noindex` cho `/admin` và `/admin.html`. Không còn tham chiếu `github.io` hoặc `pages.dev` trong code giao diện/config đã rà soát.

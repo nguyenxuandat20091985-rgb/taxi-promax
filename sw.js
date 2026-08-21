@@ -5,16 +5,19 @@
  */
 
 // [FIX] Nâng version — bắt browser reload SW mới
-const CACHE_NAME = 'taxi-promax-v4';
+const CACHE_NAME = 'taxi-promax-v5';
 
 // Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
     // ===== 4 APP CHÍNH =====
     './',
-    './index.html',        // App Tài Xế
-    './khachhang.html',    // App Khách Hàng
-    './xeghep.html',       // App Xe Ghép
-    './admin.html',        // Admin Dashboard
+    './index.html',        // App Tài Xế (nguồn)
+    './khachhang.html',    // App Khách Hàng (nguồn)
+    './xeghep.html',       // App Xe Ghép (nguồn)
+    './admin.html',        // Admin Dashboard (nguồn)
+    '/khachhang',          // Clean URL khách hàng
+    '/xeghep',             // Clean URL xe ghép
+    '/admin',              // Clean URL admin
     './manifest.json',
 
     // ===== FIREBASE SDK (offline được) =====
@@ -37,7 +40,7 @@ const ASSETS_TO_CACHE = [
 // 1. INSTALL
 // ============================================================
 self.addEventListener('install', (event) => {
-    console.log('[SW v4] Đang cài đặt...');
+    console.log('[SW v5] Đang cài đặt...');
     self.skipWaiting();
 
     event.waitUntil(
@@ -46,7 +49,7 @@ self.addEventListener('install', (event) => {
             return Promise.all(
                 ASSETS_TO_CACHE.map(url =>
                     cache.add(url).catch(err => {
-                        console.warn('[SW v4] Bỏ qua:', url, err.message);
+                        console.warn('[SW v5] Bỏ qua:', url, err.message);
                     })
                 )
             );
@@ -58,12 +61,12 @@ self.addEventListener('install', (event) => {
 // 2. ACTIVATE — Xóa cache cũ
 // ============================================================
 self.addEventListener('activate', (event) => {
-    console.log('[SW v4] Đang kích hoạt...');
+    console.log('[SW v5] Đang kích hoạt...');
     event.waitUntil(
         caches.keys().then((keyList) =>
             Promise.all(
                 keyList.filter(key => key !== CACHE_NAME).map(key => {
-                    console.log('[SW v4] Xóa cache cũ:', key);
+                    console.log('[SW v5] Xóa cache cũ:', key);
                     return caches.delete(key);
                 })
             )
@@ -106,11 +109,13 @@ self.addEventListener('fetch', (event) => {
             .catch(() => {
                 return caches.match(event.request).then((cached) => {
                     if (cached) {
-                        console.log('[SW v4] Offline → cache:', url);
+                        console.log('[SW v5] Offline → cache:', url);
                         return cached;
                     }
                     if (event.request.mode === 'navigate') {
-                        return caches.match('./index.html');
+                        const path = new URL(event.request.url).pathname;
+                        const fallback = path === '/khachhang' ? '/khachhang.html' : path === '/xeghep' ? '/xeghep.html' : path === '/admin' ? '/admin.html' : './index.html';
+                        return caches.match(fallback).then(page => page || caches.match('./index.html'));
                     }
                     return new Response('', { status: 503 });
                 });
@@ -123,7 +128,7 @@ self.addEventListener('fetch', (event) => {
 // ============================================================
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-pending-trips') {
-        console.log('[SW v4] Background sync...');
+        console.log('[SW v5] Background sync...');
         self.clients.matchAll().then(clients => {
             clients.forEach(client => {
                 client.postMessage({ type: 'SYNC_PENDING_TRIPS' });
@@ -150,7 +155,7 @@ self.addEventListener('push', (event) => {
             })
         );
     } catch (err) {
-        console.error('[SW v4] Push error:', err);
+        console.error('[SW v5] Push error:', err);
     }
 });
 
