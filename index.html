@@ -917,6 +917,8 @@
         </div>
     </div>
 
+    <!-- ========== AUTONOMOUS CORE CLIENT ========== -->
+    <script src="/autonomous-client.js"></script>
     <!-- ========== FIREBASE & LIBS ========== -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -2157,11 +2159,31 @@
     }
 
     // ==================== ORDER HANDLING ====================
+    async function autonomousOrderEligible(order) {
+        if (!window.TaxiAutonomous || !order || order.pickupLat == null || order.pickupLng == null) return true;
+        try {
+            var driver = {
+                id: driverInfo.uid,
+                lat: Number((typeof currentLat !== 'undefined' ? currentLat : driverInfo.lat) || 0),
+                lng: Number((typeof currentLng !== 'undefined' ? currentLng : driverInfo.lng) || 0),
+                rating: Number(driverInfo.rating || 5),
+                completedTrips: Number(driverInfo.completedTrips || 0),
+                acceptanceRate: Number(driverInfo.acceptanceRate || 1),
+                online: true,
+                carClass: driverInfo.carClass
+            };
+            var payload = await window.TaxiAutonomous.allocationScore({pickup:{lat:Number(order.pickupLat),lng:Number(order.pickupLng)},hotspotWeight:1,drivers:[driver]});
+            var candidate = payload && payload.result && payload.result.candidates && payload.result.candidates[0];
+            return !candidate || candidate.eligible !== false;
+        } catch (_) {
+            return true;
+        }
+    }
     function startOrderListener() {
         if (!isDriverOnline) return;
         if (orderListener) { orderListener.off(); orderListener = null; }
         orderListener = db.ref('datxe').orderByChild('status').equalTo('waiting');
-        orderListener.on('child_added', (snap) => {
+        orderListener.on('child_added', async (snap) => {
             if (_isModalOpening || isRunning || isLocked || !isDriverOnline) return;
             const order = snap.val(), orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
@@ -2180,6 +2202,7 @@
             }
             if (_processedOrders.has(orderId)) return;
             if (!driverInfo.carClass) driverInfo.carClass = '4_seats';
+            if (!(await autonomousOrderEligible(order))) return;
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
             
             _processedOrders.add(orderId); 
@@ -6282,6 +6305,18 @@
     };
 
     /* ===== CORE (đã fix bug gapKm gán 2 lần) ===== */
+    var lastAutonomousGpsCheck=0;
+    function checkAutonomousGps(previous,current){
+        if(!window.TaxiAutonomous||!previous||!current)return;
+        var now=Date.now();
+        if(now-lastAutonomousGpsCheck<15000)return;
+        lastAutonomousGpsCheck=now;
+        window.TaxiAutonomous.gpsCheck({previous:{lat:previous.lat,lng:previous.lng,timestamp:previous.t},current:{lat:current.lat,lng:current.lng,timestamp:current.t,accuracy:current.accuracy,speedKph:current.speedKph},history:[]})
+            .then(function(payload){
+                var result=payload&&payload.result;
+                if(result&&result.suspicious&&typeof showToast==='function')showToast('⚠️ Lõi tự trị phát hiện GPS bất thường','error');
+            }).catch(function(){});
+    }
     async function smartAdd(lat,lng,accuracy,ts,speed,heading){
         if(typeof isRunning==='undefined'||!isRunning)return;
         var sm=smoothGPS(lat,lng,accuracy);lat=sm.lat;lng=sm.lng;
@@ -6294,6 +6329,7 @@
 
         if(dt<CFG.GAP_MS/1000&&accuracy<=CFG.ACC_OK){
             gapLive=false;
+            checkAutonomousGps(lastGood,{lat:lat,lng:lng,t:ts,accuracy:accuracy,speedKph:sp});
             if(confidence(accuracy)>=40){
                 if(dH*1000>=CFG.MIN_MOVE_M&&dH<0.8){
                     if((typeof hasPickedUp!=='undefined')&&hasPickedUp)tripKm+=dH;else pickupKm+=dH;
@@ -6310,7 +6346,10 @@
             if(!gapLive){gapLive=true;gapStartGapKm=gapKm;drSpeed=curSpeed;drHeading=lastGood?lastGood.heading:0;}
             /* KHÔNG cộng OSRM vào gapKm nữa — DR loop xử lý, tránh double */
         }
-        if(accuracy<=CFG.ACC_OK)lastGood={lat:lat,lng:lng,t:ts,heading:heading||lastGood.heading||0};
+        if(accuracy<=CFG.ACC_OK){
+            checkAutonomousGps(lastGood,{lat:lat,lng:lng,t:ts,accuracy:accuracy,speedKph:sp});
+            lastGood={lat:lat,lng:lng,t:ts,heading:heading||lastGood.heading||0};
+        }
     }
 
     var _oldProcess=window.processBackgroundLocation;

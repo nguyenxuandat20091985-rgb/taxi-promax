@@ -2392,6 +2392,8 @@
     </button>
 </div>
 
+<!-- Autonomous Core client -->
+<script src="/autonomous-client.js"></script>
 <!-- Firebase + Leaflet -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -3699,6 +3701,22 @@ function selectCar(type, button) {
     if (destination) handleDestinationInput();
 }
 
+let autonomousQuoteRequest = 0;
+function applyAutonomousFare(km, durationMinutes) {
+    if (!window.TaxiAutonomous || !Number.isFinite(Number(km))) return;
+    const requestId = ++autonomousQuoteRequest;
+    window.TaxiAutonomous.fareQuote({ region: window.customerRegion || 'Hà Nội', service: 'taxi_standard', distanceKm: Number(km), durationMinutes: Number(durationMinutes) || 0, surge: 1, zoneWeight: 1, compensation: 1 }, 'customer')
+        .then(function(payload) {
+            if (requestId !== autonomousQuoteRequest || !payload.result || !payload.result.quote) return;
+            const quote = payload.result.quote;
+            estimatedPrice = Number(quote.total) || estimatedPrice;
+            const priceEl = document.getElementById('estimatedPrice');
+            const rateEl = document.getElementById('rateInfo');
+            if (priceEl) priceEl.textContent = estimatedPrice.toLocaleString() + 'đ';
+            if (rateEl) rateEl.textContent = 'Lõi tự trị · ' + quote.distanceKm + ' km';
+        })
+        .catch(function() { /* local estimate remains visible */ });
+}
 function calculatePrice(destLat, destLng) {
     if (!currentLat || !currentLng || !destLat || !destLng) return;
     
@@ -3725,12 +3743,15 @@ function calculatePrice(destLat, destLng) {
     fetch(`https://router.project-osrm.org/route/v1/driving/${currentLng},${currentLat};${destLng},${destLat}?overview=false`)
         .then(response => response.json())
         .then(data => {
-            const km = data.routes?.[0] ? data.routes[0].distance / 1000 : calculateDistance(currentLat, currentLng, destLat, destLng);
+            const route = data.routes?.[0];
+            const km = route ? route.distance / 1000 : calculateDistance(currentLat, currentLng, destLat, destLng);
             updatePriceUI(km, rate);
+            applyAutonomousFare(km, route ? route.duration / 60 : 0);
         })
         .catch(() => {
             const km = calculateDistance(currentLat, currentLng, destLat, destLng);
             updatePriceUI(km, rate);
+            applyAutonomousFare(km, 0);
         });
 }
 

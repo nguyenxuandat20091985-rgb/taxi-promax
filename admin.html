@@ -6,6 +6,7 @@
 <title>🛡️ Taxi ProMax — Admin Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="/autonomous-client.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
@@ -178,6 +179,7 @@ audio{width:100%;margin-top:8px;}
           <div class="btn-group" style="margin-top:0;"><button class="btn btn-primary" id="runDiagnosticBtn" onclick="loadSystemDiagnostic(true)">🔄 Quét lại hệ thống</button><button class="btn btn-outline" onclick="downloadDiagnosticReport(false)">📄 Xem report</button><button class="btn btn-success" onclick="downloadDiagnosticReport(true)">✅ Cập nhật UPGRADE_REPORT</button></div>
         </div>
         <div id="healthSummary" class="health-muted" style="margin-top:14px;">Đang chờ dữ liệu chẩn đoán...</div>
+        <div id="autonomousOptimization" class="health-muted" style="margin-top:12px;"></div>
       </div>
       <div id="healthFindings"></div>
       <div id="healthPlan"></div>
@@ -351,6 +353,19 @@ function escapeHealth(value) {
   return String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
 }
 
+async function loadAutonomousOptimization() {
+  const target = document.getElementById('autonomousOptimization');
+  if (!target || !window.TaxiAutonomous || !hasValidAdminSession()) return;
+  target.textContent = 'Đang tính toán feedback loop giá...';
+  try {
+    const payload = await window.TaxiAutonomous.call('pricing_optimize', { loadFromFirebase: true, currentSurge: 1 }, { role: 'admin', timeoutMs: 12000 });
+    const pricing = payload && payload.result && payload.result.pricing;
+    if (!pricing) throw new Error('Không có dữ liệu pricing');
+    target.innerHTML = '<div class="card" style="margin-bottom:0;"><b>⚙️ Autonomous Pricing Feedback Loop</b><div class="health-muted" style="margin-top:6px;">Surge tiếp theo: <b>' + escapeHealth(pricing.surgeMultiplier) + '×</b> · Bù khoảng cách: <b>' + escapeHealth(pricing.compensationMultiplier) + '×</b> · Mẫu: <b>' + escapeHealth(pricing.sampleSize) + '</b> · ' + escapeHealth(pricing.reason || 'deterministic') + '</div></div>';
+  } catch (error) {
+    target.innerHTML = '<div class="card health-muted">Feedback loop chưa sẵn sàng: ' + escapeHealth(error.message) + '</div>';
+  }
+}
 async function loadSystemDiagnostic(manual = false) {
   const summary = document.getElementById('healthSummary');
   const findings = document.getElementById('healthFindings');
@@ -369,6 +384,7 @@ async function loadSystemDiagnostic(manual = false) {
     summary.innerHTML = '<div class="health-status ' + (isHealthy ? 'healthy' : 'warning') + '">' + (isHealthy ? '● HỆ THỐNG SẠCH' : '● CÓ CẢNH BÁO') + '</div><div style="margin-top:10px;font-weight:800;">' + escapeHealth(diagnostic.summary || '') + '</div><div class="health-muted" style="margin-top:6px;">Quét lúc ' + escapeHealth(diagnostic.generatedAt || '') + ' · Độ tin cậy: ' + escapeHealth(diagnostic.confidence || 'deterministic') + '</div>';
     const list = Array.isArray(diagnostic.findings) ? diagnostic.findings : [];
     findings.innerHTML = '<div class="section-title">⚠️ Vấn đề cần can thiệp (' + list.length + ')</div>' + (list.length ? '<div class="health-grid">' + list.map(item => '<div class="card health-finding ' + escapeHealth(item.severity || 'medium') + '"><div class="card-head"><div class="card-title">' + escapeHealth(item.title || item.id) + '</div><span class="badge ' + (item.severity === 'critical' ? 'rejected' : item.severity === 'high' ? 'pending' : 'approved') + '">' + escapeHealth(item.severity || 'medium') + '</span></div><div class="health-muted">' + escapeHealth(item.evidence || '') + '</div><div style="margin-top:8px;">' + (Array.isArray(item.files) ? item.files.map(file => '<span class="health-code">' + escapeHealth(file) + '</span> ').join('') : '') + '</div><div class="health-muted" style="margin-top:8px;"><b>Đề xuất:</b> ' + escapeHealth(item.recommendation || '') + '</div></div>').join('') + '</div>' : '<div class="card health-muted">Không có phát hiện trong phạm vi quét.</div>');
+    loadAutonomousOptimization();
     const steps = Array.isArray(diagnostic.repairPlan) ? diagnostic.repairPlan : [];
     plan.innerHTML = '<div class="section-title">🛠 Maintenance &amp; Repair Plan</div>' + (steps.length ? steps.map(step => '<div class="card"><div class="card-head"><div class="card-title">Bước ' + escapeHealth(step.step) + ' — ' + escapeHealth(step.action || '') + '</div><span class="badge ' + (step.priority === 'critical' ? 'rejected' : step.priority === 'high' ? 'pending' : 'approved') + '">' + escapeHealth(step.priority || 'medium') + '</span></div><div class="health-muted">Owner: ' + escapeHealth(step.owner || 'unassigned') + ' · Files: ' + escapeHealth((step.files || []).join(', ')) + '</div><div class="health-muted" style="margin-top:6px;"><b>Tiêu chí nghiệm thu:</b> ' + escapeHealth(step.acceptanceCriteria || '') + '</div></div>').join('') : '<div class="card health-muted">Chưa có kế hoạch sửa chữa.</div>');
   } catch (error) {
