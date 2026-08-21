@@ -775,16 +775,22 @@ setInterval(() => {
         const wait = addMsg('ai', '⏳ Đang tổng hợp dữ liệu & suy nghĩ...');
         
         try {
-            const r = await fetch('/api/admin-ai', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + (getAdminSession()?.token || '')
-                },
-                body: JSON.stringify({ question: q })
-            });
-            const d = await r.json();
-            wait.textContent = d.success ? '🤖 ' + d.answer : '❌ ' + (d.error || 'Lỗi');
+            const d = await window.TaxiAutonomous.call('knowledge_query', {
+                query: q,
+                category: 'all',
+                limit: 5
+            }, { role: 'admin', timeoutMs: 12000 });
+            const matches = d && d.result && Array.isArray(d.result.matches) ? d.result.matches : [];
+            if (!matches.length) {
+                wait.textContent = '🤖 Lõi tự trị chưa tìm thấy mục phù hợp trong knowledge-base nội bộ. Anh có thể hỏi về biểu giá, quy định tài xế, xử lý sự cố hoặc điểm nóng giao thông.';
+            } else {
+                wait.textContent = '🤖 Kết quả từ knowledge-base nội bộ:\n\n' + matches.map(function(result, index) {
+                    var item = result.item || result;
+                    var title = item.title || item.name || ('Mục ' + (index + 1));
+                    var text = item.content || item.text || item.summary || (item.steps ? item.steps.join(' ') : JSON.stringify(item));
+                    return (index + 1) + '. ' + title + '\n' + text;
+                }).join('\n\n');
+            }
         } catch (e) {
             wait.textContent = '❌ Không kết nối được AI: ' + e.message;
         }
