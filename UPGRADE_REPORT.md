@@ -56,3 +56,11 @@ Các commit đang nằm ở bản clone local, branch `main`, chưa push lên Gi
 ## Kết quả kiểm thử staging
 
 `npm test`, kiểm tra cú pháp JavaScript và parse JSON đều đạt. Vercel CLI đã được thử nhưng dừng ở bước `Set up ~/taxi-promax?` vì bản clone local chưa liên kết với Vercel project và sandbox không có Vercel token; chưa có kết luận build production thất bại. Cần chạy `vercel link`/`vercel build` trong workspace đã liên kết hoặc deploy staging sau khi cấu hình biến môi trường.
+
+## AI System Auditor & Self-Healing Agent
+
+Đã bổ sung `api/system-diagnostic.js` và `api/system-diagnostic-report.js`. Diagnostic service yêu cầu admin session HMAC, quét có giới hạn các log Firebase (`system_logs`, `error_logs`, `payment_logs`, `sos`), lấy source manifest từ GitHub raw, chạy static checks và có thể dùng Groq để tổng hợp thành JSON gồm `overallStatus`, `summary`, `findings`, `repairPlan`, `confidence`.
+
+Admin Dashboard đã có tab **AI System Health & Diagnostic**, tự chạy sau khi đăng nhập và hiển thị trạng thái, file liên quan, mức độ ưu tiên và tiêu chí nghiệm thu. Nút **Xem report** chỉ tải Markdown; nút **Cập nhật UPGRADE_REPORT** yêu cầu xác nhận admin và chỉ commit khi Vercel có `GITHUB_TOKEN` với quyền Contents Read/Write cùng `ALLOW_DIAGNOSTIC_COMMIT=true`.
+
+Agent không tự ý sửa code, đổi Firebase Rules hoặc deploy production. Mọi thay đổi có tác động phải đi qua human approval, branch/PR và CI. Smoke test hiện gồm security contract và diagnostic contract; cả hai đã đạt.

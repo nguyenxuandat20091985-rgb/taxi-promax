@@ -63,6 +63,14 @@ body{background:var(--bg);color:var(--dark);min-height:100vh;}
 .toast.show{display:block;}
 #mapLive{height:400px;border-radius:14px;margin-top:12px;}
 audio{width:100%;margin-top:8px;}
+.health-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.health-status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-weight:900;font-size:12px;}
+.health-status.healthy{background:#dcfce7;color:#166534;}.health-status.warning{background:#fef3c7;color:#92400e;}
+.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0;}
+.health-finding{border-left:4px solid #f59e0b;}.health-finding.critical{border-left-color:#dc2626;}.health-finding.medium{border-left-color:#2563eb;}
+.health-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;background:#f1f5f9;padding:2px 5px;border-radius:5px;word-break:break-word;}
+.health-muted{color:#64748b;font-size:12px;line-height:1.5;}
+@media(max-width:600px){.container{padding:14px;}.topbar{padding:14px 16px;}.topbar h1{font-size:16px;}.tabs{padding:0 10px;}.tab{padding:12px 13px;font-size:12px;}.health-head .btn{width:100%;justify-content:center;}}
 </style>
 </head>
 <body>
@@ -99,6 +107,7 @@ audio{width:100%;margin-top:8px;}
     <div class="tab" onclick="switchTab('customers', this)">👥 Khách hàng</div>
     <div class="tab" onclick="switchTab('xeghep', this)">🚐 Xe Ghép</div>
     <div class="tab" onclick="switchTab('map', this)">🗺 Bản đồ</div>
+    <div class="tab" onclick="switchTab('health', this)">🩺 AI System Health</div>
   </div>
 
   <div class="container">
@@ -159,6 +168,19 @@ audio{width:100%;margin-top:8px;}
     <div class="panel" id="panel-map">
       <div class="section-title">🗺 Tài xế đang online</div>
       <div id="mapLive"></div>
+    </div>
+
+    <!-- AI SYSTEM HEALTH -->
+    <div class="panel" id="panel-health">
+      <div class="card">
+        <div class="health-head">
+          <div><div class="section-title" style="margin:0 0 4px;">🩺 AI System Health &amp; Diagnostic</div><div class="health-muted">Quét log và source ở phạm vi giới hạn; AI chỉ đề xuất, không tự sửa/deploy.</div></div>
+          <div class="btn-group" style="margin-top:0;"><button class="btn btn-primary" id="runDiagnosticBtn" onclick="loadSystemDiagnostic(true)">🔄 Quét lại hệ thống</button><button class="btn btn-outline" onclick="downloadDiagnosticReport(false)">📄 Xem report</button><button class="btn btn-success" onclick="downloadDiagnosticReport(true)">✅ Cập nhật UPGRADE_REPORT</button></div>
+        </div>
+        <div id="healthSummary" class="health-muted" style="margin-top:14px;">Đang chờ dữ liệu chẩn đoán...</div>
+      </div>
+      <div id="healthFindings"></div>
+      <div id="healthPlan"></div>
     </div>
   </div>
 </div>
@@ -318,10 +340,58 @@ async function loadAllData() {
     renderCustomers();
     renderXeghep();
     renderRecentActivity();
+    loadSystemDiagnostic();
   } catch(e) {
     console.error(e);
     toast('❌ Lỗi tải dữ liệu');
   }
+}
+
+function escapeHealth(value) {
+  return String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
+}
+
+async function loadSystemDiagnostic(manual = false) {
+  const summary = document.getElementById('healthSummary');
+  const findings = document.getElementById('healthFindings');
+  const plan = document.getElementById('healthPlan');
+  const button = document.getElementById('runDiagnosticBtn');
+  if (!summary || !hasValidAdminSession()) return;
+  if (button) { button.disabled = true; button.textContent = '⏳ Đang quét...'; }
+  summary.textContent = 'Đang quét log Firebase và source manifest...';
+  try {
+    const session = getAdminSession();
+    const response = await fetch('/api/system-diagnostic', { headers: { Authorization: 'Bearer ' + session.token } });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.success) throw new Error(payload.error || 'Diagnostic service unavailable');
+    const diagnostic = payload.diagnostic || {};
+    const isHealthy = diagnostic.overallStatus === 'healthy';
+    summary.innerHTML = '<div class="health-status ' + (isHealthy ? 'healthy' : 'warning') + '">' + (isHealthy ? '● HỆ THỐNG SẠCH' : '● CÓ CẢNH BÁO') + '</div><div style="margin-top:10px;font-weight:800;">' + escapeHealth(diagnostic.summary || '') + '</div><div class="health-muted" style="margin-top:6px;">Quét lúc ' + escapeHealth(diagnostic.generatedAt || '') + ' · Độ tin cậy: ' + escapeHealth(diagnostic.confidence || 'deterministic') + '</div>';
+    const list = Array.isArray(diagnostic.findings) ? diagnostic.findings : [];
+    findings.innerHTML = '<div class="section-title">⚠️ Vấn đề cần can thiệp (' + list.length + ')</div>' + (list.length ? '<div class="health-grid">' + list.map(item => '<div class="card health-finding ' + escapeHealth(item.severity || 'medium') + '"><div class="card-head"><div class="card-title">' + escapeHealth(item.title || item.id) + '</div><span class="badge ' + (item.severity === 'critical' ? 'rejected' : item.severity === 'high' ? 'pending' : 'approved') + '">' + escapeHealth(item.severity || 'medium') + '</span></div><div class="health-muted">' + escapeHealth(item.evidence || '') + '</div><div style="margin-top:8px;">' + (Array.isArray(item.files) ? item.files.map(file => '<span class="health-code">' + escapeHealth(file) + '</span> ').join('') : '') + '</div><div class="health-muted" style="margin-top:8px;"><b>Đề xuất:</b> ' + escapeHealth(item.recommendation || '') + '</div></div>').join('') + '</div>' : '<div class="card health-muted">Không có phát hiện trong phạm vi quét.</div>');
+    const steps = Array.isArray(diagnostic.repairPlan) ? diagnostic.repairPlan : [];
+    plan.innerHTML = '<div class="section-title">🛠 Maintenance &amp; Repair Plan</div>' + (steps.length ? steps.map(step => '<div class="card"><div class="card-head"><div class="card-title">Bước ' + escapeHealth(step.step) + ' — ' + escapeHealth(step.action || '') + '</div><span class="badge ' + (step.priority === 'critical' ? 'rejected' : step.priority === 'high' ? 'pending' : 'approved') + '">' + escapeHealth(step.priority || 'medium') + '</span></div><div class="health-muted">Owner: ' + escapeHealth(step.owner || 'unassigned') + ' · Files: ' + escapeHealth((step.files || []).join(', ')) + '</div><div class="health-muted" style="margin-top:6px;"><b>Tiêu chí nghiệm thu:</b> ' + escapeHealth(step.acceptanceCriteria || '') + '</div></div>').join('') : '<div class="card health-muted">Chưa có kế hoạch sửa chữa.</div>');
+  } catch (error) {
+    summary.innerHTML = '<div class="health-status warning">● KHÔNG KẾT NỐI ĐƯỢC DIAGNOSTIC</div><div class="health-muted" style="margin-top:8px;">' + escapeHealth(error.message) + '</div>';
+    findings.innerHTML = ''; plan.innerHTML = '';
+    if (manual) toast('❌ Diagnostic chưa sẵn sàng');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = '🔄 Quét lại hệ thống'; }
+  }
+}
+
+async function downloadDiagnosticReport(commit = false) {
+  if (!hasValidAdminSession()) return toast('❌ Phiên admin đã hết hạn');
+  if (commit && !window.confirm('AI chỉ tạo báo cáo. Anh có chắc muốn commit UPGRADE_REPORT.md lên GitHub không?')) return;
+  try {
+    const session = getAdminSession();
+    const response = await fetch('/api/system-diagnostic-report', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.token }, body: JSON.stringify({ commit }) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.success) throw new Error(payload.error || 'Report service unavailable');
+    const blob = new Blob([payload.markdown || ''], { type: 'text/markdown;charset=utf-8' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'taxi-promax-ai-diagnostic.md'; link.click(); URL.revokeObjectURL(link.href);
+    toast(commit ? '✅ Đã cập nhật UPGRADE_REPORT trên GitHub' : '📄 Đã tải report diagnostic');
+  } catch (error) { toast('❌ ' + error.message); }
 }
 
 // === KYC ===
