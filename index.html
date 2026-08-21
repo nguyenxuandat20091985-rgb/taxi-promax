@@ -1186,7 +1186,7 @@
         } else {
             toggle.classList.remove('active');
             text.innerText = 'Offline';
-            if (orderListener) db.ref('datxe').off();
+            if (orderListener) { orderListener.off(); orderListener = null; }
             stopLocationPushing();
             stopAIDispatch();
             showToast('⏸ Đã chuyển sang trạng thái Offline');
@@ -1629,6 +1629,14 @@
     }
 
     // ==================== AUTH ====================
+    function persistDriverSession(session) {
+        const safe = { ...(session || {}) };
+        delete safe.passwordHash;
+        delete safe.documents;
+        delete safe.wallet;
+        localStorage.setItem('driverInfo', JSON.stringify(safe));
+    }
+
     async function doRegister() {
         const fullname = document.getElementById('regName').value.trim();
         const phone = document.getElementById('regPhone').value.trim();
@@ -1665,7 +1673,7 @@
             };
             await db.ref('drivers/' + uid).set(newDriver);
             driverInfo = { uid, name: fullname, phone, plate, carModel, fuelType, carClass };
-            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
+            persistDriverSession(driverInfo);
             document.getElementById('authScreen').style.display = 'none';
             showToast('✅ Đăng ký thành công! Chào ' + fullname);
             setTimeout(initApp, 300);
@@ -1707,7 +1715,7 @@
                 plate: driver.plate, carModel: driver.carModel, 
                 fuelType: driver.fuelType, carClass: driver.carClass 
             };
-            localStorage.setItem('driverInfo', JSON.stringify(driverInfo));
+            persistDriverSession(driverInfo);
             document.getElementById('authScreen').style.display = 'none';
             showToast('✅ Đăng nhập thành công! Chào ' + driver.name);
             setTimeout(initApp, 300);
@@ -2147,12 +2155,25 @@
     // ==================== ORDER HANDLING ====================
     function startOrderListener() {
         if (!isDriverOnline) return;
-        if (orderListener) db.ref('datxe').off();
-        orderListener = db.ref('datxe');
+        if (orderListener) { orderListener.off(); orderListener = null; }
+        orderListener = db.ref('datxe').orderByChild('status').equalTo('waiting');
         orderListener.on('child_added', (snap) => {
             if (_isModalOpening || isRunning || isLocked || !isDriverOnline) return;
             const order = snap.val(), orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
+            if (order.expiresAt && Number(order.expiresAt) <= Date.now()) {
+                db.ref(`datxe/${orderId}`).transaction(current => {
+                    if (!current || current.status !== 'waiting') return;
+                    return {
+                        ...current,
+                        status: 'cancelled',
+                        cancelReason: 'expired',
+                        cancelledAt: Date.now(),
+                        statusHistory: { ...(current.statusHistory || {}), cancelled: Date.now() }
+                    };
+                });
+                return;
+            }
             if (_processedOrders.has(orderId)) return;
             if (!driverInfo.carClass) driverInfo.carClass = '4_seats';
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
@@ -2184,25 +2205,57 @@
         });
     }
     
-    function acceptOrder() {
-        clearInterval(countdownInterval); 
+    async function acceptOrder() {
+        clearInterval(countdownInterval);
+        if (!currentOrderId || !currentCustomerData) return;
+
+        const orderRef = db.ref(`datxe/${currentOrderId}`);
+        let result;
+        try {
+            result = await orderRef.transaction(order => {
+                if (!order || order.status !== 'waiting') return;
+                return {
+                    ...order,
+                    status: 'driving',
+                    driverId: driverInfo.uid,
+                    driverName: driverInfo.name,
+                    driverPhone: driverInfo.phone,
+                    driverPlate: driverInfo.plate,
+                    acceptedAt: Date.now(),
+                    statusHistory: { ...(order.statusHistory || {}), driving: Date.now() }
+                };
+            });
+        } catch (error) {
+            _isModalOpening = false;
+            showToast('Không thể nhận chuyến. Vui lòng thử lại.');
+            return;
+        }
+
+        if (!result || !result.committed) {
+            closeModal('orderModal');
+            _isModalOpening = false;
+            _processedOrders.add(currentOrderId);
+            showToast('Đơn này đã được tài xế khác nhận hoặc đã hết hạn.');
+            return;
+        }
+
+        currentCustomerData = result.snapshot?.val?.() || currentCustomerData;
         closeModal('orderModal');
-        if (currentCustomerData?.pickupLat && currentCustomerData?.pickupLng) 
+        if (currentCustomerData.pickupLat && currentCustomerData.pickupLng)
             createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
         showTripPanel(currentCustomerData);
-        db.ref(`datxe/${currentOrderId}`).update({ status: "driving", driverId: driverInfo.uid, driverName: driverInfo.name, driverPhone: driverInfo.phone, driverPlate: driverInfo.plate, acceptedAt: Date.now() });
-        isRunning = true; 
-        hasPickedUp = false; 
+        isRunning = true;
+        hasPickedUp = false;
         totalKm = 0;
         isStreetHail = false;
         lastDisplayedFare = 0;
-        document.getElementById('km').innerText = '0.00'; 
+        document.getElementById('km').innerText = '0.00';
         document.getElementById('cost').innerText = '0';
         document.getElementById('statsUI').classList.add('show');
-        listenForCustomerCancel(); 
+        listenForCustomerCancel();
         listenForChat();
-        _isModalOpening = false; 
-        speak("Đã nhận đơn.");
+        _isModalOpening = false;
+        speak('Đã nhận đơn.');
         startForegroundService();
         enableKeepAwake();
     }
@@ -2245,11 +2298,25 @@
         document.getElementById('endTripBtn').style.display = 'block';
         document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
         if (customerMarker) map.removeLayer(customerMarker);
+        if (currentOrderId && !isStreetHail) {
+            const pickedUpAt = Date.now();
+            currentCustomerData = {
+                ...currentCustomerData,
+                status: 'in_progress',
+                pickedUpAt,
+                statusHistory: { ...(currentCustomerData.statusHistory || {}), picked_up: pickedUpAt, in_progress: pickedUpAt }
+            };
+            db.ref(`datxe/${currentOrderId}`).update({
+                status: 'in_progress',
+                pickedUpAt,
+                statusHistory: currentCustomerData.statusHistory
+            }).catch(() => {});
+        }
         if (currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng)
             drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
         else if (currentCustomerData?.dropoff)
             geocodeAddress(currentCustomerData.dropoff, (lat,lng) => drawRoute(currentLat, currentLng, lat, lng));
-        speak("Đã đón khách, bắt đầu hành trình.");
+        speak('Đã đón khách, bắt đầu hành trình.');
     }
 
     function navigateToPickup() {
@@ -2322,8 +2389,9 @@
             db.ref(`datxe/${currentOrderId}`).update({ 
                 status: 'completed', 
                 completedAt: Date.now(), 
-                actualKm: finalKm, 
-                actualPrice: finalCost 
+                actualKm: finalKm,
+                actualPrice: finalCost,
+                statusHistory: { ...(currentCustomerData.statusHistory || {}), completed: Date.now() }
             }).catch(()=>{});
         }
         
@@ -2626,7 +2694,7 @@
             stopForegroundService();
             disableKeepAwake();
             
-            if (orderListener) { db.ref('datxe').off(); orderListener = null; }
+            if (orderListener) { orderListener.off(); orderListener = null; }
             if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
             if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
             if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
@@ -3415,7 +3483,7 @@
             user.uid=uid;
             if(!user.carClass)user.carClass=user.carType||'4_seats';
             driverInfo=user;
-            localStorage.setItem('driverInfo',JSON.stringify(user));
+            persistDriverSession(user);
             var a=document.getElementById('authScreen');
             if(a)a.style.display='none';
             if(typeof initApp==='function')initApp();
@@ -4000,6 +4068,11 @@
             document.getElementById('kycInput_' + key).onchange = function() {
                 var f = this.files && this.files[0];
                 if (!f) return;
+                if (!/^image\/(jpeg|png|webp)$/i.test(f.type) || f.size > 8 * 1024 * 1024) {
+                    if (typeof showToast === 'function') showToast('❌ Chỉ nhận ảnh JPG/PNG/WebP tối đa 8MB');
+                    this.value = '';
+                    return;
+                }
                 compressImage(f, function(b64) {
                     kycData[key] = b64;
                     var slot = document.getElementById('kycSlot_' + key);
@@ -4968,6 +5041,10 @@
             rec.onstop = function() {
                 stream.getTracks().forEach(function(t) { t.stop(); });
                 var blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+                if (blob.size > 3 * 1024 * 1024) {
+                    if (typeof showToast === 'function') showToast('⚠️ Ghi âm SOS quá lớn, đã bỏ phần audio nhưng vẫn giữ cảnh báo');
+                    return;
+                }
                 var fr = new FileReader();
                 fr.onload = function() {
                     try { db.ref('sos/' + code).update({ audio: fr.result, audioType: blob.type, audioSavedAt: Date.now() }); } catch(e) {}

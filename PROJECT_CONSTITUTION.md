@@ -341,9 +341,9 @@ function hashPassword(str) {
 8. 🗺 Bản đồ — realtime tài xế online
 
 ### Quyền admin
-- SĐT: `0388724966`
-- Mật khẩu: `admin123`
-- Duyệt KYC, thanh toán, đánh dấu SOS an toàn
+- Admin phải đăng nhập bằng Firebase Authentication hoặc backend session có role/claim `admin`.
+- Không ghi số điện thoại, mật khẩu hoặc credential mặc định trong repository public.
+- Quyền admin gồm duyệt KYC, thanh toán và đánh dấu SOS an toàn; mọi thao tác phải có audit log.
 
 ---
 

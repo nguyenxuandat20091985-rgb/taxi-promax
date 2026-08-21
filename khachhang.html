@@ -3795,8 +3795,10 @@ async function bookRide() {
         return;
     }
     
+    const createdAt = Date.now();
     const orderData = {
         status: 'waiting',
+        statusHistory: { waiting: createdAt },
         phone: currentUser.phone,
         clientName: currentUser.name,
         customerPhone: currentUser.phone,
@@ -3810,7 +3812,9 @@ async function bookRide() {
         estimatePrice: estimatedPrice,
         paymentMethod: 'cash',
         notes: notes,
-        timestamp: Date.now()
+        createdAt,
+        expiresAt: createdAt + 5 * 60 * 1000,
+        timestamp: createdAt
     };
     
     try {
@@ -3846,7 +3850,18 @@ function startAutoCancelTimer() {
     if (searchTimeout) clearTimeout(searchTimeout);
     searchTimeout = setTimeout(async () => {
         if (!currentOrderId) return;
-        await db.ref(`datxe/${currentOrderId}`).update({ status: 'cancelled', cancelReason: 'timeout' });
+        const orderRef = db.ref(`datxe/${currentOrderId}`);
+        const result = await orderRef.transaction(order => {
+            if (!order || order.status !== 'waiting') return;
+            return {
+                ...order,
+                status: 'cancelled',
+                cancelReason: 'timeout',
+                cancelledAt: Date.now(),
+                statusHistory: { ...(order.statusHistory || {}), cancelled: Date.now() }
+            };
+        });
+        if (!result.committed) return;
         showToast('⏰ Không tìm thấy tài xế — Đơn đã tự hủy', 'error');
         stopAllListeners();
         showBookingScreen('screenCancelled');

@@ -166,7 +166,7 @@
 
 ### 2.4 Admin Dashboard (`admin.html`)
 **Vai trò:** Quản lý hệ thống, duyệt KYC/thanh toán, giám sát SOS
-**Users:** Admin (SĐT `0388724966`, mật khẩu `admin123`)
+**Users:** Admin đã xác thực bằng Firebase Authentication hoặc backend session có role/claim `admin`; credential không lưu trong repository public.
 
 **Features:**
 - **8 tabs:**

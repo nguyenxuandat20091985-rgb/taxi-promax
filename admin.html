@@ -73,7 +73,7 @@ audio{width:100%;margin-top:8px;}
     <div style="font-size:48px;text-align:center;margin-bottom:12px;">🛡️</div>
     <h1>Admin Dashboard</h1>
     <p>Taxi ProMax — Chỉ dành cho quản trị viên</p>
-    <input type="tel" id="adminPhone" placeholder="Số điện thoại admin" value="0388724966">
+    <input type="tel" id="adminPhone" placeholder="Số điện thoại admin" autocomplete="username">
     <input type="password" id="adminPass" placeholder="Mật khẩu admin">
     <button onclick="doAdminLogin()">Đăng nhập</button>
     <div id="authError" style="color:#d32f2f;font-size:12px;margin-top:8px;display:none;text-align:center;"></div>
@@ -170,8 +170,14 @@ audio{width:100%;margin-top:8px;}
 <div class="toast" id="toast"></div>
 
 <script>
-const ADMIN_PHONE = '0388724966';
-const ADMIN_PASS = 'admin123'; // đổi mật khẩu tùy ý
+const ADMIN_SESSION_KEY = 'taxiPromaxAdminSession';
+function getAdminSession() {
+  try { return JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY) || 'null'); } catch (e) { return null; }
+}
+function hasValidAdminSession() {
+  const session = getAdminSession();
+  return Boolean(session && session.token && Number(session.expiresAt) > Math.floor(Date.now() / 1000));
+}
 const FIREBASE_URL = 'https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app';
 if (!firebase.apps.length) firebase.initializeApp({ databaseURL: FIREBASE_URL });
 const db = firebase.database();
@@ -180,29 +186,40 @@ let liveMap = null, driverMarkers = [];
 const CACHE = {};
 
 // === LOGIN ===
-function doAdminLogin() {
+async function doAdminLogin() {
   const p = document.getElementById('adminPhone').value.trim();
   const pw = document.getElementById('adminPass').value;
-  if (p === ADMIN_PHONE && pw === ADMIN_PASS) {
-    localStorage.setItem('adminAuth', '1');
+  const e = document.getElementById('authError');
+  e.style.display = 'none';
+  try {
+    const response = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: p, password: pw })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Sai thông tin đăng nhập');
+    localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ token: data.token, expiresAt: data.expiresAt, phone: data.phone }));
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
-    document.getElementById('adminName').textContent = p;
+    document.getElementById('adminName').textContent = data.phone;
     loadAllData();
-  } else {
-    const e = document.getElementById('authError');
-    e.textContent = '❌ Sai thông tin đăng nhập';
+  } catch (error) {
+    e.textContent = '❌ ' + error.message;
     e.style.display = 'block';
   }
 }
-function logout() { localStorage.removeItem('adminAuth'); location.reload(); }
+function logout() { localStorage.removeItem(ADMIN_SESSION_KEY); location.reload(); }
 
 // === CHECK AUTH ON LOAD ===
-if (localStorage.getItem('adminAuth') === '1') {
+if (hasValidAdminSession()) {
+  const session = getAdminSession();
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  document.getElementById('adminName').textContent = ADMIN_PHONE;
+  document.getElementById('adminName').textContent = session.phone || 'Admin';
   setTimeout(loadAllData, 300);
+} else {
+  localStorage.removeItem(ADMIN_SESSION_KEY);
 }
 
 // === SWITCH TAB ===
@@ -531,7 +548,7 @@ function initLiveMap() {
 
 // Auto refresh mỗi 30s
 setInterval(() => {
-  if (localStorage.getItem('adminAuth') === '1') loadAllData();
+  if (hasValidAdminSession()) loadAllData();
 }, 30000);
 </script>
 <!-- ========== 🤖 ADMIN AI v1 - trợ lý AI cho admin ========== -->
@@ -669,14 +686,16 @@ setInterval(() => {
         if (!q) return;
         inp.value = '';
         addMsg('me', q);
-        const wait = addMsg('ai', '⏳ Đang thu thập dữ liệu & suy nghĩ...');
+        const wait = addMsg('ai', '⏳ Đang tổng hợp dữ liệu & suy nghĩ...');
         
         try {
-            const context = await gatherContext();
             const r = await fetch('/api/admin-ai', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: q, context })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (getAdminSession()?.token || '')
+                },
+                body: JSON.stringify({ question: q })
             });
             const d = await r.json();
             wait.textContent = d.success ? '🤖 ' + d.answer : '❌ ' + (d.error || 'Lỗi');

@@ -1,5 +1,27 @@
 # TAXI PROMAX CHANGELOG
 
+# VERSION 1.13.0 — SECURITY AND RIDE LIFECYCLE HARDENING
+**Ngày: 21/08/2026**
+
+## Thay đổi
+- Loại bỏ CORS wildcard khỏi các API; thêm helper CORS theo allowlist origin.
+- Thêm kiểm tra input, giới hạn nội dung AI và mẫu `.env.example`.
+- Bổ sung security headers Vercel và `.gitignore` cho secret/dependency.
+- Không lưu `passwordHash`, hồ sơ KYC và wallet vào `localStorage` phiên tài xế.
+- Dùng Firebase transaction khi tài xế nhận đơn để chống hai tài xế nhận trùng.
+- Chỉ lắng nghe đơn có trạng thái `waiting`, xử lý đơn hết hạn và tháo query listener đúng cách.
+- Bổ sung `createdAt`, `expiresAt`, `statusHistory` cho luồng đặt/nhận/đón/hoàn thành chuyến.
+- Thêm smoke test cho helper bảo mật.
+
+## Commit
+- `7b517d8` — `fix: harden APIs and prevent duplicate ride acceptance`
+- `29e73dd` — `feat: harden ride lifecycle and order expiry`
+
+## Lưu ý
+Firebase Rules và mô hình xác thực admin vẫn cần được chuyển sang cơ chế Authentication/role-based ở bước tiếp theo; hai việc này không thể giải quyết an toàn chỉ bằng frontend static hiện tại.
+
+---
+
 Tất cả thay đổi của dự án được ghi lại tại đây theo thứ tự thời gian ngược.
 
 ---
@@ -45,7 +67,7 @@ Viết lại `admin.html` thành Admin Dashboard thực sự (file cũ chỉ là
 - Code app tài xế cũ (nút "BẮT ĐẦU CHUYẾN ĐI", `startOrderListener`...)
 
 ### Đã thêm
-- **Auth**: Đăng nhập admin (SĐT `0388724966` / mật khẩu `admin123`)
+- **Auth**: Đăng nhập admin bản cũ bằng credential hard-code (đã được thay thế ở phiên bản mới bằng endpoint session server-side)
 - **8 Tabs**:
   1. 📊 Dashboard — 8 stat cards (tài xế, khách, chuyến, doanh thu, pending KYC/TT, SOS, xe ghép) + recent activity
   2. 🔐 Duyệt KYC — Danh sách chờ + ảnh 4 mặt + nút Duyệt/Từ chối + xem ảnh phóng to
