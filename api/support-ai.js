@@ -35,7 +35,7 @@ export default async function handler(req, res) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
             body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
+                model: 'llama-3.1-8b-instant',
                 messages: [ { role: 'system', content: sys }, { role: 'user', content: question } ],
                 max_tokens: 180, temperature: 0.4
             })
