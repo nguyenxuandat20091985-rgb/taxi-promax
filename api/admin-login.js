@@ -12,7 +12,7 @@ function safeEqual(left, right) {
 }
 
 const DEFAULT_ADMIN_PHONE = '0388724966';
-const DEFAULT_ADMIN_PASSWORD = 'TaxiProMax@2026';
+const DEFAULT_ADMIN_PASSWORD = 'ducanh@123';
 
 function issueSession(phone, sessionSecret) {
     const now = Math.floor(Date.now() / 1000);
