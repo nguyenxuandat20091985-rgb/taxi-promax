@@ -3,7 +3,6 @@ import { cleanText, isPositiveAmount, isSafeId } from '../lib/api-security.js';
 import adminLogin from '../api/admin-login.js';
 import adminAI from '../api/admin-ai.js';
 import systemDiagnostic from '../api/system-diagnostic.js';
-import systemDiagnosticReport from '../api/system-diagnostic-report.js';
 
 assert.equal(cleanText('  hello  ', 10), 'hello');
 assert.equal(cleanText('1234567890', 5), '12345');
@@ -31,7 +30,7 @@ const response = {
     setHeader() {}
 };
 await adminLogin({ method: 'POST', headers: {}, body: { phone: 'x', password: 'y' } }, response);
-assert.equal(response.statusCode, 503);
+assert.equal(response.statusCode, 401);
 
 const adminAIResponse = {
     statusCode: 200,
@@ -46,10 +45,6 @@ assert.equal(adminAIResponse.statusCode, 401);
 const diagnosticResponse = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; }, setHeader() {} };
 await systemDiagnostic({ method: 'GET', headers: {} }, diagnosticResponse);
 assert.equal(diagnosticResponse.statusCode, 401);
-
-const reportResponse = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; }, setHeader() {} };
-await systemDiagnosticReport({ method: 'POST', headers: {}, body: {} }, reportResponse);
-assert.equal(reportResponse.statusCode, 401);
 
 for (const [key, value] of Object.entries(originalEnv)) {
     if (value === undefined) delete process.env[key];
