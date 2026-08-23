@@ -764,10 +764,10 @@
             <button id="mainBtn" class="btn-main" onclick="handleTrip()">🚖 BẮT ĐẦU CHUYẾN ĐI</button>
         </div> 
         <div class="nav-grid">
-            <button class="nav-item active" onclick="showTab('home', this)"><i>🏠</i>Trang chủ</button>
-            <button class="nav-item" onclick="showTab('vi', this)"><i>💰</i>Ví tiền</button>
-            <button class="nav-item" onclick="showTab('lichsu', this)"><i>📊</i>Lịch sử</button>
-            <button class="nav-item" onclick="showTab('toi', this)"><i>👤</i>Tôi</button>
+            <button class="nav-item active" onclick="showTab('home', this)"></i>Trang chủ</button>
+            <button class="nav-item" onclick="showTab('vi', this)"></i>Ví tiền</button>
+            <button class="nav-item" onclick="showTab('lichsu', this)">Lịch sử</button>
+            <button class="nav-item" onclick="showTab('toi', this)">Tôi</button>
         </div>
         <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
     </div> 
@@ -7063,5 +7063,89 @@
     console.log('✅ AUTO GPS GUIDE v3 (compact) loaded');
 })();
 </script>
+/**
+ * Đoạn gắn nhanh ô Care AI (có thể dán cuối index.html / khachhang.html / xeghep.html)
+ * Đổi CARE_CHANNEL theo app: 'driver' | 'customer' | 'xeghep'
+ */
+(function () {
+  var CARE_CHANNEL = window.PROMAX_CARE_CHANNEL || 'driver';
+  if (document.getElementById('promaxCareFab')) return;
+
+  var fab = document.createElement('button');
+  fab.id = 'promaxCareFab';
+  fab.type = 'button';
+  fab.setAttribute('aria-label', 'Care AI');
+  fab.textContent = '💬';
+  fab.style.cssText =
+    'position:fixed;right:14px;bottom:calc(90px + env(safe-area-inset-bottom,0px));z-index:25000;' +
+    'width:52px;height:52px;border-radius:50%;border:none;background:linear-gradient(135deg,#0054a3,#00bfa5);' +
+    'color:#fff;font-size:22px;box-shadow:0 6px 20px rgba(0,84,163,.35);cursor:pointer;';
+
+  var panel = document.createElement('div');
+  panel.id = 'promaxCarePanel';
+  panel.style.cssText =
+    'display:none;position:fixed;right:14px;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:25001;' +
+    'width:min(92vw,340px);max-height:50vh;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.18);' +
+    'flex-direction:column;overflow:hidden;font-family:system-ui,sans-serif;';
+  panel.innerHTML =
+    '<div style="padding:12px 14px;background:#0054a3;color:#fff;font-weight:800;font-size:14px;">ProMax Care AI</div>' +
+    '<div id="promaxCareLog" style="padding:10px;overflow-y:auto;flex:1;font-size:13px;min-height:120px;max-height:28vh;"></div>' +
+    '<div style="display:flex;gap:6px;padding:10px;border-top:1px solid #eee;">' +
+    '<input id="promaxCareInput" placeholder="Nhập câu hỏi..." style="flex:1;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:13px;" />' +
+    '<button type="button" id="promaxCareSend" style="padding:10px 12px;border:none;border-radius:10px;background:#00bfa5;color:#fff;font-weight:700;">Gửi</button></div>';
+
+  function uid() {
+    try {
+      if (window.driverInfo && driverInfo.uid) return driverInfo.uid;
+    } catch (e) {}
+    try {
+      return localStorage.getItem('promax_uid') || 'anon';
+    } catch (e2) {
+      return 'anon';
+    }
+  }
+
+  async function send() {
+    var input = document.getElementById('promaxCareInput');
+    var log = document.getElementById('promaxCareLog');
+    var msg = (input && input.value || '').trim();
+    if (!msg) return;
+    input.value = '';
+    log.innerHTML += '<div style="margin:6px 0;text-align:right;"><span style="background:#e8f1fb;padding:6px 10px;border-radius:12px;display:inline-block;">' + msg.replace(/</g, '&lt;') + '</span></div>';
+    try {
+      var res = await fetch('/api/ai-care', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: CARE_CHANNEL,
+          userId: uid(),
+          message: msg,
+          sessionId: localStorage.getItem('care_session_' + CARE_CHANNEL) || undefined
+        })
+      });
+      var data = await res.json();
+      if (data.sessionId) localStorage.setItem('care_session_' + CARE_CHANNEL, data.sessionId);
+      var ans = (data.answer || data.error || 'Không có phản hồi').replace(/</g, '&lt;');
+      log.innerHTML += '<div style="margin:6px 0;"><span style="background:#f1f5f9;padding:6px 10px;border-radius:12px;display:inline-block;">' + ans + '</span></div>';
+      if (data.escalate) {
+        log.innerHTML += '<div style="font-size:11px;color:#d32f2f;margin-top:4px;">Đã báo admin xử lý ưu tiên</div>';
+      }
+      log.scrollTop = log.scrollHeight;
+    } catch (e) {
+      log.innerHTML += '<div style="color:#d32f2f;font-size:12px;">Lỗi kết nối Care AI</div>';
+    }
+  }
+
+  fab.onclick = function () {
+    var open = panel.style.display === 'flex';
+    panel.style.display = open ? 'none' : 'flex';
+  };
+  document.body.appendChild(fab);
+  document.body.appendChild(panel);
+  document.getElementById('promaxCareSend').onclick = send;
+  document.getElementById('promaxCareInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') send();
+  });
+})();
 </body>
 </html>
