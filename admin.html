@@ -109,6 +109,7 @@ audio{width:100%;margin-top:8px;}
     <div class="tab" onclick="switchTab('xeghep', this)">🚐 Xe Ghép</div>
     <div class="tab" onclick="switchTab('map', this)">🗺 Bản đồ</div>
     <div class="tab" onclick="switchTab('health', this)">🩺 AI System Health</div>
+    <div class="tab" onclick="switchTab('command', this)">🧠 AI Chỉ huy <span id="commandPendingCount" style="background:#7c3aed;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:4px;">0</span></div>
   </div>
 
   <div class="container">
@@ -184,6 +185,39 @@ audio{width:100%;margin-top:8px;}
       <div id="healthFindings"></div>
       <div id="healthPlan"></div>
     </div>
+
+    <!-- AI COMMAND CENTER -->
+    <div class="panel" id="panel-command">
+      <div class="card" style="margin-bottom:14px;">
+        <div class="health-head">
+          <div>
+            <div class="section-title" style="margin:0 0 4px;">🧠 AI Admin Chỉ huy</div>
+            <div class="health-muted">Việc nhỏ: AI tự làm + báo cáo · Việc lớn: anh duyệt rồi AI mới áp dụng.</div>
+          </div>
+          <div class="btn-group" style="margin-top:0;flex-wrap:wrap;">
+            <button class="btn btn-primary" type="button" onclick="commandLoadStatus()">📊 Status</button>
+            <button class="btn btn-outline" type="button" onclick="commandRunScan()">🔍 Scan</button>
+            <button class="btn btn-success" type="button" onclick="commandLoadInbox()">📥 Inbox</button>
+          </div>
+        </div>
+        <div id="commandStatusBox" class="health-muted" style="margin-top:12px;">Bấm Status để xem tổng quan hệ thống.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="section-title" style="margin-top:0;">💬 Hỏi / ra lệnh AI Chỉ huy</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <input id="commandAskInput" type="text" placeholder="VD: trạng thái · quét hệ thống · tạm dừng dispatch · hộp thư" style="flex:1;min-width:200px;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-size:14px;" />
+          <button class="btn btn-primary" type="button" onclick="commandAsk()">Gửi</button>
+        </div>
+        <div id="commandAskOut" style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;display:none;"></div>
+      </div>
+
+      <div class="section-title">⏳ Việc chờ duyệt <span id="commandPendingLabel" class="health-muted">(0)</span></div>
+      <div id="commandPendingList"><div class="health-muted">Chưa tải inbox.</div></div>
+
+      <div class="section-title" style="margin-top:18px;">📋 Việc gần đây</div>
+      <div id="commandRecentList"><div class="health-muted">—</div></div>
+    </div>
   </div>
 </div>
 
@@ -253,7 +287,177 @@ function switchTab(name, el) {
   el.classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
   if (name === 'map') setTimeout(initLiveMap, 100);
+  if (name === 'command') {
+    commandLoadStatus();
+    commandLoadInbox();
+  }
 }
+
+
+// === AI ADMIN CHỈ HUY UI ===
+async function commandApi(payload) {
+  const session = getAdminSession();
+  if (!session || !session.token) throw new Error('Chưa đăng nhập admin');
+  const res = await fetch('/api/admin-ai', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + session.token
+    },
+    body: JSON.stringify(payload || {})
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) throw new Error(data.error || ('HTTP ' + res.status));
+  return data;
+}
+
+function commandEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function commandLoadStatus() {
+  const box = document.getElementById('commandStatusBox');
+  if (box) box.textContent = 'Đang tải status...';
+  try {
+    const data = await commandApi({ intent: 'status' });
+    const s = data.result || {};
+    if (box) {
+      box.innerHTML =
+        '<b>Version:</b> ' + commandEsc(s.version) +
+        ' · <b>Online:</b> ' + commandEsc(s.onlineDrivers) +
+        ' · <b>Care escalate:</b> ' + commandEsc(s.careEscalationsOpen) +
+        ' · <b>AutoAssign:</b> ' + (s.autoAssignEnabled === false ? 'TẮT' : 'BẬT') +
+        ' · <b>Risk:</b> ' + commandEsc(s.securityRisk) + ' (' + commandEsc(s.securityLevel) + ')' +
+        ' · <b>Chờ duyệt:</b> ' + commandEsc(s.pendingApprovals);
+    }
+    const badge = document.getElementById('commandPendingCount');
+    if (badge) badge.textContent = String(s.pendingApprovals || 0);
+  } catch (e) {
+    if (box) box.textContent = 'Lỗi: ' + (e.message || e);
+  }
+}
+
+async function commandRunScan() {
+  try {
+    toast('🔍 AI đang scan...');
+    const data = await commandApi({ intent: 'scan' });
+    const n = (data.result && data.result.processed) || 0;
+    toast('Scan xong — ' + n + ' việc');
+    await commandLoadInbox();
+    await commandLoadStatus();
+  } catch (e) {
+    toast('❌ ' + (e.message || e));
+  }
+}
+
+function commandRenderItem(item, canApprove) {
+  const st = item.status || '';
+  const badge =
+    st === 'pending_approval' ? 'pending' :
+    st === 'auto_done' || st === 'applied' ? 'approved' :
+    st === 'rejected' || st === 'auto_failed' || st === 'apply_failed' ? 'rejected' : 'pending';
+  let actions = '';
+  if (canApprove && st === 'pending_approval') {
+    actions =
+      '<div class="btn-group" style="margin-top:10px;">' +
+      '<button class="btn btn-success" type="button" onclick="commandApprove(\'' + commandEsc(item.id) + '\')">✅ Duyệt &amp; áp dụng</button>' +
+      '<button class="btn btn-outline" type="button" onclick="commandReject(\'' + commandEsc(item.id) + '\')">✕ Từ chối</button>' +
+      '</div>';
+  }
+  const detail = item.detail || item.error || (item.result ? JSON.stringify(item.result) : '');
+  return (
+    '<div class="card" style="margin-bottom:10px;">' +
+    '<div class="card-head"><div class="card-title">' + commandEsc(item.title || item.action) +
+    '</div><span class="badge ' + badge + '">' + commandEsc(st) + '</span></div>' +
+    '<div class="health-muted">Nguồn: ' + commandEsc(item.fromAI || '') +
+    ' · severity: ' + commandEsc(item.severity || '') +
+    ' · action: <code>' + commandEsc(item.action || '') + '</code></div>' +
+    (detail ? '<div style="margin-top:6px;font-size:12px;">' + commandEsc(String(detail).slice(0, 280)) + '</div>' : '') +
+    actions +
+    '</div>'
+  );
+}
+
+async function commandLoadInbox() {
+  const pendingEl = document.getElementById('commandPendingList');
+  const recentEl = document.getElementById('commandRecentList');
+  if (pendingEl) pendingEl.innerHTML = '<div class="health-muted">Đang tải...</div>';
+  try {
+    const data = await commandApi({ intent: 'inbox', limit: 40 });
+    const items = (data.result && data.result.items) || [];
+    const pending = items.filter(i => i.status === 'pending_approval');
+    const recent = items.filter(i => i.status !== 'pending_approval').slice(0, 15);
+    const badge = document.getElementById('commandPendingCount');
+    const label = document.getElementById('commandPendingLabel');
+    if (badge) badge.textContent = String(pending.length);
+    if (label) label.textContent = '(' + pending.length + ')';
+    if (pendingEl) {
+      pendingEl.innerHTML = pending.length
+        ? pending.map(i => commandRenderItem(i, true)).join('')
+        : '<div class="health-muted">Không có việc chờ duyệt.</div>';
+    }
+    if (recentEl) {
+      recentEl.innerHTML = recent.length
+        ? recent.map(i => commandRenderItem(i, false)).join('')
+        : '<div class="health-muted">Chưa có lịch sử.</div>';
+    }
+  } catch (e) {
+    if (pendingEl) pendingEl.innerHTML = '<div class="health-muted">Lỗi: ' + commandEsc(e.message || e) + '</div>';
+  }
+}
+
+async function commandApprove(id) {
+  if (!id) return;
+  if (!confirm('Duyệt và để AI Admin áp dụng việc này?')) return;
+  try {
+    await commandApi({ intent: 'approve', id: id });
+    toast('✅ Đã duyệt & áp dụng');
+    await commandLoadInbox();
+    await commandLoadStatus();
+  } catch (e) {
+    toast('❌ ' + (e.message || e));
+  }
+}
+
+async function commandReject(id) {
+  if (!id) return;
+  const reason = prompt('Lý do từ chối (optional):') || '';
+  try {
+    await commandApi({ intent: 'reject', id: id, reason: reason });
+    toast('Đã từ chối');
+    await commandLoadInbox();
+  } catch (e) {
+    toast('❌ ' + (e.message || e));
+  }
+}
+
+async function commandAsk() {
+  const input = document.getElementById('commandAskInput');
+  const out = document.getElementById('commandAskOut');
+  const q = (input && input.value || '').trim();
+  if (!q) return;
+  if (out) {
+    out.style.display = 'block';
+    out.textContent = 'Đang xử lý...';
+  }
+  try {
+    const data = await commandApi({ question: q });
+    let text = data.answer || '';
+    if (data.actionResult) {
+      text += '\n\n— action: ' + JSON.stringify(data.actionResult).slice(0, 500);
+    }
+    if (out) out.textContent = text;
+    if (data.actionResult) {
+      await commandLoadInbox();
+      await commandLoadStatus();
+    }
+  } catch (e) {
+    if (out) out.textContent = 'Lỗi: ' + (e.message || e);
+  }
+}
+
 
 // === TOAST ===
 function toast(msg) {
