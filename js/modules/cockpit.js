@@ -408,4 +408,54 @@
         }
     }, 1500);
     console.log('✅ AUTO GPS GUIDE v3 (compact) loaded');
-})();
+/* ========== GPS BRIDGE → Trip Engine ========== */
+(function() {
+    // Export API sạch cho Trip Engine
+    window.cockpit = window.cockpit || {};
+
+    window.cockpit.getCleanPosition = function() {
+        if (!lastGood) return null;
+        return {
+            lat: lastGood.lat,
+            lng: lastGood.lng,
+            speed: curSpeed || 0,          // km/h
+            accuracy: acc || 999,
+            heading: lastGood.heading || 0,
+            timestamp: lastGood.t || Date.now()
+        };
+    };
+
+    // Cho phép Trip Engine đăng ký nhận GPS sạch
+    var _positionCallbacks = [];
+    window.cockpit.onPosition = function(cb) {
+        if (typeof cb === 'function') {
+            _positionCallbacks.push(cb);
+        }
+    };
+
+    // Gọi tất cả callback mỗi khi có GPS tốt
+    var _origSmartAdd = typeof smartAdd === 'function' ? smartAdd : null;
+    
+    // Hook vào smartAdd (nếu tồn tại)
+    if (typeof smartAdd === 'function') {
+        // Không override hoàn toàn, chỉ publish thêm
+        var originalSmartAdd = smartAdd;
+        // Ta sẽ publish sau khi smartAdd chạy
+    }
+
+    // Publish định kỳ (an toàn hơn)
+    setInterval(function() {
+        if (!lastGood || _positionCallbacks.length === 0) return;
+        var pos = window.cockpit.getCleanPosition();
+        if (!pos) return;
+
+        _positionCallbacks.forEach(function(cb) {
+            try { cb(pos); } catch(e) {}
+        });
+    }, 1000); // 1 giây một lần là đủ
+
+    // Ngăn cockpit tự cộng km khi Trip Engine đang quản lý
+    var _oldSmartAdd = window.smartAdd || (typeof smartAdd !== 'undefined' ? smartAdd : null);
+    
+    console.log('✅ GPS Bridge (cockpit → trip-engine) đã sẵn sàng');
+})();})();
