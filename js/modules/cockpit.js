@@ -138,32 +138,77 @@
         return data;
     };
 
-    async function smartAdd(lat,lng,accuracy,ts,speed,heading){
-        if(typeof isRunning==='undefined'||!isRunning)return;
-        var sm=smoothGPS(lat,lng,accuracy);lat=sm.lat;lng=sm.lng;
-        if(isTeleport(lat,lng,ts))return;
-        if(!lastGood){lastGood={lat:lat,lng:lng,t:ts,heading:heading||0};return;}
-        var dt=(ts-lastGood.t)/1000;if(dt<=0.4)return;
-        var dH=hav(lastGood.lat,lastGood.lng,lat,lng);
-        var sp=(speed!=null&&speed>=0)?speed*3.6:(dH/dt*3600);
-        if(sp>3&&sp<CFG.MAX_SPEED_KMH){lastSpeeds.push(sp);if(lastSpeeds.length>12)lastSpeeds.shift();curSpeed=Math.round(sp);}
+    // ========== smartAdd ĐÃ HOÀN THIỆN (có bảo vệ Trip Engine) ==========
+    async function smartAdd(lat, lng, accuracy, ts, speed, heading) {
+        // Nếu Trip Engine đang quản lý chuyến → không tự cộng km
+        if (window.tripEngine && typeof window.tripEngine.getCurrentState === 'function') {
+            const state = window.tripEngine.getCurrentState();
+            if (state === 'ONBOARD' || state === 'TO_DESTINATION') {
+                // Chỉ cập nhật lastGood, không cộng km
+                if (!lastGood) {
+                    lastGood = { lat: lat, lng: lng, t: ts, heading: heading || 0 };
+                } else {
+                    lastGood = { lat: lat, lng: lng, t: ts, heading: heading || lastGood.heading || 0 };
+                }
+                return;
+            }
+        }
 
-        if(dt<CFG.GAP_MS/1000&&accuracy<=CFG.ACC_OK){
-            gapLive=false;
-            if(confidence(accuracy)>=40){
-                if(dH*1000>=CFG.MIN_MOVE_M&&dH<0.8){
-                    if((typeof hasPickedUp!=='undefined')&&hasPickedUp)tripKm+=dH;else pickupKm+=dH;
+        if (typeof isRunning === 'undefined' || !isRunning) return;
+
+        var sm = smoothGPS(lat, lng, accuracy);
+        lat = sm.lat;
+        lng = sm.lng;
+
+        if (isTeleport(lat, lng, ts)) return;
+
+        if (!lastGood) {
+            lastGood = { lat: lat, lng: lng, t: ts, heading: heading || 0 };
+            return;
+        }
+
+        var dt = (ts - lastGood.t) / 1000;
+        if (dt <= 0.4) return;
+
+        var dH = hav(lastGood.lat, lastGood.lng, lat, lng);
+        var sp = (speed != null && speed >= 0) ? speed * 3.6 : (dH / dt * 3600);
+
+        if (sp > 3 && sp < CFG.MAX_SPEED_KMH) {
+            lastSpeeds.push(sp);
+            if (lastSpeeds.length > 12) lastSpeeds.shift();
+            curSpeed = Math.round(sp);
+        }
+
+        if (dt < CFG.GAP_MS / 1000 && accuracy <= CFG.ACC_OK) {
+            gapLive = false;
+            if (confidence(accuracy) >= 40) {
+                if (dH * 1000 >= CFG.MIN_MOVE_M && dH < 0.8) {
+                    if ((typeof hasPickedUp !== 'undefined') && hasPickedUp) {
+                        tripKm += dH;
+                    } else {
+                        pickupKm += dH;
+                    }
                     updateAllDisplays(true);
                 }
             }
-            lastGood={lat:lat,lng:lng,t:ts,heading:heading||lastGood.heading||0};return;
+            lastGood = { lat: lat, lng: lng, t: ts, heading: heading || lastGood.heading || 0 };
+            return;
         }
 
-        if(dt>=CFG.GAP_MS/1000){
-            gapCount++;if(typeof showGapNotice==='function')showGapNotice();
-            if(!gapLive){gapLive=true;gapStartGapKm=gapKm;drSpeed=curSpeed;drHeading=lastGood?lastGood.heading:0;}
+        if (dt >= CFG.GAP_MS / 1000) {
+            gapCount++;
+            if (typeof showGapNotice === 'function') showGapNotice();
+            if (!gapLive) {
+                gapLive = true;
+                gapStartGapKm = gapKm;
+                drSpeed = curSpeed;
+                drHeading = lastGood ? lastGood.heading : 0;
+            }
         }
-        if(accuracy<=CFG.ACC_OK)lastGood={lat:lat,lng:lng,t:ts,heading:heading||lastGood.heading||0};
+
+        if (accuracy <= CFG.ACC_OK) {
+            lastGood = { lat: lat, lng: lng, t: ts, heading: heading || lastGood.heading || 0 };
+        }
     }
 
     var _oldProcess=window.processBackgroundLocation;
@@ -408,6 +453,8 @@
         }
     }, 1500);
     console.log('✅ AUTO GPS GUIDE v3 (compact) loaded');
+})();
+
 /* ========== GPS BRIDGE → Trip Engine ========== */
 (function() {
     // Export API sạch cho Trip Engine
@@ -433,17 +480,7 @@
         }
     };
 
-    // Gọi tất cả callback mỗi khi có GPS tốt
-    var _origSmartAdd = typeof smartAdd === 'function' ? smartAdd : null;
-    
-    // Hook vào smartAdd (nếu tồn tại)
-    if (typeof smartAdd === 'function') {
-        // Không override hoàn toàn, chỉ publish thêm
-        var originalSmartAdd = smartAdd;
-        // Ta sẽ publish sau khi smartAdd chạy
-    }
-
-    // Publish định kỳ (an toàn hơn)
+    // Publish định kỳ GPS sạch
     setInterval(function() {
         if (!lastGood || _positionCallbacks.length === 0) return;
         var pos = window.cockpit.getCleanPosition();
@@ -452,10 +489,7 @@
         _positionCallbacks.forEach(function(cb) {
             try { cb(pos); } catch(e) {}
         });
-    }, 1000); // 1 giây một lần là đủ
+    }, 1000);
 
-    // Ngăn cockpit tự cộng km khi Trip Engine đang quản lý
-    var _oldSmartAdd = window.smartAdd || (typeof smartAdd !== 'undefined' ? smartAdd : null);
-    
     console.log('✅ GPS Bridge (cockpit → trip-engine) đã sẵn sàng');
-})();})();
+})();
