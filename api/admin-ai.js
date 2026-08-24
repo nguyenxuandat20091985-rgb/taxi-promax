@@ -23,6 +23,7 @@ import {
   verifyAdminSession
 } from '../lib/api-security.js';
 import { queryKnowledge, getKnowledgeBaseMeta } from '../lib/knowledge-base.js';
+import { buildPlan, dispatchPlan } from '../lib/ai-orchestrator.js';
 
 const FIREBASE_URL = String(
   process.env.FIREBASE_DATABASE_URL ||
@@ -585,6 +586,32 @@ export default async function handler(req, res) {
   const started = Date.now();
 
   try {
+    if (intent === 'orchestrate') {
+      const steps = Array.isArray(body.steps) ? body.steps.slice(0, 12) : [];
+      if (!steps.length) {
+        return res.status(400).json({
+          success: false,
+          adminAI: true,
+          intent: 'orchestrate',
+          error: 'Cần có steps để lập kế hoạch điều phối'
+        });
+      }
+      const plan = buildPlan({
+        objective: body.objective || body.question || '',
+        steps,
+        createdBy: body.adminId || 'admin'
+      });
+      const result = await dispatchPlan(plan, { dryRun: body.dryRun !== false });
+      return res.status(200).json({
+        success: true,
+        adminAI: true,
+        role: 'command',
+        intent: 'orchestrate',
+        result,
+        durationMs: Date.now() - started
+      });
+    }
+
     if (intent === 'ingest_report') {
       const routed = await routeWorkItem({
         action: cleanText(body.action || '', 60),
