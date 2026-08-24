@@ -108,33 +108,41 @@
         // 5. GPS LISTENER
         // ================================================================
         startGpsListener() {
-            // Ưu tiên dùng cockpit nếu có
-            if (window.cockpit && typeof window.cockpit.onPosition === 'function') {
-                window.cockpit.onPosition((position) => {
-                    this.updateGPS(position);
-                });
-                this.log('GPS: Kết nối với cockpit.js', 'info');
-                return;
-            }
+    // Ưu tiên dùng GPS sạch từ cockpit.js
+    if (window.cockpit && typeof window.cockpit.onPosition === 'function') {
+        window.cockpit.onPosition((pos) => {
+            // Chuyển về format giống GeolocationPosition
+            this.updateGPS({
+                coords: {
+                    latitude: pos.lat,
+                    longitude: pos.lng,
+                    speed: (pos.speed || 0) / 3.6, // km/h → m/s
+                    accuracy: pos.accuracy || 999,
+                    heading: pos.heading || 0
+                },
+                timestamp: pos.timestamp || Date.now()
+            });
+        });
+        this.log('GPS: Đã kết nối với cockpit.js (GPS sạch)', 'info');
+        return;
+    }
 
-            // Fallback: dùng navigator.geolocation
-            if (navigator.geolocation) {
-                this.gpsWatchId = navigator.geolocation.watchPosition(
-                    (pos) => this.updateGPS(pos),
-                    (err) => this.log(`GPS lỗi: ${err.message}`, 'error'),
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 5000
-                    }
-                );
-                this.log('GPS: Đang theo dõi vị trí (navigator.geolocation)', 'info');
-            } else {
-                this.log('⚠️ GPS không khả dụng', 'warn');
+    // Fallback: dùng navigator.geolocation như cũ
+    if (navigator.geolocation) {
+        this.gpsWatchId = navigator.geolocation.watchPosition(
+            (pos) => this.updateGPS(pos),
+            (err) => this.log(`GPS lỗi: ${err.message}`, 'error'),
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 5000
             }
-        }
-
-        // ================================================================
+        );
+        this.log('GPS: Đang theo dõi vị trí (navigator.geolocation - fallback)', 'info');
+    } else {
+        this.log('⚠️ GPS không khả dụng', 'warn');
+    }
+} ================================================================
         // 6. XỬ LÝ GPS UPDATE (CORE)
         // ================================================================
         updateGPS(position) {
