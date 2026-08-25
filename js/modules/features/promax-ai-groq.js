@@ -51,9 +51,27 @@
             if (result.ok && d.success) {
                 wait.textContent = '🤖 ' + d.answer;
                 if (typeof speak === 'function') speak(d.answer);
-            } else {
-                wait.textContent = '❌ ' + (d.error || ('AI không khả dụng (HTTP ' + result.status + ')'));
+                return null;
             }
+            // Provider đang lỗi 404/502: dùng Care AI nội bộ để tài xế vẫn
+            // nhận được hướng dẫn, thay vì để khung chat đứng im.
+            wait.textContent = '⏳ AI ngoài tạm lỗi, đang chuyển sang Care AI...';
+            return fetch('/api/ai-care', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: q, message: q, channel: 'driver' })
+            }).then(function(r){
+                return r.json().catch(function(){ return {}; }).then(function(fallback){
+                    if (r.ok && fallback.success && fallback.answer) {
+                        wait.textContent = '🛟 Care AI dự phòng: ' + fallback.answer;
+                        if (typeof speak === 'function') speak(fallback.answer);
+                    } else {
+                        wait.textContent = '❌ AI chưa khả dụng (HTTP ' + result.status + '). Vui lòng thử lại sau.';
+                    }
+                });
+            }).catch(function(){
+                wait.textContent = '❌ AI chưa khả dụng (HTTP ' + result.status + '). Vui lòng thử lại sau.';
+            });
         })
         .catch(function(e){ wait.textContent = '❌ Không kết nối được trợ lý: ' + e.message; });
     }
