@@ -66,7 +66,8 @@
             this.currentOdometerKm = 0;      // Tổng km đã đi (chỉ tính khi ONBOARD)
             this.waitTimeMin = 0;            // Tổng thời gian chờ (phút)
             this.lastGpsUpdate = null;       // Dữ liệu GPS cuối cùng
-            this.gpsWatchId = null;          // ID của watchPosition
+            this.gpsWatchId = null;          // Chỉ dùng cho fallback
+            this.gpsUnsubscribe = null;       // Hủy đăng ký ProMaxGPSCore
 
             // Bản đồ chuyển trạng thái hợp lệ
             this.validTransitions = {
@@ -108,41 +109,36 @@
         // 5. GPS LISTENER
         // ================================================================
         startGpsListener() {
-    // Ưu tiên dùng GPS sạch từ cockpit.js
-    if (window.cockpit && typeof window.cockpit.onPosition === 'function') {
-        window.cockpit.onPosition((pos) => {
-            // Chuyển về format giống GeolocationPosition
-            this.updateGPS({
-                coords: {
-                    latitude: pos.lat,
-                    longitude: pos.lng,
-                    speed: (pos.speed || 0) / 3.6, // km/h → m/s
-                    accuracy: pos.accuracy || 999,
-                    heading: pos.heading || 0
-                },
-                timestamp: pos.timestamp || Date.now()
-            });
-        });
-        this.log('GPS: Đã kết nối với cockpit.js (GPS sạch)', 'info');
-        return;
-    }
-
-    // Fallback: dùng navigator.geolocation như cũ
-    if (navigator.geolocation) {
-        this.gpsWatchId = navigator.geolocation.watchPosition(
-            (pos) => this.updateGPS(pos),
-            (err) => this.log(`GPS lỗi: ${err.message}`, 'error'),
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 5000
+            // Nguồn duy nhất: ProMaxGPSCore. Không tạo watcher thứ hai.
+            if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
+                this.gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
+                    if (!fix || fix.error) return;
+                    this.updateGPS({
+                        coords: {
+                            latitude: fix.lat,
+                            longitude: fix.lng,
+                            speed: fix.speed || 0,
+                            accuracy: fix.accuracy || 999,
+                            heading: fix.heading || 0
+                        },
+                        timestamp: fix.timestamp || Date.now()
+                    });
+                });
+                this.log('GPS: Đã kết nối với ProMaxGPSCore (single watcher)', 'info');
+                return;
             }
-        );
-        this.log('GPS: Đang theo dõi vị trí (navigator.geolocation - fallback)', 'info');
-    } else {
-        this.log('⚠️ GPS không khả dụng', 'warn');
-    }
-} ================================================================
+            // Chỉ là fallback khi core chưa được nạp; index.html luôn nạp core trước module này.
+            if (navigator.geolocation) {
+                this.gpsWatchId = navigator.geolocation.watchPosition(
+                    (pos) => this.updateGPS(pos),
+                    (err) => this.log(`GPS lỗi: ${err.message}`, 'error'),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+                );
+                this.log('GPS: fallback navigator.geolocation', 'warn');
+            } else {
+                this.log('⚠️ GPS không khả dụng', 'warn');
+            }
+        }
         // 6. XỬ LÝ GPS UPDATE (CORE)
         // ================================================================
         updateGPS(position) {
@@ -587,6 +583,10 @@
             if (this.gpsWatchId) {
                 navigator.geolocation.clearWatch(this.gpsWatchId);
                 this.gpsWatchId = null;
+            }
+            if (this.gpsUnsubscribe) {
+                this.gpsUnsubscribe();
+                this.gpsUnsubscribe = null;
             }
             this.stopWaitTimer();
             this.log('🧹 Trip Engine đã bị hủy', 'info');
