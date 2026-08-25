@@ -2,7 +2,15 @@
 (function(){
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function(){
-            navigator.serviceWorker.register('/sw.js').catch(function(){});
+            navigator.serviceWorker.register('/sw.js?v=20260826').then(function(reg){
+                try { reg.update(); } catch(e) {}
+            }).catch(function(){});
+            navigator.serviceWorker.addEventListener('controllerchange', function(){
+                if (!sessionStorage.getItem('promax_sw_reloaded_v6')) {
+                    sessionStorage.setItem('promax_sw_reloaded_v6', '1');
+                    window.location.reload();
+                }
+            });
         });
     }
     function addMeta(name, content){
