@@ -5,7 +5,7 @@
  */
 
 // [FIX] Nâng version — bắt browser reload SW mới
-const CACHE_NAME = 'taxi-promax-v5';
+const CACHE_NAME = 'taxi-promax-v6-20260826';
 
 // Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
@@ -96,9 +96,9 @@ self.addEventListener('fetch', (event) => {
     }
 
     event.respondWith(
-        fetch(event.request)
+        fetch(event.request, { cache: 'no-store' })
             .then((networkResponse) => {
-                if (networkResponse && networkResponse.status === 200) {
+                if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
                     const clone = networkResponse.clone();
                     caches.open(CACHE_NAME).then(cache => {
                         cache.put(event.request, clone);
