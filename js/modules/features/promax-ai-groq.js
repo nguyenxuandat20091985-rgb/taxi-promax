@@ -41,12 +41,19 @@
         fetch('/api/ai-assistant', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: q })
+            body: JSON.stringify({ question: q, role: 'driver' })
         })
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-            wait.textContent = d.success ? '🤖 ' + d.answer : '❌ ' + (d.error || 'Lỗi kết nối');
-            if (d.success && typeof speak === 'function') speak(d.answer);
+        .then(function(r){
+            return r.json().catch(function(){ return {}; }).then(function(d){ return { ok: r.ok, status: r.status, data: d }; });
+        })
+        .then(function(result){
+            var d = result.data || {};
+            if (result.ok && d.success) {
+                wait.textContent = '🤖 ' + d.answer;
+                if (typeof speak === 'function') speak(d.answer);
+            } else {
+                wait.textContent = '❌ ' + (d.error || ('AI không khả dụng (HTTP ' + result.status + ')'));
+            }
         })
         .catch(function(e){ wait.textContent = '❌ Không kết nối được trợ lý: ' + e.message; });
     }
