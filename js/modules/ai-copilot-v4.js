@@ -23,6 +23,7 @@
     let _mode = null;
     let _lastAlertTime = 0;
     let _gpsWatchId = null;
+    let _gpsUnsubscribe = null;
     let _listeners = [];
     let _lastGps = null;
 
@@ -120,7 +121,23 @@
             // Có thể lấy dữ liệu từ cockpit (ví dụ: dùng sự kiện)
             // Nhưng để đơn giản, ta vẫn dùng navigator.geolocation
         }
-        if (navigator.geolocation) {
+        if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
+            if (_gpsUnsubscribe) _gpsUnsubscribe();
+            _gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
+                if (!fix || fix.error) return;
+                handleGpsUpdate({
+                    coords: {
+                        latitude: fix.lat,
+                        longitude: fix.lng,
+                        speed: fix.speed || 0,
+                        accuracy: fix.accuracy || 999,
+                        heading: fix.heading || 0
+                    },
+                    timestamp: fix.timestamp || Date.now()
+                });
+            });
+            log('GPS: Đã kết nối ProMaxGPSCore (single watcher)');
+        } else if (navigator.geolocation) {
             if (_gpsWatchId) navigator.geolocation.clearWatch(_gpsWatchId);
             _gpsWatchId = navigator.geolocation.watchPosition(
                 (pos) => handleGpsUpdate(pos),
@@ -299,6 +316,10 @@
             if (_gpsWatchId) {
                 navigator.geolocation.clearWatch(_gpsWatchId);
                 _gpsWatchId = null;
+            }
+            if (_gpsUnsubscribe) {
+                _gpsUnsubscribe();
+                _gpsUnsubscribe = null;
             }
             const db = getFirebase();
             if (db) {
