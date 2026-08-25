@@ -26,6 +26,8 @@
     let _gpsUnsubscribe = null;
     let _listeners = [];
     let _lastGps = null;
+    let _lastGpsAlertAt = 0;
+    let _lastGpsAlertKind = '';
 
     // ======================== PHÁT HIỆN MÔI TRƯỜNG ========================
     function detectMode() {
@@ -178,11 +180,19 @@
         const accuracy = coords.accuracy;
         const speed = coords.speed || 0;
 
-        // Cảnh báo độ chính xác
-        if (accuracy > CONFIG.GPS_ACCURACY_CRITICAL) {
-            showAlert('📡 GPS rất kém (độ chính xác >100m), hãy ra nơi thoáng đãng.', 'danger', 5000);
-        } else if (accuracy > CONFIG.GPS_ACCURACY_WARN) {
-            showAlert('📡 GPS đang yếu (độ chính xác >50m), có thể ảnh hưởng đến định vị.', 'warning', 5000);
+        // Cảnh báo độ chính xác: không lặp toast ở mọi GPS fix.
+        const gpsAlertKind = accuracy > CONFIG.GPS_ACCURACY_CRITICAL ? 'critical' : accuracy > CONFIG.GPS_ACCURACY_WARN ? 'weak' : '';
+        const now = Date.now();
+        if (gpsAlertKind && (gpsAlertKind !== _lastGpsAlertKind || now - _lastGpsAlertAt >= 30000)) {
+            _lastGpsAlertAt = now;
+            _lastGpsAlertKind = gpsAlertKind;
+            if (gpsAlertKind === 'critical') {
+                showAlert('📡 GPS rất kém (độ chính xác >100m), hãy ra nơi thoáng đãng.', 'danger', 5000);
+            } else {
+                showAlert('📡 GPS đang yếu (độ chính xác >50m), có thể ảnh hưởng đến định vị.', 'warning', 5000);
+            }
+        } else if (!gpsAlertKind) {
+            _lastGpsAlertKind = '';
         }
 
         // 🛡️ Chỉ tính gia tốc khi xe thực sự di chuyển (trên 2 m/s)
