@@ -1,7 +1,7 @@
 (function(){
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function(){
-            navigator.serviceWorker.register('/sw.js').catch(function(){});
+            navigator.serviceWorker.register('/sw.js?v=20260826-2').catch(function(){});
         });
     }
     function addMeta(name, content){
