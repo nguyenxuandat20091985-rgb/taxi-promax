@@ -20,6 +20,11 @@ const ASSETS_TO_CACHE = [
     '/admin',              // Clean URL admin
     './manifest.json',
 
+    // ===== TAXI PROMAX UI v6 =====
+    './css/promax-v6-ui.css',
+    './js/modules/promax-map-ui.js',
+    './js/modules/promax-care-ai.js',
+
     // ===== FIREBASE SDK (offline được) =====
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',
