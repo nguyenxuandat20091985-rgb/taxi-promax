@@ -5,7 +5,7 @@
  */
 
 // [FIX] Nâng version — bắt browser reload SW mới
-const CACHE_NAME = 'taxi-promax-v6-20260826';
+const CACHE_NAME = 'taxi-promax-v7-20260826';
 
 // Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
@@ -21,7 +21,7 @@ const ASSETS_TO_CACHE = [
     './manifest.json',
 
     // ===== TAXI PROMAX UI v6 =====
-    './css/promax-v6-ui.css',
+    './css/promax-v6-ui.css?v=20260826-2',
     './js/modules/promax-map-ui.js',
     './js/modules/promax-care-ai.js',
 
