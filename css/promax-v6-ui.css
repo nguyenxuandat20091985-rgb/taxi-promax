@@ -1,51 +1,71 @@
 /*
- * TAXI PROMAX DRIVER — UI MASTER v2.3
- * FIX TOÀN DIỆN: Nút chức năng click được 100%
- * - pointer-events: auto cho mọi interactive element
- * - Z-index tầng rõ ràng
- * - Không còn element nào đè lên nav / action buttons
- * - Safe-area + mobile-first
+ * ============================================================================
+ * TAXI PROMAX — COCKPIT UI FINAL v3.0
+ * Thiết kế theo ảnh tham chiếu + Master Spec
+ * - Map \~84dvh khi sheet collapsed
+ * - Bottom Sheet glass/white, bo góc lớn
+ * - 3 Map Actions bên PHẢI
+ * - Header xanh đậm + logo
+ * - Nav 5 mục + badge
+ * - pointer-events: auto cho mọi nút chức năng
+ * - Safe-area + clamp() responsive
+ * ============================================================================
  */
 
+/* ========== 1. ROOT / VARIABLES ========== */
 :root {
-  --primary: #0054a3;
+  --primary: #0054A3;
   --primary-dark: #003d7a;
-  --primary-light: #1a6fc4;
-  --accent: #00bfa5;
-  --accent-dark: #009688;
-  --danger: #d32f2f;
-  --warning: #f39c12;
-  --success: #27ae60;
-  --info: #2196f3;
-  --dark: #1c1e21;
-  --gray-900: #1a2332;
-  --gray-700: #4a5568;
-  --gray-500: #a0aec0;
-  --gray-300: #e2e8f0;
-  --gray-100: #f7fafc;
-  --white: #ffffff;
-  --bg: #f4f7f6;
+  --teal: #08A99F;
+  --teal-dark: #078F8D;
+  --cyan: #12C4DD;
+  --ink: #132033;
+  --white: #FFFFFF;
+  --muted: #87919A;
+  --danger: #D32F2F;
+  --warning: #F59E0B;
+  --success: #16A34A;
+  --bg: #f0f4f7;
+
+  --header-bg: linear-gradient(180deg, #0a2a5c 0%, #0d3a7a 100%);
   --glass: rgba(255, 255, 255, 0.97);
-  --shadow: 0 4px 15px rgba(0,0,0,0.1);
-  --shadow-lg: 0 10px 30px rgba(0,0,0,0.15);
-  --promax-teal: #0aa69f;
-  --promax-ink: #132033;
-  --promax-safe-top: env(safe-area-inset-top, 0px);
-  --promax-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.08);
+  --shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.15);
+  --shadow-sheet: 0 -6px 28px rgba(15, 40, 62, 0.12);
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
   --radius-full: 9999px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --header-h: clamp(56px, 9vh, 68px);
+  --sheet-collapsed: clamp(110px, 16dvh, 140px);
+  --sheet-expanded: clamp(280px, 38dvh, 360px);
+
+  --map-z: 1;
+  --header-z: 1000;
+  --gps-z: 1100;
+  --map-actions-z: 1200;
+  --toast-z: 1300;
+  --sheet-z: 2000;
+  --trip-z: 3000;
+  --modal-z: 50000;
+
+  --transition: 0.25s cubic-bezier(0.23, 1, 0.32, 1);
   --transition-fast: 0.15s ease;
 }
 
-/* ========== RESET ========== */
-* {
+/* ========== 2. RESET ========== */
+*, *::before, *::after {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-  outline: none;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
 
 html, body {
@@ -55,18 +75,19 @@ html, body {
   background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  color: var(--dark);
-  line-height: 1.5;
+  color: var(--ink);
+  line-height: 1.45;
+  text-size-adjust: 100%;
 }
 
-/* ========== MAP ========== */
+/* ========== 3. MAP ========== */
 #map {
   position: absolute !important;
   inset: 0 !important;
-  width: 100vw !important;
+  width: 100% !important;
   height: 100dvh !important;
-  z-index: 1 !important;
-  background: #e8ecf0 !important;
+  z-index: var(--map-z) !important;
+  background: #e5eef5 !important;
 }
 
 .leaflet-control-zoom,
@@ -74,152 +95,406 @@ html, body {
   display: none !important;
 }
 
-/* ========== HEADER ========== */
+/* ========== 4. HEADER ========== */
 .header {
   position: fixed !important;
-  inset: 0 0 auto 0 !important;
-  height: clamp(48px, 8vh, 60px) !important;
-  padding-top: var(--promax-safe-top) !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: calc(var(--header-h) + var(--safe-top)) !important;
+  padding-top: var(--safe-top) !important;
+  background: var(--header-bg) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: var(--header-z) !important;
   pointer-events: none !important;
-  background: transparent !important;
-  z-index: 1100 !important;
+  box-shadow: 0 2px 12px rgba(0, 30, 80, 0.25) !important;
 }
 
-.menu-btn,
-.dark-toggle-btn {
+.promax-brand {
+  color: #fff !important;
+  font-size: clamp(16px, 4.2vw, 20px) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.6px !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  pointer-events: none !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.promax-brand span {
+  color: var(--cyan) !important;
+  font-weight: 800 !important;
+}
+
+/* Menu button (trái) */
+.menu-btn {
   position: absolute !important;
-  top: calc(var(--promax-safe-top) + 6px) !important;
-  width: clamp(40px, 9vw, 48px) !important;
-  height: clamp(40px, 9vw, 48px) !important;
+  left: clamp(10px, 3vw, 16px) !important;
+  top: calc(var(--safe-top) + 8px) !important;
+  width: clamp(42px, 10vw, 48px) !important;
+  height: clamp(42px, 10vw, 48px) !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  color: var(--primary) !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  pointer-events: auto !important;
-  border: 0 !important;
-  border-radius: 50% !important;
-  background: var(--glass) !important;
-  color: var(--promax-ink) !important;
-  box-shadow: 0 2px 10px rgba(0,0,0,.15) !important;
-  font-size: 18px !important;
+  box-shadow: var(--shadow-sm) !important;
   cursor: pointer !important;
-  z-index: 1150 !important;
+  pointer-events: auto !important;
+  z-index: calc(var(--header-z) + 10) !important;
   transition: transform var(--transition-fast) !important;
 }
+.menu-btn:active { transform: scale(0.92) !important; }
 
-.menu-btn { left: clamp(8px, 2vw, 16px) !important; }
-.dark-toggle-btn { right: clamp(8px, 2vw, 16px) !important; }
-.menu-btn:active,
-.dark-toggle-btn:active { transform: scale(0.92) !important; }
+/* Notification button (phải) — thay dark-toggle nếu cần */
+.dark-toggle-btn,
+#notificationBtn {
+  position: absolute !important;
+  right: clamp(10px, 3vw, 16px) !important;
+  top: calc(var(--safe-top) + 8px) !important;
+  width: clamp(42px, 10vw, 48px) !important;
+  height: clamp(42px, 10vw, 48px) !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  color: var(--primary) !important;
+  font-size: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: var(--shadow-sm) !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  z-index: calc(var(--header-z) + 10) !important;
+  transition: transform var(--transition-fast) !important;
+}
+.dark-toggle-btn:active,
+#notificationBtn:active { transform: scale(0.92) !important; }
 
-/* ========== GPS STATUS ========== */
+/* Badge đỏ trên nút thông báo */
+#notificationBtn { position: absolute !important; }
+#notificationBtn::after,
+.notif-badge {
+  content: attr(data-count);
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  pointer-events: none;
+}
+
+/* ========== 5. GPS STATUS ========== */
 .gps-status-bar {
   position: fixed !important;
-  top: calc(var(--promax-safe-top) + 10px) !important;
+  top: calc(var(--header-h) + var(--safe-top) + 10px) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  min-width: 110px !important;
-  padding: 5px 12px !important;
+  min-width: 140px !important;
+  max-width: calc(100vw - 120px) !important;
+  padding: 7px 14px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
-  border-radius: 16px !important;
   background: var(--glass) !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,.1) !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  z-index: 1200 !important;
-  pointer-events: none !important;
+  border-radius: var(--radius-full) !important;
+  box-shadow: var(--shadow-sm) !important;
+  font-size: clamp(11px, 2.8vw, 13px) !important;
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+  z-index: var(--gps-z) !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
 }
 
 .gps-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #bdc3c7;
-  flex-shrink: 0;
+  width: 9px !important;
+  height: 9px !important;
+  border-radius: 50% !important;
+  background: #bdc3c7 !important;
+  flex-shrink: 0 !important;
 }
-.gps-dot.good { background: #00bfa5; animation: gpsBlink 1.5s infinite; }
-.gps-dot.weak { background: #f39c12; }
-.gps-dot.bad  { background: var(--danger); animation: gpsBlink 0.5s infinite; }
+.gps-dot.good { background: var(--success) !important; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25); }
+.gps-dot.fair { background: var(--warning) !important; }
+.gps-dot.weak { background: #e67e22 !important; animation: gpsBlink 1s infinite; }
+.gps-dot.bad  { background: var(--danger) !important; animation: gpsBlink 0.6s infinite; }
 
 @keyframes gpsBlink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  50% { opacity: 0.35; }
 }
 
-/* ========== MAP ACTIONS (bên phải) ========== */
+/* ========== 6. MAP ACTIONS (BÊN PHẢI) ========== */
 #promaxMapActions {
   position: fixed !important;
-  right: clamp(10px, 2.5vw, 16px) !important;
-  top: clamp(100px, 18vh, 140px) !important;
+  right: clamp(12px, 3vw, 18px) !important;
+  top: calc(var(--header-h) + var(--safe-top) + 70px) !important;
   display: flex !important;
   flex-direction: column !important;
+  align-items: center !important;
   gap: 10px !important;
-  z-index: 1250 !important;
+  z-index: var(--map-actions-z) !important;
   pointer-events: auto !important;
 }
 
 .promax-map-action {
-  width: 44px !important;
-  height: 44px !important;
+  width: clamp(44px, 11vw, 50px) !important;
+  height: clamp(44px, 11vw, 50px) !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  color: var(--teal-dark) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.13) !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border: 0 !important;
-  border-radius: 50% !important;
-  background: var(--glass) !important;
-  box-shadow: 0 3px 10px rgba(0,0,0,.13) !important;
   cursor: pointer !important;
   pointer-events: auto !important;
-  transition: transform var(--transition-fast) !important;
+  transition: transform var(--transition-fast), background 0.2s !important;
 }
 .promax-map-action:active { transform: scale(0.9) !important; }
+.promax-map-action.active {
+  background: var(--teal) !important;
+  color: #fff !important;
+}
 
-/* ========== FOOTER PANEL ========== */
+.promax-map-action svg {
+  width: 22px !important;
+  height: 22px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2.2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  pointer-events: none !important;
+}
+
+/* ========== 7. BOTTOM SHEET ========== */
 .footer-panel {
   position: fixed !important;
   left: 50% !important;
   bottom: 0 !important;
-  width: min(100vw, 640px) !important;
+  width: min(100vw, 480px) !important;
+  max-width: 480px !important;
   transform: translateX(-50%) !important;
-  background: #fff !important;
-  border-radius: 24px 24px 0 0 !important;
-  box-shadow: 0 -8px 30px rgba(15,23,42,.12) !important;
-  padding: 10px 14px calc(var(--promax-safe-bottom) + 6px) !important;
-  z-index: 2000 !important;
+  background: var(--glass) !important;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+  box-shadow: var(--shadow-sheet) !important;
+  padding: 0 16px calc(var(--safe-bottom) + 8px) !important;
+  z-index: var(--sheet-z) !important;
   pointer-events: auto !important;
+  transition: height var(--transition), max-height var(--transition) !important;
+  overflow: hidden !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
 }
 
-/* Nút chính */
-.footer-panel #mainBtn,
-.footer-panel .btn-main {
-  width: 100% !important;
-  padding: 15px !important;
-  border: none !important;
-  border-radius: 16px !important;
-  background: var(--accent) !important;
-  color: #fff !important;
-  font-size: 17px !important;
-  font-weight: 900 !important;
-  box-shadow: 0 6px 20px rgba(0,191,165,.3) !important;
+/* Collapsed mặc định */
+.footer-panel,
+.footer-panel.sheet-collapsed {
+  max-height: var(--sheet-collapsed) !important;
+}
+
+/* Expanded */
+.footer-panel.sheet-expanded,
+.footer-panel.is-expanded {
+  max-height: var(--sheet-expanded) !important;
+}
+
+/* ========== 8. SHEET TOGGLE ========== */
+.promax-sheet-toggle,
+#sheetToggle {
+  width: 48px !important;
+  height: 22px !important;
+  margin: 6px auto 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: 0 !important;
   cursor: pointer !important;
   pointer-events: auto !important;
-  transition: transform 0.15s !important;
-  margin: 8px 0 !important;
-}
-.footer-panel #mainBtn:active,
-.footer-panel .btn-main:active {
-  transform: scale(0.97) !important;
+  position: relative !important;
 }
 
-/* Hàng action nhanh */
+.promax-sheet-toggle::before,
+#sheetToggle::before {
+  content: "" !important;
+  width: 36px !important;
+  height: 5px !important;
+  background: #c5cdd4 !important;
+  border-radius: 3px !important;
+  display: block !important;
+}
+
+.footer-panel.sheet-expanded .promax-sheet-toggle::before,
+.footer-panel.is-expanded #sheetToggle::before {
+  background: var(--teal) !important;
+}
+
+/* ========== 9. ONLINE + RATE ROW ========== */
+.promax-status-row,
+.promax-home-controls > .promax-status-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 4px 0 8px !important;
+  pointer-events: auto !important;
+}
+
+.online-toggle-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+/* Toggle switch */
+.toggle-switch-small,
+#onlineToggleSwitch {
+  width: 48px !important;
+  height: 28px !important;
+  border-radius: 14px !important;
+  background: #c5cdd4 !important;
+  position: relative !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  transition: background 0.25s !important;
+  flex-shrink: 0 !important;
+}
+
+.toggle-switch-small.active,
+#onlineToggleSwitch.active {
+  background: var(--teal) !important;
+}
+
+.toggle-switch-small::after,
+#onlineToggleSwitch::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 3px !important;
+  left: 3px !important;
+  width: 22px !important;
+  height: 22px !important;
+  background: #fff !important;
+  border-radius: 50% !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2) !important;
+  transition: left 0.25s !important;
+}
+
+.toggle-switch-small.active::after,
+#onlineToggleSwitch.active::after {
+  left: 23px !important;
+}
+
+#onlineTextStatus {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+}
+
+.promax-rate-readout {
+  font-size: clamp(16px, 4.5vw, 20px) !important;
+  font-weight: 800 !important;
+  color: var(--teal) !important;
+  white-space: nowrap !important;
+  letter-spacing: -0.3px !important;
+}
+.promax-rate-readout strong { font-weight: 800; }
+.promax-rate-readout small {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--muted) !important;
+  margin-left: 2px !important;
+}
+
+/* ========== 10. FARE SLIDER ========== */
+.promax-slider-card {
+  background: #f7fafc !important;
+  border-radius: var(--radius-md) !important;
+  padding: 10px 12px !important;
+  margin-bottom: 10px !important;
+  pointer-events: auto !important;
+}
+
+.promax-slider-head {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+  margin-bottom: 6px !important;
+}
+
+.promax-slider-scale {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 10px !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+}
+
+.promax-slider-scale input[type="range"],
+#priceSlider,
+#fareSlider {
+  flex: 1 !important;
+  height: 6px !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: linear-gradient(to right, var(--teal) 0%, #d0d7de 0%) !important;
+  border-radius: 3px !important;
+  outline: none !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+.promax-slider-scale input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 50% !important;
+  background: var(--teal) !important;
+  border: 3px solid #fff !important;
+  box-shadow: 0 2px 8px rgba(8, 169, 159, 0.4) !important;
+  cursor: pointer !important;
+}
+
+.promax-slider-current {
+  text-align: center !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: var(--teal) !important;
+  margin-top: 4px !important;
+}
+
+/* ========== 11. 3 ACTION BUTTONS ========== */
 .promax-action-row {
   display: flex !important;
-  gap: 0 !important;
-  margin: 6px 0 !important;
-  border-radius: 14px !important;
-  overflow: hidden !important;
-  border: 1px solid #edf0f2 !important;
+  gap: 10px !important;
+  margin: 8px 0 10px !important;
   pointer-events: auto !important;
 }
 
@@ -229,74 +504,130 @@ html, body {
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 4px !important;
+  gap: 5px !important;
   padding: 10px 4px !important;
-  border: none !important;
+  border: 1px solid #e8eef2 !important;
+  border-radius: 16px !important;
   background: #fff !important;
   cursor: pointer !important;
   pointer-events: auto !important;
-  transition: background 0.15s !important;
+  min-height: 72px !important;
+  transition: background 0.15s, transform 0.15s, border-color 0.15s !important;
+  position: relative !important;
 }
-.promax-action:active { background: #f0fbfa !important; }
-.promax-action-icon { pointer-events: none !important; }
-.promax-action-label {
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: var(--promax-ink) !important;
+
+.promax-action:active {
+  background: #f0fbfa !important;
+  transform: scale(0.97) !important;
+}
+
+.promax-action-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, var(--teal), var(--cyan)) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #fff !important;
+  font-size: 18px !important;
   pointer-events: none !important;
 }
 
-/* ========== BOTTOM NAV — FIX CLICK 100% ========== */
-.nav-grid {
-  width: 100% !important;
-  min-height: 52px !important;
-  margin-top: 6px !important;
-  padding-top: 6px !important;
+.promax-action-icon svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  stroke-width: 2 !important;
+  pointer-events: none !important;
+}
+
+.promax-action-label {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+  pointer-events: none !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+}
+
+/* Badge đỏ trên Đơn mới */
+.promax-action .badge,
+#promaxOrderAction .badge,
+#bookingBtn .badge {
+  position: absolute !important;
+  top: 6px !important;
+  right: 10px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  background: var(--danger) !important;
+  color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  border-radius: 9px !important;
   display: flex !important;
-  align-items: flex-end !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 5px !important;
+  pointer-events: none !important;
+}
+
+/* Ẩn nút main cũ khi dùng 3 action */
+.footer-panel #mainBtn.btn-main {
+  display: none !important;
+}
+
+/* ========== 12. BOTTOM NAV (5 mục) ========== */
+.nav-grid {
+  display: flex !important;
   justify-content: space-around !important;
+  align-items: flex-end !important;
+  width: 100% !important;
+  min-height: 56px !important;
+  padding: 6px 0 2px !important;
   border-top: 1px solid #edf0f2 !important;
+  margin-top: 4px !important;
   pointer-events: auto !important;
   position: relative !important;
-  z-index: 2010 !important;
-  background: #fff !important;
+  z-index: 10 !important;
+  background: transparent !important;
 }
 
 .nav-item {
   flex: 1 1 0 !important;
+  min-width: 0 !important;
   min-height: 48px !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  gap: 2px !important;
+  gap: 3px !important;
   border: 0 !important;
   background: transparent !important;
-  color: #a4acb3 !important;
+  color: #a0a8b0 !important;
   cursor: pointer !important;
   pointer-events: auto !important;
-  position: relative !important;
-  z-index: 1 !important;
-  transition: color 0.15s !important;
   padding: 4px 2px 0 !important;
-}
-
-.nav-item .nav-ico,
-.nav-item .nav-lab {
-  pointer-events: none !important;
+  position: relative !important;
+  transition: color 0.15s !important;
 }
 
 .nav-item .nav-ico {
   font-size: 22px !important;
+  line-height: 1 !important;
+  pointer-events: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
 }
 
 .nav-item .nav-lab {
-  font-size: 11px !important;
+  font-size: 10px !important;
   font-weight: 700 !important;
   line-height: 1 !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
 }
 
 .nav-item.active {
@@ -310,39 +641,136 @@ html, body {
   height: 5px !important;
   margin: 3px auto 0 !important;
   border-radius: 50% !important;
-  background: var(--promax-teal) !important;
+  background: var(--teal) !important;
 }
 
-/* ========== TAB CONTENT ========== */
+/* Badge trên nav Thông báo */
+.nav-item .nav-badge {
+  position: absolute !important;
+  top: 0 !important;
+  right: calc(50% - 18px) !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  background: var(--danger) !important;
+  color: #fff !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 4px !important;
+  pointer-events: none !important;
+}
+
+/* Brand footer */
+.brand-footer {
+  font-size: 9px !important;
+  text-align: center !important;
+  color: #b0b8c0 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px !important;
+  padding: 4px 0 2px !important;
+  pointer-events: none !important;
+}
+
+/* ========== 13. TRIP PANEL ========== */
+#tripInfoPanel {
+  position: fixed !important;
+  left: 50% !important;
+  bottom: 0 !important;
+  width: min(100vw, 480px) !important;
+  transform: translateX(-50%) !important;
+  background: #fff !important;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+  box-shadow: var(--shadow-sheet) !important;
+  padding: 16px 16px calc(var(--safe-bottom) + 12px) !important;
+  z-index: var(--trip-z) !important;
+  max-height: 75vh !important;
+  overflow-y: auto !important;
+  display: none !important;
+  pointer-events: auto !important;
+}
+#tripInfoPanel.show,
+#tripInfoPanel.active { display: block !important; }
+
+.trip-action-buttons {
+  display: flex !important;
+  gap: 10px !important;
+  margin-top: 12px !important;
+}
+.trip-action-buttons button {
+  flex: 1 !important;
+  min-height: 48px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+.btn-pickup { background: var(--teal) !important; color: #fff !important; }
+.btn-nav { background: var(--primary) !important; color: #fff !important; }
+
+/* ========== 14. STATS BAR ========== */
+.stats-bar,
+#statsUI {
+  position: fixed !important;
+  top: calc(var(--header-h) + var(--safe-top) + 52px) !important;
+  left: clamp(10px, 3vw, 16px) !important;
+  right: clamp(10px, 3vw, 16px) !important;
+  background: linear-gradient(135deg, #1a2332, #0f1724) !important;
+  border-radius: 14px !important;
+  padding: 10px 8px !important;
+  display: none !important;
+  z-index: calc(var(--gps-z) + 5) !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.4) !important;
+  pointer-events: none !important;
+}
+.stats-bar.show,
+#statsUI.show {
+  display: flex !important;
+  justify-content: space-around !important;
+}
+
+.stat-item { flex: 1; text-align: center; }
+.stat-label {
+  font-size: 9px !important;
+  color: #8fa3bf !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+.stat-value {
+  font-size: clamp(15px, 4vw, 20px) !important;
+  font-weight: 900 !important;
+  color: #fff !important;
+}
+
+/* ========== 15. TAB CONTENT ========== */
 .tab-content {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
   width: 100% !important;
-  height: calc(100% - 160px) !important; /* chừa chỗ cho footer + nav */
+  height: calc(100% - var(--sheet-collapsed) - 20px) !important;
   background: #fdfdfd !important;
   z-index: 1500 !important;
   display: none !important;
   flex-direction: column !important;
   overflow-y: auto !important;
-  padding-bottom: 20px !important;
+  padding-bottom: 30px !important;
   pointer-events: auto !important;
 }
 
-.tab-content.show,
-.tab-content[style*="display: flex"],
-.tab-content[style*="display:block"] {
-  display: flex !important;
-}
-
-/* ========== SIDEBAR ========== */
+/* ========== 16. SIDEBAR ========== */
 .sidebar-overlay {
   position: fixed !important;
   inset: 0 !important;
-  background: rgba(0,0,0,0.5) !important;
+  background: rgba(0, 0, 0, 0.5) !important;
   z-index: 10000 !important;
   display: none !important;
   pointer-events: auto !important;
+  backdrop-filter: blur(3px) !important;
 }
 .sidebar-overlay.show { display: block !important; }
 
@@ -350,17 +778,25 @@ html, body {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
-  width: 280px !important;
+  width: min(300px, 82vw) !important;
   height: 100% !important;
   background: #fff !important;
   z-index: 10001 !important;
   transform: translateX(-100%) !important;
   transition: transform 0.3s ease !important;
-  pointer-events: auto !important;
   display: flex !important;
   flex-direction: column !important;
+  pointer-events: auto !important;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.15) !important;
 }
 .sidebar.open { transform: translateX(0) !important; }
+
+.sidebar-header {
+  padding: 24px 20px !important;
+  background: linear-gradient(135deg, var(--primary), #003d7a) !important;
+  color: #fff !important;
+  flex-shrink: 0 !important;
+}
 
 .sidebar-item {
   display: flex !important;
@@ -370,81 +806,137 @@ html, body {
   border-bottom: 1px solid #f0f0f0 !important;
   cursor: pointer !important;
   pointer-events: auto !important;
-  background: #fff !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
-}
-.sidebar-item:active { background: #f5f5f5 !important; }
-
-/* ========== TRIP PANEL ========== */
-#tripInfoPanel {
-  position: fixed !important;
-  left: 50% !important;
-  bottom: 0 !important;
-  width: min(100vw, 640px) !important;
-  transform: translateX(-50%) !important;
+  color: var(--ink) !important;
   background: #fff !important;
-  border-radius: 24px 24px 0 0 !important;
-  box-shadow: 0 -8px 32px rgba(15,23,42,.15) !important;
-  padding: 16px 16px calc(var(--promax-safe-bottom) + 12px) !important;
-  z-index: 2050 !important;
-  max-height: 75vh !important;
-  overflow-y: auto !important;
-  display: none !important;
-  pointer-events: auto !important;
 }
-#tripInfoPanel.show,
-#tripInfoPanel.active { display: block !important; }
+.sidebar-item:active { background: #f5f7fa !important; }
+.sidebar-item i { width: 24px; color: var(--primary); font-size: 18px; }
 
-.trip-action-buttons button {
-  pointer-events: auto !important;
-  cursor: pointer !important;
-}
-
-/* ========== MODALS & OVERLAYS ========== */
+/* ========== 17. MODALS ========== */
 .custom-modal,
+.confirm-dialog,
 .auth-screen,
-.chat-overlay,
-.confirm-dialog {
+.chat-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: var(--modal-z) !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
+  pointer-events: auto !important;
+}
+.custom-modal.show,
+.confirm-dialog.show,
+.auth-screen.show,
+.chat-overlay.show { display: flex !important; }
+
+.modal-content,
+.confirm-content {
+  background: #fff !important;
+  width: 88% !important;
+  max-width: 360px !important;
+  padding: 24px !important;
+  border-radius: 24px !important;
+  text-align: center !important;
+  box-shadow: var(--shadow-lg) !important;
   pointer-events: auto !important;
 }
 
-/* ========== TOGGLE ONLINE ========== */
-.toggle-switch-small,
-#onlineToggleSwitch {
-  pointer-events: auto !important;
+.btn-main {
+  width: 100% !important;
+  padding: 14px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: var(--teal) !important;
+  color: #fff !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
   cursor: pointer !important;
+  pointer-events: auto !important;
+  box-shadow: 0 4px 16px rgba(8, 169, 159, 0.3) !important;
 }
+.btn-main:active { transform: scale(0.97); }
 
-/* ========== GENERAL BUTTON SAFETY ========== */
+.btn-confirm { background: var(--danger) !important; color: #fff !important; }
+.btn-cancel { background: #e2e8f0 !important; color: #4a5568 !important; }
+
+/* ========== 18. TOAST ========== */
+#txToast,
+.promax-toast {
+  position: fixed !important;
+  top: calc(var(--header-h) + var(--safe-top) + 50px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  min-width: 200px !important;
+  max-width: calc(100vw - 40px) !important;
+  padding: 10px 16px !important;
+  background: rgba(30, 30, 30, 0.92) !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  z-index: var(--toast-z) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s !important;
+  text-align: center !important;
+}
+#txToast.show,
+.promax-toast.show { opacity: 1 !important; }
+
+/* ========== 19. NETWORK / OFFLINE ========== */
+#offlineBanner,
+.network-status {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  background: var(--danger) !important;
+  color: #fff !important;
+  text-align: center !important;
+  padding: 8px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  z-index: 99999 !important;
+  display: none !important;
+  pointer-events: none !important;
+}
+#offlineBanner.show { display: block !important; }
+
+/* ========== 20. GENERAL SAFETY ========== */
 button,
 [role="button"],
 .nav-item,
 .promax-action,
 .promax-map-action,
-.btn-main,
-.btn-action,
+.menu-btn,
 .sidebar-item,
-.p-card,
-.tp-feature-card {
+.toggle-switch-small,
+#onlineToggleSwitch,
+input[type="range"] {
   pointer-events: auto !important;
   cursor: pointer !important;
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* Decorative elements never block clicks */
-.sm-pulse-ring,
-.brand-footer,
-.gps-status-bar,
+/* Decorative never block clicks */
+.gps-status-bar .gps-dot,
 .promax-brand,
+.brand-footer,
 .nav-item .nav-ico,
 .nav-item .nav-lab,
 .promax-action-icon,
-.promax-action-label {
+.promax-action-label,
+.sm-pulse-ring {
   pointer-events: none !important;
 }
 
-/* ========== AUTH SCREEN ========== */
+/* Auth ẩn UI chính */
 body.auth-active #map,
 body.auth-active .header,
 body.auth-active .footer-panel,
@@ -456,14 +948,26 @@ body.auth-active .nav-grid {
   pointer-events: none !important;
 }
 
-.auth-screen {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 20000 !important;
-  display: none !important;
-  pointer-events: auto !important;
+/* ========== 21. RESPONSIVE ========== */
+@media (max-width: 380px) {
+  .promax-action-label { font-size: 11px !important; }
+  .nav-item .nav-lab { font-size: 9px !important; }
+  .promax-rate-readout { font-size: 15px !important; }
 }
-.auth-screen.show,
-body.auth-active .auth-screen {
-  display: flex !important;
+
+@media (min-width: 768px) {
+  #promaxMapActions {
+    right: max(20px, calc(50% - 240px + 16px)) !important;
+  }
+  .footer-panel {
+    width: min(100vw, 420px) !important;
+  }
+}
+
+/* ========== 22. ACCESSIBILITY ========== */
+button:focus-visible,
+.nav-item:focus-visible,
+.promax-action:focus-visible {
+  outline: 2px solid var(--teal) !important;
+  outline-offset: 2px !important;
 }
