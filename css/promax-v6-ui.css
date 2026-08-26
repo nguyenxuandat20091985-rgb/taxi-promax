@@ -1,11 +1,10 @@
 /*
- * Taxi ProMax — UI FINAL v15 / Tablet Fix + Trip Mode
- * - Modal căn giữa hoàn hảo (Thượng lộ bình an / Hoàn thành)
- * - Ẩn tab "Chuyến vẫy" khi đang trong hành trình
- * - Đổi text toast "Tài khoản đang bị khóa..." → "Tìm chuyến khách gần nhất"
- * - Stats bar (CƯỚC/KM/THỜI GIAN/TỐC ĐỘ) style đẹp
- * - Trip panel gọn gàng
- * - Responsive tablet + mobile
+ * Taxi ProMax — UI FINAL v16 / Complete Fix
+ * - Fix lỗi không kết thúc được chuyến vẫy
+ * - Bổ sung trạng thái nhận/hủy chuyến
+ * - Trip panel hiển thị đầy đủ khi đang chạy
+ * - Modal hoàn thành luôn hiện đúng
+ * - Responsive hoàn hảo
  */
 
 :root {
@@ -182,7 +181,7 @@ html, body {
   pointer-events: none !important;
 }
 
-/* === Toast notification: ĐỔI TEXT + VỊ TRÍ === */
+/* === Toast notification === */
 #txToast,
 .promax-toast,
 .toast-notification,
@@ -209,19 +208,12 @@ html, body {
   backdrop-filter: blur(8px) !important;
   line-height: 1.3 !important;
   white-space: nowrap !important;
+  opacity: 0 !important;
+  transition: opacity .3s ease !important;
 }
 
 #txToast.show,
 .promax-toast.show { opacity: 1 !important; }
-
-/* Đổi text toast "Tài khoản đang bị khóa..." → "Tìm chuyến khách gần nhất" */
-#txToast::before,
-.toast-notification::before {
-  content: "🔍 Tìm chuyến khách gần nhất" !important;
-}
-
-/* Ẩn text cũ nếu có */
-#txToast:not(.show)::before { content: "" !important; }
 
 /* === STATS BAR: CƯỚC/KM/THỜI GIAN/TỐC ĐỘ === */
 .stats-bar,
@@ -278,7 +270,7 @@ html, body {
   transition: transform .2s ease;
 }
 
-/* === 3 ICON BÊN PHẢI, ĐẨY LÊN CAO === */
+/* === 3 ICON BÊN PHẢI === */
 #promaxMapActions {
   position: fixed !important;
   right: clamp(10px, 2.5vw, 16px) !important;
@@ -545,7 +537,7 @@ html, body {
   display: none !important;
 }
 
-/* === ACTION ROW: Ẩn "Chuyến vẫy" khi đang trong hành trình === */
+/* === ACTION ROW === */
 .promax-action-row {
   width: 100% !important;
   min-height: clamp(40px, 7vh, 50px) !important;
@@ -706,7 +698,7 @@ html, body {
   line-height: 1.1 !important;
 }
 
-/* === MODAL CĂN GIỮA HOÀN HẢO (Thượng lộ bình an / Hoàn thành) === */
+/* === MODAL CĂN GIỮA HOÀN HẢO === */
 .custom-modal,
 #confirmDialog,
 .confirm-dialog,
@@ -759,7 +751,6 @@ html, body {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* Title modal */
 .modal-content h2,
 .modal-content h3,
 .confirm-title,
@@ -771,7 +762,6 @@ html, body {
   letter-spacing: .5px !important;
 }
 
-/* Text trong modal */
 .modal-content p,
 .confirm-message,
 .modal-message {
@@ -781,7 +771,6 @@ html, body {
   margin: 0 0 clamp(16px, 3vw, 24px) !important;
 }
 
-/* Nút trong modal */
 .modal-content button,
 .confirm-buttons button,
 .modal-btn,
@@ -809,14 +798,13 @@ html, body {
   transform: scale(.96) !important;
 }
 
-/* Nút hủy (nếu có) */
 .btn-cancel {
   background: #e2e8f0 !important;
   color: #4a5568 !important;
   box-shadow: none !important;
 }
 
-/* === TRIP PANEL: CHUYẾN VẪY - ĐANG CHẠY === */
+/* === TRIP PANEL: FIX LỖI KẾT THÚC CHUYẾN === */
 #tripInfoPanel {
   position: fixed !important;
   left: 50% !important;
@@ -1014,8 +1002,10 @@ html, body {
 .btn-pickup { background: var(--accent) !important; color: #fff !important; }
 .btn-nav { background: var(--primary) !important; color: #fff !important; }
 
-/* Trip end button */
-.trip-end-btn {
+/* === NÚT KẾT THÚC CHUYẾN: LUÔN HIỂN THỊ === */
+.trip-end-btn,
+#endTripBtn,
+.btn-end-trip {
   width: 100% !important;
   padding: clamp(10px, 2vh, 14px) !important;
   border-radius: clamp(12px, 2.5vw, 16px) !important;
@@ -1027,9 +1017,16 @@ html, body {
   cursor: pointer !important;
   box-shadow: 0 4px 14px rgba(211, 47, 47, .3) !important;
   transition: transform .16s var(--promax-ease) !important;
+  display: block !important;
+  visibility: visible !important;
+  margin-top: clamp(8px, 1.5vh, 12px) !important;
 }
 
-.trip-end-btn:active { transform: scale(.97) !important; }
+.trip-end-btn:active,
+#endTripBtn:active,
+.btn-end-trip:active {
+  transform: scale(.97) !important;
+}
 
 /* Trip panel compact mode */
 #tripInfoPanel.compact .trip-customer-card,
@@ -1101,12 +1098,8 @@ html, body {
    RESPONSIVE BREAKPOINTS
    ============================================================ */
 
-/* iPhone SE / nhỏ */
 @media (max-width: 375px) {
-  :root {
-    --promax-sheet-height: 105px;
-    --promax-sheet-expanded: 195px;
-  }
+  :root { --promax-sheet-height: 105px; --promax-sheet-expanded: 195px; }
   .gps-status-bar { min-width: 105px !important; font-size: 9px !important; }
   .promax-rate-readout #rateLabel { font-size: 16px !important; }
   #promaxMapActions { top: 95px !important; right: 8px !important; }
@@ -1126,7 +1119,6 @@ html, body {
   :root { --promax-sheet-height: 120px; --promax-sheet-expanded: 220px; }
 }
 
-/* Samsung nhỏ */
 @media (min-width: 355px) and (max-width: 365px) {
   :root { --promax-sheet-height: 108px; --promax-sheet-expanded: 198px; }
   .gps-status-bar { min-width: 108px !important; }
@@ -1140,12 +1132,10 @@ html, body {
   :root { --promax-sheet-height: 118px; --promax-sheet-expanded: 215px; }
 }
 
-/* OPPO / Xiaomi */
 @media (min-width: 395px) and (max-width: 405px) {
   :root { --promax-sheet-height: 115px; --promax-sheet-expanded: 208px; }
 }
 
-/* Màn hình ngắn */
 @media (max-height: 700px) {
   :root { --promax-sheet-height: 100px; --promax-sheet-expanded: 180px; }
   .header { height: 44px !important; }
@@ -1162,13 +1152,11 @@ html, body {
   #promaxMapActions { top: 75px !important; }
 }
 
-/* Màn hình dài */
 @media (min-height: 900px) {
   :root { --promax-sheet-height: 140px; --promax-sheet-expanded: 260px; }
   #promaxMapActions { top: 150px !important; }
 }
 
-/* Tablet */
 @media (min-width: 700px) {
   .footer-panel { width: min(100vw, 640px) !important; }
   #promaxMapActions { right: max(16px, calc(50% - 320px + 16px)) !important; left: auto !important; }
@@ -1179,14 +1167,12 @@ html, body {
   #promaxMapActions { top: 160px !important; right: max(20px, calc(50% - 512px + 20px)) !important; }
 }
 
-/* Notch / Dynamic Island */
 @media (min-height: 812px) and (min-width: 375px) and (max-width: 430px) {
   .gps-status-bar { top: calc(var(--promax-safe-top) + 12px) !important; }
   .menu-btn { top: calc(var(--promax-safe-top) + 8px) !important; }
   .promax-brand { top: calc(var(--promax-safe-top) + 10px) !important; }
 }
 
-/* Landscape */
 @media (orientation: landscape) and (max-height: 500px) {
   :root { --promax-sheet-height: 80px; --promax-sheet-expanded: 140px; }
   .header { height: 40px !important; }
@@ -1194,13 +1180,11 @@ html, body {
   #txToast, .promax-toast { top: calc(var(--promax-safe-top) + 30px) !important; min-width: 180px !important; }
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .menu-btn, .promax-map-action, .toggle-switch-small::after, .promax-action,
   .footer-panel, #promaxMapActions, .promax-passenger-result { transition: none !important; }
 }
 
-/* Dark mode */
 @media (prefers-color-scheme: dark) {
   :root { --promax-card: rgba(30, 35, 45, .98); --promax-ink: #e8ecf0; }
   .promax-slider-card, .promax-action-row, .promax-action {
