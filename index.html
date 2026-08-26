@@ -311,10 +311,12 @@
     <!-- TRIP INFO PANEL -->
     <div id="tripInfoPanel">
         <div class="trip-status-bar"><div class="trip-status-dot"></div><div class="trip-status-text" id="tripStatusText">🚗 ĐANG CHẠY CHUYẾN</div><div class="trip-km-live" id="tripKmLive">0.00 KM</div></div>
+        <div class="trip-phase-bar" id="tripPhaseBar" data-state="idle"><span class="trip-phase-mode" id="tripNavigationMode">SẴN SÀNG</span><span class="trip-phase-detail" id="tripPhaseDetail">Chờ đơn mới</span><span class="trip-phase-metric" id="tripEtaLive">ETA --</span></div>
         <div class="trip-customer-card"><div class="trip-avatar">🧑</div><div class="trip-customer-info"><div class="trip-customer-name" id="tripClientName">Đang tải...</div><div class="trip-customer-phone" id="tripClientPhone">...</div></div><button class="trip-call-btn" id="tripCallBtn" onclick="callCustomer()">📞</button><button class="trip-chat-btn" id="tripChatBtn" onclick="openChat()">💬</button></div>
         <div class="trip-route-card"><div class="trip-route-row"><div class="trip-route-icon">📍</div><div><div class="trip-route-label">Điểm đón</div><div class="trip-route-val" id="tripFrom">...</div></div></div><hr class="trip-route-divider"><div class="trip-route-row"><div class="trip-route-icon">🏁</div><div><div class="trip-route-label">Điểm đến</div><div class="trip-route-val" id="tripTo">...</div></div></div></div>
         <div class="trip-price-row"><div><div class="trip-price-label">GIÁ HIỆN TẠI</div><div class="trip-price-val" id="tripPrice">0đ</div></div><div style="text-align:right;"><div class="trip-price-km" id="tripEstKm"></div><div class="trip-price-km" id="tripCarType"></div></div></div>
         <div class="trip-action-buttons" id="tripActionButtons"><button class="btn-pickup" id="pickupBtn" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button><button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button></div>
+        <div class="destination-entry" id="destinationEntry" hidden><label for="destinationInput">Điểm đến của khách</label><div class="destination-entry-row"><input id="destinationInput" type="text" placeholder="Nhập địa chỉ điểm đến" autocomplete="street-address"><button type="button" onclick="confirmDestinationFromUI()">XÁC NHẬN</button></div></div>
         <button class="trip-end-btn" id="endTripBtn" onclick="showConfirmComplete()" style="display: none;">🏁 KẾT THÚC CHUYẾN ĐI</button>
     </div>
 
@@ -468,6 +470,45 @@ let _processedOrders = new Set();
 let isStreetHail = false;
 let lastDisplayedFare = 0;
 let isGapMode = false;
+
+// Trạng thái nghiệp vụ tách biệt: đi đón khách không đồng nghĩa đang tính cước.
+const RIDE_STATE = Object.freeze({
+    IDLE: 'idle', ONLINE_WAITING: 'online_waiting', ORDER_RECEIVED: 'order_received',
+    ORDER_ACCEPTED: 'order_accepted', NAVIGATING_TO_PICKUP: 'navigating_to_pickup',
+    ARRIVED_PICKUP: 'arrived_pickup', WAITING_CUSTOMER: 'waiting_customer',
+    CUSTOMER_ONBOARD: 'customer_onboard', DESTINATION_PENDING: 'destination_pending',
+    DESTINATION_CONFIRMED: 'destination_confirmed', NAVIGATING_TO_DESTINATION: 'navigating_to_destination',
+    TRIP_RUNNING: 'trip_running', ARRIVED_DESTINATION: 'arrived_destination',
+    COMPLETING_TRIP: 'completing_trip', TRIP_COMPLETED: 'trip_completed', SAVED: 'saved'
+});
+let rideState = RIDE_STATE.IDLE;
+let navigationMode = 'idle';
+let pickupNavigation = false;
+let fareCounting = false;
+let tripStarted = false;
+let pickupDistance = 0;
+let pickupStartedAt = 0;
+
+function setRideState(nextState, detail) {
+    rideState = nextState;
+    const bar = document.getElementById('tripPhaseBar');
+    const mode = document.getElementById('tripNavigationMode');
+    const text = document.getElementById('tripPhaseDetail');
+    if (!bar) return;
+    bar.dataset.state = nextState;
+    const labels = {
+        idle: 'SẴN SÀNG', online_waiting: 'CHỜ ĐƠN', order_received: 'ĐƠN MỚI',
+        order_accepted: 'ĐÃ NHẬN ĐƠN', navigating_to_pickup: 'ĐANG ĐẾN ĐÓN',
+        arrived_pickup: 'ĐÃ ĐẾN ĐIỂM ĐÓN', waiting_customer: 'CHỜ KHÁCH',
+        customer_onboard: 'KHÁCH ĐÃ LÊN XE', destination_pending: 'CHỜ ĐIỂM ĐẾN',
+        destination_confirmed: 'ĐÃ XÁC NHẬN ĐÍCH', navigating_to_destination: 'ĐANG ĐẾN ĐÍCH',
+        trip_running: 'ĐANG TÍNH CƯỚC', arrived_destination: 'ĐÃ ĐẾN NƠI',
+        completing_trip: 'ĐANG HOÀN TẤT', trip_completed: 'ĐÃ KẾT THÚC', saved: 'ĐÃ LƯU'
+    };
+    if (mode) mode.textContent = navigationMode === 'pickup' ? 'NAVIGATION · ĐÓN KHÁCH' : navigationMode === 'destination' ? 'NAVIGATION · ĐIỂM ĐẾN' : (labels[nextState] || 'TRẠNG THÁI');
+    if (text) text.textContent = detail || labels[nextState] || '';
+}
+
 let streetHailTimerInterval = null;
 let backgroundGeolocation = null;
 let isBackgroundTracking = false;
@@ -1125,7 +1166,7 @@ let hasCenteredMap = false;
         updateGpsStatusUI(accuracy, false);
         updateDriverMarker(latitude, longitude, true);
 
-        if (isRunning && isGoodEnoughForFare && lastValidPos) {
+        if (isRunning && fareCounting && isGoodEnoughForFare && lastValidPos) {
             const timeDiff = currentTime - lastValidTime;
 
             if (timeDiff > GAP_THRESHOLD) {
@@ -1945,6 +1986,12 @@ async function initApp() {
             currentOrderId = orderId; 
             currentCustomerData = order;
             isStreetHail = false;
+            navigationMode = 'pickup';
+            pickupNavigation = true;
+            fareCounting = false;
+            tripStarted = false;
+            pickupStartedAt = Date.now();
+            setRideState(RIDE_STATE.ORDER_RECEIVED, 'Đang chờ tài xế xác nhận đơn');
             
             document.getElementById('modalPhone').innerText = order.phone || '...';
             document.getElementById('modalFrom').innerText = order.pickup || '...';
@@ -2010,6 +2057,11 @@ async function initApp() {
         hasPickedUp = false;
         totalKm = 0;
         isStreetHail = false;
+        navigationMode = 'pickup';
+        pickupNavigation = true;
+        fareCounting = false;
+        tripStarted = false;
+        setRideState(RIDE_STATE.NAVIGATING_TO_PICKUP, 'Đang điều hướng đến điểm đón');
         lastDisplayedFare = 0;
         document.getElementById('km').innerText = '0.00';
         document.getElementById('cost').innerText = '0';
@@ -2043,7 +2095,13 @@ async function initApp() {
         document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
         document.getElementById('tripActionButtons').style.display = 'flex';
         document.getElementById('endTripBtn').style.display = 'none';
+        const destinationEntry = document.getElementById('destinationEntry');
+        if (destinationEntry) destinationEntry.hidden = true;
         document.getElementById('tripStatusText').innerHTML = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
+        navigationMode = 'pickup';
+        pickupNavigation = true;
+        fareCounting = false;
+        setRideState(RIDE_STATE.NAVIGATING_TO_PICKUP, 'Không tính cước khi đang chạy đến đón khách');
         if (order.pickupLat && order.pickupLng) drawRoute(currentLat, currentLng, order.pickupLat, order.pickupLng);
     }
 
@@ -2056,8 +2114,16 @@ async function initApp() {
 
     function confirmPickup() {
         hasPickedUp = true;
+        pickupNavigation = false;
+        pickupDistance = totalKm;
+        const pickupDuration = pickupStartedAt ? Math.max(0, Date.now() - pickupStartedAt) : 0;
+        const hasDestination = Boolean(currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng || currentCustomerData?.dropoff);
+        navigationMode = hasDestination ? 'destination' : 'pending';
+        fareCounting = hasDestination;
+        tripStarted = hasDestination;
+        setRideState(hasDestination ? RIDE_STATE.NAVIGATING_TO_DESTINATION : RIDE_STATE.DESTINATION_PENDING, hasDestination ? 'Đã đón khách · bắt đầu tính cước' : 'Vui lòng nhập điểm đến của khách');
         document.getElementById('tripActionButtons').style.display = 'none';
-        document.getElementById('endTripBtn').style.display = 'block';
+        document.getElementById('endTripBtn').style.display = hasDestination ? 'block' : 'none';
         document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
         if (customerMarker) map.removeLayer(customerMarker);
         if (currentOrderId && !isStreetHail) {
@@ -2078,7 +2144,37 @@ async function initApp() {
             drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
         else if (currentCustomerData?.dropoff)
             geocodeAddress(currentCustomerData.dropoff, (lat,lng) => drawRoute(currentLat, currentLng, lat, lng));
-        speak('Đã đón khách, bắt đầu hành trình.');
+        if (!hasDestination) {
+            const destinationEntry = document.getElementById('destinationEntry');
+            if (destinationEntry) destinationEntry.hidden = false;
+            document.getElementById('tripStatusText').innerHTML = '👤 KHÁCH ĐÃ LÊN XE - CHỜ ĐIỂM ĐẾN';
+        } else {
+            document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG ĐẾN ĐÍCH';
+        }
+        speak(hasDestination ? 'Đã đón khách, bắt đầu hành trình.' : 'Đã đón khách. Vui lòng nhập điểm đến.');
+    }
+
+    function confirmDestinationFromUI() {
+        const input = document.getElementById('destinationInput');
+        const destination = input && input.value.trim();
+        if (!destination || !currentCustomerData) { showToast('Vui lòng nhập điểm đến.'); return; }
+        currentCustomerData.dropoff = destination;
+        navigationMode = 'destination';
+        fareCounting = true;
+        tripStarted = true;
+        pickupNavigation = false;
+        document.getElementById('endTripBtn').style.display = 'block';
+        document.getElementById('tripTo').innerText = destination;
+        const entry = document.getElementById('destinationEntry');
+        if (entry) entry.hidden = true;
+        setRideState(RIDE_STATE.NAVIGATING_TO_DESTINATION, 'Đã xác nhận điểm đến · bắt đầu tính cước');
+        document.getElementById('tripStatusText').innerHTML = '🚕 ĐANG ĐẾN ĐIỂM ĐẾN';
+        if (currentOrderId) db.ref(`datxe/${currentOrderId}`).update({ dropoff: destination, status: 'in_progress', destinationConfirmedAt: Date.now() }).catch(() => {});
+        geocodeAddress(destination, (lat, lng) => {
+            currentCustomerData.dropoffLat = lat; currentCustomerData.dropoffLng = lng;
+            drawRoute(currentLat, currentLng, lat, lng);
+        });
+        speak('Đã xác nhận điểm đến. Bắt đầu tính cước.');
     }
 
     function navigateToPickup() {
@@ -2097,6 +2193,11 @@ async function initApp() {
             hasPickedUp = true;
             totalKm = 0;
             isStreetHail = true;
+            navigationMode = 'destination';
+            pickupNavigation = false;
+            fareCounting = true;
+            tripStarted = true;
+            setRideState(RIDE_STATE.TRIP_RUNNING, 'Chuyến vẫy · đang tính cước theo GPS');
             currentOrderId = null;
             lastDisplayedFare = 0;
             lastValidPos = null;
@@ -2141,6 +2242,9 @@ async function initApp() {
     }
 
     function completeTrip() {
+        setRideState(RIDE_STATE.COMPLETING_TRIP, 'Đang lưu lịch sử và cập nhật chuyến');
+        fareCounting = false;
+        tripStarted = false;
         const finalKm = totalKm;
         const finalCost = window.PromaxFare ? PromaxFare.calculate(finalKm, currentRate) : Math.max(20000, Math.round(finalKm * currentRate));
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
