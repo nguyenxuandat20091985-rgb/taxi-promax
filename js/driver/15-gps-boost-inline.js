@@ -1,75 +1,62 @@
-// Extracted from index.html; load order is intentionally preserved.
-(function(){
-    var KEY = 'promax_lastpos';
-    function savePos(lat, lng, acc, src){ try { localStorage.setItem(KEY, JSON.stringify({ lat: lat, lng: lng, acc: acc, src: src, t: Date.now() })); } catch(e){} }
-    function loadPos(){ try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
+/*
+ * Taxi ProMax — GPS boost (inline asset)
+ *
+ * Chỉ hiển thị vị trí cache trong lúc chờ GPS owner trả fix mới.
+ * Không gọi getCurrentPosition/watchPosition lần hai và không ghi đè
+ * trạng thái GPS chính.
+ */
+;(function (window, document) {
+  'use strict';
 
-    var tempMarker = null;
+  const CACHE_KEY = 'promax_lastpos';
+  let tempMarker = null;
 
-    function realMarkerOnMap(){
-        try { return (typeof driverMarker !== 'undefined' && driverMarker && map.hasLayer(driverMarker)); } catch(e){ return false; }
+  function loadCachedPosition() {
+    try {
+      const raw = window.localStorage.getItem(CACHE_KEY);
+      const value = raw ? JSON.parse(raw) : null;
+      if (!value || !Number.isFinite(Number(value.lat)) || !Number.isFinite(Number(value.lng))) return null;
+      return value;
+    } catch (_) {
+      return null;
     }
-    function placeTemp(lat, lng){
-        if (typeof map === 'undefined' || !map) return;
-        if (realMarkerOnMap()) { if (tempMarker) { map.removeLayer(tempMarker); tempMarker = null; } return; }
-        if (!tempMarker) {
-            var icon = L.divIcon({ html: '<div style="width:18px;height:18px;border-radius:50%;background:#2196f3;border:3px solid #fff;box-shadow:0 2px 8px rgba(33,150,243,.6);"></div>', className: '', iconSize: [18,18], iconAnchor: [9,9] });
-            tempMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
-        } else tempMarker.setLatLng([lat, lng]);
-    }
-    function setStatus(txt, cls){
-        var t = document.getElementById('gpsStatusText'), d = document.getElementById('gpsDot');
-        if (t) t.innerText = txt;
-        if (d && cls) d.className = 'gps-dot ' + cls;
-    }
+  }
 
-    function boost(){
-        // === TẦNG 0: vị trí nhớ lần cuối → hiện NGAY LẬP TỨC (0 giây) ===
-        var c = loadPos();
-        if (c && c.lat) {
-            map.setView([c.lat, c.lng], 16);
-            placeTemp(c.lat, c.lng);
-            setStatus('📍 Vị trí gần đúng — đang tối ưu...', 'weak');
-        }
+  function showCachedPosition() {
+    const cached = loadCachedPosition();
+    const map = window.PromaxMap && window.PromaxMap.instance ? window.PromaxMap.instance : window.map;
+    if (!cached || !map || !window.L) return false;
 
-        if (!navigator.geolocation) return;
-
-        // === TẦNG 1: định vị nhanh bằng sóng/WiFi (1–2 giây) ===
-        navigator.geolocation.getCurrentPosition(function(p){
-            var lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy || 999;
-            savePos(lat, lng, acc, 'fast');
-            try { currentLat = lat; currentLng = lng; } catch(e){}
-            map.setView([lat, lng], 16);
-            placeTemp(lat, lng);
-            setStatus('📡 Định vị nhanh (±' + Math.round(acc) + 'm)', 'weak');
-        }, function(){}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 4000 });
-
-        // === TẦNG 2: GPS chính xác bám nền, nhớ vị trí cho lần sau ===
-        navigator.geolocation.watchPosition(function(p){
-            var lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy || 999;
-            savePos(lat, lng, acc, 'gps');
-            try { currentLat = lat; currentLng = lng; } catch(e){}
-            if (realMarkerOnMap() && tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
-        }, function(){}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
-
-        // === Cảnh báo nếu kẹt quá 8 giây ===
-        setTimeout(function(){
-            var t = document.getElementById('gpsStatusText');
-            if (t && t.innerText.indexOf('xin quyền') !== -1) {
-                setStatus('⚠️ Bật GPS + "Vị trí chính xác" trong Cài đặt', 'bad');
-                if (typeof showToast === 'function') showToast('📍 Mẹo: bật "Vị trí chính xác" để nhanh như Grab');
-            }
-        }, 8000);
+    const realMarker = window.PromaxMap && typeof window.PromaxMap.updateDriverMarker === 'function';
+    if (realMarker) {
+      window.PromaxMap.updateDriverMarker(cached.lat, cached.lng, cached.heading);
+      return true;
     }
 
-    function waitMap(){
-        var n = 0;
-        var iv = setInterval(function(){
-            n++;
-            if (typeof map !== 'undefined' && map) { clearInterval(iv); boost(); }
-            if (n > 30) clearInterval(iv);
-        }, 500);
+    if (!tempMarker) {
+      const icon = window.L.divIcon({
+        className: '',
+        html: '<div style="width:18px;height:18px;border-radius:50%;background:#2196f3;border:3px solid #fff;box-shadow:0 2px 8px rgba(33,150,243,.6);"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+      tempMarker = window.L.marker([cached.lat, cached.lng], { icon }).addTo(map);
+    } else {
+      tempMarker.setLatLng([cached.lat, cached.lng]);
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', waitMap);
-    else waitMap();
-})();
+    return true;
+  }
+
+  function waitForMap() {
+    let tries = 0;
+    const timer = window.setInterval(function () {
+      tries += 1;
+      if (showCachedPosition() || tries >= 20) window.clearInterval(timer);
+    }, 500);
+  }
+
+  window.PromaxGpsBoost = { showCachedPosition };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', waitForMap);
+  else waitForMap();
+  console.log('✅ GPS BOOST v3 loaded — cache only, single GPS owner');
+})(window, document);
