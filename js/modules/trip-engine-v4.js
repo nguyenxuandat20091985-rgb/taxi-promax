@@ -1,617 +1,697 @@
-/**
- * trip-engine-v4.js - Bộ não điều phối chuyến đi (State Machine)
- * Phiên bản: 4.0
- * Tác giả: Nguyễn Xuân Đạt
- * Mô tả: Quản lý vòng đời chuyến đi, phát sự kiện cho AI Copilot,
- *        tính cước, đồng bộ Firebase, và chống gian lận.
+/*
+ * Taxi ProMax — Driver Trip Flow Engine
+ *
+ * Một state machine duy nhất cho 4 luồng:
+ *
+ * 1) IDLE -> STREET_HAIL -> DRIVER_ACCEPT -> PICKUP_CONFIRMED
+ *    -> CUSTOMER_ONBOARD -> TRIP_RUNNING -> FARE_CALCULATING -> COMPLETED
+ * 2) order -> DRIVER_ACCEPT -> NAVIGATING_TO_PICKUP -> ARRIVED_PICKUP
+ *    -> PICKUP_CONFIRMED -> CUSTOMER_ONBOARD -> WAITING_DESTINATION
+ *    -> DESTINATION_SELECTED -> TRIP_RUNNING -> FARE_CALCULATING
+ * 3) accept order luôn đặt navigationMode = "pickup"
+ * 4) có điểm đến: sau CUSTOMER_ONBOARD đặt navigationMode = "destination"
+ *    rồi mới chuyển sang TRIP_RUNNING/FARE_CALCULATING.
+ *
+ * File này không tự cộng kilomet. Legacy GPS runtime là nơi duy nhất cộng
+ * totalKm, nhưng chỉ khi isFareActive() trả về true.
  */
-
-;(function(window, document, undefined) {
-    'use strict';
-
-    // ================================================================
-    // 1. ĐỊNH NGHĨA TRẠNG THÁI (STATE MACHINE)
-    // ================================================================
-    const TRIP_STATE = {
-        IDLE: 'IDLE',
-        SEARCHING: 'SEARCHING',
-        ASSIGNED: 'ASSIGNED',
-        ACCEPTED: 'ACCEPTED',
-        TO_PICKUP: 'TO_PICKUP',
-        ARRIVED: 'ARRIVED',
-        WAITING: 'WAITING',
-        ONBOARD: 'ONBOARD',
-        TO_DESTINATION: 'TO_DESTINATION',
-        COMPLETED: 'COMPLETED',
-        CANCELLED: 'CANCELLED'
-    };
-
-    const TRIP_TYPE = {
-        APP_DESTINATION: 'APP_DESTINATION',
-        APP_NO_DESTINATION: 'APP_NO_DESTINATION',
-        STREET_HAIL: 'STREET_HAIL',
-        DISPATCH: 'DISPATCH'
-    };
-
-    // ================================================================
-    // 2. CẤU HÌNH
-    // ================================================================
-    const CONFIG = {
-        FARE_BASE: 15000,            // Giá khởi điểm (VNĐ)
-        FARE_PER_KM: 12000,          // Giá mỗi km
-        FARE_PER_MIN: 2000,          // Giá mỗi phút chờ/tắc đường
-        FREE_WAIT_TIME_MIN: 5,       // Phút chờ miễn phí
-        SURGE_MULTIPLIER: 1.0,       // Hệ số tăng giá (mặc định 1.0)
-        MIN_FARE: 25000,             // Cước tối thiểu
-        MAX_FARE: 500000,            // Cước tối đa (chống tràn)
-        GPS_UPDATE_INTERVAL_MS: 1000, // Tần suất cập nhật GPS (ms)
-        MAX_SPEED_KMH: 120,          // Tốc độ tối đa cho phép (km/h)
-        ANTI_FRAUD_ENABLED: true,    // Bật/tắt chống gian lận
-        FIREBASE_PATH: 'datxe',      // Path chính trên Firebase
-        ALERTS_PATH: 'ai/alerts'     // Path lưu cảnh báo AI
-    };
-
-    // ================================================================
-    // 3. CLASS TRIP ENGINE
-    // ================================================================
-    class TripEngine {
-        constructor() {
-            // Trạng thái hiện tại
-            this.currentState = TRIP_STATE.IDLE;
-            this.currentTrip = null;
-
-            // Dữ liệu tính cước
-            this.tripStartTime = null;       // Timestamp bắt đầu tính cước (ONBOARD)
-            this.tripStartLocation = null;   // {lat, lng} lúc ONBOARD
-            this.currentOdometerKm = 0;      // Tổng km đã đi (chỉ tính khi ONBOARD)
-            this.waitTimeMin = 0;            // Tổng thời gian chờ (phút)
-            this.lastGpsUpdate = null;       // Dữ liệu GPS cuối cùng
-            this.gpsWatchId = null;          // Chỉ dùng cho fallback
-            this.gpsUnsubscribe = null;       // Hủy đăng ký ProMaxGPSCore
-
-            // Bản đồ chuyển trạng thái hợp lệ
-            this.validTransitions = {
-                [TRIP_STATE.IDLE]: [TRIP_STATE.ASSIGNED, TRIP_STATE.STREET_HAIL, TRIP_STATE.SEARCHING],
-                [TRIP_STATE.SEARCHING]: [TRIP_STATE.ASSIGNED, TRIP_STATE.IDLE],
-                [TRIP_STATE.ASSIGNED]: [TRIP_STATE.ACCEPTED, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.ACCEPTED]: [TRIP_STATE.TO_PICKUP, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.TO_PICKUP]: [TRIP_STATE.ARRIVED, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.ARRIVED]: [TRIP_STATE.WAITING, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.WAITING]: [TRIP_STATE.ONBOARD, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.ONBOARD]: [TRIP_STATE.TO_DESTINATION, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.TO_DESTINATION]: [TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
-                [TRIP_STATE.COMPLETED]: [TRIP_STATE.IDLE],
-                [TRIP_STATE.CANCELLED]: [TRIP_STATE.IDLE]
-            };
-
-            // Tự động khởi tạo
-            this.init();
-        }
-
-        // ================================================================
-        // 4. KHỞI TẠO
-        // ================================================================
-        init() {
-            this.log('🧠 Trip Engine V4 khởi động', 'info');
-            this.log(`Trạng thái ban đầu: ${this.currentState}`, 'info');
-
-            // Kết nối GPS
-            this.startGpsListener();
-
-            // Lắng nghe đơn hàng mới từ Firebase (nếu có)
-            this.listenForNewOrders();
-
-            // Lắng nghe sự kiện từ UI (nếu có)
-            this.bindUIEvents();
-        }
-
-        // ================================================================
-        // 5. GPS LISTENER
-        // ================================================================
-        startGpsListener() {
-            // Nguồn duy nhất: ProMaxGPSCore. Không tạo watcher thứ hai.
-            if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
-                this.gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
-                    if (!fix || fix.error) return;
-                    this.updateGPS({
-                        coords: {
-                            latitude: fix.lat,
-                            longitude: fix.lng,
-                            speed: fix.speed || 0,
-                            accuracy: fix.accuracy || 999,
-                            heading: fix.heading || 0
-                        },
-                        timestamp: fix.timestamp || Date.now()
-                    });
-                });
-                this.log('GPS: Đã kết nối với ProMaxGPSCore (single watcher)', 'info');
-                return;
-            }
-            // Chỉ là fallback khi core chưa được nạp; index.html luôn nạp core trước module này.
-            if (navigator.geolocation) {
-                this.gpsWatchId = navigator.geolocation.watchPosition(
-                    (pos) => this.updateGPS(pos),
-                    (err) => this.log(`GPS lỗi: ${err.message}`, 'error'),
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-                );
-                this.log('GPS: fallback navigator.geolocation', 'warn');
-            } else {
-                this.log('⚠️ GPS không khả dụng', 'warn');
-            }
-        }
-        // 6. XỬ LÝ GPS UPDATE (CORE)
-        // ================================================================
-        updateGPS(position) {
-            if (!position || !position.coords) return;
-
-            const coords = position.coords;
-            const speed = (coords.speed || 0) * 3.6; // m/s → km/h
-            const accuracy = coords.accuracy || 0;
-
-            // Kiểm tra tốc độ bất thường (chống gian lận)
-            if (CONFIG.ANTI_FRAUD_ENABLED && speed > CONFIG.MAX_SPEED_KMH) {
-                this.emitEvent('fraud_alert', {
-                    type: 'overspeed',
-                    message: `Tốc độ ${speed.toFixed(0)} km/h vượt ngưỡng cho phép!`,
-                    severity: 'critical'
-                });
-                this.pushAlertToFirebase(`🚨 Tài xế chạy quá tốc độ: ${speed.toFixed(0)} km/h`, 'critical');
-            }
-
-            // Nếu đang ở trạng thái tính cước (ONBOARD hoặc TO_DESTINATION)
-            if (this.currentState === TRIP_STATE.ONBOARD || this.currentState === TRIP_STATE.TO_DESTINATION) {
-                // Tính quãng đường di chuyển (chỉ khi có điểm bắt đầu)
-                if (this.tripStartLocation) {
-                    const prevLat = this.tripStartLocation.lat;
-                    const prevLng = this.tripStartLocation.lng;
-                    const currentLat = coords.latitude;
-                    const currentLng = coords.longitude;
-
-                    // Tính khoảng cách Haversine (km)
-                    const distanceKm = this.calculateDistance(prevLat, prevLng, currentLat, currentLng);
-                    this.currentOdometerKm += distanceKm;
-
-                    // Cập nhật điểm bắt đầu để tính cho lần sau
-                    this.tripStartLocation = { lat: currentLat, lng: currentLng };
-
-                    // Cập nhật lên Firebase realtime để khách hàng xem
-                    this.syncLiveData({
-                        live_km: this.currentOdometerKm,
-                        live_lat: currentLat,
-                        live_lng: currentLng,
-                        live_speed: speed
-                    });
-                }
-
-                // Kiểm tra gian lận quãng đường (nếu km tăng đột biến > 1km trong 1s)
-                if (this.lastGpsUpdate && CONFIG.ANTI_FRAUD_ENABLED) {
-                    const dt = (Date.now() - this.lastGpsUpdate.timestamp) / 1000;
-                    if (dt > 0 && dt < 2) {
-                        const lastKm = this.lastGpsUpdate.odometer || 0;
-                        const deltaKm = this.currentOdometerKm - lastKm;
-                        if (deltaKm > 1.0) {
-                            this.emitEvent('fraud_alert', {
-                                type: 'teleport',
-                                message: `⚠️ Phát hiện nhảy km: +${deltaKm.toFixed(2)} km trong ${dt.toFixed(1)}s`,
-                                severity: 'critical'
-                            });
-                            this.pushAlertToFirebase(`⚠️ Nghi ngờ gian lận km: +${deltaKm.toFixed(2)} km trong ${dt.toFixed(1)}s`, 'critical');
-                        }
-                    }
-                }
-
-                // Lưu lại để so sánh lần sau
-                this.lastGpsUpdate = {
-                    timestamp: Date.now(),
-                    odometer: this.currentOdometerKm,
-                    speed: speed
-                };
-            }
-
-            // Lưu vị trí cuối cùng (dùng cho các mục đích khác)
-            this.lastKnownPosition = {
-                lat: coords.latitude,
-                lng: coords.longitude,
-                speed: speed,
-                accuracy: accuracy,
-                timestamp: Date.now()
-            };
-        }
-
-        // ================================================================
-        // 7. HÀM TIỆN ÍCH: TÍNH KHOẢNG CÁCH (HAVERSINE)
-        // ================================================================
-        calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Bán kính trái đất (km)
-            const dLat = this.deg2rad(lat2 - lat1);
-            const dLon = this.deg2rad(lon2 - lon1);
-            const a =
-                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c; // km
-        }
-
-        deg2rad(deg) {
-            return deg * (Math.PI / 180);
-        }
-
-        // ================================================================
-        // 8. LẮNG NGHE ĐƠN HÀNG MỚI TỪ FIREBASE
-        // ================================================================
-        listenForNewOrders() {
-            if (!window.db) {
-                this.log('⚠️ Firebase chưa sẵn sàng, bỏ qua lắng nghe đơn mới', 'warn');
-                return;
-            }
-
-            const db = window.db;
-            const ordersRef = db.ref(`${CONFIG.FIREBASE_PATH}/orders`);
-
-            ordersRef.orderByChild('status').equalTo('pending').on('child_added', (snapshot) => {
-                const tripData = snapshot.val();
-                const tripId = snapshot.key;
-
-                // Chỉ nhận đơn nếu đang rảnh
-                if (this.currentState === TRIP_STATE.IDLE) {
-                    this.log(`📩 Đơn mới từ Firebase: ${tripId}`, 'info');
-                    this.acceptOrder(tripId, tripData);
-                } else {
-                    this.log(`⏳ Bỏ qua đơn ${tripId} vì đang bận (${this.currentState})`, 'warn');
-                }
-            });
-        }
-
-        // ================================================================
-        // 9. GÁN SỰ KIỆN UI (Nếu có nút bấm)
-        // ================================================================
-        bindUIEvents() {
-            // Tìm các nút trong DOM và gán sự kiện
-            document.addEventListener('DOMContentLoaded', () => {
-                const btnArrived = document.getElementById('btn-arrived');
-                const btnStart = document.getElementById('btn-start-trip');
-                const btnComplete = document.getElementById('btn-complete');
-                const btnCancel = document.getElementById('btn-cancel');
-
-                if (btnArrived) btnArrived.addEventListener('click', () => this.arrivedAtPickup());
-                if (btnStart) btnStart.addEventListener('click', () => this.passengerOnboard());
-                if (btnComplete) btnComplete.addEventListener('click', () => this.completeTrip());
-                if (btnCancel) btnCancel.addEventListener('click', () => this.cancelTrip('User cancelled'));
-
-                this.log('UI: Đã gán sự kiện cho các nút điều khiển', 'info');
-            });
-        }
-
-        // ================================================================
-        // 10. BỘ CHUYỂN TRẠNG THÁI (CORE)
-        // ================================================================
-        transition(newState, payload = {}) {
-            const allowedStates = this.validTransitions[this.currentState] || [];
-
-            if (!allowedStates.includes(newState)) {
-                this.log(`⛔ Chuyển trạng thái không hợp lệ: ${this.currentState} ➔ ${newState}`, 'error');
-                this.emitEvent('error', {
-                    message: `Không thể chuyển từ ${this.currentState} sang ${newState}`,
-                    code: 'INVALID_TRANSITION'
-                });
-                return false;
-            }
-
-            const previousState = this.currentState;
-            this.currentState = newState;
-            this.log(`✅ ${previousState} ➔ ${newState}`, 'info');
-
-            // Kích hoạt hành động đặc thù khi vào trạng thái mới
-            this.onStateEnter(newState, previousState, payload);
-
-            // Phát sự kiện cho AI Copilot và UI
-            this.emitEvent('status', {
-                status: newState,
-                previousStatus: previousState,
-                trip: this.currentTrip,
-                payload
-            });
-
-            // Đồng bộ lên Firebase
-            this.syncStateToFirebase(newState);
-
-            return true;
-        }
-
-        // ================================================================
-        // 11. XỬ LÝ KHI VÀO TRẠNG THÁI MỚI
-        // ================================================================
-        onStateEnter(newState, previousState, payload) {
-            switch (newState) {
-                case TRIP_STATE.ASSIGNED:
-                    this.currentTrip = { ...payload.tripData, id: payload.tripId };
-                    this.playSound('new_order');
-                    break;
-
-                case TRIP_STATE.TO_PICKUP:
-                    this.log('🗺️ Bắt đầu dẫn đường đến điểm đón', 'info');
-                    this.emitEvent('navigation', { type: 'to_pickup', destination: this.currentTrip?.pickup });
-                    break;
-
-                case TRIP_STATE.ARRIVED:
-                    this.currentTrip.arrivedAt = Date.now();
-                    this.log('📍 Đã đến điểm đón', 'info');
-                    break;
-
-                case TRIP_STATE.WAITING:
-                    this.waitTimeMin = 0;
-                    // Bắt đầu đếm thời gian chờ
-                    this.startWaitTimer();
-                    this.log('⏳ Bắt đầu chờ khách', 'info');
-                    break;
-
-                case TRIP_STATE.ONBOARD:
-                    // BẮT ĐẦU TÍNH CƯỚC
-                    this.tripStartTime = Date.now();
-                    this.tripStartLocation = this.getCurrentGPS();
-                    this.currentOdometerKm = 0;
-                    this.lastGpsUpdate = null;
-                    // Dừng đếm thời gian chờ
-                    this.stopWaitTimer();
-
-                    // Nếu chuyến không có điểm đến, yêu cầu khách nhập
-                    if (this.currentTrip?.type === TRIP_TYPE.APP_NO_DESTINATION) {
-                        this.emitEvent('request_destination', {
-                            message: 'Vui lòng nhập điểm đến để bắt đầu di chuyển'
-                        });
-                    }
-
-                    this.log('💰 Bắt đầu tính cước. Km: 0, Thời gian: ' + new Date().toLocaleTimeString(), 'info');
-                    break;
-
-                case TRIP_STATE.TO_DESTINATION:
-                    this.log('🗺️ Bắt đầu dẫn đường đến điểm trả', 'info');
-                    this.emitEvent('navigation', { type: 'to_destination', destination: this.currentTrip?.destination });
-                    break;
-
-                case TRIP_STATE.COMPLETED:
-                    this.calculateFinalFare();
-                    this.saveTripToHistory();
-                    this.log(`🏁 Chuyến hoàn tất. Tổng cước: ${this.currentTrip?.finalFare}đ`, 'info');
-                    break;
-
-                case TRIP_STATE.CANCELLED:
-                    this.log(`❌ Hủy chuyến. Lý do: ${payload.reason || 'Không xác định'}`, 'warn');
-                    this.resetTripData();
-                    break;
-
-                case TRIP_STATE.IDLE:
-                    this.resetTripData();
-                    break;
-            }
-        }
-
-        // ================================================================
-        // 12. TÍNH CƯỚC THÔNG MINH
-        // ================================================================
-        calculateFinalFare() {
-            if (!this.currentTrip) return;
-
-            const durationMin = (Date.now() - this.tripStartTime) / 60000;
-            let fare = CONFIG.FARE_BASE + (this.currentOdometerKm * CONFIG.FARE_PER_KM);
-
-            // Phí chờ (nếu có)
-            const extraWait = Math.max(0, this.waitTimeMin - CONFIG.FREE_WAIT_TIME_MIN);
-            fare += extraWait * CONFIG.FARE_PER_MIN;
-
-            // Áp dụng hệ số tăng giá (surge)
-            fare *= CONFIG.SURGE_MULTIPLIER;
-
-            // Giới hạn tối thiểu/tối đa
-            fare = Math.max(CONFIG.MIN_FARE, Math.min(CONFIG.MAX_FARE, fare));
-
-            // Làm tròn đến 1000đ
-            this.currentTrip.finalFare = Math.round(fare / 1000) * 1000;
-
-            this.log(`💰 Chi tiết cước: Base=${CONFIG.FARE_BASE}, Km=${this.currentOdometerKm.toFixed(2)}x${CONFIG.FARE_PER_KM}, Chờ=${extraWait.toFixed(0)}p x ${CONFIG.FARE_PER_MIN}, Surge=${CONFIG.SURGE_MULTIPLIER}, Tổng=${this.currentTrip.finalFare}đ`, 'info');
-        }
-
-        // ================================================================
-        // 13. ĐẾM THỜI GIAN CHỜ (WAITING)
-        // ================================================================
-        startWaitTimer() {
-            if (this._waitInterval) clearInterval(this._waitInterval);
-            this._waitInterval = setInterval(() => {
-                if (this.currentState === TRIP_STATE.WAITING) {
-                    this.waitTimeMin += 0.0167; // mỗi giây tăng 1/60 phút
-                } else {
-                    clearInterval(this._waitInterval);
-                }
-            }, 1000);
-        }
-
-        stopWaitTimer() {
-            if (this._waitInterval) {
-                clearInterval(this._waitInterval);
-                this._waitInterval = null;
-            }
-        }
-
-        // ================================================================
-        // 14. RESET DỮ LIỆU
-        // ================================================================
-        resetTripData() {
-            this.currentTrip = null;
-            this.tripStartTime = null;
-            this.tripStartLocation = null;
-            this.currentOdometerKm = 0;
-            this.waitTimeMin = 0;
-            this.lastGpsUpdate = null;
-            this.stopWaitTimer();
-        }
-
-        // ================================================================
-        // 15. PHÁT SỰ KIỆN (Event Bus)
-        // ================================================================
-        emitEvent(eventType, data) {
-            const eventName = `trip:${eventType}`;
-            document.dispatchEvent(new CustomEvent(eventName, { detail: data }));
-            this.log(`📡 Event: ${eventName}`, 'debug');
-        }
-
-        // ================================================================
-        // 16. ĐỒNG BỘ FIREBASE
-        // ================================================================
-        syncStateToFirebase(state) {
-            if (!window.db || !this.currentTrip || !this.currentTrip.id) return;
-
-            const db = window.db;
-            const tripRef = db.ref(`${CONFIG.FIREBASE_PATH}/trips/${this.currentTrip.id}`);
-
-            // Cập nhật trạng thái
-            tripRef.update({
-                status: state,
-                lastUpdate: Date.now()
-            }).catch(err => this.log(`Lỗi sync Firebase: ${err.message}`, 'error'));
-        }
-
-        syncLiveData(data) {
-            if (!window.db || !this.currentTrip || !this.currentTrip.id) return;
-            const db = window.db;
-            const ref = db.ref(`${CONFIG.FIREBASE_PATH}/trips/${this.currentTrip.id}/live`);
-            ref.update(data).catch(() => {});
-        }
-
-        pushAlertToFirebase(message, severity = 'warning') {
-            if (!window.db) return;
-            const db = window.db;
-            const alertsRef = db.ref(CONFIG.ALERTS_PATH);
-            alertsRef.push({
-                timestamp: Date.now(),
-                tripId: this.currentTrip?.id || 'unknown',
-                message: message,
-                severity: severity
-            }).catch(() => {});
-        }
-
-        saveTripToHistory() {
-            if (!window.db || !this.currentTrip) return;
-            const db = window.db;
-            const historyRef = db.ref(`${CONFIG.FIREBASE_PATH}/history/${this.currentTrip.id}`);
-            historyRef.set({
-                ...this.currentTrip,
-                completedAt: Date.now(),
-                totalKm: this.currentOdometerKm,
-                waitTimeMin: this.waitTimeMin
-            }).catch(err => this.log(`Lỗi lưu lịch sử: ${err.message}`, 'error'));
-        }
-
-        // ================================================================
-        // 17. LẤY VỊ TRÍ GPS HIỆN TẠI
-        // ================================================================
-        getCurrentGPS() {
-            if (this.lastKnownPosition) {
-                return {
-                    lat: this.lastKnownPosition.lat,
-                    lng: this.lastKnownPosition.lng
-                };
-            }
-            return null;
-        }
-
-        // ================================================================
-        // 18. PHÁT ÂM THANH
-        // ================================================================
-        playSound(type) {
-            if (typeof window.playOrderSound === 'function' && type === 'new_order') {
-                window.playOrderSound();
-            }
-        }
-
-        // ================================================================
-        // 19. LOGGING
-        // ================================================================
-        log(message, level = 'info') {
-            const prefix = '[TripEngine]';
-            if (level === 'error') console.error(prefix, message);
-            else if (level === 'warn') console.warn(prefix, message);
-            else if (level === 'debug' && window._DEBUG) console.debug(prefix, message);
-            else console.log(prefix, message);
-        }
-
-        // ================================================================
-        // 20. PUBLIC API (Dành cho UI và các module khác gọi)
-        // ================================================================
-        getCurrentState() { return this.currentState; }
-        getCurrentTrip() { return this.currentTrip; }
-        getOdometer() { return this.currentOdometerKm; }
-        getWaitTime() { return this.waitTimeMin; }
-
-        // Các hành động
-        acceptOrder(tripId, tripData) {
-            return this.transition(TRIP_STATE.ACCEPTED, { tripId, tripData });
-        }
-
-        arrivedAtPickup() {
-            return this.transition(TRIP_STATE.ARRIVED);
-        }
-
-        passengerOnboard() {
-            return this.transition(TRIP_STATE.ONBOARD);
-        }
-
-        startDestinationRoute(destination) {
-            if (this.currentTrip) {
-                this.currentTrip.destination = destination;
-            }
-            return this.transition(TRIP_STATE.TO_DESTINATION);
-        }
-
-        completeTrip() {
-            return this.transition(TRIP_STATE.COMPLETED);
-        }
-
-        cancelTrip(reason = 'User cancelled') {
-            return this.transition(TRIP_STATE.CANCELLED, { reason });
-        }
-
-        // Hàm này cho phép admin hoặc hệ thống gán đơn trực tiếp
-        assignOrder(tripId, tripData) {
-            return this.transition(TRIP_STATE.ASSIGNED, { tripId, tripData });
-        }
-
-        // ================================================================
-        // 21. HỦY BỎ (Dọn dẹp tài nguyên)
-        // ================================================================
-        destroy() {
-            if (this.gpsWatchId) {
-                navigator.geolocation.clearWatch(this.gpsWatchId);
-                this.gpsWatchId = null;
-            }
-            if (this.gpsUnsubscribe) {
-                this.gpsUnsubscribe();
-                this.gpsUnsubscribe = null;
-            }
-            this.stopWaitTimer();
-            this.log('🧹 Trip Engine đã bị hủy', 'info');
-        }
+;(function (window, document) {
+  'use strict';
+
+  const TRIP_STATE = Object.freeze({
+    IDLE: 'IDLE',
+    STREET_HAIL: 'STREET_HAIL',
+    DRIVER_ACCEPT: 'DRIVER_ACCEPT',
+    NAVIGATING_TO_PICKUP: 'NAVIGATING_TO_PICKUP',
+    ARRIVED_PICKUP: 'ARRIVED_PICKUP',
+    PICKUP_CONFIRMED: 'PICKUP_CONFIRMED',
+    CUSTOMER_ONBOARD: 'CUSTOMER_ONBOARD',
+    WAITING_DESTINATION: 'WAITING_DESTINATION',
+    DESTINATION_SELECTED: 'DESTINATION_SELECTED',
+    TRIP_RUNNING: 'TRIP_RUNNING',
+    FARE_CALCULATING: 'FARE_CALCULATING',
+    COMPLETED: 'COMPLETED',
+    CANCELLED: 'CANCELLED'
+  });
+
+  const TRIP_TYPE = Object.freeze({
+    STREET_HAIL: 'STREET_HAIL',
+    APP_DESTINATION: 'APP_DESTINATION',
+    APP_NO_DESTINATION: 'APP_NO_DESTINATION'
+  });
+
+  const CONFIG = Object.freeze({
+    FARE_BASE: 15000,
+    FARE_PER_KM: 12000,
+    MIN_FARE: 25000,
+    MAX_FARE: 500000,
+    MAX_SPEED_KMH: 140,
+    FIREBASE_PATH: 'datxe',
+    ALERTS_PATH: 'ai/alerts'
+  });
+
+  function number(value, fallback = 0) {
+    const result = Number(value);
+    return Number.isFinite(result) ? result : fallback;
+  }
+
+  function hasText(value) {
+    return typeof value === 'string' && value.trim() !== '' && value.trim() !== 'Chưa xác định';
+  }
+
+  class TripEngine {
+    constructor() {
+      this.currentState = TRIP_STATE.IDLE;
+      this.currentTrip = null;
+      this.navigationMode = 'idle';
+      this.fareStartedAt = null;
+      this.currentOdometerKm = 0;
+      this.waitTimeMin = 0;
+      this.lastKnownPosition = null;
+      this.lastGpsUpdate = null;
+      this.gpsWatchId = null;
+      this.gpsUnsubscribe = null;
+      this.waitTimer = null;
+      this._completed = false;
+
+      this.validTransitions = Object.freeze({
+        [TRIP_STATE.IDLE]: [TRIP_STATE.STREET_HAIL, TRIP_STATE.DRIVER_ACCEPT],
+        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.DRIVER_ACCEPT]: [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.NAVIGATING_TO_PICKUP]: [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.ARRIVED_PICKUP]: [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.PICKUP_CONFIRMED]: [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.CUSTOMER_ONBOARD]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.WAITING_DESTINATION]: [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.DESTINATION_SELECTED]: [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.TRIP_RUNNING]: [TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.FARE_CALCULATING]: [TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.COMPLETED]: [TRIP_STATE.IDLE],
+        [TRIP_STATE.CANCELLED]: [TRIP_STATE.IDLE]
+      });
+
+      this.init();
     }
 
-    // ================================================================
-    // 22. KHỞI TẠO GLOBAL
-    // ================================================================
-    // Tạo instance duy nhất và gắn vào window
-    const engine = new TripEngine();
-    window.tripEngine = engine;
+    init() {
+      this.publishLegacyState();
+      this.startGpsListener();
+      this.log('Trip Flow Engine khởi động — IDLE');
+    }
 
-    // Nếu muốn debug, bật _DEBUG = true
-    window._DEBUG = window._DEBUG || false;
+    startGpsListener() {
+      if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
+        this.gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
+          if (!fix || fix.error) return;
+          this.updateGPS({
+            coords: {
+              latitude: number(fix.lat),
+              longitude: number(fix.lng),
+              accuracy: number(fix.accuracy, 999),
+              speed: number(fix.speed),
+              heading: number(fix.heading)
+            },
+            timestamp: number(fix.timestamp, Date.now())
+          });
+        });
+        return;
+      }
 
-    // Tự động dọn dẹp khi trang unload
-    window.addEventListener('beforeunload', () => {
-        engine.destroy();
-    });
+      if (window.cockpit && typeof window.cockpit.onPosition === 'function') {
+        window.cockpit.onPosition((position) => this.updateGPS({
+          coords: {
+            latitude: number(position.lat),
+            longitude: number(position.lng),
+            accuracy: number(position.accuracy, 999),
+            speed: number(position.speed) / 3.6,
+            heading: number(position.heading)
+          },
+          timestamp: number(position.timestamp, Date.now())
+        }));
+        return;
+      }
 
-    // ================================================================
-    // 23. EXPOSE CÁC HẰNG SỐ (Để các module khác dùng nếu cần)
-    // ================================================================
-    window.TRIP_STATE = TRIP_STATE;
-    window.TRIP_TYPE = TRIP_TYPE;
+      // Fallback cuối cùng. Đây không phải nguồn cộng kilomet.
+      if (navigator.geolocation) {
+        this.gpsWatchId = navigator.geolocation.watchPosition(
+          (position) => this.updateGPS(position),
+          (error) => this.log('GPS lỗi: ' + error.message, 'warn'),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        );
+      }
+    }
 
+    updateGPS(position) {
+      if (!position || !position.coords) return;
+      const coords = position.coords;
+      this.lastKnownPosition = {
+        lat: number(coords.latitude),
+        lng: number(coords.longitude),
+        accuracy: number(coords.accuracy, 999),
+        speed: number(coords.speed),
+        heading: number(coords.heading),
+        timestamp: number(position.timestamp, Date.now())
+      };
+      this.lastGpsUpdate = this.lastKnownPosition;
+      this.currentOdometerKm = this.readLegacyKm();
+      this.updateFlowUI();
+    }
+
+    readLegacyKm() {
+      try {
+        if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.getTotalKm === 'function') {
+          return number(window.PromaxLegacyRuntime.getTotalKm());
+        }
+      } catch (_) {}
+      return number(this.currentOdometerKm);
+    }
+
+    isFareActive() {
+      return this.currentState === TRIP_STATE.FARE_CALCULATING;
+    }
+
+    isTripActive() {
+      return ![TRIP_STATE.IDLE, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED].includes(this.currentState);
+    }
+
+    transition(nextState, payload = {}) {
+      const allowed = this.validTransitions[this.currentState] || [];
+      if (!allowed.includes(nextState)) {
+        this.log(`Chuyển trạng thái không hợp lệ: ${this.currentState} -> ${nextState}`, 'error');
+        this.emit('error', { code: 'INVALID_TRANSITION', from: this.currentState, to: nextState });
+        return false;
+      }
+
+      const previousState = this.currentState;
+      this.currentState = nextState;
+      this.onEnter(nextState, previousState, payload);
+      this.publishLegacyState();
+      this.emit('status', {
+        status: nextState,
+        previousStatus: previousState,
+        state: nextState,
+        navigationMode: this.navigationMode,
+        trip: this.currentTrip,
+        payload
+      });
+      this.syncStateToFirebase(nextState);
+      this.log(`${previousState} -> ${nextState}`);
+      return true;
+    }
+
+    onEnter(state, previousState, payload) {
+      switch (state) {
+        case TRIP_STATE.IDLE:
+          this.navigationMode = 'idle';
+          this.stopWaitTimer();
+          this.publishLegacyState();
+          this.updateFlowUI();
+          break;
+
+        case TRIP_STATE.STREET_HAIL:
+          this.navigationMode = 'idle';
+          this.ensureStreetHailTrip();
+          break;
+
+        case TRIP_STATE.DRIVER_ACCEPT:
+          this.navigationMode = payload.navigationMode || (this.isStreetHailTrip() ? 'idle' : 'pickup');
+          break;
+
+        case TRIP_STATE.NAVIGATING_TO_PICKUP:
+          this.navigationMode = 'pickup';
+          this.updateNavigationRoute('pickup');
+          this.updateFlowUI();
+          this.emit('navigation', { navigationMode: 'pickup', destination: this.pickup() });
+          break;
+
+        case TRIP_STATE.ARRIVED_PICKUP:
+          this.navigationMode = 'pickup';
+          this.updateFlowUI();
+          break;
+
+        case TRIP_STATE.PICKUP_CONFIRMED:
+          this.navigationMode = 'pickup';
+          this.updateFlowUI();
+          break;
+
+        case TRIP_STATE.CUSTOMER_ONBOARD:
+          this.stopWaitTimer();
+          this.updateFlowUI();
+          break;
+
+        case TRIP_STATE.WAITING_DESTINATION:
+          this.navigationMode = 'idle';
+          this.startWaitTimer();
+          this.updateFlowUI();
+          this.emit('request_destination', { message: 'Vui lòng nhập điểm đến để bắt đầu tính cước.' });
+          break;
+
+        case TRIP_STATE.DESTINATION_SELECTED:
+          this.navigationMode = 'destination';
+          this.updateNavigationRoute('destination');
+          this.updateFlowUI();
+          this.emit('navigation', { navigationMode: 'destination', destination: this.destination() });
+          break;
+
+        case TRIP_STATE.TRIP_RUNNING:
+          this.updateFlowUI();
+          break;
+
+        case TRIP_STATE.FARE_CALCULATING:
+          this.navigationMode = this.isStreetHailTrip() ? 'idle' : 'destination';
+          if (!this.fareStartedAt) this.fareStartedAt = Date.now();
+          this.currentOdometerKm = this.readLegacyKm();
+          this.updateFlowUI();
+          this.emit('fare_started', { navigationMode: this.navigationMode });
+          break;
+
+        case TRIP_STATE.COMPLETED:
+          this.completeLegacyTrip(payload);
+          break;
+
+        case TRIP_STATE.CANCELLED:
+          this.stopWaitTimer();
+          this.cancelLegacyTrip(payload.reason || 'Tài xế hủy chuyến');
+          break;
+      }
+    }
+
+    ensureStreetHailTrip() {
+      if (this.currentTrip) return;
+      this.currentTrip = {
+        id: null,
+        type: TRIP_TYPE.STREET_HAIL,
+        isStreetHail: true,
+        clientName: '🚕 Khách vẫy',
+        phone: '',
+        pickup: 'Vị trí hiện tại',
+        dropoff: null,
+        estimatePrice: 0,
+        estimateKm: 0,
+        pickupLat: this.currentPosition()?.lat || null,
+        pickupLng: this.currentPosition()?.lng || null
+      };
+      this.syncLegacyContext();
+    }
+
+    isStreetHailTrip() {
+      return Boolean(this.currentTrip && (this.currentTrip.type === TRIP_TYPE.STREET_HAIL || this.currentTrip.isStreetHail));
+    }
+
+    normalizeTrip(tripId, data = {}) {
+      const hasDestination = Boolean(
+        (data.dropoffLat != null && data.dropoffLng != null) || hasText(data.dropoff)
+      );
+      return {
+        ...data,
+        id: tripId || data.id || null,
+        type: hasDestination ? TRIP_TYPE.APP_DESTINATION : TRIP_TYPE.APP_NO_DESTINATION,
+        isStreetHail: false,
+        destination: hasDestination ? {
+          address: data.dropoff || '',
+          lat: data.dropoffLat != null ? number(data.dropoffLat) : null,
+          lng: data.dropoffLng != null ? number(data.dropoffLng) : null
+        } : null
+      };
+    }
+
+    beginAppTrip(tripId, data) {
+      if (this.currentState !== TRIP_STATE.IDLE) {
+        this.log('Không thể nhận đơn khi state=' + this.currentState, 'warn');
+        return false;
+      }
+      this.currentTrip = this.normalizeTrip(tripId, data || {});
+      this.syncLegacyContext();
+      this._completed = false;
+      if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'app_order', navigationMode: 'pickup' })) return false;
+      return this.transition(TRIP_STATE.NAVIGATING_TO_PICKUP, { source: 'app_order' });
+    }
+
+    startStreetHail() {
+      if (this.currentState !== TRIP_STATE.IDLE) {
+        if (this.isFareActive()) return this.showCompletionConfirmation();
+        return false;
+      }
+      this.currentTrip = null;
+      if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
+        window.PromaxLegacyRuntime.resetDistance();
+      }
+      if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
+      if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'street_hail', navigationMode: 'idle' })) return false;
+      if (!this.transition(TRIP_STATE.PICKUP_CONFIRMED, { source: 'street_hail' })) return false;
+      if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD, { source: 'street_hail' })) return false;
+      if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail' })) return false;
+      return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'street_hail' });
+    }
+
+    arrivedAtPickup() {
+      return this.transition(TRIP_STATE.ARRIVED_PICKUP);
+    }
+
+    confirmPickup() {
+      if (this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP) {
+        return this.arrivedAtPickup();
+      }
+      if (this.currentState === TRIP_STATE.ARRIVED_PICKUP && !this.isStreetHailTrip()) {
+        return this.passengerOnboard();
+      }
+      return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
+    }
+
+    passengerOnboard() {
+      if (this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP) this.arrivedAtPickup();
+      if (this.currentState === TRIP_STATE.ARRIVED_PICKUP && this.isStreetHailTrip()) this.transition(TRIP_STATE.PICKUP_CONFIRMED);
+      if (![TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED].includes(this.currentState)) return false;
+      const moved = this.transition(TRIP_STATE.CUSTOMER_ONBOARD);
+      if (!moved) return false;
+      if (this.hasDestination()) {
+        this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'destination_already_selected' });
+        this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'destination_already_selected' });
+        return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'destination_already_selected' });
+      }
+      return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'destination_required' });
+    }
+
+    selectDestination(destination) {
+      if (this.currentState !== TRIP_STATE.WAITING_DESTINATION) return false;
+      const normalized = this.normalizeDestination(destination);
+      if (!normalized) return false;
+      this.currentTrip.destination = normalized;
+      this.currentTrip.dropoff = normalized.address;
+      this.currentTrip.dropoffLat = normalized.lat;
+      this.currentTrip.dropoffLng = normalized.lng;
+      this.syncLegacyContext();
+      if (!this.transition(TRIP_STATE.DESTINATION_SELECTED, { destination: normalized })) return false;
+      this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'destination_selected' });
+      return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'destination_selected' });
+    }
+
+    startDestinationRoute(destination) {
+      return this.selectDestination(destination);
+    }
+
+    normalizeDestination(value) {
+      if (typeof value === 'string') {
+        const address = value.trim();
+        return address ? { address, lat: null, lng: null } : null;
+      }
+      if (!value || !hasText(value.address || value.dropoff)) return null;
+      return {
+        address: String(value.address || value.dropoff).trim(),
+        lat: value.lat != null ? number(value.lat) : (value.dropoffLat != null ? number(value.dropoffLat) : null),
+        lng: value.lng != null ? number(value.lng) : (value.dropoffLng != null ? number(value.dropoffLng) : null)
+      };
+    }
+
+    hasDestination() {
+      const destination = this.currentTrip && this.currentTrip.destination;
+      return Boolean(destination && (hasText(destination.address) || (destination.lat != null && destination.lng != null)));
+    }
+
+    completeTrip() {
+      if (this.currentState !== TRIP_STATE.FARE_CALCULATING) return false;
+      return this.transition(TRIP_STATE.COMPLETED, { source: 'driver' });
+    }
+
+    // Compatibility API for Firebase/UI modules that hand an order to the engine.
+    acceptOrder(tripId, tripData) {
+      return this.beginAppTrip(tripId, tripData || {});
+    }
+
+    assignOrder(tripId, tripData) {
+      return this.beginAppTrip(tripId, tripData || {});
+    }
+
+    showCompletionConfirmation() {
+      if (typeof window.showConfirmComplete === 'function') return window.showConfirmComplete();
+      return this.completeTrip();
+    }
+
+    cancelTrip(reason = 'Tài xế hủy chuyến') {
+      if (!this.isTripActive()) return false;
+      return this.transition(TRIP_STATE.CANCELLED, { reason });
+    }
+
+    completeLegacyTrip(payload) {
+      if (this._completed) return;
+      this._completed = true;
+      this.currentOdometerKm = this.readLegacyKm();
+      const legacyComplete = window.__PromaxLegacyHandlers && window.__PromaxLegacyHandlers.completeTrip;
+      if (typeof legacyComplete === 'function') {
+        try { legacyComplete.call(window); } catch (error) { this.log('Lỗi hoàn tất legacy: ' + error.message, 'error'); }
+      }
+      this.emit('completed', {
+        totalKm: this.currentOdometerKm,
+        trip: this.currentTrip,
+        payload
+      });
+      this.navigationMode = 'idle';
+      this.currentState = TRIP_STATE.IDLE;
+      this.currentTrip = null;
+      this.fareStartedAt = null;
+      this.publishLegacyState();
+      this.updateFlowUI();
+    }
+
+    cancelLegacyTrip(reason) {
+      const legacyCancel = window.__PromaxLegacyHandlers && window.__PromaxLegacyHandlers.cancelTrip;
+      if (typeof legacyCancel === 'function') {
+        try { legacyCancel.call(window); } catch (_) {}
+      }
+      this.emit('cancelled', { reason });
+      this.navigationMode = 'idle';
+      this.currentState = TRIP_STATE.IDLE;
+      this.currentTrip = null;
+      this.publishLegacyState();
+      this.updateFlowUI();
+    }
+
+    syncLegacyContext() {
+      const runtime = window.PromaxLegacyRuntime;
+      if (runtime && typeof runtime.setTripContext === 'function') {
+        runtime.setTripContext(this.currentTrip?.id || null, this.currentTrip || null);
+      }
+    }
+
+    publishLegacyState() {
+      const fare = this.isFareActive();
+      const running = this.isTripActive();
+      const onboard = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING].includes(this.currentState);
+      if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.setFlowState === 'function') {
+        window.PromaxLegacyRuntime.setFlowState({
+          isRunning: running,
+          hasPickedUp: onboard,
+          isStreetHail: this.isStreetHailTrip(),
+          navigationMode: this.navigationMode,
+          fareActive: fare
+        });
+      } else {
+        window.navigationMode = this.navigationMode;
+      }
+      window.navigationMode = this.navigationMode;
+      document.body && document.body.setAttribute('data-navigation-mode', this.navigationMode);
+    }
+
+    updateFlowUI() {
+      const status = document.getElementById('tripStatusText');
+      const panel = document.getElementById('tripInfoPanel');
+      const home = document.getElementById('homeControls');
+      const stats = document.getElementById('statsUI');
+      const actions = document.getElementById('tripActionButtons');
+      const pickupBtn = document.getElementById('pickupBtn');
+      const navBtn = document.getElementById('navToPickupBtn');
+      const endBtn = document.getElementById('endTripBtn');
+      const km = document.getElementById('tripKmLive');
+      const price = document.getElementById('tripPrice');
+
+      if (this.currentState === TRIP_STATE.IDLE || this.currentState === TRIP_STATE.COMPLETED) {
+        if (panel) panel.style.display = 'none';
+        if (home) home.style.display = 'block';
+        if (stats) stats.classList.remove('show');
+        return;
+      }
+
+      if (panel) panel.style.display = 'block';
+      if (home) home.style.display = 'none';
+      if (stats) stats.classList.add('show');
+      if (status) status.textContent = this.statusLabel();
+      if (km) km.textContent = this.readLegacyKm().toFixed(2) + ' KM';
+      if (price) price.textContent = this.currentFare().toLocaleString('vi-VN') + 'đ';
+
+      const pickupPhase = [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP].includes(this.currentState);
+      const pickupConfirmed = this.currentState === TRIP_STATE.PICKUP_CONFIRMED;
+      const waitingDestination = this.currentState === TRIP_STATE.WAITING_DESTINATION;
+      const farePhase = this.isFareActive();
+
+      if (actions) actions.style.display = pickupPhase || pickupConfirmed || waitingDestination ? 'flex' : 'none';
+      if (pickupBtn) {
+        pickupBtn.style.display = pickupPhase || pickupConfirmed ? 'block' : 'none';
+        pickupBtn.textContent = this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP ? '✅ ĐÃ ĐẾN ĐIỂM ĐÓN' : '🚗 KHÁCH ĐÃ LÊN XE';
+        pickupBtn.onclick = () => this.currentState === TRIP_STATE.PICKUP_CONFIRMED ? this.passengerOnboard() : this.confirmPickup();
+      }
+      if (navBtn) {
+        navBtn.style.display = pickupPhase ? 'block' : 'none';
+        navBtn.onclick = () => this.openNavigation('pickup');
+      }
+      if (endBtn) {
+        endBtn.style.display = farePhase ? 'block' : 'none';
+        endBtn.onclick = () => this.showCompletionConfirmation();
+      }
+
+      this.renderDestinationPicker(waitingDestination);
+      this.renderTripDestination();
+    }
+
+    renderDestinationPicker(show) {
+      const actions = document.getElementById('tripActionButtons');
+      if (!actions) return;
+      let box = document.getElementById('flowDestinationPicker');
+      if (!show) {
+        if (box) box.remove();
+        return;
+      }
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'flowDestinationPicker';
+        box.style.cssText = 'width:100%;display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
+        box.innerHTML = '<input id="flowDestinationInput" type="text" placeholder="Nhập điểm đến của khách" aria-label="Điểm đến" style="flex:1;min-width:180px;padding:11px;border:1px solid #dbe4ee;border-radius:10px;" /><button id="flowDestinationBtn" type="button" style="padding:11px 14px;border:0;border-radius:10px;background:#0054a3;color:#fff;font-weight:800;">XÁC NHẬN ĐIỂM ĐẾN</button>';
+        actions.appendChild(box);
+        box.querySelector('#flowDestinationBtn').onclick = () => {
+          const input = box.querySelector('#flowDestinationInput');
+          const value = input && input.value.trim();
+          if (!value) {
+            if (typeof window.showToast === 'function') window.showToast('⚠️ Vui lòng nhập điểm đến');
+            return;
+          }
+          this.selectDestination(value);
+        };
+      }
+    }
+
+    renderTripDestination() {
+      const to = document.getElementById('tripTo');
+      if (to && this.destination()) to.textContent = this.destination().address || 'Đã chọn điểm đến';
+    }
+
+    statusLabel() {
+      const labels = {
+        [TRIP_STATE.STREET_HAIL]: '🚕 CHUYẾN VẪY',
+        [TRIP_STATE.DRIVER_ACCEPT]: '✅ ĐÃ NHẬN ĐƠN',
+        [TRIP_STATE.NAVIGATING_TO_PICKUP]: '🧭 ĐANG ĐI ĐÓN KHÁCH',
+        [TRIP_STATE.ARRIVED_PICKUP]: '📍 ĐÃ ĐẾN ĐIỂM ĐÓN',
+        [TRIP_STATE.PICKUP_CONFIRMED]: '⏳ ĐANG CHỜ KHÁCH LÊN XE',
+        [TRIP_STATE.CUSTOMER_ONBOARD]: '🚗 KHÁCH ĐÃ LÊN XE',
+        [TRIP_STATE.WAITING_DESTINATION]: '🏁 CHỜ NHẬP ĐIỂM ĐẾN',
+        [TRIP_STATE.DESTINATION_SELECTED]: '🧭 ĐÃ CHỌN ĐIỂM ĐẾN',
+        [TRIP_STATE.TRIP_RUNNING]: '🚕 ĐANG CHẠY CHUYẾN',
+        [TRIP_STATE.FARE_CALCULATING]: '💰 ĐANG TÍNH CƯỚC'
+      };
+      return labels[this.currentState] || this.currentState;
+    }
+
+    currentFare() {
+      const km = this.readLegacyKm();
+      const runtime = window.PromaxLegacyRuntime;
+      const rate = runtime && typeof runtime.getRate === 'function'
+        ? number(runtime.getRate(), CONFIG.FARE_PER_KM)
+        : number(window.currentRate, CONFIG.FARE_PER_KM);
+      return Math.max(CONFIG.MIN_FARE, Math.min(CONFIG.MAX_FARE, Math.round(km * rate)));
+    }
+
+    currentPosition() {
+      if (this.lastKnownPosition) return this.lastKnownPosition;
+      const runtime = window.PromaxLegacyRuntime;
+      if (runtime && typeof runtime.getPosition === 'function') return runtime.getPosition();
+      return null;
+    }
+
+    pickup() {
+      return this.currentTrip ? {
+        address: this.currentTrip.pickup || '',
+        lat: this.currentTrip.pickupLat != null ? number(this.currentTrip.pickupLat) : null,
+        lng: this.currentTrip.pickupLng != null ? number(this.currentTrip.pickupLng) : null
+      } : null;
+    }
+
+    destination() {
+      return this.currentTrip && this.currentTrip.destination ? this.currentTrip.destination : null;
+    }
+
+    updateNavigationRoute(mode) {
+      const target = mode === 'pickup' ? this.pickup() : this.destination();
+      if (!target) return;
+      try {
+        if (target.lat != null && target.lng != null && typeof window.drawRoute === 'function') {
+          const position = this.currentPosition();
+          if (position) window.drawRoute(position.lat, position.lng, target.lat, target.lng);
+        }
+      } catch (_) {}
+    }
+
+    openNavigation(mode) {
+      const target = mode === 'pickup' ? this.pickup() : this.destination();
+      if (!target) return false;
+      const position = this.currentPosition() || {};
+      const destination = target.lat != null && target.lng != null
+        ? `${target.lat},${target.lng}`
+        : encodeURIComponent(target.address || '');
+      window.open(`https://www.google.com/maps/dir/?api=1&origin=${number(position.lat)},${number(position.lng)}&destination=${destination}&travelmode=driving`, '_blank');
+      return true;
+    }
+
+    startWaitTimer() {
+      this.stopWaitTimer();
+      this.waitTimer = setInterval(() => {
+        if (this.currentState === TRIP_STATE.WAITING_DESTINATION) this.waitTimeMin += 1 / 60;
+      }, 1000);
+    }
+
+    stopWaitTimer() {
+      if (this.waitTimer) clearInterval(this.waitTimer);
+      this.waitTimer = null;
+    }
+
+    syncStateToFirebase(state) {
+      if (!window.db || !this.currentTrip || !this.currentTrip.id) return;
+      try {
+        window.db.ref(`${CONFIG.FIREBASE_PATH}/${this.currentTrip.id}`).update({
+          status: state,
+          navigationMode: this.navigationMode,
+          lastUpdate: Date.now()
+        }).catch(() => {});
+      } catch (_) {}
+    }
+
+    emit(type, detail = {}) {
+      document.dispatchEvent(new CustomEvent(`trip:${type}`, { detail }));
+    }
+
+    playSound(type) {
+      if (type === 'new_order' && typeof window.playOrderSound === 'function') window.playOrderSound();
+    }
+
+    log(message, level = 'info') {
+      const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+      fn.call(console, '[TripFlow]', message);
+    }
+
+    getCurrentState() { return this.currentState; }
+    getCurrentTrip() { return this.currentTrip; }
+    getOdometer() { return this.readLegacyKm(); }
+    getWaitTime() { return this.waitTimeMin; }
+    getNavigationMode() { return this.navigationMode; }
+
+    destroy() {
+      if (this.gpsWatchId && navigator.geolocation) navigator.geolocation.clearWatch(this.gpsWatchId);
+      if (typeof this.gpsUnsubscribe === 'function') this.gpsUnsubscribe();
+      this.stopWaitTimer();
+    }
+  }
+
+  const engine = new TripEngine();
+  window.tripEngine = engine;
+  window.TRIP_STATE = TRIP_STATE;
+  window.TRIP_TYPE = TRIP_TYPE;
+  window.TRIP_FLOW_CONFIG = CONFIG;
+  window.addEventListener('beforeunload', () => engine.destroy());
 })(window, document);
