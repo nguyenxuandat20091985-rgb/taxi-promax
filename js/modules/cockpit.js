@@ -116,6 +116,8 @@
 
     function totalKmNow(){return pickupKm+tripKm+gapKm;}
     function updateAllDisplays(force){
+        // Trip Engine là owner duy nhất của km/cước.
+        if(window.tripEngine && typeof window.tripEngine.isFareActive==='function' && !window.tripEngine.isFareActive())return;
         var now=performance.now();
         if(!force&&now-lastDisplayUpdate<100)return;
         lastDisplayUpdate=now;
@@ -140,6 +142,8 @@
 
     // ========== smartAdd ĐÃ HOÀN THIỆN (có bảo vệ Trip Engine) ==========
     async function smartAdd(lat, lng, accuracy, ts, speed, heading) {
+        // Không tính km ở pickup/waiting; chỉ FARE_CALCULATING mới được phép.
+        if(window.tripEngine && typeof window.tripEngine.isFareActive==='function' && !window.tripEngine.isFareActive())return;
         // Nếu Trip Engine đang quản lý chuyến → không tự cộng km
         if (window.tripEngine && typeof window.tripEngine.getCurrentState === 'function') {
             const state = window.tripEngine.getCurrentState();
