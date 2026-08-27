@@ -1,114 +1,146 @@
-/**
- * init-trip.js
- * Kết nối các nút UI hiện tại với Trip Engine V4
+/*
+ * Taxi ProMax — Driver Flow UI Adapter
+ *
+ * Đây là adapter duy nhất giữa onclick cũ trong index.html và Trip Engine.
+ * UI không tự sửa isRunning/hasPickedUp; mọi thay đổi state đi qua engine.
  */
+;(function (window, document) {
+  'use strict';
 
-(function() {
-    'use strict';
+  function engine() {
+    return window.tripEngine || null;
+  }
 
-    function getEngine() {
-        return window.tripEngine || null;
-    }
+  function legacy() {
+    return window.PromaxLegacyRuntime || null;
+  }
 
-    function safeCall(fnName, ...args) {
-        const engine = getEngine();
-        if (engine && typeof engine[fnName] === 'function') {
-            return engine[fnName](...args);
-        }
-        console.warn('[init-trip] tripEngine.' + fnName + ' không tồn tại');
+  function toast(message) {
+    if (typeof window.showToast === 'function') window.showToast(message);
+  }
+
+  function bindLegacyActions() {
+    const current = engine();
+    if (!current || window.__promaxFlowAdapterBound) return Boolean(current);
+    window.__promaxFlowAdapterBound = true;
+
+    // Main button: start a street-hail flow or ask to complete the active fare.
+    window.handleTrip = function () {
+      if (current.getCurrentState() === window.TRIP_STATE.FARE_CALCULATING) {
+        return current.showCompletionConfirmation();
+      }
+      return current.startStreetHail();
+    };
+
+    // The order modal is still rendered by the legacy UI. The legacy accept
+    // handler performs the Firebase transaction; the engine then owns state.
+    const legacyAccept = legacy() && legacy().acceptOrder;
+    window.acceptOrder = async function () {
+      if (typeof legacyAccept !== 'function') {
+        toast('⚠️ Chưa sẵn sàng nhận đơn');
         return false;
+      }
+      const result = await legacyAccept();
+      const context = legacy() && typeof legacy().getTripContext === 'function'
+        ? legacy().getTripContext()
+        : null;
+      if (context && context.id && current.getCurrentState() === window.TRIP_STATE.IDLE) {
+        current.beginAppTrip(context.id, context.data || {});
+      }
+      return result;
+    };
+
+    window.navigateToPickup = function () {
+      return current.openNavigation('pickup');
+    };
+
+    window.confirmPickup = function () {
+      return current.confirmPickup();
+    };
+
+    window.showConfirmComplete = function () {
+      if (current.getCurrentState() !== window.TRIP_STATE.FARE_CALCULATING) {
+        toast('⚠️ Chưa đến giai đoạn tính cước');
+        return false;
+      }
+      const dialog = document.getElementById('confirmDialog');
+      const message = document.getElementById('confirmMessage');
+      const ok = document.getElementById('confirmOkBtn');
+      if (!dialog || !ok) return current.completeTrip();
+      if (message) message.textContent = 'Bạn có chắc chắn muốn kết thúc chuyến và chốt cước?';
+      ok.onclick = function () {
+        dialog.style.display = 'none';
+        current.completeTrip();
+      };
+      dialog.style.display = 'flex';
+      return true;
+    };
+
+    window.completeTrip = function () {
+      return current.completeTrip();
+    };
+
+    window.startDestinationRoute = function (destination) {
+      return current.selectDestination(destination);
+    };
+
+    window.cancelTrip = function (reason) {
+      return current.cancelTrip(reason || 'Tài xế hủy chuyến');
+    };
+
+    return true;
+  }
+
+  function bindExtraButtons() {
+    const current = engine();
+    if (!current) return;
+
+    const arrived = document.getElementById('btn-arrived') || document.querySelector('[data-action="arrived"]');
+    if (arrived && !arrived.dataset.flowBound) {
+      arrived.dataset.flowBound = '1';
+      arrived.addEventListener('click', () => current.arrivedAtPickup());
     }
 
-    // ====================== GÁN SỰ KIỆN NÚT ======================
-    function bindButtons() {
-        // Nút ĐÃ ĐẾN ĐIỂM ĐÓN
-        const btnArrived = document.getElementById('btn-arrived') || 
-                           document.querySelector('[data-action="arrived"]') ||
-                           document.querySelector('.btn-arrived');
-        if (btnArrived && !btnArrived.dataset.bound) {
-            btnArrived.dataset.bound = '1';
-            btnArrived.addEventListener('click', function() {
-                safeCall('arrivedAtPickup');
-                if (typeof showToast === 'function') showToast('📍 Đã đến điểm đón');
-            });
-        }
-
-        // Nút KHÁCH ĐÃ LÊN XE / BẮT ĐẦU TÍNH CƯỚC
-        const btnStart = document.getElementById('btn-start-trip') ||
-                         document.querySelector('[data-action="start"]') ||
-                         document.querySelector('.btn-start-trip');
-        if (btnStart && !btnStart.dataset.bound) {
-            btnStart.dataset.bound = '1';
-            btnStart.addEventListener('click', function() {
-                safeCall('passengerOnboard');
-                if (typeof showToast === 'function') showToast('🚗 Bắt đầu tính cước');
-            });
-        }
-
-        // Nút HOÀN THÀNH CHUYẾN
-        const btnComplete = document.getElementById('btn-complete') ||
-                            document.querySelector('[data-action="complete"]') ||
-                            document.querySelector('.trip-end-btn') ||
-                            document.querySelector('.btn-complete');
-        if (btnComplete && !btnComplete.dataset.bound) {
-            btnComplete.dataset.bound = '1';
-            btnComplete.addEventListener('click', function() {
-                safeCall('completeTrip');
-            });
-        }
-
-        // Nút HỦY CHUYẾN
-        const btnCancel = document.getElementById('btn-cancel') ||
-                          document.querySelector('[data-action="cancel"]');
-        if (btnCancel && !btnCancel.dataset.bound) {
-            btnCancel.dataset.bound = '1';
-            btnCancel.addEventListener('click', function() {
-                if (confirm('Bạn chắc chắn muốn hủy chuyến?')) {
-                    safeCall('cancelTrip', 'Tài xế hủy');
-                }
-            });
-        }
+    const onboard = document.getElementById('btn-start-trip') || document.querySelector('[data-action="start"]');
+    if (onboard && !onboard.dataset.flowBound) {
+      onboard.dataset.flowBound = '1';
+      onboard.addEventListener('click', () => current.passengerOnboard());
     }
 
-    // ====================== ĐỒNG BỘ TRẠNG THÁI CŨ → ENGINE ======================
-    // Giữ tương thích với code cũ (isRunning, hasPickedUp...)
-    function syncLegacyFlags() {
-        const engine = getEngine();
-        if (!engine) return;
-
-        const state = engine.getCurrentState ? engine.getCurrentState() : 'IDLE';
-
-        // Map state → cờ cũ để UI cũ vẫn chạy
-        window.isRunning = ['TO_PICKUP','ARRIVED','WAITING','ONBOARD','TO_DESTINATION'].includes(state);
-        window.hasPickedUp = ['ONBOARD','TO_DESTINATION'].includes(state);
+    const complete = document.getElementById('btn-complete') || document.querySelector('[data-action="complete"]');
+    if (complete && !complete.dataset.flowBound) {
+      complete.dataset.flowBound = '1';
+      complete.addEventListener('click', () => current.showCompletionConfirmation());
     }
 
-    // Lắng nghe event từ Trip Engine
-    document.addEventListener('trip:status', function(e) {
-        const status = e.detail && e.detail.status;
-        console.log('[init-trip] Trạng thái mới:', status);
-        syncLegacyFlags();
-
-        // Cập nhật UI nếu cần
-        if (status === 'COMPLETED') {
-            if (typeof showToast === 'function') showToast('🏁 Chuyến đi hoàn tất');
-        }
-        if (status === 'CANCELLED') {
-            if (typeof showToast === 'function') showToast('❌ Đã hủy chuyến');
-        }
-    });
-
-    // ====================== KHỞI TẠO ======================
-    function init() {
-        bindButtons();
-        // Bind lại định kỳ phòng UI render động
-        setInterval(bindButtons, 3000);
-        console.log('✅ init-trip.js đã kết nối UI ↔ Trip Engine');
+    const cancel = document.getElementById('btn-cancel') || document.querySelector('[data-action="cancel"]');
+    if (cancel && !cancel.dataset.flowBound) {
+      cancel.dataset.flowBound = '1';
+      cancel.addEventListener('click', () => current.cancelTrip('Tài xế hủy chuyến'));
     }
+  }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
+  function syncVisibleState(event) {
+    const current = engine();
+    if (!current) return;
+    const detail = event && event.detail ? event.detail : {};
+    const status = detail.status || current.getCurrentState();
+    const mode = detail.navigationMode || current.getNavigationMode();
+    const statusEl = document.getElementById('tripStatusText');
+    if (statusEl && typeof current.statusLabel === 'function') statusEl.textContent = current.statusLabel();
+    document.documentElement.setAttribute('data-trip-state', status);
+    document.documentElement.setAttribute('data-navigation-mode', mode);
+  }
+
+  function init() {
+    if (!bindLegacyActions()) return;
+    bindExtraButtons();
+    setInterval(bindExtraButtons, 1000);
+    document.addEventListener('trip:status', syncVisibleState);
+    syncVisibleState();
+    console.log('✅ driver flow adapter: UI → Trip Engine');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})(window, document);
