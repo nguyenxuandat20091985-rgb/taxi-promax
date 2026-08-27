@@ -35,8 +35,17 @@
   };
 
   function iconFor(label) {
+    const normalized = String(label || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+    if (normalized.includes('trang chu') || normalized === 'home' || normalized.startsWith('home ')) return ICONS['Trang chủ'];
+    if (normalized.includes('lich su') || normalized === 'history' || normalized.startsWith('history ')) return ICONS['Lịch sử'];
+    if (normalized.includes('vi tien') || normalized === 'wallet' || normalized.startsWith('wallet ')) return ICONS['Ví tiền'];
+    if (normalized === 'toi' || normalized === 'profile' || normalized === 'me') return ICONS['Tôi'];
     const key = Object.keys(ICONS).find((name) => label.indexOf(name) !== -1);
-    return key ? ICONS[key] : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle></svg>';
+    return key ? ICONS[key] : ICONS['Trang chủ'];
   }
 
   function upgradeTabs() {
@@ -46,8 +55,11 @@
       const oldLabel = item.querySelector('.nav-lab');
       const label = (oldLabel ? oldLabel.textContent : item.textContent || '').trim();
       if (!label) continue;
-      if (item.dataset.premium === '1' && item.querySelector('.nav-ico svg')) continue;
+      const currentIcon = item.querySelector('.nav-ico svg');
+      // Dựng lại nếu label bị đổi ngôn ngữ sau lần boot đầu tiên.
+      if (item.dataset.premium === '1' && currentIcon && item.dataset.iconLabel === label) continue;
       item.dataset.premium = '1';
+      item.dataset.iconLabel = label;
       item.innerHTML = '';
 
       const icon = document.createElement('span');
