@@ -14,10 +14,14 @@ const cockpit = read('js/modules/cockpit.js');
 const cockpitInline = read('js/driver/22-cockpit-inline.js');
 const gpsBoost = read('js/modules/gps-boost.js');
 const gpsBoostInline = read('js/driver/15-gps-boost-inline.js');
+const dashboard = read('js/modules/driver-dashboard.js');
+const dashboardCss = read('css/driver-dashboard.css');
 
 assert.match(html, /<script src="js\/map\.js\?v=20260827-ui3"><\/script>/);
 assert.match(html, /<script src="js\/driver\/03-premium-ui\.js\?v=20260827-ui3"><\/script>/);
 assert.match(html, /<script src="js\/driver\/00-core-runtime\.js\?v=20260827-ui3"><\/script>/);
+assert.match(html, /driver-dashboard\.css\?v=20260828-dashboard2/);
+assert.match(html, /driver-dashboard\.js\?v=20260828-dashboard2/);
 assert.doesNotMatch(map, /basemaps\.cartocdn\.com|cartodb/i);
 assert.doesNotMatch(cockpit, /basemaps\.cartocdn\.com|cartodb/i);
 assert.doesNotMatch(cockpitInline, /basemaps\.cartocdn\.com|cartodb/i);
@@ -44,6 +48,14 @@ assert.match(core, /Gần đúng/);
 
 // Service worker phải xóa cache cũ và không precache Carto/API key cũ.
 assert.match(sw, /taxi-promax-v8-20260827-ui3/);
+
+// Bố cục compact: GPS/Online giữ ở vị trí gốc, thuê bao và chẩn đoán nằm trong menu.
+assert.match(dashboard, /removeOldHomeCards/);
+assert.doesNotMatch(dashboard, /className\s*=\s*['"]pmx-home-dashboard/);
+assert.doesNotMatch(dashboard, /className\s*=\s*['"]pmx-subscription-card/);
+assert.match(dashboard, /pmxDiagnosticsMenuItem/);
+assert.match(dashboard, /Gói thuê bao tháng/);
+assert.match(dashboardCss, /pmx-diagnostic-sheet/);
 assert.doesNotMatch(sw, /basemaps\.cartocdn\.com|CARTODB TILES/i);
 
 console.log('ui regression tests: OK');
