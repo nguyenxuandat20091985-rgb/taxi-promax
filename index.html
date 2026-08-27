@@ -980,6 +980,66 @@ let soundEnabled = true;
 let ratingListener = null;
 let _cancelListener = null;
 
+
+// ==================== GPS BROKER ====================
+// Chỉ cho phép một watcher native; các tính năng khác nhận cùng một bản tin GPS.
+(function installPromaxGpsBroker() {
+    if (!navigator.geolocation || navigator.geolocation.__promaxBrokerInstalled) return;
+    const geo = navigator.geolocation;
+    const nativeWatch = geo.watchPosition.bind(geo);
+    const nativeClear = geo.clearWatch.bind(geo);
+    const subscribers = new Map();
+    let nextSubscriberId = 1;
+    let nativeWatchId = null;
+
+    function dispatchPosition(position) {
+        subscribers.forEach((subscriber) => {
+            try { if (typeof subscriber.success === 'function') subscriber.success(position); } catch (error) { console.warn('[GPS Broker] subscriber error', error); }
+        });
+    }
+
+    function dispatchError(error) {
+        subscribers.forEach((subscriber) => {
+            try { if (typeof subscriber.error === 'function') subscriber.error(error); } catch (listenerError) { console.warn('[GPS Broker] error listener failed', listenerError); }
+        });
+    }
+
+    function ensureNativeWatch() {
+        if (nativeWatchId !== null) return;
+        nativeWatchId = nativeWatch(dispatchPosition, dispatchError, {
+            enableHighAccuracy: true,
+            timeout: 20000,
+            maximumAge: 0
+        });
+    }
+
+    function stopNativeWatchIfUnused() {
+        if (nativeWatchId !== null && subscribers.size === 0) {
+            nativeClear(nativeWatchId);
+            nativeWatchId = null;
+        }
+    }
+
+    geo.watchPosition = function (success, error, options) {
+        const id = nextSubscriberId++;
+        subscribers.set(id, { success, error, options: options || {} });
+        ensureNativeWatch();
+        return id;
+    };
+
+    geo.clearWatch = function (id) {
+        subscribers.delete(id);
+        stopNativeWatchIfUnused();
+    };
+
+    Object.defineProperty(geo, '__promaxBrokerInstalled', { value: true, configurable: false });
+    window.PromaxGpsBroker = {
+        subscriberCount: () => subscribers.size,
+        nativeWatchActive: () => nativeWatchId !== null
+    };
+    console.log('✅ ProMax GPS Broker — one native watcher');
+})();
+
 let lastSpeeds = [];
 let fraudAlertShown = false;
 let isLocked = false;
@@ -1192,44 +1252,16 @@ async function updateLocationAndWeather(lat, lng) {
 
 // Khởi tạo theo dõi vị trí và thời tiết
 function initWeatherTracking() {
-    // Lấy vị trí hiện tại
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                await updateLocationAndWeather(lat, lng);
-            },
-            (err) => {
-                console.warn('[Weather] Không lấy được vị trí:', err.message);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
-    }
-    
-    // Cập nhật thời tiết mỗi 10 phút
     if (weatherUpdateInterval) clearInterval(weatherUpdateInterval);
     weatherUpdateInterval = setInterval(async () => {
-        if (currentLat && currentLng) {
+        if (currentLat != null && currentLng != null) {
             await updateLocationAndWeather(currentLat, currentLng);
         }
     }, 600000); // 10 phút
-    
-    // Cập nhật khi GPS thay đổi
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                if (currentLat !== lat || currentLng !== lng) {
-                    currentLat = lat;
-                    currentLng = lng;
-                    await updateLocationAndWeather(lat, lng);
-                }
-            },
-            () => {},
-            { enableHighAccuracy: true, maximumAge: 30000 }
-        );
+
+    // GPS chính đã cập nhật currentLat/currentLng; không mở watcher riêng cho thời tiết.
+    if (currentLat != null && currentLng != null) {
+        updateLocationAndWeather(currentLat, currentLng).catch(() => {});
     }
 }
 
@@ -1651,6 +1683,9 @@ let hasCenteredMap = false;
         saveLocationToHistory(latitude, longitude, accuracy, currentTime);
         updateGpsStatusUI(accuracy, false);
         updateDriverMarker(latitude, longitude, true);
+        if (typeof window.CustomEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('promax:gps-fix', { detail: { lat: latitude, lng: longitude, accuracy, speed, timestamp: currentTime } }));
+        }
 
         if (isRunning && isGoodEnoughForFare && lastValidPos) {
             const timeDiff = currentTime - lastValidTime;
@@ -2668,7 +2703,7 @@ async function initApp() {
 
     function completeTrip() {
         const finalKm = totalKm;
-        const finalCost = Math.round(finalKm * currentRate);
+        const finalCost = Math.max(20000, Math.round(finalKm * currentRate));
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
         
         saveHistory(finalKm, finalCost.toLocaleString(), finalCost, tripType);
@@ -4000,13 +4035,15 @@ async function initApp() {
             }
         }
         function startFixGps() {
-            if (gpsStarted || !('geolocation' in navigator)) return;
+            if (gpsStarted) return;
             gpsStarted = true;
-            navigator.geolocation.watchPosition(
-                function(p) { fixGpsTick(p.coords.latitude, p.coords.longitude, p.coords.accuracy || 999); },
-                function() {},
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 2000 }
-            );
+            window.addEventListener('promax:gps-fix', function (event) {
+                var fix = event.detail || {};
+                if (fix.lat != null && fix.lng != null) fixGpsTick(fix.lat, fix.lng, fix.accuracy || 999);
+            });
+            if (typeof currentLat !== 'undefined' && currentLat != null) {
+                fixGpsTick(currentLat, currentLng, typeof lastAccuracy !== 'undefined' ? lastAccuracy : 999);
+            }
         }
         function toggleFollow() {
             followMode = !followMode;
@@ -4810,10 +4847,13 @@ async function initApp() {
         if (el) el.textContent = '🌿 Eco: ' + ecoScore + '/100';
     }
     function startEco() {
-        if (!('geolocation' in navigator)) return;
-        navigator.geolocation.watchPosition(function(p) {
-            if (p.coords.speed == null) return;
-            var v = p.coords.speed, t = p.timestamp;
+        if (window.__promaxEcoBound) return;
+        window.__promaxEcoBound = true;
+        window.addEventListener('promax:gps-fix', function (event) {
+            var fix = event.detail || {};
+            var v = Number(fix.speed);
+            var t = Number(fix.timestamp) || Date.now();
+            if (!Number.isFinite(v)) return;
             if (lastV != null && lastT != null) {
                 var dt = (t - lastT) / 1000;
                 if (dt > 0 && dt < 5) {
@@ -4826,7 +4866,7 @@ async function initApp() {
                 }
             }
             lastV = v; lastT = t;
-        }, function() {}, { enableHighAccuracy: false, maximumAge: 5000 });
+        });
     }
 
     /* ===== Mở modal + menu ===== */
@@ -5791,83 +5831,6 @@ async function initApp() {
     else boot();
 })();
 </script>
-<!-- ========== ⚡ GPS BOOST v1 - định vị nhanh kiểu Grab ========== -->
-<script>
-(function(){
-    var KEY = 'promax_lastpos';
-    function savePos(lat, lng, acc, src){ try { localStorage.setItem(KEY, JSON.stringify({ lat: lat, lng: lng, acc: acc, src: src, t: Date.now() })); } catch(e){} }
-    function loadPos(){ try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
-
-    var tempMarker = null;
-
-    function realMarkerOnMap(){
-        try { return (typeof driverMarker !== 'undefined' && driverMarker && map.hasLayer(driverMarker)); } catch(e){ return false; }
-    }
-    function placeTemp(lat, lng){
-        if (typeof map === 'undefined' || !map) return;
-        if (realMarkerOnMap()) { if (tempMarker) { map.removeLayer(tempMarker); tempMarker = null; } return; }
-        if (!tempMarker) {
-            var icon = L.divIcon({ html: '<div style="width:18px;height:18px;border-radius:50%;background:#2196f3;border:3px solid #fff;box-shadow:0 2px 8px rgba(33,150,243,.6);"></div>', className: '', iconSize: [18,18], iconAnchor: [9,9] });
-            tempMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
-        } else tempMarker.setLatLng([lat, lng]);
-    }
-    function setStatus(txt, cls){
-        var t = document.getElementById('gpsStatusText'), d = document.getElementById('gpsDot');
-        if (t) t.innerText = txt;
-        if (d && cls) d.className = 'gps-dot ' + cls;
-    }
-
-    function boost(){
-        // === TẦNG 0: vị trí nhớ lần cuối → hiện NGAY LẬP TỨC (0 giây) ===
-        var c = loadPos();
-        if (c && c.lat) {
-            map.setView([c.lat, c.lng], 16);
-            placeTemp(c.lat, c.lng);
-            setStatus('📍 Vị trí gần đúng — đang tối ưu...', 'weak');
-        }
-
-        if (!navigator.geolocation) return;
-
-        // === TẦNG 1: định vị nhanh bằng sóng/WiFi (1–2 giây) ===
-        navigator.geolocation.getCurrentPosition(function(p){
-            var lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy || 999;
-            savePos(lat, lng, acc, 'fast');
-            try { currentLat = lat; currentLng = lng; } catch(e){}
-            map.setView([lat, lng], 16);
-            placeTemp(lat, lng);
-            setStatus('📡 Định vị nhanh (±' + Math.round(acc) + 'm)', 'weak');
-        }, function(){}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 4000 });
-
-        // === TẦNG 2: GPS chính xác bám nền, nhớ vị trí cho lần sau ===
-        navigator.geolocation.watchPosition(function(p){
-            var lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy || 999;
-            savePos(lat, lng, acc, 'gps');
-            try { currentLat = lat; currentLng = lng; } catch(e){}
-            if (realMarkerOnMap() && tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
-        }, function(){}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
-
-        // === Cảnh báo nếu kẹt quá 8 giây ===
-        setTimeout(function(){
-            var t = document.getElementById('gpsStatusText');
-            if (t && t.innerText.indexOf('xin quyền') !== -1) {
-                setStatus('⚠️ Bật GPS + "Vị trí chính xác" trong Cài đặt', 'bad');
-                if (typeof showToast === 'function') showToast('📍 Mẹo: bật "Vị trí chính xác" để nhanh như Grab');
-            }
-        }, 8000);
-    }
-
-    function waitMap(){
-        var n = 0;
-        var iv = setInterval(function(){
-            n++;
-            if (typeof map !== 'undefined' && map) { clearInterval(iv); boost(); }
-            if (n > 30) clearInterval(iv);
-        }, 500);
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', waitMap);
-    else waitMap();
-})();
-</script>
 <!-- ========== 💰 WALLET UNIFY v2 - 1 ví, 1 bảng giá ========== -->
 <script>
 (function(){
@@ -6117,22 +6080,22 @@ async function initApp() {
 
     /* 1) Bắt GPS giả: acc ~0, tốc độ >180km/h, teleport >3km/10s */
     var last = null, lastT = 0;
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(function(p){
-            var lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy || 0, ts = p.timestamp || Date.now();
-            if (acc > 0 && acc < 3) flag('mock_gps', acc);
-            if (last) {
-                var dt = (ts - lastT) / 1000;
-                if (dt > 0 && dt < 30) {
-                    var km = hav(last.lat, last.lng, lat, lng);
-                    var kmh = km / dt * 3600;
-                    if (kmh > 180) flag('speed', Math.round(kmh));
-                    if (km > 3 && dt < 10) flag('teleport', Math.round(km));
-                }
+    window.addEventListener('promax:gps-fix', function(event) {
+        var fix = event.detail || {};
+        var lat = Number(fix.lat), lng = Number(fix.lng), acc = Number(fix.accuracy) || 0, ts = Number(fix.timestamp) || Date.now();
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        if (acc > 0 && acc < 3) flag('mock_gps', acc);
+        if (last) {
+            var dt = (ts - lastT) / 1000;
+            if (dt > 0 && dt < 30) {
+                var km = hav(last.lat, last.lng, lat, lng);
+                var kmh = km / dt * 3600;
+                if (kmh > 180) flag('speed', Math.round(kmh));
+                if (km > 3 && dt < 10) flag('teleport', Math.round(km));
             }
-            last = { lat: lat, lng: lng }; lastT = ts;
-        }, function(){}, { enableHighAccuracy: false, maximumAge: 5000 });
-    }
+        }
+        last = { lat: lat, lng: lng }; lastT = ts;
+    });
 
     /* 2) Chống sửa gói cước trong máy (so với server mỗi 60s) */
     setInterval(function(){
@@ -6551,20 +6514,6 @@ async function initApp() {
         if(k)k.innerText=totalKmNow().toFixed(2);if(c)c.innerText=fare.toLocaleString('vi-VN');if(t)t.innerHTML=fare.toLocaleString('vi-VN')+'đ';
     }
 
-    var _sh=window.saveHistory;
-    window.saveHistory=async function(km,costLabel,costRaw,tripType){
-        var fare=Math.max(CFG.MIN_FARE,Math.round((typeof costRaw==='number')?costRaw:0));
-        var now=Date.now();
-        var data={km:parseFloat(totalKmNow().toFixed(2)),cost:fare,costLabel:fare.toLocaleString('vi-VN'),
-            time:new Date().toLocaleString('vi-VN'),timestamp:now,rate:currentFareRate(),
-            driverId:(window.driverInfo&&driverInfo.uid)||'',tripType:tripType,
-            pickupKm:+pickupKm.toFixed(2),tripKm:+tripKm.toFixed(2),gapKm:+gapKm.toFixed(2),surge:+surgeMult().toFixed(2)};
-        try{var h=JSON.parse(localStorage.getItem('trip_history')||'[]');h.unshift(data);localStorage.setItem('trip_history',JSON.stringify(h.slice(0,100)));}catch(e){}
-        try{if(typeof db!=='undefined')await db.ref('trips/'+data.driverId+'/'+now).set(data);}catch(e){}
-        try{if(typeof renderHistory==='function')renderHistory();}catch(e){}
-        return data;
-    };
-
     /* ===== CORE (đã fix bug gapKm gán 2 lần) ===== */
     var lastAutonomousGpsCheck=0;
     function checkAutonomousGps(previous,current){
@@ -6612,22 +6561,6 @@ async function initApp() {
             lastGood={lat:lat,lng:lng,t:ts,heading:heading||lastGood.heading||0};
         }
     }
-
-    var _oldProcess=window.processBackgroundLocation;
-    window.processBackgroundLocation=function(loc){
-        if(typeof _oldProcess==='function'){try{_oldProcess(loc);}catch(e){}}
-        var lat,lng,ac,spd,hdg;
-        if(loc&&loc.coords){lat=loc.coords.latitude;lng=loc.coords.longitude;ac=loc.coords.accuracy;spd=loc.coords.speed;hdg=loc.coords.heading;}
-        else if(loc){lat=loc.latitude;lng=loc.longitude;ac=loc.accuracy;spd=loc.speed;hdg=loc.heading;}
-        var ts=(loc&&loc.timestamp)||Date.now();
-        if(lat==null||lng==null||isNaN(lat)||isNaN(lng))return;
-        ac=ac||999;lastFix=Date.now();acc=ac;
-        if(ac>280)return;
-        smartAdd(lat,lng,ac,ts,spd,hdg);
-    };
-
-    if(navigator.geolocation){navigator.geolocation.watchPosition(function(p){acc=p.coords.accuracy||999;lastFix=Date.now();
-        if(p.coords.speed&&p.coords.speed>0)curSpeed=Math.round(p.coords.speed*3.6);},function(){},{enableHighAccuracy:true,maximumAge:2000});}
 
     function resetKm(){pickupKm=0;tripKm=0;gapKm=0;lastGood=null;lastSpeeds=[];wmaBuffer=[];etaInfo=null;gapCount=0;gapLive=false;gapStartGapKm=0;drSpeed=0;drHeading=0;}
     var _oldHandle=window.handleTrip;
@@ -6890,65 +6823,6 @@ async function initApp() {
     console.log('✅ XG LOCK v2 loaded — modal-level gate');
 })();
 </script>
-<!-- ========== 📡 GPS DUAL v1 - dự phòng mạng + sửa modal 0đ ========== -->
-<script>
-(function(){
-    var MIN_FARE = 20000;
-
-    /* ===== 1) Modal kết thúc: không bao giờ hiện 0đ ===== */
-    var _ct = window.completeTrip;
-    window.completeTrip = function(){
-        var km = (typeof totalKm !== 'undefined') ? totalKm : 0;
-        var rate = (typeof currentRate !== 'undefined') ? currentRate : 15000;
-        var fare = Math.max(MIN_FARE, Math.round(km * rate));
-        var street = (typeof isStreetHail !== 'undefined') && isStreetHail;
-        var r = _ct ? _ct.apply(this, arguments) : undefined;
-        setTimeout(function(){
-            var es = document.getElementById('endSummary');
-            if (es) es.innerHTML = 'Quãng đường: <b>' + km.toFixed(2) + ' KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">' + fare.toLocaleString('vi-VN') + 'đ</b><br><span style="font-size:11px;">' + (street ? '🚕 Chuyến vẫy' : '📱 Chuyến app') + ' · giá mở cửa 20k</span>';
-        }, 80);
-        return r;
-    };
-
-    /* ===== 2) GPS dự phòng bằng sóng/WiFi khi vệ tinh timeout ===== */
-    function hav(a,b,c,d){var R=6371,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180,s=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(y/2)*Math.sin(y/2);return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
-    var fLast = null, lastUse = 0;
-
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(function(p){
-            var now = Date.now(), ts = p.timestamp || now;
-            var lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy || 999;
-            var pill = (document.getElementById('gpsStatusText') || {}).innerText || '';
-            var gpsDead = /Timeout|từ chối|thử lại/i.test(pill);
-
-            /* Cho marker + bản đồ "sống" ngay cả khi GPS vệ tinh chết */
-            try { if (typeof driverMarker !== 'undefined' && driverMarker && typeof map !== 'undefined' && map) driverMarker.setLatLng([lat, lng]); } catch(e){}
-            var t = document.getElementById('gpsStatusText');
-            if (t && gpsDead) t.innerText = '📡 Định vị mạng (±' + Math.round(acc) + 'm)';
-
-            /* Chỉ cộng km khi GPS vệ tinh đang chết + đang chạy chuyến */
-            if (!gpsDead) { fLast = null; return; }
-            if (acc > 280) return;
-            if (typeof isRunning === 'undefined' || !isRunning) return;
-
-            if (fLast) {
-                var dt = (ts - fLast.t) / 1000;
-                if (dt > 0.5) {
-                    var d = hav(fLast.lat, fLast.lng, lat, lng);          // km
-                    var kmh = d / dt * 3600;
-                    /* Chống nhảy: 8m–500m mỗi bước, <140km/h */
-                    if (d * 1000 >= 8 && d < 0.5 && kmh < 140 && now - lastUse > 1000) {
-                        lastUse = now;
-                        try { totalKm += d; } catch(e){}
-                    }
-                }
-            }
-            fLast = { lat: lat, lng: lng, t: ts };
-        }, function(){}, { enableHighAccuracy: false, maximumAge: 15000, timeout: 20000 });
-    }
-    console.log('✅ GPS DUAL v1 loaded');
-})();
-</script>
 <!-- ========== 🗂️ HISTORY PRO v1 - xóa chuyến + sổ doanh thu 3 tháng ========== -->
 <script>
 (function(){
@@ -7089,307 +6963,11 @@ async function initApp() {
     console.log('✅ HISTORY PRO v1 loaded');
 })();
 </script>
-<script src="js/location-core.js"></script>
-<script src="js/map.js"></script>
-<!-- ========== 🔧 GPS FINAL v4 - Fix triệt để lỗi km không nhảy ========== -->
-<script>
-(function(){
-    'use strict';
-    
-    // Override handleTrip để force start GPS
-    var _origHandleTrip = window.handleTrip;
-    window.handleTrip = function() {
-        console.log('🚕 [GPS FINAL] handleTrip called');
-        var result = _origHandleTrip ? _origHandleTrip.apply(this, arguments) : undefined;
-        
-        // Force start GPS tracking
-        setTimeout(function() {
-            forceStartGPSTracking();
-        }, 500);
-        
-        return result;
-    };
-    
-    // Force start GPS tracking
-    function forceStartGPSTracking() {
-        console.log('🚕 [GPS FINAL] Starting GPS tracking...');
-        
-        // Reset lastValidPos
-        if (typeof lastValidPos !== 'undefined') {
-            lastValidPos = null;
-            lastValidTime = 0;
-        }
-        
-        // Stop existing watchPosition if any
-        if (window._gpsWatchId) {
-            navigator.geolocation.clearWatch(window._gpsWatchId);
-        }
-        
-        // Start new watchPosition with aggressive settings
-        window._gpsWatchId = navigator.geolocation.watchPosition(
-            function(position) {
-                processGPSUpdate(position);
-            },
-            function(error) {
-                console.error('🚕 [GPS FINAL] GPS error:', error.message);
-                if (error.code === 1) {
-                    showToast('⚠️ GPS bị từ chối. Vui lòng cấp quyền vị trí!', 'error');
-                }
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-        
-        console.log('🚕 [GPS FINAL] GPS watchPosition started, ID:', window._gpsWatchId);
-    }
-    
-    // Process GPS update - simplified và aggressive hơn
-    function processGPSUpdate(position) {
-        if (!isRunning) return;
-        
-        var lat = position.coords.latitude;
-        var lng = position.coords.longitude;
-        var acc = position.coords.accuracy || 999;
-        var ts = position.timestamp || Date.now();
-        
-        console.log('🚕 [GPS FINAL] GPS update:', lat.toFixed(5), lng.toFixed(5), 'acc:', acc);
-        
-        // Update current position
-        if (typeof currentLat !== 'undefined') {
-            currentLat = lat;
-            currentLng = lng;
-        }
-        
-        // Update marker
-        if (typeof updateDriverMarker === 'function') {
-            updateDriverMarker(lat, lng, true);
-        }
-        
-        // Tính km - logic đơn giản và aggressive hơn
-        if (typeof lastValidPos !== 'undefined' && lastValidPos) {
-            var dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, lat, lng);
-            var timeDiff = (ts - lastValidTime) / 1000; // seconds
-            
-            console.log('🚕 [GPS FINAL] Distance:', dist.toFixed(3), 'km, Time:', timeDiff.toFixed(1), 's');
-            
-            // Điều kiện relaxed hơn: chỉ cần dist > 0.005 km (5m) và < 2 km
-            if (dist > 0.005 && dist < 2.0 && timeDiff > 0.5) {
-                if (typeof totalKm !== 'undefined') {
-                    totalKm += dist;
-                    console.log('🚕 [GPS FINAL] Total KM:', totalKm.toFixed(2));
-                    
-                    // Update displays
-                    if (typeof updateAllDisplays === 'function') {
-                        var fare = Math.round(totalKm * (typeof currentRate !== 'undefined' ? currentRate : 15000));
-                        updateAllDisplays(totalKm, fare);
-                    }
-                    
-                    // Update UI elements directly as fallback
-                    var kmEl = document.getElementById('km');
-                    var costEl = document.getElementById('cost');
-                    if (kmEl) kmEl.innerText = totalKm.toFixed(2);
-                    if (costEl) {
-                        var fare = Math.round(totalKm * (typeof currentRate !== 'undefined' ? currentRate : 15000));
-                        costEl.innerText = fare.toLocaleString();
-                    }
-                }
-            } else {
-                console.log('🚕 [GPS FINAL] Distance filtered out');
-            }
-        }
-        
-        // Update lastValidPos
-        if (typeof lastValidPos !== 'undefined') {
-            lastValidPos = { lat: lat, lng: lng };
-            lastValidTime = ts;
-        }
-    }
-    
-    // Override completeTrip để stop GPS
-    var _origCompleteTrip = window.completeTrip;
-    window.completeTrip = function() {
-        console.log('🚕 [GPS FINAL] completeTrip called');
-        
-        // Stop GPS tracking
-        if (window._gpsWatchId) {
-            navigator.geolocation.clearWatch(window._gpsWatchId);
-            window._gpsWatchId = null;
-            console.log('🚕 [GPS FINAL] GPS tracking stopped');
-        }
-        
-        return _origCompleteTrip ? _origCompleteTrip.apply(this, arguments) : undefined;
-    };
-    
-    // Auto-start nếu đang trong chuyến (khi reload page)
-    setTimeout(function() {
-        if (typeof isRunning !== 'undefined' && isRunning) {
-            console.log('🚕 [GPS FINAL] Auto-starting GPS (trip in progress)');
-            forceStartGPSTracking();
-        }
-    }, 2000);
-    
-    console.log('✅ [GPS FINAL v4] Loaded');
-})();
-</script>
-<!-- ========== 🧓 GPS GUIDE - CHẠY NGẦM (không hiển thị popup) ========== -->
-<script>
-(function(){
-    'use strict';
-    
-    // GPS Guide chạy ngầm - chỉ log và tự động kiểm tra, KHÔNG hiển thị popup
-    var shown = false;
-
-    function show() {
-        if (shown) return;
-        shown = true;
-        
-        // Chỉ log ra console, không hiển thị popup
-        console.log('📡 [GPS Guide] GPS đang yếu, khuyến nghị bật Vị trí chính xác');
-        
-        // Phát âm thanh nếu cần (tùy chọn)
-        // if (typeof speak === 'function') speak('GPS chưa chính xác. Vui lòng bật vị trí chính xác.');
-    }
-
-    // Kiểm tra GPS khi khởi động
-    if (navigator.geolocation) {
-        // Kiểm tra nhanh lần đầu
-        navigator.geolocation.getCurrentPosition(
-            function(p) {
-                // GPS OK - không làm gì
-                console.log('📡 [GPS Guide] GPS hoạt động tốt, độ chính xác: ' + Math.round(p.coords.accuracy) + 'm');
-            },
-            function(err) {
-                // GPS bị lỗi - chỉ log, không hiển thị
-                if (err && err.code === 1) {
-                    console.warn('📡 [GPS Guide] GPS bị từ chối quyền (chạy ngầm)');
-                }
-            },
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
-    }
-
-    // Theo dõi GPS liên tục nhưng KHÔNG hiển thị popup
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(
-            function(p) {
-                if ((p.coords.accuracy || 0) > 800) {
-                    // GPS yếu - chỉ log
-                    console.log('📡 [GPS Guide] GPS yếu: ' + Math.round(p.coords.accuracy) + 'm (chạy ngầm)');
-                }
-            },
-            function(err) {
-                if (err && err.code === 1) {
-                    // GPS bị từ chối - không hiển thị popup
-                    console.warn('📡 [GPS Guide] GPS bị từ chối quyền (chạy ngầm)');
-                }
-            },
-            { enableHighAccuracy: false, maximumAge: 5000 }
-        );
-    }
-
-    console.log('✅ GPS GUIDE v3 - CHẠY NGẦM (không popup)');
-})();
-</script>
-/**
- * Đoạn gắn nhanh ô Care AI (có thể dán cuối index.html / khachhang.html / xeghep.html)
- * Đổi CARE_CHANNEL theo app: 'driver' | 'customer' | 'xeghep'
- */
-(function () {
-  var CARE_CHANNEL = window.PROMAX_CARE_CHANNEL || 'driver';
-  if (document.getElementById('promaxCareFab')) return;
-
-  var fab = document.createElement('button');
-  fab.id = 'promaxCareFab';
-  fab.type = 'button';
-  fab.setAttribute('aria-label', 'Care AI');
-  fab.textContent = '💬';
-  fab.style.cssText =
-    'position:fixed;right:14px;bottom:calc(90px + env(safe-area-inset-bottom,0px));z-index:25000;' +
-    'width:52px;height:52px;border-radius:50%;border:none;background:linear-gradient(135deg,#0054a3,#00bfa5);' +
-    'color:#fff;font-size:22px;box-shadow:0 6px 20px rgba(0,84,163,.35);cursor:pointer;';
-
-  var panel = document.createElement('div');
-  panel.id = 'promaxCarePanel';
-  panel.style.cssText =
-    'display:none;position:fixed;right:14px;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:25001;' +
-    'width:min(92vw,340px);max-height:50vh;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.18);' +
-    'flex-direction:column;overflow:hidden;font-family:system-ui,sans-serif;';
-  panel.innerHTML =
-    '<div style="padding:12px 14px;background:#0054a3;color:#fff;font-weight:800;font-size:14px;">ProMax Care AI</div>' +
-    '<div id="promaxCareLog" style="padding:10px;overflow-y:auto;flex:1;font-size:13px;min-height:120px;max-height:28vh;"></div>' +
-    '<div style="display:flex;gap:6px;padding:10px;border-top:1px solid #eee;">' +
-    '<input id="promaxCareInput" placeholder="Nhập câu hỏi..." style="flex:1;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:13px;" />' +
-    '<button type="button" id="promaxCareSend" style="padding:10px 12px;border:none;border-radius:10px;background:#00bfa5;color:#fff;font-weight:700;">Gửi</button></div>';
-
-  function uid() {
-    try {
-      if (window.driverInfo && driverInfo.uid) return driverInfo.uid;
-    } catch (e) {}
-    try {
-      return localStorage.getItem('promax_uid') || 'anon';
-    } catch (e2) {
-      return 'anon';
-    }
-  }
-
-  async function send() {
-    var input = document.getElementById('promaxCareInput');
-    var log = document.getElementById('promaxCareLog');
-    var msg = (input && input.value || '').trim();
-    if (!msg) return;
-    input.value = '';
-    log.innerHTML += '<div style="margin:6px 0;text-align:right;"><span style="background:#e8f1fb;padding:6px 10px;border-radius:12px;display:inline-block;">' + msg.replace(/</g, '&lt;') + '</span></div>';
-    try {
-      var res = await fetch('/api/ai-care', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: CARE_CHANNEL,
-          userId: uid(),
-          message: msg,
-          sessionId: localStorage.getItem('care_session_' + CARE_CHANNEL) || undefined
-        })
-      });
-      var data = await res.json();
-      if (data.sessionId) localStorage.setItem('care_session_' + CARE_CHANNEL, data.sessionId);
-      var ans = (data.answer || data.error || 'Không có phản hồi').replace(/</g, '&lt;');
-      log.innerHTML += '<div style="margin:6px 0;"><span style="background:#f1f5f9;padding:6px 10px;border-radius:12px;display:inline-block;">' + ans + '</span></div>';
-      if (data.escalate) {
-        log.innerHTML += '<div style="font-size:11px;color:#d32f2f;margin-top:4px;">Đã báo admin xử lý ưu tiên</div>';
-      }
-      log.scrollTop = log.scrollHeight;
-    } catch (e) {
-      log.innerHTML += '<div style="color:#d32f2f;font-size:12px;">Lỗi kết nối Care AI</div>';
-    }
-  }
-
-  fab.onclick = function () {
-    var open = panel.style.display === 'flex';
-    panel.style.display = open ? 'none' : 'flex';
-  };
-  document.body.appendChild(fab);
-  document.body.appendChild(panel);
-  document.getElementById('promaxCareSend').onclick = send;
-  document.getElementById('promaxCareInput').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') send();
-  });
-}<!-- Các module cơ sở (đã có) -->
-<script src="js/modules/cockpit.js"></script>
+<script>window.PROMAX_CARE_CHANNEL = 'driver';</script>
+<script src="js/modules/promax-care-ai.js"></script>
+<!-- Các module cơ sở (đã có) -->
 <script src="js/modules/safety.js"></script>
-<script src="js/modules/gps-boost.js"></script>
-<script src="js/map.js"></script>
-
-<!-- ⭐ BỘ NÃO (Trip Engine) - Load trước -->
-<script src="js/modules/trip-engine-v4.js"></script>
-
-<!-- ⭐ TRỢ LÝ AI (Copilot) - Load sau -->
 <script src="js/modules/ai-copilot-v4.js"></script>
-
-<!-- ⭐ KẾT NỐI UI với TRIP ENGINE & AI COPILOT -->
-<script src="js/init-trip.js"></script>
 
 </body>
 </html>
