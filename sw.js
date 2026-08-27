@@ -5,7 +5,7 @@
  */
 
 // [FIX] Nâng version — bắt browser reload SW mới
-const CACHE_NAME = 'taxi-promax-v7-20260826';
+const CACHE_NAME = 'taxi-promax-v8-20260827-ui3';
 
 // Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
@@ -36,9 +36,7 @@ const ASSETS_TO_CACHE = [
     // ===== FONT AWESOME (icon menu, nút bấm) =====
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
 
-    // ===== CARTODB TILES (bản đồ offline) =====
-    'https://a.basemaps.cartocdn.com/light_all/13/4096/2720.png',
-    'https://a.basemaps.cartocdn.com/light_all/13/4096/2721.png'
+    // Tile map dùng OpenStreetMap và tải theo nhu cầu; không cache Carto cũ.
 ];
 
 // ============================================================
