@@ -1,113 +1,40 @@
-/**
- * gps-bridge.js
- * Cầu nối GPS sạch từ cockpit.js → trip-engine-v4.js
- * Phiên bản: 1.0
- * Mục tiêu: 
- *  - cockpit là nguồn GPS sạch duy nhất
- *  - trip-engine chỉ nhận GPS đã lọc
- *  - Tránh đếm km trùng
- */
+/* ProMax GPS Bridge: adapter duy nhất từ PromaxGPSCore đến các tính năng phụ. */
+(function (window) {
+  'use strict';
+  if (window.GPSBridge) return;
 
-(function(window) {
-    'use strict';
+  var listeners = [];
+  var unsubscribe = null;
+  function connect() {
+    if (unsubscribe || !window.PromaxGPSCore || typeof window.PromaxGPSCore.onFix !== 'function') return;
+    unsubscribe = window.PromaxGPSCore.onFix(function (fix) {
+      if (!fix || fix.error || !Number.isFinite(Number(fix.lat)) || !Number.isFinite(Number(fix.lng))) return;
+      var position = {
+        lat: Number(fix.lat), lng: Number(fix.lng), accuracy: Number(fix.accuracy) || 999,
+        speed: Number(fix.speedKmh) || 0, heading: Number(fix.heading) || 0,
+        timestamp: Number(fix.timestamp) || Date.now()
+      };
+      listeners.slice().forEach(function (callback) {
+        try { callback(position); } catch (_) {}
+      });
+    });
+  }
 
-    console.log('[GPS-Bridge] Đang khởi tạo...');
-
-    // ======================== 1. Đảm bảo cockpit có API ========================
-    window.cockpit = window.cockpit || {};
-
-    // Nếu cockpit chưa có getCleanPosition thì tạo tạm
-    if (typeof window.cockpit.getCleanPosition !== 'function') {
-        window.cockpit.getCleanPosition = function() {
-            // Fallback: lấy từ biến global nếu có
-            if (typeof lastGood !== 'undefined' && lastGood) {
-                return {
-                    lat: lastGood.lat,
-                    lng: lastGood.lng,
-                    speed: (typeof curSpeed !== 'undefined') ? curSpeed : 0,
-                    accuracy: (typeof acc !== 'undefined') ? acc : 999,
-                    heading: lastGood.heading || 0,
-                    timestamp: lastGood.t || Date.now()
-                };
-            }
-            return null;
-        };
-    }
-
-    // ======================== 2. Hệ thống đăng ký nhận GPS ========================
-    var positionCallbacks = [];
-
-    window.cockpit.onPosition = function(callback) {
-        if (typeof callback === 'function') {
-            positionCallbacks.push(callback);
-            console.log('[GPS-Bridge] Đã đăng ký 1 listener GPS');
-        }
-    };
-
-    // ======================== 3. Publish GPS định kỳ ========================
-    setInterval(function() {
-        if (positionCallbacks.length === 0) return;
-
-        var pos = null;
-        try {
-            pos = window.cockpit.getCleanPosition();
-        } catch (e) {
-            return;
-        }
-
-        if (!pos || !pos.lat || !pos.lng) return;
-
-        // Gọi tất cả listener
-        positionCallbacks.forEach(function(cb) {
-            try {
-                cb(pos);
-            } catch (err) {
-                console.warn('[GPS-Bridge] Lỗi khi gọi callback:', err);
-            }
-        });
-    }, 1000); // 1 giây / lần
-
-    // ======================== 4. Kết nối với Trip Engine ========================
-    function connectToTripEngine() {
-        if (!window.tripEngine) {
-            // Chưa có tripEngine → thử lại sau
-            setTimeout(connectToTripEngine, 1500);
-            return;
-        }
-
-        // Đăng ký nhận GPS sạch
-        window.cockpit.onPosition(function(pos) {
-            if (!window.tripEngine || typeof window.tripEngine.updateGPS !== 'function') return;
-
-            // Chuyển sang format mà trip-engine đang dùng
-            window.tripEngine.updateGPS({
-                coords: {
-                    latitude: pos.lat,
-                    longitude: pos.lng,
-                    speed: (pos.speed || 0) / 3.6,   // km/h → m/s
-                    accuracy: pos.accuracy || 999,
-                    heading: pos.heading || 0
-                },
-                timestamp: pos.timestamp || Date.now()
-            });
-        });
-
-        console.log('[GPS-Bridge] ✅ Đã kết nối thành công cockpit → trip-engine');
-    }
-
-    // Bắt đầu kết nối
-    connectToTripEngine();
-
-    // ======================== 5. Public API ========================
-    window.GPSBridge = {
-        getPosition: function() {
-            return window.cockpit.getCleanPosition();
-        },
-        onPosition: function(cb) {
-            window.cockpit.onPosition(cb);
-        },
-        version: '1.0'
-    };
-
-    console.log('[GPS-Bridge] ✅ Sẵn sàng');
+  window.GPSBridge = Object.freeze({
+    getPosition: function () {
+      var state = window.PromaxGPSCore && window.PromaxGPSCore.getState ? window.PromaxGPSCore.getState() : null;
+      var fix = state && (state.lastGoodFix || state.lastFix);
+      return fix ? { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy, speed: fix.speedKmh || 0, heading: fix.heading || 0, timestamp: fix.timestamp } : null;
+    },
+    onPosition: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      listeners.push(callback);
+      connect();
+      return function () { listeners = listeners.filter(function (item) { return item !== callback; }); };
+    },
+    start: connect,
+    stop: function () { if (unsubscribe) unsubscribe(); unsubscribe = null; },
+    version: '2.0'
+  });
+  window.GPSBridge.start();
 })(window);
