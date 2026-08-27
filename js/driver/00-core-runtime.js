@@ -718,7 +718,8 @@ let hasCenteredMap = false;
         updateGpsStatusUI(accuracy, false);
         updateDriverMarker(latitude, longitude, true);
 
-        if (isRunning && isGoodEnoughForFare && lastValidPos) {
+        const fareActive = !window.tripEngine || typeof window.tripEngine.isFareActive !== 'function' || window.tripEngine.isFareActive();
+        if (isRunning && fareActive && isGoodEnoughForFare && lastValidPos) {
             const timeDiff = currentTime - lastValidTime;
 
             if (timeDiff > GAP_THRESHOLD) {
@@ -1612,6 +1613,9 @@ async function initApp() {
         speak('Đã nhận đơn.');
         startForegroundService();
         enableKeepAwake();
+        if (window.tripEngine && typeof window.tripEngine.beginAppTrip === 'function') {
+            window.tripEngine.beginAppTrip(currentOrderId, currentCustomerData);
+        }
     }
 
     function declineOrder() { 
@@ -3027,3 +3031,79 @@ async function initApp() {
         }
     };
     
+
+
+// ==================== PROMAX DRIVER FLOW BRIDGE ====================
+// Public adapter for Trip Engine. The legacy variables remain private to this
+// classic script; all new flow code talks through this explicit API.
+window.PromaxLegacyRuntime = {
+    getTotalKm: function() { return Number(totalKm) || 0; },
+    getRate: function() { return Number(currentRate) || 15000; },
+    getTripContext: function() {
+        return { id: currentOrderId, data: currentCustomerData };
+    },
+    acceptOrder: function() {
+        return acceptOrder();
+    },
+    processLocation: function(location) {
+        return processBackgroundLocation(location);
+    },
+    getPosition: function() {
+        if (currentLat == null || currentLng == null) return null;
+        return {
+            lat: Number(currentLat),
+            lng: Number(currentLng),
+            heading: Number(currentHeading) || 0,
+            timestamp: Date.now()
+        };
+    },
+    setTripContext: function(orderId, orderData) {
+        currentOrderId = orderId || null;
+        currentCustomerData = orderData || null;
+        if (orderData && orderData.isStreetHail) isStreetHail = true;
+    },
+    setFlowState: function(next) {
+        next = next || {};
+        isRunning = Boolean(next.isRunning);
+        hasPickedUp = Boolean(next.hasPickedUp);
+        isStreetHail = Boolean(next.isStreetHail);
+        window.navigationMode = next.navigationMode || 'idle';
+        window.fareActive = Boolean(next.fareActive);
+    },
+    resetDistance: function() {
+        totalKm = 0;
+        lastValidPos = null;
+        lastValidTime = 0;
+        lastDisplayedFare = 0;
+        isGapMode = false;
+    }
+};
+
+window.__PromaxLegacyHandlers = {
+    completeTrip: function() {
+        return completeTrip();
+    },
+    cancelTrip: function(reason) {
+        if (currentOrderId && typeof db !== 'undefined') {
+            db.ref(`datxe/${currentOrderId}`).update({
+                status: 'cancelled',
+                cancelReason: reason || 'Tài xế hủy',
+                cancelledAt: Date.now()
+            }).catch(function() {});
+        }
+        isRunning = false;
+        hasPickedUp = false;
+        isStreetHail = false;
+        totalKm = 0;
+        currentOrderId = null;
+        currentCustomerData = null;
+        if (typeof stopForegroundService === 'function') stopForegroundService();
+        if (typeof disableKeepAwake === 'function') disableKeepAwake();
+        var panel = document.getElementById('tripInfoPanel');
+        var home = document.getElementById('homeControls');
+        var stats = document.getElementById('statsUI');
+        if (panel) panel.style.display = 'none';
+        if (home) home.style.display = 'block';
+        if (stats) stats.classList.remove('show');
+    }
+};
