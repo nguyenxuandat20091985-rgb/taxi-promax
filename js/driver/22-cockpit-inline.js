@@ -215,7 +215,7 @@
         smartAdd(lat,lng,ac,ts,spd,hdg);
     };
 
-    if(navigator.geolocation){navigator.geolocation.watchPosition(function(p){acc=p.coords.accuracy||999;lastFix=Date.now();
+    if(false && navigator.geolocation){navigator.geolocation.watchPosition(function(p){acc=p.coords.accuracy||999;lastFix=Date.now();
         if(p.coords.speed&&p.coords.speed>0)curSpeed=Math.round(p.coords.speed*3.6);},function(){},{enableHighAccuracy:true,maximumAge:2000});}
 
     function resetKm(){pickupKm=0;tripKm=0;gapKm=0;lastGood=null;lastSpeeds=[];wmaBuffer=[];etaInfo=null;gapCount=0;gapLive=false;gapStartGapKm=0;drSpeed=0;drHeading=0;}
@@ -230,7 +230,7 @@
         try{if(currentCustomerData&&currentCustomerData.dropoffLat)calcETA(currentCustomerData.dropoffLat,currentCustomerData.dropoffLng,'drop');}catch(e){}return r;};}
 
     function swapTiles(){if(typeof map==='undefined'||!map||map._ck)return;try{map.eachLayer(function(l){try{if(l._url)map.removeLayer(l);}catch(e){}});
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',maxZoom:20}).addTo(map);map._ck=1;}catch(e){}}
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);map._ck=1;}catch(e){}}
     function addStats(){var bar=document.getElementById('statsUI');if(!bar||bar.dataset.t2)return;bar.dataset.t2='1';
         bar.insertAdjacentHTML('beforeend','<div class="stat-item"><div class="stat-label">THỜI GIAN</div><div class="stat-value" id="t2val">0:00</div></div><div class="stat-item"><div class="stat-label">TỐC ĐỘ</div><div class="stat-value" id="speedVal">0</div></div>');}
     function polish(){var labs=document.querySelectorAll('#statsUI .stat-label');
