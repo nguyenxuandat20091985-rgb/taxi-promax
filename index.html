@@ -6,8 +6,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="assets/logo.png">
-    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="apple-touch-icon" href="assets/logo.svg">
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
     <link rel="manifest" href="manifest.json">
     <title>TAXI PROMAX - TÀI XẾ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -848,8 +848,16 @@ let hasCenteredMap = false;
     function loadLocationHistory() {
         try {
             const saved = localStorage.getItem('location_history');
-            if (saved) locationHistory = JSON.parse(saved);
-        } catch(e) {}
+            if (!saved) return;
+            const parsed = JSON.parse(saved);
+            locationHistory = Array.isArray(parsed)
+                ? parsed.filter(item => item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))).slice(-MAX_HISTORY_SIZE)
+                : [];
+            if (!Array.isArray(parsed)) localStorage.removeItem('location_history');
+        } catch(e) {
+            locationHistory = [];
+            localStorage.removeItem('location_history');
+        }
     }
 
     async function enableKeepAwake() {
@@ -1589,7 +1597,12 @@ let hasCenteredMap = false;
 async function initApp() {
     try {
         const saved = localStorage.getItem('driverInfo');
-        if (saved) driverInfo = JSON.parse(saved);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (!parsed || typeof parsed !== 'object' || !parsed.uid) throw new Error('Invalid driver session');
+            driverInfo = { ...driverInfo, ...parsed };
+        }
+        if (!driverInfo.uid) return;
         
         if (isDarkMode) {
             document.body.classList.add('dark-mode');
@@ -1647,10 +1660,11 @@ async function initApp() {
         if (walletBalance) {
             try {
                 const snap = await db.ref(`drivers/${driverInfo.uid}/wallet`).once('value');
-                const balance = snap.val() || Math.floor(Math.random() * 500000 + 100000);
+                const rawBalance = snap.val();
+                const balance = Number.isFinite(Number(rawBalance)) && Number(rawBalance) >= 0 ? Number(rawBalance) : 0;
                 walletBalance.innerText = balance.toLocaleString() + 'đ';
             } catch(e) {
-                walletBalance.innerText = (Math.floor(Math.random() * 500000 + 100000)).toLocaleString() + 'đ';
+                walletBalance.innerText = '0đ';
             }
         }
         
@@ -3581,10 +3595,16 @@ async function initApp() {
     // ==================== KHỞI ĐỘNG ====================
     window.onload = () => {
         const saved = localStorage.getItem('driverInfo');
-        if (saved) { 
-            driverInfo = JSON.parse(saved); 
-            document.getElementById('authScreen').style.display = 'none'; 
-            initApp(); 
+        if (!saved) return;
+        try {
+            const parsed = JSON.parse(saved);
+            if (!parsed || typeof parsed !== 'object' || !parsed.uid) throw new Error('Invalid driver session');
+            driverInfo = { ...driverInfo, ...parsed };
+            document.getElementById('authScreen').style.display = 'none';
+            initApp();
+        } catch (e) {
+            localStorage.removeItem('driverInfo');
+            console.warn('[Auth] Xóa session local không hợp lệ:', e.message);
         }
     };
     </script>
