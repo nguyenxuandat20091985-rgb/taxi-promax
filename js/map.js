@@ -1,132 +1,167 @@
-// js/map.js - Quản lý bản đồ và GPS (Tích hợp ProMaxLocation Core)
-var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.02, 105.83], 16);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+/**
+ * Taxi ProMax — Map owner
+ *
+ * Chỉ khởi tạo một Leaflet map và dùng OpenStreetMap, không cần API key.
+ * GPS do core runtime/location core quản lý; file này chỉ phụ trách bản đồ,
+ * marker và deep-link điều hướng.
+ */
+;(function (window, document) {
+  'use strict';
 
-var smIcon = L.divIcon({ 
-    className: 'sm-div-icon', 
-    html: `
-        <div class="sm-marker-container">
-            <div class="sm-pulse-ring"></div>
-            <div id="tp-driver-compass" class="sm-direction-wrapper">
-                <div class="sm-marker-arrow"></div>
-                <div class="sm-marker-circle"></div>
-            </div>
-        </div>
-    `, 
-    iconSize: [40, 40], iconAnchor: [20, 20] 
-});
+  const DEFAULT_CENTER = [21.0285, 105.8542];
+  const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const TILE_OPTIONS = {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19,
+    crossOrigin: true
+  };
 
-var marker = null;
-var currentHeading = 0;
-var customerMarker = null;
+  let mapInstance = null;
+  let driverMarker = null;
+  let customerMarker = null;
+  let currentHeading = 0;
 
-// Theo dõi hướng xoay la bàn
-if (window.DeviceOrientationEvent) {
-    window.addEventListener('deviceorientation', function(event) {
-        let heading = event.webkitCompassHeading || (360 - event.alpha);
-        if (heading) {
-            currentHeading = Math.round(heading);
-            updateMarkerRotation();
-        }
-    }, true);
-}
-
-function updateMarkerRotation() {
-    const compassEl = document.getElementById('tp-driver-compass');
-    if (compassEl) {
-        compassEl.style.transform = `rotate(${currentHeading}deg)`;
+  function ensureMap() {
+    if (mapInstance) return mapInstance;
+    if (window.PromaxMap && window.PromaxMap.instance) {
+      mapInstance = window.PromaxMap.instance;
+      window.map = mapInstance;
+      return mapInstance;
     }
-}
 
-// Định vị GPS - Sử dụng ProMaxLocation Core để chống trôi và tiết kiệm pin
-function startTracking() {
-    if (window.ProMaxLocation) {
-        ProMaxLocation.ensurePermission().then(function(granted) {
-            if (!granted) {
-                console.warn("Chưa được cấp quyền vị trí!");
-                return;
-            }
+    const container = document.getElementById('map');
+    if (!container || !window.L) return null;
 
-            ProMaxLocation.startDriver({
-                onFix: function(fix) {
-                    const newPos = L.latLng(fix.lat, fix.lng);
-                    
-                    if (!marker) {
-                        marker = L.marker(newPos, { icon: smIcon }).addTo(map);
-                        map.setView(newPos, 16);
-                    } else {
-                        marker.setLatLng(newPos);
-                    }
-                    
-                    updateMarkerRotation();
-                    
-                    // Xử lý logic hành trình (gọi hàm từ index.html)
-                    if(typeof onLocationUpdate === 'function') {
-                        onLocationUpdate(newPos, fix.speed);
-                    }
-
-                    // Đồng bộ lên Firebase
-                    syncDriverLocationToFirebase(fix.lat, fix.lng, fix.speed);
-                }
-            });
-        });
-    } else {
-        console.error("Lỗi: Chưa nạp file location-core.js trước map.js!");
+    // Leaflet gắn _leaflet_id vào container. Không gọi L.map lần hai.
+    if (container._leaflet_id && window.map) {
+      mapInstance = window.map;
+      window.PromaxMap = { instance: mapInstance, ensure: ensureMap };
+      return mapInstance;
     }
-}
 
-function syncDriverLocationToFirebase(lat, lng, speed) {
-    if (typeof FIREBASE_BASE_URL === 'undefined' || typeof TX_ID === 'undefined') return;
+    mapInstance = window.L.map(container, {
+      zoomControl: false,
+      attributionControl: true,
+      preferCanvas: true
+    }).setView(DEFAULT_CENTER, 16);
+    window.L.tileLayer(TILE_URL, TILE_OPTIONS).addTo(mapInstance);
+    window.map = mapInstance;
+    window.PromaxMap = { instance: mapInstance, ensure: ensureMap };
+    return mapInstance;
+  }
 
-    const driverData = {
-        lat: lat,
-        lng: lng,
-        heading: currentHeading, 
-        speed: speed,
-        lastUpdated: Date.now(),
-        status: (typeof isRunning !== 'undefined' && isRunning) ? "busy" : "ready",
-        carType: "4_seats"
-    };
-    
-    fetch(`${FIREBASE_BASE_URL}/tai_xe_online/${TX_ID}.json`, {
-        method: 'PATCH',
-        body: JSON.stringify(driverData)
-    }).catch(err => console.error(err));
-}
-
-function setupCustomerMarker(lat, lng, clientName) {
-    if(customerMarker) map.removeLayer(customerMarker);
-
-    var custIcon = L.divIcon({
-        className: 'cust-div-icon',
-        html: "<div class='customer-marker'>🧍</div>",
-        iconSize: [26, 26], iconAnchor: [13, 13]
+  function markerIcon() {
+    return window.L.divIcon({
+      className: 'sm-div-icon',
+      html: '<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="tp-driver-compass" class="sm-direction-wrapper"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
     });
+  }
 
-    customerMarker = L.marker([lat, lng], { icon: custIcon }).addTo(map);
-    customerMarker.bindTooltip(`<b>Khách: ${clientName || 'Khách vãng lai'}</b>`).openTooltip();
+  function updateMarkerRotation() {
+    const compass = document.getElementById('tp-driver-compass');
+    if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
+  }
 
-    if (marker) {
-        var group = new L.featureGroup([marker, customerMarker]);
-        map.fitBounds(group.getBounds().pad(0.3));
+  function updateDriverMarkerOnMap(lat, lng, heading) {
+    const map = ensureMap();
+    if (!map || !window.L || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
+    if (heading != null && Number.isFinite(Number(heading))) currentHeading = Math.round(Number(heading));
+    if (!driverMarker) {
+      driverMarker = window.L.marker([lat, lng], { icon: markerIcon(), zIndexOffset: 1000 }).addTo(map);
+      map.setView([lat, lng], Math.max(map.getZoom(), 16));
     } else {
-        map.setView([lat, lng], 16);
+      driverMarker.setLatLng([lat, lng]);
     }
-}
-// Tự động bật xin quyền GPS ngay khi app vừa mở lên
-window.addEventListener('DOMContentLoaded', function() {
-    // Đợi 1 giây cho app load ổn định rồi tự động gọi bảng xin quyền
-    setTimeout(function() {
-        if (window.ProMaxLocation) {
-            ProMaxLocation.ensurePermission().then(function(granted) {
-                if (granted) {
-                    console.log("🟢 Tài xế đã cấp quyền GPS, bắt đầu chạy định vị...");
-                    startTracking(); // Gọi hàm chạy GPS và đồng hồ
-                } else {
-                    // Nếu tài xế lỡ bấm Chặn trước đó, hiện bảng thông báo to để hướng dẫn chạm vào ổ khóa bật lại
-                    alert("⚠️ Taxi Promax cần quyền GPS để tính cước. Vui lòng bấm 'Cho phép' khi trình duyệt hỏi, hoặc bấm vào biểu tượng ổ khóa trên thanh địa chỉ để bật lại vị trí!");
-                }
+    updateMarkerRotation();
+  }
+
+  function setupCustomerMarker(lat, lng, clientName) {
+    const map = ensureMap();
+    if (!map || !window.L) return null;
+    if (customerMarker) map.removeLayer(customerMarker);
+    const icon = window.L.divIcon({
+      className: 'cust-div-icon',
+      html: '<div class="customer-marker">🧍</div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+    customerMarker = window.L.marker([lat, lng], { icon }).addTo(map);
+    customerMarker.bindTooltip(`<b>Khách: ${clientName || 'Khách vãng lai'}</b>`).openTooltip();
+    if (driverMarker) {
+      map.fitBounds(window.L.featureGroup([driverMarker, customerMarker]).getBounds().pad(0.3));
+    } else {
+      map.setView([lat, lng], 16);
+    }
+    return customerMarker;
+  }
+
+  function clearCustomerMarker() {
+    const map = ensureMap();
+    if (map && customerMarker) map.removeLayer(customerMarker);
+    customerMarker = null;
+  }
+
+  function startTracking() {
+    // Core runtime/location core là GPS owner. Không tạo watcher thứ hai.
+    if (window.__promaxCoreGpsOwner) return false;
+    if (window.ProMaxLocation && !window.__promaxLocationStarted) {
+      window.__promaxLocationStarted = true;
+      window.ProMaxLocation.startDriver({
+        onFix: function (fix) {
+          updateDriverMarkerOnMap(fix.lat, fix.lng, fix.heading);
+          if (typeof window.processBackgroundLocation === 'function') {
+            window.processBackgroundLocation({
+              coords: {
+                latitude: fix.lat,
+                longitude: fix.lng,
+                accuracy: fix.accuracy ?? fix.acc ?? 999,
+                speed: fix.speedKmh ?? fix.speed ?? 0,
+                heading: fix.heading
+              },
+              timestamp: fix.timestamp ?? fix.ts ?? Date.now()
             });
+          }
         }
-    }, 1000);
-});
+      });
+      return true;
+    }
+    return false;
+  }
+
+  function openDirections(lat, lng) {
+    if (lat == null || lng == null) return false;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lng}`)}&travelmode=driving`, '_blank');
+    return true;
+  }
+
+  window.PromaxMap = {
+    instance: ensureMap(),
+    ensure: ensureMap,
+    updateDriverMarker: updateDriverMarkerOnMap,
+    setupCustomerMarker,
+    clearCustomerMarker,
+    startTracking,
+    openDirections
+  };
+  window.updateMarkerRotation = updateMarkerRotation;
+  window.setupCustomerMarker = setupCustomerMarker;
+  window.startTracking = startTracking;
+  window.syncDriverLocationToFirebase = window.syncDriverLocationToFirebase || function () {};
+
+  if (window.DeviceOrientationEvent) {
+    window.addEventListener('deviceorientation', function (event) {
+      const heading = event.webkitCompassHeading ?? (event.alpha == null ? null : 360 - event.alpha);
+      if (heading != null && Number.isFinite(Number(heading))) {
+        currentHeading = Math.round(Number(heading));
+        updateMarkerRotation();
+      }
+    }, true);
+  }
+
+  window.addEventListener('resize', function () {
+    const map = ensureMap();
+    if (map) map.invalidateSize();
+  });
+})(window, document);
