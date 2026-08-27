@@ -30,32 +30,22 @@
             '\n🔗 Xem: ' + rcUrl(rec.code);
     }
 
-    /* ===== 1) Tự tạo hóa đơn khi kết thúc chuyến ===== */
-    var _oldCT = window.completeTrip;
-    window.completeTrip = function() {
-        var cust = window.currentCustomerData || {};
-        var oid = window.currentOrderId || null;
-        if (_oldCT) _oldCT();
-        try { createReceipt(cust, oid); } catch(e) {}
-    };
-    function createReceipt(cust, oid) {
-        if (!window.driverInfo || typeof db === 'undefined') return;
-        var hist = JSON.parse(localStorage.getItem('trip_history') || '[]');
-        var last = hist[0];
-        if (!last) return;
+    /* ===== 1) Tạo hóa đơn từ sự kiện hoàn tất chuyến ===== */
+    function createReceiptFromTrip(trip) {
+        if (!window.driverInfo || typeof window.db === 'undefined' || !trip) return;
         var code = 'HD' + Date.now().toString(36).toUpperCase();
-        db.ref('receipts/' + code).set({
-            code: code, createdAt: Date.now(), orderId: oid,
-            driverName: driverInfo.name || '', driverPhone: driverInfo.phone || '', plate: driverInfo.plate || '',
-            customerName: cust.clientName || 'Khách',
-            pickup: cust.pickup || 'Vị trí hiện tại',
-            dropoff: cust.dropoff || 'Không xác định',
-            km: last.km || 0, price: last.cost || 0,
-            tripType: last.tripType || 'APP_BOOKING'
-        }).then(function() {
+        var receipt = {
+            code: code, createdAt: Date.now(), orderId: trip.orderId || null,
+            driverName: window.driverInfo.name || '', driverPhone: window.driverInfo.phone || '', plate: window.driverInfo.plate || '',
+            customerName: trip.customerName || 'Khách', pickup: trip.pickup || 'Vị trí hiện tại',
+            dropoff: trip.dropoff || 'Không xác định', km: Number(trip.km) || 0,
+            price: Number(trip.cost) || 0, tripType: trip.tripType || 'APP_BOOKING'
+        };
+        window.db.ref('receipts/' + code).set(receipt).then(function () {
             if (typeof showToast === 'function') showToast('🧾 Đã tạo hóa đơn ' + code);
-        });
+        }).catch(function () {});
     }
+    document.addEventListener('trip:completed', function (event) { createReceiptFromTrip(event.detail); });
 
     /* ===== 2) Xem hóa đơn (dạng giấy biên lai) ===== */
     function showReceipt(rec) {
