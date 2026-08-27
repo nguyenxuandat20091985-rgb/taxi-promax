@@ -679,8 +679,9 @@ let hasCenteredMap = false;
             dot.className = 'gps-dot weak';
             text.innerText = `GPS: Yếu (±${acc}m)`;
         } else {
+            // Vẫn hiển thị vị trí gần đúng trên map, nhưng không dùng để tính cước.
             dot.className = 'gps-dot bad';
-            text.innerText = `GPS: Rất yếu (±${acc}m)`;
+            text.innerText = `GPS: Gần đúng (±${acc}m) — bật Vị trí chính xác`;
         }
 
         const profileAcc = document.getElementById('profileAccuracy');
@@ -698,11 +699,6 @@ let hasCenteredMap = false;
         if (latitude == null || longitude == null || isNaN(latitude) || isNaN(longitude)) return;
 
         const threshold = getAccuracyThreshold();
-        if (accuracy > ACCURACY_MAX) {
-            updateGpsStatusUI(accuracy, false);
-            return;
-        }
-
         const isGoodEnoughForFare = accuracy <= threshold || accuracy <= ACCURACY_NORMAL;
 
         if (!gpsFirstFixTime) gpsFirstFixTime = Date.now();
@@ -717,6 +713,13 @@ let hasCenteredMap = false;
         saveLocationToHistory(latitude, longitude, accuracy, currentTime);
         updateGpsStatusUI(accuracy, false);
         updateDriverMarker(latitude, longitude, true);
+
+        // Fix trên 300m chỉ dùng để đặt marker/đồng bộ vị trí gần đúng.
+        // Không tạo mốc kilomet từ một điểm GPS quá rộng.
+        if (accuracy > ACCURACY_MAX) {
+            syncDriverLocation();
+            return;
+        }
 
         const fareActive = !window.tripEngine || typeof window.tripEngine.isFareActive !== 'function' || window.tripEngine.isFareActive();
         if (isRunning && fareActive && isGoodEnoughForFare && lastValidPos) {
@@ -829,6 +832,7 @@ let hasCenteredMap = false;
     }
 
     function startGPS() {
+        window.__promaxCoreGpsOwner = true;
         if (!('geolocation' in navigator)) {
             updateGpsStatusUI(0, true, 'GPS: Không hỗ trợ');
             showToast('⚠️ Thiết bị không hỗ trợ GPS');
@@ -854,7 +858,7 @@ let hasCenteredMap = false;
                 });
             },
             () => {},
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
 
         gpsWatchId = navigator.geolocation.watchPosition(
@@ -892,8 +896,8 @@ let hasCenteredMap = false;
             },
             {
                 enableHighAccuracy: true,
-                timeout: 20000,
-                maximumAge: 3000
+                timeout: 30000,
+                maximumAge: 0
             }
         );
     }
@@ -1248,10 +1252,32 @@ async function initApp() {
     }
 
     function initMap() {
+        // map.js là owner duy nhất; core chỉ lấy lại instance, không tạo L.map lần hai.
+        if (window.PromaxMap && typeof window.PromaxMap.ensure === 'function') {
+            map = window.PromaxMap.ensure();
+            window.__promaxCoreGpsOwner = true;
+            if (map) map.invalidateSize();
+            return map;
+        }
+        if (map) {
+            window.__promaxCoreGpsOwner = true;
+            map.invalidateSize();
+            return map;
+        }
+        const container = document.getElementById('map');
+        if (container && container._leaflet_id && window.map) {
+            map = window.map;
+            window.__promaxCoreGpsOwner = true;
+            map.invalidateSize();
+            return map;
+        }
         const timestamp = Date.now();
-        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([21.0285, 105.8542], 16);
-        L.tileLayer(`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png?v=${timestamp}`, { maxZoom: 19 }).addTo(map);
+        map = L.map('map', { zoomControl: false, attributionControl: true }).setView([21.0285, 105.8542], 16);
+        L.tileLayer(`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png?v=${timestamp}`, { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+        window.PromaxMap = window.PromaxMap || { instance: map, ensure: () => map };
+        window.__promaxCoreGpsOwner = true;
         window.addEventListener('resize', () => map.invalidateSize());
+        return map;
     }
 
     function startForegroundService() {
