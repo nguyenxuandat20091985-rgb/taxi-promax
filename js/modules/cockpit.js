@@ -228,7 +228,7 @@
         smartAdd(lat,lng,ac,ts,spd,hdg);
     };
 
-    if(navigator.geolocation){navigator.geolocation.watchPosition(function(p){acc=p.coords.accuracy||999;lastFix=Date.now();
+    if(false && navigator.geolocation){navigator.geolocation.watchPosition(function(p){acc=p.coords.accuracy||999;lastFix=Date.now();
         if(p.coords.speed&&p.coords.speed>0)curSpeed=Math.round(p.coords.speed*3.6);},function(){},{enableHighAccuracy:true,maximumAge:2000});}
 
     function resetKm(){pickupKm=0;tripKm=0;gapKm=0;lastGood=null;lastSpeeds=[];wmaBuffer=[];etaInfo=null;gapCount=0;gapLive=false;gapStartGapKm=0;drSpeed=0;drHeading=0;}
@@ -243,7 +243,7 @@
         try{if(currentCustomerData&&currentCustomerData.dropoffLat)calcETA(currentCustomerData.dropoffLat,currentCustomerData.dropoffLng,'drop');}catch(e){}return r;};}
 
     function swapTiles(){if(typeof map==='undefined'||!map||map._ck)return;try{map.eachLayer(function(l){try{if(l._url)map.removeLayer(l);}catch(e){}});
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',maxZoom:20}).addTo(map);map._ck=1;}catch(e){}}
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);map._ck=1;}catch(e){}}
     function addStats(){var bar=document.getElementById('statsUI');if(!bar||bar.dataset.t2)return;bar.dataset.t2='1';
         bar.insertAdjacentHTML('beforeend','<div class="stat-item"><div class="stat-label">THỜI GIAN</div><div class="stat-value" id="t2val">0:00</div></div><div class="stat-item"><div class="stat-label">TỐC ĐỘ</div><div class="stat-value" id="speedVal">0</div></div>');}
     function polish(){var labs=document.querySelectorAll('#statsUI .stat-label');
@@ -342,7 +342,7 @@
 
     function hav(a,b,c,d){var R=6371,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180,s=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(y/2)*Math.sin(y/2);return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
     var fLast=null,lastUse=0;
-    if(navigator.geolocation){
+    if(false && navigator.geolocation){
         navigator.geolocation.watchPosition(function(p){
             var now=Date.now(), ts=p.timestamp||now;
             var lat=p.coords.latitude,lng=p.coords.longitude,acc=p.coords.accuracy||999;
@@ -430,11 +430,8 @@
         if (typeof speak === 'function') speak('GPS chưa chính xác. Bấm mở cài đặt, vào Quyền, Vị trí, cho phép và bật vị trí chính xác.');
     }
 
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(function(p){
-            if ((p.coords.accuracy || 0) > 800) show();
-        }, function(err){ if (err && err.code === 1) show(); }, { enableHighAccuracy: false, maximumAge: 5000 });
-    }
+    // GPS core là nguồn duy nhất; Guide chỉ được mở từ lỗi/visibility event,
+    // không tự tạo watcher độ chính xác thấp.
 
     document.addEventListener('visibilitychange', function(){
         if (document.visibilityState !== 'visible' || !navigator.geolocation) return;
