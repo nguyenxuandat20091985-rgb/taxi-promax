@@ -20,7 +20,7 @@ for (const relativePath of ['css/driver.css', 'css/driver-overrides.css']) {
   assert.ok(fs.existsSync(path.join(root, relativePath)), `missing stylesheet ${relativePath}`);
 }
 assert.ok(!fs.readdirSync(path.join(root, 'css')).some((name) => /[\u200B-\u200D\uFEFF]/.test(name)), 'css filename contains a hidden character');
-assert.equal((html.match(/<script\s+src=["']js\/map\.js["']/g) || []).length, 1, 'map.js must be loaded once');
+assert.equal((html.match(/<script\s+src=["']js\/map\.js(?:\?[^"']*)?["']/g) || []).length, 1, 'map.js must be loaded once');
 
 for (const relativePath of [
   'js/driver/00-core-runtime.js',
@@ -30,7 +30,8 @@ for (const relativePath of [
   'js/modules/ai-copilot-v4.js',
   'js/init-trip.js'
 ]) {
-  assert.ok(html.includes(`src="${relativePath}"`), `missing script tag ${relativePath}`);
+  const escapedPath = relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  assert.match(html, new RegExp(`<script\\s+src=["']${escapedPath}(?:\\?[^"']*)?["']`), `missing script tag ${relativePath}`);
   assert.ok(fs.existsSync(path.join(root, relativePath)), `missing file ${relativePath}`);
 }
 
