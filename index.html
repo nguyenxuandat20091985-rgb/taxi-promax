@@ -315,7 +315,7 @@
         <div class="trip-customer-card"><div class="trip-avatar">🧑</div><div class="trip-customer-info"><div class="trip-customer-name" id="tripClientName">Đang tải...</div><div class="trip-customer-phone" id="tripClientPhone">...</div></div><button class="trip-call-btn" id="tripCallBtn" onclick="callCustomer()">📞</button><button class="trip-chat-btn" id="tripChatBtn" onclick="openChat()">💬</button></div>
         <div class="trip-route-card"><div class="trip-route-row"><div class="trip-route-icon">📍</div><div><div class="trip-route-label">Điểm đón</div><div class="trip-route-val" id="tripFrom">...</div></div></div><hr class="trip-route-divider"><div class="trip-route-row"><div class="trip-route-icon">🏁</div><div><div class="trip-route-label">Điểm đến</div><div class="trip-route-val" id="tripTo">...</div></div></div></div>
         <div class="trip-price-row"><div><div class="trip-price-label">GIÁ HIỆN TẠI</div><div class="trip-price-val" id="tripPrice">0đ</div></div><div style="text-align:right;"><div class="trip-price-km" id="tripEstKm"></div><div class="trip-price-km" id="tripCarType"></div></div></div>
-        <div class="trip-action-buttons" id="tripActionButtons"><button class="btn-pickup" id="pickupBtn" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button><button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button></div>
+        <div class="trip-action-buttons" id="tripActionButtons"><button class="btn-pickup" id="arrivedPickupBtn" onclick="confirmArrivedPickup()" style="display:none;">📍 ĐÃ ĐẾN ĐIỂM ĐÓN</button><button class="btn-pickup" id="pickupBtn" onclick="confirmPickup()">✅ KHÁCH ĐÃ LÊN XE</button><button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button></div>
         <div class="destination-entry" id="destinationEntry" hidden><label for="destinationInput">Điểm đến của khách</label><div class="destination-entry-row"><input id="destinationInput" type="text" placeholder="Nhập địa chỉ điểm đến" autocomplete="street-address"><button type="button" onclick="confirmDestinationFromUI()">XÁC NHẬN</button></div></div>
         <button class="trip-end-btn" id="endTripBtn" onclick="showConfirmComplete()" style="display: none;">🏁 KẾT THÚC CHUYẾN ĐI</button>
     </div>
@@ -2094,6 +2094,9 @@ async function initApp() {
         document.getElementById('tripEstKm').innerHTML = km > 0 ? km.toFixed(1) + ' km' : '';
         document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
         document.getElementById('tripActionButtons').style.display = 'flex';
+        document.getElementById('arrivedPickupBtn').style.display = 'block';
+        document.getElementById('pickupBtn').style.display = 'none';
+        document.getElementById('navToPickupBtn').style.display = 'block';
         document.getElementById('endTripBtn').style.display = 'none';
         const destinationEntry = document.getElementById('destinationEntry');
         if (destinationEntry) destinationEntry.hidden = true;
@@ -2112,7 +2115,25 @@ async function initApp() {
         if (driverMarker) map.fitBounds(L.featureGroup([driverMarker, customerMarker]).getBounds().pad(0.3));
     }
 
+    function confirmArrivedPickup() {
+        if (!currentOrderId || !currentCustomerData || !isRunning || !pickupNavigation) return;
+        pickupNavigation = false;
+        navigationMode = 'pickup';
+        pickupDistance = totalKm;
+        setRideState(RIDE_STATE.WAITING_CUSTOMER, 'Đã đến điểm đón · chờ khách lên xe');
+        document.getElementById('arrivedPickupBtn').style.display = 'none';
+        document.getElementById('pickupBtn').style.display = 'block';
+        document.getElementById('navToPickupBtn').style.display = 'none';
+        document.getElementById('tripStatusText').innerHTML = '📍 ĐÃ ĐẾN ĐIỂM ĐÓN - ĐANG CHỜ KHÁCH';
+        if (currentOrderId) db.ref(`datxe/${currentOrderId}`).update({ status: 'arrived_pickup', arrivedPickupAt: Date.now() }).catch(() => {});
+        speak('Đã đến điểm đón. Vui lòng chờ khách lên xe.');
+    }
+
     function confirmPickup() {
+        if (!isStreetHail && (!currentOrderId || !currentCustomerData || pickupNavigation)) {
+            showToast('Hãy xác nhận đã đến điểm đón trước.');
+            return;
+        }
         hasPickedUp = true;
         pickupNavigation = false;
         pickupDistance = totalKm;
@@ -2121,9 +2142,9 @@ async function initApp() {
         navigationMode = hasDestination ? 'destination' : 'pending';
         fareCounting = hasDestination;
         tripStarted = hasDestination;
-        setRideState(hasDestination ? RIDE_STATE.NAVIGATING_TO_DESTINATION : RIDE_STATE.DESTINATION_PENDING, hasDestination ? 'Đã đón khách · bắt đầu tính cước' : 'Vui lòng nhập điểm đến của khách');
         document.getElementById('tripActionButtons').style.display = 'none';
         document.getElementById('endTripBtn').style.display = hasDestination ? 'block' : 'none';
+        setRideState(hasDestination ? RIDE_STATE.TRIP_RUNNING : RIDE_STATE.DESTINATION_PENDING, hasDestination ? 'Đang chở khách · bắt đầu tính cước' : 'Khách đã lên xe · chờ xác nhận điểm đến');
         document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
         if (customerMarker) map.removeLayer(customerMarker);
         if (currentOrderId && !isStreetHail) {
@@ -2155,6 +2176,10 @@ async function initApp() {
     }
 
     function confirmDestinationFromUI() {
+        if (!isRunning || !hasPickedUp || pickupNavigation || isStreetHail) {
+            showToast('Chỉ xác nhận điểm đến sau khi khách đã lên xe.');
+            return;
+        }
         const input = document.getElementById('destinationInput');
         const destination = input && input.value.trim();
         if (!destination || !currentCustomerData) { showToast('Vui lòng nhập điểm đến.'); return; }
@@ -2167,7 +2192,8 @@ async function initApp() {
         document.getElementById('tripTo').innerText = destination;
         const entry = document.getElementById('destinationEntry');
         if (entry) entry.hidden = true;
-        setRideState(RIDE_STATE.NAVIGATING_TO_DESTINATION, 'Đã xác nhận điểm đến · bắt đầu tính cước');
+        setRideState(RIDE_STATE.DESTINATION_CONFIRMED, 'Đã xác nhận điểm đến · bắt đầu tính cước');
+        setTimeout(() => setRideState(RIDE_STATE.TRIP_RUNNING, 'Đang chở khách · tính cước theo GPS'), 0);
         document.getElementById('tripStatusText').innerHTML = '🚕 ĐANG ĐẾN ĐIỂM ĐẾN';
         if (currentOrderId) db.ref(`datxe/${currentOrderId}`).update({ dropoff: destination, status: 'in_progress', destinationConfirmedAt: Date.now() }).catch(() => {});
         geocodeAddress(destination, (lat, lng) => {
@@ -2249,7 +2275,15 @@ async function initApp() {
         const finalCost = window.PromaxFare ? PromaxFare.calculate(finalKm, currentRate) : Math.max(20000, Math.round(finalKm * currentRate));
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
         
-        saveHistory(finalKm, finalCost.toLocaleString(), finalCost, tripType);
+        const completedTrip = {
+            km: Number(finalKm.toFixed(2)), cost: finalCost, tripType,
+            orderId: currentOrderId || null,
+            customerName: currentCustomerData?.clientName || 'Khách',
+            pickup: currentCustomerData?.pickup || 'Vị trí hiện tại',
+            dropoff: currentCustomerData?.dropoff || 'Không xác định'
+        };
+        saveHistory(completedTrip.km, finalCost.toLocaleString(), finalCost, tripType);
+        document.dispatchEvent(new CustomEvent('trip:completed', { detail: completedTrip }));
         
         if (currentOrderId && !isStreetHail) {
             db.ref(`datxe/${currentOrderId}`).update({ 
@@ -2315,13 +2349,22 @@ async function initApp() {
     }
 
     async function saveHistory(km, costLabel, costRaw, tripType) {
-        const now = Date.now(), timeLabel = new Date().toLocaleString('vi-VN');
-        const tripData = { km: parseFloat(km), cost: costRaw, costLabel, time: timeLabel, timestamp: now, rate: currentRate, driverId: driverInfo.uid, tripType: tripType };
-        let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        const now = Date.now();
+        const numericKm = Number.isFinite(Number(km)) ? Math.max(0, Number(km)) : 0;
+        const numericCost = Number.isFinite(Number(costRaw)) ? Math.max(0, Number(costRaw)) : 0;
+        const tripData = {
+            km: Number(numericKm.toFixed(2)), cost: numericCost, costLabel: String(costLabel || numericCost.toLocaleString('vi-VN')),
+            time: new Date(now).toLocaleString('vi-VN'), timestamp: now, rate: Number(currentRate) || 15000,
+            driverId: driverInfo?.uid || 'unknown', tripType: tripType === 'STREET_HAIL' ? 'STREET_HAIL' : 'APP_BOOKING'
+        };
+        let history = [];
+        try { history = JSON.parse(localStorage.getItem('trip_history') || '[]'); if (!Array.isArray(history)) history = []; } catch (_) {}
         history.unshift(tripData);
         localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
-        try { await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
+        try { if (window.db && driverInfo?.uid) await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch (_) { console.warn('Firebase offline'); }
+        document.dispatchEvent(new CustomEvent('trip:history-saved', { detail: tripData }));
         renderHistory();
+        return tripData;
     }
 
     async function renderHistory() {
@@ -3740,9 +3783,6 @@ async function initApp() {
 <script src="js/modules/promax-integrity.js"></script>
 <script src="js/modules/promax-care-ai.js"></script>
 <script src="js/modules/safety.js"></script>
-<!-- ★ BỘ NÃO -->
-<script src="js/modules/trip-engine-v4.js"></script>
-
 <!-- ★ GPS BRIDGE -->
 <script src="js/modules/gps-bridge.js"></script>
 
