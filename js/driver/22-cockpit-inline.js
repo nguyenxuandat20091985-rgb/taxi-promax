@@ -128,6 +128,8 @@
     function totalKmNow(){return pickupKm+tripKm+gapKm;}
     /* [v3.5] Debounce: chỉ update UI 10 lần/giây thay vì mỗi vòng 200ms */
     function updateAllDisplays(force){
+        // Trip Engine là owner duy nhất của km/cước.
+        if(window.tripEngine && typeof window.tripEngine.isFareActive==='function' && !window.tripEngine.isFareActive())return;
         var now=performance.now();
         if(!force&&now-lastDisplayUpdate<100)return;
         lastDisplayUpdate=now;
@@ -164,6 +166,8 @@
             }).catch(function(){});
     }
     async function smartAdd(lat,lng,accuracy,ts,speed,heading){
+        // Không tính km ở pickup/waiting; chỉ FARE_CALCULATING mới được phép.
+        if(window.tripEngine && typeof window.tripEngine.isFareActive==='function' && !window.tripEngine.isFareActive())return;
         if(typeof isRunning==='undefined'||!isRunning)return;
         var sm=smoothGPS(lat,lng,accuracy);lat=sm.lat;lng=sm.lng;
         if(isTeleport(lat,lng,ts))return;
