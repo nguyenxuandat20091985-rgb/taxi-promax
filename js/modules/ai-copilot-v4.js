@@ -162,12 +162,16 @@
         // Lắng nghe sự kiện chuyến đi từ trip-engine (sẽ được phát ra sau)
         document.addEventListener('trip:status', (e) => {
             if (!_enabled) return;
-            const status = e.detail?.status;
-            if (status === 'arrived_pickup') {
-                showAlert('📍 Anh đã đến điểm đón, bấm "Đã đến" để thông báo cho khách.', 'info', 6000);
-            } else if (status === 'passenger_onboard') {
-                showAlert('🚗 Khách đã lên xe, nhớ bấm "Bắt đầu chuyến" để tính cước.', 'info', 6000);
-            } else if (status === 'completed') {
+            const status = String(e.detail?.status || '').toUpperCase();
+            if (status === 'ARRIVED_PICKUP') {
+                showAlert('📍 Anh đã đến điểm đón, bấm "Đã đến điểm đón" để xác nhận.', 'info', 6000);
+            } else if (status === 'CUSTOMER_ONBOARD') {
+                showAlert('🚗 Khách đã lên xe. Chọn điểm đến hoặc bắt đầu tính cước theo hướng dẫn.', 'info', 6000);
+            } else if (status === 'WAITING_DESTINATION') {
+                showAlert('🏁 Hãy nhập và xác nhận điểm đến của khách trước khi tính cước.', 'warning', 7000);
+            } else if (status === 'FARE_CALCULATING') {
+                showAlert('💰 Đã bắt đầu tính cước. Chỉ kết thúc chuyến khi đã đến nơi.', 'info', 5000);
+            } else if (status === 'COMPLETED') {
                 showAlert('✅ Chuyến đi hoàn tất! Cảm ơn anh.', 'info', 4000);
             }
         });
