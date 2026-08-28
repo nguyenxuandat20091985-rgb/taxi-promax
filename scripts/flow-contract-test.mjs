@@ -15,7 +15,7 @@ const gpsFinal = read('js/driver/27-gps-final.js');
 
 assert.doesNotMatch(html, /<script\b(?![^>]*\bsrc=)[^>]*>/i, 'index.html still contains an inline script');
 assert.match(html, /<link rel="stylesheet" href="css\/driver\.css">/);
-assert.match(html, /<link rel="stylesheet" href="css\/driver-overrides\.css">/);
+assert.match(html, /<link rel="stylesheet" href="css\/driver-overrides\.css(?:\?[^"']*)?">/);
 for (const relativePath of ['css/driver.css', 'css/driver-overrides.css']) {
   assert.ok(fs.existsSync(path.join(root, relativePath)), `missing stylesheet ${relativePath}`);
 }
