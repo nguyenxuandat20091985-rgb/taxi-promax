@@ -1,60 +1,29 @@
 /*
- * Taxi ProMax — GPS boost module
- *
- * Bản đồ và core GPS đã có nguồn định vị chính. Module này chỉ dùng vị trí
- * cache để bản đồ không trống khi chờ fix mới; không tự tạo watcher phụ,
- * không tự cộng kilomet và không ghi đè gpsStatusText.
+ * Taxi ProMax — GPS boost v4
+ * Cache chỉ được dùng làm dữ liệu đọc; marker tài xế do map owner/core quản lý.
  */
-;(function (window, document) {
+;(function(window, document){
   'use strict';
-
-  const CACHE_KEY = 'promax_lastpos';
-  let tempMarker = null;
-
-  function readCache() {
-    try {
-      const value = JSON.parse(window.localStorage.getItem(CACHE_KEY) || 'null');
-      if (!value || !Number.isFinite(Number(value.lat)) || !Number.isFinite(Number(value.lng))) return null;
+  var CACHE_KEY='promax_lastpos';
+  function readCache(){
+    try{
+      var value=JSON.parse(window.localStorage.getItem(CACHE_KEY)||'null');
+      if(!value||!Number.isFinite(Number(value.lat))||!Number.isFinite(Number(value.lng)))return null;
       return value;
-    } catch (_) {
-      return null;
-    }
+    }catch(e){return null;}
   }
-
-  function renderCachedMarker() {
-    const cached = readCache();
-    const map = window.PromaxMap && window.PromaxMap.instance ? window.PromaxMap.instance : window.map;
-    if (!cached || !map || !window.L) return false;
-
-    if (window.PromaxMap && typeof window.PromaxMap.updateDriverMarker === 'function') {
-      window.PromaxMap.updateDriverMarker(cached.lat, cached.lng, cached.heading);
+  function renderCachedMarker(){
+    var cached=readCache();
+    if(!cached)return false;
+    var mapOwner=window.PromaxMap;
+    if(mapOwner&&typeof mapOwner.updateDriverMarker==='function'){
+      mapOwner.updateDriverMarker(Number(cached.lat),Number(cached.lng),Number(cached.heading)||0);
       return true;
     }
-
-    if (!tempMarker) {
-      const icon = window.L.divIcon({
-        className: '',
-        html: '<div style="width:18px;height:18px;border-radius:50%;background:#2196f3;border:3px solid #fff;box-shadow:0 2px 8px rgba(33,150,243,.6);"></div>',
-        iconSize: [18, 18],
-        iconAnchor: [9, 9]
-      });
-      tempMarker = window.L.marker([cached.lat, cached.lng], { icon }).addTo(map);
-    } else {
-      tempMarker.setLatLng([cached.lat, cached.lng]);
-    }
-    return true;
+    return false;
   }
-
-  function waitForMap() {
-    let tries = 0;
-    const timer = window.setInterval(function () {
-      tries += 1;
-      if (renderCachedMarker() || tries >= 20) window.clearInterval(timer);
-    }, 500);
-  }
-
-  window.PromaxGpsBoost = { renderCachedMarker };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', waitForMap);
-  else waitForMap();
-  console.log('✅ GPS BOOST v3 loaded — cache only, single GPS owner');
-})(window, document);
+  window.PromaxGpsBoost={renderCachedMarker:renderCachedMarker,readCache:readCache};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){window.setTimeout(renderCachedMarker,0);});
+  else window.setTimeout(renderCachedMarker,0);
+  console.log('✅ GPS BOOST v4 loaded — read-only cache, no secondary marker');
+})(window,document);
