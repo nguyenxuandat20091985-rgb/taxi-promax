@@ -16,18 +16,34 @@ const gpsBoost = read('js/modules/gps-boost.js');
 const gpsBoostInline = read('js/driver/15-gps-boost-inline.js');
 const dashboard = read('js/modules/driver-dashboard.js');
 const dashboardCss = read('css/driver-dashboard.css');
+const cleanFix = read('js/driver/01-clean-fix.js');
+const overrides = read('css/driver-overrides.css');
+const history = read('js/driver/26-history-pro.js');
+const unify = read('js/driver/17-unify.js');
+const antiFraud = read('js/driver/18-anti-fraud.js');
+const gpsGuide = read('js/driver/28-gps-guide.js');
+const opsStability = read('js/modules/ops-stability.js');
 
-assert.match(html, /<script src="js\/map\.js\?v=20260827-ui3"><\/script>/);
+assert.match(html, /<script src="js\/map\.js\?v=20260828-marker1"><\/script>/);
+assert.match(html, /01-clean-fix\.js\?v=20260828-marker1/);
+assert.match(html, /driver-overrides\.css\?v=20260828-ops1/);
 assert.match(html, /<script src="js\/driver\/03-premium-ui\.js\?v=20260827-ui3"><\/script>/);
 assert.match(html, /<script src="js\/driver\/00-core-runtime\.js\?v=20260827-ui3"><\/script>/);
 assert.match(html, /driver-dashboard\.css\?v=20260828-dashboard2/);
 assert.match(html, /driver-dashboard\.js\?v=20260828-dashboard2/);
+assert.match(html, /17-unify\.js\?v=20260828-ops1/);
+assert.match(html, /18-anti-fraud\.js\?v=20260828-ops1/);
+assert.match(html, /26-history-pro\.js\?v=20260828-ops1/);
+assert.match(html, /28-gps-guide\.js\?v=20260828-ops1/);
+assert.match(html, /ops-stability\.js\?v=20260828-ops1/);
 assert.doesNotMatch(map, /basemaps\.cartocdn\.com|cartodb/i);
 assert.doesNotMatch(cockpit, /basemaps\.cartocdn\.com|cartodb/i);
 assert.doesNotMatch(cockpitInline, /basemaps\.cartocdn\.com|cartodb/i);
 assert.match(map, /tile\.openstreetmap\.org/);
 assert.match(map, /OpenStreetMap contributors/);
-assert.equal((map.match(/\.map\(/g) || []).length, 1, 'map.js must have one Leaflet map owner');
+assert.match(map, /PromaxLegacyRuntime/);
+assert.doesNotMatch(map, /sm-pulse-ring/);
+assert.equal((map.match(/L\.map\(/g) || []).length, 1, 'map.js must have one Leaflet map owner');
 
 // Premium nav phải hỗ trợ cả nhãn tiếng Việt và tiếng Anh.
 assert.match(premium, /<svg viewBox=/);
@@ -39,8 +55,13 @@ assert.doesNotMatch(premium, /return key \? ICONS\[key\] : .*fa-circle/);
 // Chỉ GPS core được phép chạy watcher chính.
 assert.doesNotMatch(gpsBoost, /watchPosition\s*\(/);
 assert.doesNotMatch(gpsBoostInline, /watchPosition\s*\(/);
+assert.doesNotMatch(cleanFix, /watchPosition\s*\(/);
+assert.doesNotMatch(cleanFix, /L\.marker\s*\(/);
+assert.match(overrides, /\.sm-pulse-ring\{display:none!important;\}/);
 assert.doesNotMatch(cockpit, /if\s*\(navigator\.geolocation\)\s*\{\s*navigator\.geolocation\.watchPosition/);
 assert.doesNotMatch(cockpitInline, /if\s*\(navigator\.geolocation\)\s*\{\s*navigator\.geolocation\.watchPosition/);
+assert.doesNotMatch(antiFraud, /navigator\.geolocation\.(getCurrentPosition|watchPosition)\s*\(/);
+assert.doesNotMatch(gpsGuide, /navigator\.geolocation\.(getCurrentPosition|watchPosition)\s*\(/);
 assert.match(core, /enableHighAccuracy:\s*true/);
 assert.match(core, /maximumAge:\s*0/);
 assert.match(core, /accuracy > ACCURACY_MAX/);
@@ -57,5 +78,14 @@ assert.match(dashboard, /pmxDiagnosticsMenuItem/);
 assert.match(dashboard, /Gói thuê bao tháng/);
 assert.match(dashboardCss, /pmx-diagnostic-sheet/);
 assert.doesNotMatch(sw, /basemaps\.cartocdn\.com|CARTODB TILES/i);
+
+// Các lỗi vận hành trong video phải có guard rõ ràng.
+assert.match(history, /Local-first/);
+assert.match(history, /mergeRows/);
+assert.match(unify, /tripBusy/);
+assert.doesNotMatch(unify, /Đã chuyển khoản\? Hệ thống kích hoạt trong ~1 phút/);
+assert.match(opsStability, /subscriptionActive/);
+assert.match(opsStability, /hideFinishedTripUi/);
+assert.match(opsStability, /trip:completed/);
 
 console.log('ui regression tests: OK');
