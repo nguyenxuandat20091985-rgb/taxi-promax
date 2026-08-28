@@ -1,9 +1,9 @@
-/**
+/*
  * Taxi ProMax — Map owner
  *
  * Chỉ khởi tạo một Leaflet map và dùng OpenStreetMap, không cần API key.
  * GPS do core runtime/location core quản lý; file này chỉ phụ trách bản đồ,
- * marker và deep-link điều hướng.
+ * marker khách và deep-link điều hướng.
  */
 ;(function (window, document) {
   'use strict';
@@ -50,23 +50,29 @@
     return mapInstance;
   }
 
+  // Chỉ dùng cho fallback khi app không có legacy GPS runtime.
+  // Khi runtime chuẩn tồn tại, core runtime tự vẽ marker tài xế và hàm này
+  // tuyệt đối không tạo thêm một L.marker thứ hai.
   function markerIcon() {
     return window.L.divIcon({
       className: 'sm-div-icon',
-      html: '<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="tp-driver-compass" class="sm-direction-wrapper"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>',
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
+      html: '<div class="sm-marker-container"><div class="sm-direction-wrapper"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
     });
   }
 
   function updateMarkerRotation() {
-    const compass = document.getElementById('tp-driver-compass');
+    const compass = document.getElementById('tp-driver-compass') || document.getElementById('compass');
     if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
   }
 
   function updateDriverMarkerOnMap(lat, lng, heading) {
+    // 00-core-runtime.js là owner duy nhất của marker vị trí tài xế.
+    if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.getPosition === 'function') return false;
+
     const map = ensureMap();
-    if (!map || !window.L || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
+    if (!map || !window.L || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return false;
     if (heading != null && Number.isFinite(Number(heading))) currentHeading = Math.round(Number(heading));
     if (!driverMarker) {
       driverMarker = window.L.marker([lat, lng], { icon: markerIcon(), zIndexOffset: 1000 }).addTo(map);
@@ -75,6 +81,7 @@
       driverMarker.setLatLng([lat, lng]);
     }
     updateMarkerRotation();
+    return true;
   }
 
   function setupCustomerMarker(lat, lng, clientName) {
