@@ -1,57 +1,24 @@
-// Extracted from index.html; load order is intentionally preserved.
-(function(){
+/*
+ * Taxi ProMax — GPS guide v2
+ * GPS core là owner duy nhất. Module này chỉ cung cấp trạng thái đọc được,
+ * không gọi getCurrentPosition/watchPosition và không tự tạo popup.
+ */
+(function(window, document){
     'use strict';
-    
-    // GPS Guide chạy ngầm - chỉ log và tự động kiểm tra, KHÔNG hiển thị popup
-    var shown = false;
 
-    function show() {
-        if (shown) return;
-        shown = true;
-        
-        // Chỉ log ra console, không hiển thị popup
-        console.log('📡 [GPS Guide] GPS đang yếu, khuyến nghị bật Vị trí chính xác');
-        
-        // Phát âm thanh nếu cần (tùy chọn)
-        // if (typeof speak === 'function') speak('GPS chưa chính xác. Vui lòng bật vị trí chính xác.');
+    function readState(){
+        var text='';
+        try{
+            var el=document.getElementById('gpsStatusText');
+            text=el&&el.textContent?el.textContent.trim():'';
+        }catch(e){}
+        var raw=text.toLowerCase();
+        if(/từ chối|không có quyền|denied/.test(raw))return{state:'denied',label:'GPS bị từ chối'};
+        if(/timeout|đang xin|đang tìm|đang lấy|thử lại/.test(raw))return{state:'waiting',label:'Đang chờ GPS'};
+        if(/không có tín hiệu|không hỗ trợ|tắt/.test(raw))return{state:'bad',label:'GPS không khả dụng'};
+        var m=text.match(/[±+]\s*(\d+(?:\.\d+)?)\s*m/i);
+        return{state:m&&Number(m[1])<=100?'good':'weak',label:m?'GPS ±'+Math.round(Number(m[1]))+'m':'Chưa có dữ liệu'};
     }
-
-    // Kiểm tra GPS khi khởi động
-    if (navigator.geolocation) {
-        // Kiểm tra nhanh lần đầu
-        navigator.geolocation.getCurrentPosition(
-            function(p) {
-                // GPS OK - không làm gì
-                console.log('📡 [GPS Guide] GPS hoạt động tốt, độ chính xác: ' + Math.round(p.coords.accuracy) + 'm');
-            },
-            function(err) {
-                // GPS bị lỗi - chỉ log, không hiển thị
-                if (err && err.code === 1) {
-                    console.warn('📡 [GPS Guide] GPS bị từ chối quyền (chạy ngầm)');
-                }
-            },
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
-    }
-
-    // Theo dõi GPS liên tục nhưng KHÔNG hiển thị popup
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(
-            function(p) {
-                if ((p.coords.accuracy || 0) > 800) {
-                    // GPS yếu - chỉ log
-                    console.log('📡 [GPS Guide] GPS yếu: ' + Math.round(p.coords.accuracy) + 'm (chạy ngầm)');
-                }
-            },
-            function(err) {
-                if (err && err.code === 1) {
-                    // GPS bị từ chối - không hiển thị popup
-                    console.warn('📡 [GPS Guide] GPS bị từ chối quyền (chạy ngầm)');
-                }
-            },
-            { enableHighAccuracy: false, maximumAge: 5000 }
-        );
-    }
-
-    console.log('✅ GPS GUIDE v3 - CHẠY NGẦM (không popup)');
-})();
+    window.PromaxGpsGuide={readState:readState};
+    console.log('✅ GPS GUIDE v2 loaded — read-only, single GPS owner');
+})(window, document);
