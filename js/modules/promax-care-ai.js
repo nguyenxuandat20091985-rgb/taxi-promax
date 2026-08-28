@@ -2,6 +2,8 @@
 (function (window, document) {
   'use strict';
   if (window.PromaxCareAI) return;
+  var aiRegistry = window.PromaxAIRegistry;
+  if (aiRegistry && !aiRegistry.claim('care', { role: 'driver-support', version: '1.0' })) return;
 
   var CARE_CHANNEL = window.PROMAX_CARE_CHANNEL || 'driver';
   var panel = null;
