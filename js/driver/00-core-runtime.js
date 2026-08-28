@@ -961,6 +961,20 @@ let hasCenteredMap = false;
         showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', () => completeTrip());
     }
 
+    // === Ẩn/hiện bottom nav khi đang vận hành chuyến ===
+    function setNavVisible(visible) {
+        const nav = document.querySelector('.nav-grid');
+        if (nav) nav.style.display = visible ? 'flex' : 'none';
+        const brand = document.querySelector('.brand-footer');
+        if (brand) brand.style.display = visible ? 'block' : 'none';
+    }
+    function hideTabsDuringTrip() {
+        setNavVisible(false);
+    }
+    function showTabsAfterTrip() {
+        setNavVisible(true);
+    }
+
     // ==================== AUTH ====================
     function persistDriverSession(session) {
         const safe = { ...(session || {}) };
@@ -1626,6 +1640,7 @@ async function initApp() {
             createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
         showTripPanel(currentCustomerData);
         isRunning = true;
+        hideTabsDuringTrip();
         hasPickedUp = false;
         totalKm = 0;
         isStreetHail = false;
@@ -1716,6 +1731,7 @@ async function initApp() {
     function handleTrip() {
         if (!isRunning) {
             isRunning = true;
+            hideTabsDuringTrip();
             hasPickedUp = true;
             totalKm = 0;
             isStreetHail = true;
@@ -1763,45 +1779,49 @@ async function initApp() {
     }
 
     function completeTrip() {
-        const finalKm = totalKm;
-        const finalCost = Math.round(finalKm * currentRate);
+        const MIN_FARE = 20000; // cước tối thiểu (khớp thực tế vận hành)
+        const finalKm = Number(totalKm) || 0;
+        let finalCost = Math.round(finalKm * currentRate);
+        if (finalCost < MIN_FARE) finalCost = MIN_FARE;
+
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
-        
-        saveHistory(finalKm, finalCost.toLocaleString(), finalCost, tripType);
-        
+
+        // Luôn lưu lịch sử trước khi reset biến
+        saveHistory(finalKm, finalCost.toLocaleString('vi-VN'), finalCost, tripType);
+
         if (currentOrderId && !isStreetHail) {
-            db.ref(`datxe/${currentOrderId}`).update({ 
-                status: 'completed', 
-                completedAt: Date.now(), 
+            db.ref(`datxe/${currentOrderId}`).update({
+                status: 'completed',
+                completedAt: Date.now(),
                 actualKm: finalKm,
                 actualPrice: finalCost,
-                statusHistory: { ...(currentCustomerData.statusHistory || {}), completed: Date.now() }
-            }).catch(()=>{});
+                statusHistory: { ...(currentCustomerData && currentCustomerData.statusHistory ? currentCustomerData.statusHistory : {}), completed: Date.now() }
+            }).catch(function(){});
         }
-        
-        isRunning = false; 
-        hasPickedUp = false; 
+
+        isRunning = false;
+        hasPickedUp = false;
         isStreetHail = false;
-        totalKm = 0; 
-        lastDisplayedFare = 0; 
-        currentOrderId = null; 
+        totalKm = 0;
+        lastDisplayedFare = 0;
+        currentOrderId = null;
         currentCustomerData = null;
-        lastValidPos = null; 
-        lastValidTime = 0; 
+        lastValidPos = null;
+        lastValidTime = 0;
         isGapMode = false;
-        
+
         const streetMeter = document.getElementById('streetHailMeter');
         if (streetMeter) streetMeter.classList.remove('show');
         if (typeof streetHailTimerInterval !== 'undefined' && streetHailTimerInterval) {
             clearInterval(streetHailTimerInterval);
             streetHailTimerInterval = null;
         }
-        
+
         const tripPanel = document.getElementById('tripInfoPanel');
         const homeControls = document.getElementById('homeControls');
         const statsUI = document.getElementById('statsUI');
         const mainBtn = document.getElementById('mainBtn');
-        
+
         if (tripPanel) tripPanel.style.display = 'none';
         if (homeControls) homeControls.style.display = 'block';
         if (statsUI) statsUI.classList.remove('show');
@@ -1809,23 +1829,26 @@ async function initApp() {
             mainBtn.innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
             mainBtn.style.background = "var(--accent)";
         }
-        
+
+        // Hiện lại tab sau khi kết thúc chuyến
+        showTabsAfterTrip();
+
         if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
         if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-        
+
         stopForegroundService();
         disableKeepAwake();
-        
+
         const endSummary = document.getElementById('endSummary');
         if (endSummary) {
-            endSummary.innerHTML = `Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString()}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
+            endSummary.innerHTML = `Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString('vi-VN')}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
         }
-        
+
         const endModal = document.getElementById('endModal');
         if (endModal) endModal.style.display = 'flex';
-        
-        speak(`Chuyến đi kết thúc. Tổng tiền ${finalCost.toLocaleString()} đồng.`);
-        
+
+        speak(`Chuyến đi kết thúc. Tổng tiền ${finalCost.toLocaleString('vi-VN')} đồng.`);
+
         const kmEl = document.getElementById('km');
         const costEl = document.getElementById('cost');
         if (kmEl) kmEl.innerText = '0.00';
@@ -1833,13 +1856,47 @@ async function initApp() {
     }
 
     async function saveHistory(km, costLabel, costRaw, tripType) {
-        const now = Date.now(), timeLabel = new Date().toLocaleString('vi-VN');
-        const tripData = { km: parseFloat(km), cost: costRaw, costLabel, time: timeLabel, timestamp: now, rate: currentRate, driverId: driverInfo.uid, tripType: tripType };
-        let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
-        history.unshift(tripData);
-        localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
-        try { await db.ref(`trips/${driverInfo.uid}/${now}`).set(tripData); } catch(e) { console.warn('Firebase offline'); }
-        renderHistory();
+        const now = Date.now();
+        const timeLabel = new Date().toLocaleString('vi-VN');
+        const uid = (driverInfo && driverInfo.uid) ? driverInfo.uid : 'local';
+
+        const tripData = {
+            km: parseFloat(km) || 0,
+            cost: Number(costRaw) || 0,
+            costLabel: costLabel || ((Number(costRaw) || 0).toLocaleString('vi-VN') + 'đ'),
+            time: timeLabel,
+            timestamp: now,
+            rate: currentRate || 15000,
+            driverId: uid,
+            tripType: tripType || 'STREET_HAIL'
+        };
+
+        // 1. Luôn ghi localStorage trước (quan trọng nhất)
+        try {
+            let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+            if (!Array.isArray(history)) history = [];
+            history.unshift(tripData);
+            localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
+        } catch (e) {
+            console.warn('[saveHistory] localStorage error:', e);
+        }
+
+        // 2. Ghi Firebase (nếu có uid thật)
+        if (uid && uid !== 'local') {
+            try {
+                await db.ref(`trips/${uid}/${now}`).set(tripData);
+            } catch (e) {
+                console.warn('[saveHistory] Firebase offline:', e);
+            }
+        }
+
+        // 3. Render lại lịch sử ngay
+        if (typeof renderHistory === 'function') {
+            try { renderHistory(); } catch (e) {}
+        }
+        if (typeof window.renderHistoryPro === 'function') {
+            try { window.renderHistoryPro(); } catch (e) {}
+        }
     }
 
     async function renderHistory() {
