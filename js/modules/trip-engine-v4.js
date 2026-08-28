@@ -1,9 +1,14 @@
 /*
- * Taxi ProMax — Driver Trip Flow Engine V6
+ * Taxi ProMax — Driver Trip Flow Engine V6.1 (ổn định)
  *
- * 4 luồng: STREET_HAIL | APP_NO_DESTINATION | APP_DESTINATION | navigation pickup/destination
- * Thêm ARRIVED_DESTINATION + COMPLETING. MIN_FARE = 20000 (đồng bộ core).
- * Không cộng KM — 00-core-runtime owner; chỉ khi isFareActive().
+ * Đợt 1+2:
+ * - complete: FARE_CALCULATING | ARRIVED_DESTINATION → COMPLETED (1 bước)
+ * - Không đổi state trước khi user xác nhận dialog
+ * - Reset _completed khi bắt đầu chuyến mới
+ * - Street hail: IDLE → FARE_CALCULATING (gọn)
+ * - App không điểm đến: sau onboard → FARE ngay
+ * - UI nút: CSS data-trip-state (JS không set display end/pickup/nav)
+ * MIN_FARE 20000. GPS/cước do 00-core-runtime.
  */
 ;(function (window, document) {
   'use strict';
@@ -68,7 +73,7 @@
 
       this.validTransitions = Object.freeze({
         [TRIP_STATE.IDLE]: [TRIP_STATE.STREET_HAIL, TRIP_STATE.DRIVER_ACCEPT],
-        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
         [TRIP_STATE.DRIVER_ACCEPT]: [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
         [TRIP_STATE.NAVIGATING_TO_PICKUP]: [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED],
         [TRIP_STATE.ARRIVED_PICKUP]: [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
@@ -329,25 +334,28 @@
         this.log('Không thể nhận đơn khi state=' + this.currentState, 'warn');
         return false;
       }
+      this._completed = false;
       this.currentTrip = this.normalizeTrip(tripId, data || {});
       this.syncLegacyContext();
-      this._completed = false;
       if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'app_order', navigationMode: 'pickup' })) return false;
       return this.transition(TRIP_STATE.NAVIGATING_TO_PICKUP, { source: 'app_order' });
     }
 
     startStreetHail() {
       if (this.currentState !== TRIP_STATE.IDLE) {
-        if (this.isFareActive()) return this.showCompletionConfirmation();
+        if (this.isFareActive() || this.currentState === TRIP_STATE.ARRIVED_DESTINATION) {
+          return this.showCompletionConfirmation();
+        }
         return false;
       }
+      this._completed = false;
       this.currentTrip = null;
       if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
         window.PromaxLegacyRuntime.resetDistance();
       }
+      // Gọn: vào FARE ngay để tính KM (chuyến vẫy)
       if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
-      if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'street_hail', navigationMode: 'idle' })) return false;
-      if (!this.transition(TRIP_STATE.PICKUP_CONFIRMED, { source: 'street_hail' })) return false;
+      this.ensureStreetHailTrip();
       if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD, { source: 'street_hail' })) return false;
       if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail' })) return false;
       return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'street_hail' });
@@ -369,16 +377,24 @@
 
     passengerOnboard() {
       if (this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP) this.arrivedAtPickup();
-      if (this.currentState === TRIP_STATE.ARRIVED_PICKUP && this.isStreetHailTrip()) this.transition(TRIP_STATE.PICKUP_CONFIRMED);
-      if (![TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED].includes(this.currentState)) return false;
-      const moved = this.transition(TRIP_STATE.CUSTOMER_ONBOARD);
-      if (!moved) return false;
-      if (this.hasDestination()) {
-        this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'destination_already_selected' });
-        this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'destination_already_selected' });
-        return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'destination_already_selected' });
+      if (this.currentState === TRIP_STATE.ARRIVED_PICKUP) {
+        this.transition(TRIP_STATE.PICKUP_CONFIRMED, { source: 'onboard' });
       }
-      return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'destination_required' });
+      if (![TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD].includes(this.currentState)) {
+        return false;
+      }
+      if (this.currentState !== TRIP_STATE.CUSTOMER_ONBOARD) {
+        if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD)) return false;
+      }
+      // Có điểm đến → nav destination rồi FARE
+      if (this.hasDestination()) {
+        this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'has_destination' });
+        this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' });
+        return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
+      }
+      // Không điểm đến → tính cước ngay (giống vẫy), có thể nhập đích sau
+      this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination' });
+      return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'no_destination' });
     }
 
     selectDestination(destination) {
@@ -418,27 +434,20 @@
     }
 
     completeTrip() {
-      if (this.currentState === TRIP_STATE.FARE_CALCULATING) {
-        this.transition(TRIP_STATE.ARRIVED_DESTINATION, { source: 'driver' });
+      const st = this.currentState;
+      if (st !== TRIP_STATE.FARE_CALCULATING && st !== TRIP_STATE.ARRIVED_DESTINATION && st !== TRIP_STATE.COMPLETING) {
+        this.log('completeTrip từ state không hợp lệ: ' + st, 'warn');
+        return false;
       }
-      if (this.currentState === TRIP_STATE.ARRIVED_DESTINATION) {
-        this.transition(TRIP_STATE.COMPLETING, { source: 'driver' });
-      }
-      if (![TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING].includes(this.currentState)
-          && this.currentState !== TRIP_STATE.COMPLETED) {
-        // allow complete only from meter / arrived / completing
-        if (this.currentState !== TRIP_STATE.COMPLETING) return false;
-      }
+      // Một bước → COMPLETED (legacy lưu lịch sử + UI)
       return this.transition(TRIP_STATE.COMPLETED, { source: 'driver' });
     }
 
     arrivedAtDestination() {
-      if (this.currentState !== TRIP_STATE.FARE_CALCULATING && this.currentState !== TRIP_STATE.TRIP_RUNNING) {
-        return false;
-      }
       if (this.currentState === TRIP_STATE.TRIP_RUNNING) {
         this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'arrived_dest' });
       }
+      if (this.currentState !== TRIP_STATE.FARE_CALCULATING) return false;
       return this.transition(TRIP_STATE.ARRIVED_DESTINATION, { source: 'driver' });
     }
 
@@ -452,10 +461,15 @@
     }
 
     showCompletionConfirmation() {
-      if (this.currentState === TRIP_STATE.FARE_CALCULATING) {
-        this.arrivedAtDestination();
+      const st = this.currentState;
+      if (st !== TRIP_STATE.FARE_CALCULATING && st !== TRIP_STATE.ARRIVED_DESTINATION) {
+        this.log('Chưa đến giai đoạn chốt cước: ' + st, 'warn');
+        return false;
       }
-      if (typeof window.showConfirmComplete === 'function') return window.showConfirmComplete();
+      // Không đổi state trước khi user xác nhận
+      if (typeof window.showConfirmComplete === 'function') {
+        return window.showConfirmComplete();
+      }
       return this.completeTrip();
     }
 
@@ -577,17 +591,16 @@
 
       if (actions) actions.style.display = pickupPhase || pickupConfirmed || waitingDestination ? 'flex' : 'none';
       if (pickupBtn) {
-        pickupBtn.style.display = pickupPhase || pickupConfirmed ? 'block' : 'none';
+        // display do CSS data-trip-state
         pickupBtn.textContent = this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP ? '✅ ĐÃ ĐẾN ĐIỂM ĐÓN' : '🚗 KHÁCH ĐÃ LÊN XE';
-        pickupBtn.onclick = () => this.currentState === TRIP_STATE.PICKUP_CONFIRMED ? this.passengerOnboard() : this.confirmPickup();
+        pickupBtn.onclick = () => this.currentState === TRIP_STATE.PICKUP_CONFIRMED || this.currentState === TRIP_STATE.ARRIVED_PICKUP
+          ? this.passengerOnboard()
+          : this.confirmPickup();
       }
       if (navBtn) {
-        navBtn.style.display = pickupPhase ? 'block' : 'none';
-        navBtn.onclick = () => this.openNavigation('pickup');
+        navBtn.onclick = () => this.openNavigation(this.navigationMode === 'destination' ? 'destination' : 'pickup');
       }
-      const canComplete = farePhase || this.currentState === TRIP_STATE.ARRIVED_DESTINATION;
       if (endBtn) {
-        endBtn.style.display = canComplete ? 'block' : 'none';
         endBtn.textContent = this.currentState === TRIP_STATE.ARRIVED_DESTINATION
           ? '🏁 CHỐT CƯỚC & KẾT THÚC'
           : '🏁 KẾT THÚC CHUYẾN ĐI';
