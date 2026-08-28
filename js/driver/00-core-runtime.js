@@ -763,17 +763,26 @@ let hasCenteredMap = false;
         if (!driverMarker) {
             const icon = L.divIcon({
                 html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${currentHeading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
-                className: '', iconSize: [40,40], iconAnchor: [20,20]
+                className: '', iconSize: [48,48], iconAnchor: [24,24]
             });
             driverMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(map);
             map.setView([lat, lng], 17);
             hasCenteredMap = true;
+            window.__lastMapFollowAt = Date.now();
         } else {
             driverMarker.setLatLng([lat, lng]);
             const compass = document.getElementById('compass');
             if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
-            if ((forceCenter && !hasCenteredMap) || (isRunning && !isStreetHail)) {
-                map.panTo([lat, lng], { animate: true, duration: 0.5 });
+            // Luôn theo xe (idle + đang chạy), throttle 800ms để mượt
+            const now = Date.now();
+            const last = window.__lastMapFollowAt || 0;
+            const shouldFollow = forceCenter || !hasCenteredMap || isRunning || (now - last > 800);
+            if (shouldFollow) {
+                try {
+                    map.panTo([lat, lng], { animate: true, duration: 0.6 });
+                    window.__lastMapFollowAt = now;
+                    hasCenteredMap = true;
+                } catch (e) {}
             }
         }
     }
@@ -965,8 +974,9 @@ let hasCenteredMap = false;
     function setNavVisible(visible) {
         const nav = document.querySelector('.nav-grid');
         if (nav) nav.style.display = visible ? 'flex' : 'none';
+        // Brand luôn hiện khi idle; chỉ ẩn khi đang chạy chuyến
         const brand = document.querySelector('.brand-footer');
-        if (brand) brand.style.display = visible ? 'block' : 'none';
+        if (brand) brand.style.setProperty('display', visible ? 'block' : 'none', 'important');
     }
     function hideTabsDuringTrip() {
         setNavVisible(false);
