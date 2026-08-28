@@ -1909,6 +1909,10 @@ async function initApp() {
         }
     }
 
+
+    // Export cho History Pro + trip engine (V6)
+    window.saveHistory = saveHistory;
+
     async function renderHistory() {
         const list = document.getElementById('historyList');
         try {
