@@ -1,19 +1,9 @@
 /*
- * Taxi ProMax — Driver Trip Flow Engine
+ * Taxi ProMax — Driver Trip Flow Engine V6
  *
- * Một state machine duy nhất cho 4 luồng:
- *
- * 1) IDLE -> STREET_HAIL -> DRIVER_ACCEPT -> PICKUP_CONFIRMED
- *    -> CUSTOMER_ONBOARD -> TRIP_RUNNING -> FARE_CALCULATING -> COMPLETED
- * 2) order -> DRIVER_ACCEPT -> NAVIGATING_TO_PICKUP -> ARRIVED_PICKUP
- *    -> PICKUP_CONFIRMED -> CUSTOMER_ONBOARD -> WAITING_DESTINATION
- *    -> DESTINATION_SELECTED -> TRIP_RUNNING -> FARE_CALCULATING
- * 3) accept order luôn đặt navigationMode = "pickup"
- * 4) có điểm đến: sau CUSTOMER_ONBOARD đặt navigationMode = "destination"
- *    rồi mới chuyển sang TRIP_RUNNING/FARE_CALCULATING.
- *
- * File này không tự cộng kilomet. Legacy GPS runtime là nơi duy nhất cộng
- * totalKm, nhưng chỉ khi isFareActive() trả về true.
+ * 4 luồng: STREET_HAIL | APP_NO_DESTINATION | APP_DESTINATION | navigation pickup/destination
+ * Thêm ARRIVED_DESTINATION + COMPLETING. MIN_FARE = 20000 (đồng bộ core).
+ * Không cộng KM — 00-core-runtime owner; chỉ khi isFareActive().
  */
 ;(function (window, document) {
   'use strict';
@@ -30,6 +20,8 @@
     DESTINATION_SELECTED: 'DESTINATION_SELECTED',
     TRIP_RUNNING: 'TRIP_RUNNING',
     FARE_CALCULATING: 'FARE_CALCULATING',
+    ARRIVED_DESTINATION: 'ARRIVED_DESTINATION',
+    COMPLETING: 'COMPLETING',
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED'
   });
@@ -43,7 +35,7 @@
   const CONFIG = Object.freeze({
     FARE_BASE: 15000,
     FARE_PER_KM: 12000,
-    MIN_FARE: 25000,
+    MIN_FARE: 20000,
     MAX_FARE: 500000,
     MAX_SPEED_KMH: 140,
     FIREBASE_PATH: 'datxe',
@@ -76,16 +68,18 @@
 
       this.validTransitions = Object.freeze({
         [TRIP_STATE.IDLE]: [TRIP_STATE.STREET_HAIL, TRIP_STATE.DRIVER_ACCEPT],
-        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.DRIVER_ACCEPT]: [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.NAVIGATING_TO_PICKUP]: [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.DRIVER_ACCEPT]: [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.NAVIGATING_TO_PICKUP]: [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED],
         [TRIP_STATE.ARRIVED_PICKUP]: [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
         [TRIP_STATE.PICKUP_CONFIRMED]: [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.CUSTOMER_ONBOARD]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.WAITING_DESTINATION]: [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.DESTINATION_SELECTED]: [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.TRIP_RUNNING]: [TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.FARE_CALCULATING]: [TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.CUSTOMER_ONBOARD]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.WAITING_DESTINATION]: [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.DESTINATION_SELECTED]: [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.TRIP_RUNNING]: [TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.FARE_CALCULATING]: [TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.ARRIVED_DESTINATION]: [TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.COMPLETING]: [TRIP_STATE.COMPLETED],
         [TRIP_STATE.COMPLETED]: [TRIP_STATE.IDLE],
         [TRIP_STATE.CANCELLED]: [TRIP_STATE.IDLE]
       });
@@ -96,7 +90,7 @@
     init() {
       this.publishLegacyState();
       this.startGpsListener();
-      this.log('Trip Flow Engine khởi động — IDLE');
+      this.log('Trip Flow Engine V6 khởi động — IDLE');
     }
 
     startGpsListener() {
@@ -172,6 +166,10 @@
 
     isTripActive() {
       return ![TRIP_STATE.IDLE, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED].includes(this.currentState);
+    }
+
+    isMeterRunning() {
+      return this.currentState === TRIP_STATE.FARE_CALCULATING;
     }
 
     transition(nextState, payload = {}) {
@@ -258,11 +256,22 @@
           break;
 
         case TRIP_STATE.FARE_CALCULATING:
-          this.navigationMode = this.isStreetHailTrip() ? 'idle' : 'destination';
+          this.navigationMode = this.isStreetHailTrip() ? 'idle' : (this.hasDestination() ? 'destination' : 'idle');
           if (!this.fareStartedAt) this.fareStartedAt = Date.now();
           this.currentOdometerKm = this.readLegacyKm();
           this.updateFlowUI();
           this.emit('fare_started', { navigationMode: this.navigationMode });
+          break;
+
+        case TRIP_STATE.ARRIVED_DESTINATION:
+          this.navigationMode = 'idle';
+          this.updateFlowUI();
+          this.emit('arrived_destination', {});
+          break;
+
+        case TRIP_STATE.COMPLETING:
+          this.navigationMode = 'idle';
+          this.updateFlowUI();
           break;
 
         case TRIP_STATE.COMPLETED:
@@ -409,8 +418,28 @@
     }
 
     completeTrip() {
-      if (this.currentState !== TRIP_STATE.FARE_CALCULATING) return false;
+      if (this.currentState === TRIP_STATE.FARE_CALCULATING) {
+        this.transition(TRIP_STATE.ARRIVED_DESTINATION, { source: 'driver' });
+      }
+      if (this.currentState === TRIP_STATE.ARRIVED_DESTINATION) {
+        this.transition(TRIP_STATE.COMPLETING, { source: 'driver' });
+      }
+      if (![TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING].includes(this.currentState)
+          && this.currentState !== TRIP_STATE.COMPLETED) {
+        // allow complete only from meter / arrived / completing
+        if (this.currentState !== TRIP_STATE.COMPLETING) return false;
+      }
       return this.transition(TRIP_STATE.COMPLETED, { source: 'driver' });
+    }
+
+    arrivedAtDestination() {
+      if (this.currentState !== TRIP_STATE.FARE_CALCULATING && this.currentState !== TRIP_STATE.TRIP_RUNNING) {
+        return false;
+      }
+      if (this.currentState === TRIP_STATE.TRIP_RUNNING) {
+        this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'arrived_dest' });
+      }
+      return this.transition(TRIP_STATE.ARRIVED_DESTINATION, { source: 'driver' });
     }
 
     // Compatibility API for Firebase/UI modules that hand an order to the engine.
@@ -423,6 +452,9 @@
     }
 
     showCompletionConfirmation() {
+      if (this.currentState === TRIP_STATE.FARE_CALCULATING) {
+        this.arrivedAtDestination();
+      }
       if (typeof window.showConfirmComplete === 'function') return window.showConfirmComplete();
       return this.completeTrip();
     }
@@ -476,7 +508,10 @@
     publishLegacyState() {
       const fare = this.isFareActive();
       const running = this.isTripActive();
-      const onboard = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING].includes(this.currentState);
+      const onboard = [
+        TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED,
+        TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING
+      ].includes(this.currentState);
       if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.setFlowState === 'function') {
         window.PromaxLegacyRuntime.setFlowState({
           isRunning: running,
@@ -489,7 +524,24 @@
         window.navigationMode = this.navigationMode;
       }
       window.navigationMode = this.navigationMode;
-      document.body && document.body.setAttribute('data-navigation-mode', this.navigationMode);
+      this.publishDocumentState();
+    }
+
+    publishDocumentState() {
+      const state = this.currentState || TRIP_STATE.IDLE;
+      const mode = this.navigationMode || 'idle';
+      const tripType = (this.currentTrip && this.currentTrip.type) || (this.isStreetHailTrip() ? TRIP_TYPE.STREET_HAIL : '');
+      try {
+        document.documentElement.setAttribute('data-trip-state', state);
+        document.documentElement.setAttribute('data-navigation-mode', mode);
+        document.documentElement.setAttribute('data-trip-type', tripType);
+        document.documentElement.setAttribute('data-fare-active', this.isFareActive() ? 'true' : 'false');
+        if (document.body) {
+          document.body.setAttribute('data-trip-state', state);
+          document.body.setAttribute('data-navigation-mode', mode);
+          document.body.setAttribute('data-trip-type', tripType);
+        }
+      } catch (_) {}
     }
 
     updateFlowUI() {
@@ -533,13 +585,18 @@
         navBtn.style.display = pickupPhase ? 'block' : 'none';
         navBtn.onclick = () => this.openNavigation('pickup');
       }
+      const canComplete = farePhase || this.currentState === TRIP_STATE.ARRIVED_DESTINATION;
       if (endBtn) {
-        endBtn.style.display = farePhase ? 'block' : 'none';
+        endBtn.style.display = canComplete ? 'block' : 'none';
+        endBtn.textContent = this.currentState === TRIP_STATE.ARRIVED_DESTINATION
+          ? '🏁 CHỐT CƯỚC & KẾT THÚC'
+          : '🏁 KẾT THÚC CHUYẾN ĐI';
         endBtn.onclick = () => this.showCompletionConfirmation();
       }
 
       this.renderDestinationPicker(waitingDestination);
       this.renderTripDestination();
+      this.publishDocumentState();
     }
 
     renderDestinationPicker(show) {
@@ -584,7 +641,11 @@
         [TRIP_STATE.WAITING_DESTINATION]: '🏁 CHỜ NHẬP ĐIỂM ĐẾN',
         [TRIP_STATE.DESTINATION_SELECTED]: '🧭 ĐÃ CHỌN ĐIỂM ĐẾN',
         [TRIP_STATE.TRIP_RUNNING]: '🚕 ĐANG CHẠY CHUYẾN',
-        [TRIP_STATE.FARE_CALCULATING]: '💰 ĐANG TÍNH CƯỚC'
+        [TRIP_STATE.FARE_CALCULATING]: '💰 ĐANG TÍNH CƯỚC',
+        [TRIP_STATE.ARRIVED_DESTINATION]: '🏁 ĐÃ ĐẾN ĐÍCH',
+        [TRIP_STATE.COMPLETING]: '⏳ ĐANG CHỐT CƯỚC',
+        [TRIP_STATE.COMPLETED]: '✅ HOÀN THÀNH',
+        [TRIP_STATE.CANCELLED]: '❌ ĐÃ HỦY'
       };
       return labels[this.currentState] || this.currentState;
     }
