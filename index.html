@@ -1,373 +1,425 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0054a3">
-<link rel="apple-touch-icon" href="assets/logo.png">
-<link rel="icon" type="image/png" href="assets/logo.png">
-<link rel="manifest" href="manifest.json">
-<title>TAXI PROMAX - TÀI XẾ</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="css/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="assets/logo.svg">
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    <link rel="manifest" href="manifest.json">
+    <title>TAXI PROMAX - TÀI XẾ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="css/driver.css">
+    <link rel="stylesheet" href="css/driver-dashboard.css?v=20260828-dashboard2">
 </head>
-<body>
+<body> 
 
-<!-- SIDEBAR -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-<div class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <button class="close-sidebar" onclick="closeSidebar()">✕</button>
-    <div class="driver-avatar" id="sidebarAvatar">🧑</div>
-    <div class="driver-name" id="sidebarName">Tài xế</div>
-    <div class="driver-phone" id="sidebarPhone">...</div>
-  </div>
-  <div class="sidebar-menu" id="sidebarMenu">
-    <div class="sidebar-item" onclick="closeSidebar(); showTab('home', document.querySelector('.nav-item'))"><i class="fas fa-home"></i><span>Trang chủ</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); showTab('vi', document.querySelector('.nav-item'))"><i class="fas fa-wallet"></i><span>Ví tiền & Gói cước</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); showTab('lichsu', document.querySelector('.nav-item'))"><i class="fas fa-history"></i><span>Lịch sử</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); showTab('toi', document.querySelector('.nav-item'))"><i class="fas fa-user-circle"></i><span>Hồ sơ của tôi</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openHeatmap()"><i class="fas fa-fire"></i><span>Bản đồ nhiệt AI</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openSOS()"><i class="fas fa-phone-alt"></i><span>SOS cứu hộ</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openMaintenance()"><i class="fas fa-wrench"></i><span>Bảo dưỡng xe</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openProfit()"><i class="fas fa-chart-line"></i><span>Báo cáo doanh thu</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openEV()"><i class="fas fa-charging-station"></i><span>Xe điện & Trạm sạc</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openKYC()"><i class="fas fa-shield-alt"></i><span>Xác thực tài xế</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openLegal('privacy')"><i class="fas fa-lock"></i><span>Chính sách bảo mật</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openLegal('terms')"><i class="fas fa-file-contract"></i><span>Điều khoản sử dụng</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); openXeGhepModule()"><i class="fas fa-people-arrows"></i><span>🚐 XE GHÉP <span style="background:#00bfa5; padding:2px 6px; border-radius:10px; font-size:9px; margin-left:6px;">PRO</span></span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); toggleAI()"><i class="fas fa-robot"></i><span>Trợ lý AI</span></div>
-    <div class="sidebar-item" onclick="toggleDarkMode()"><i class="fas fa-moon"></i><span>Sáng / Tối</span></div>
-    <div class="sidebar-item" onclick="toggleLang()"><i class="fas fa-globe"></i><span id="langLabel">Ngôn ngữ: Tiếng Việt</span></div>
-    <div class="sidebar-item" onclick="closeSidebar(); doLogout()"><i class="fas fa-sign-out-alt"></i><span>Đăng xuất</span></div>
-  </div>
-  <div class="sidebar-footer">
-    <div class="badge" id="sidebarId" style="background:transparent; padding-left:0;">🆔 ...</div>
-    <div class="badge" id="sidebarPlan" style="background:transparent; padding-left:0; margin-top:5px;">⭐ ...</div>
-  </div>
-</div>
-
-<div class="fg-service-indicator" id="fgServiceIndicator"></div>
-<div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
-
-<div class="header">
-  <button class="menu-btn" onclick="openSidebar()">☰</button>
-  <button class="dark-toggle-btn" onclick="toggleDarkMode()" title="Chế độ tối">🌙</button>
-</div>
-
-<div class="gps-status-bar" id="gpsStatusBar" onclick="forceRefreshGPS()" style="cursor:pointer;">
-  <div class="gps-dot" id="gpsDot"></div>
-  <span id="gpsStatusText">GPS: Đang tìm...</span>
-  <span style="margin-left:4px;font-size:9px;opacity:0.7;">↻</span>
-</div>
-
-<div class="stats-bar" id="statsUI">
-  <div class="stat-item"><div class="stat-label">CƯỚC (Đ)</div><div id="cost" class="stat-value">0</div></div>
-  <div class="stat-item"><div class="stat-label">KM</div><div id="km" class="stat-value">0.00</div></div>
-  <div class="stat-item"><div class="stat-label">THỜI GIAN</div><div id="t2val" class="stat-value">0:00</div></div>
-  <div class="stat-item"><div class="stat-label">TỐC ĐỘ</div><div id="speedVal" class="stat-value">0</div></div>
-</div>
-
-<div id="map"></div>
-<div id="gapNotice" class="gap-notice">📡 PHÁT HIỆN MẤT SÓNG - ĐANG BÙ CƯỚC...</div>
-<div id="aiAlert" class="ai-alert"><i class="fas fa-robot"></i><span id="aiAlertText">AI phát hiện gian lận</span></div>
-
-<!-- TAB VÍ TIỀN -->
-<div id="tab-vi" class="tab-content">
-  <div class="p-header"><div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div><div id="trialBox" style="font-size: 11px; opacity: 0.9;">💳 THANH TOÁN QUA PAYOS</div></div>
-  <div class="p-grid">
-    <div class="p-card" onclick="handlePayment(0, 'TRIAL 7D')"><div class="tp-badge-trial">KHUYÊN DÙNG</div><b>TRẢI NGHIỆM</b><span>0đ</span><ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul><div class="p-btn">KÍCH HOẠT</div></div>
-    <div class="p-card" onclick="handlePayment(5000, 'LẺ')"><b>CHUYẾN LẺ</b><span>5.000đ</span><ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul><div class="p-btn">NẠP NGAY</div></div>
-    <div class="p-card" onclick="handlePayment(49000, 'PRO')"><b>GÓI PRO</b><span>49.000đ</span><ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul><div class="p-btn">NẠP NGAY</div></div>
-    <div class="p-card" onclick="handlePayment(129000, 'PROMAX')"><b>PRO MAX</b><span>129.000đ</span><ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul><div class="p-btn">NẠP NGAY</div></div>
-  </div>
-  <div class="tp-new-container">
-    <div style="font-size: 11px; font-weight: 900; color: var(--dark); margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px;">CÔNG CỤ HỖ TRỢ TÀI XẾ</div>
-    <div class="tp-grid-4">
-      <div class="tp-feature-card" onclick="openHeatmap()"><i>📡</i><span>BẢN ĐỒ NHIỆT AI</span><p>Điểm nóng khách</p></div>
-      <div class="tp-feature-card" onclick="openSOS()"><i>🆘</i><span>SOS CỨU HỘ</span><p>Cộng đồng trợ giúp</p></div>
-      <div class="tp-feature-card" onclick="openMaintenance()"><i>🛠️</i><span>TRỢ LÝ BẢO DƯỠNG</span><p>Nhắc thay dầu, lốp</p></div>
-      <div class="tp-feature-card" onclick="openProfit()"><i>📈</i><span>BÁO CÁO LỢI NHUẬN</span><p>Thống kê thực tế</p></div>
-    </div>
-  </div>
-</div>
-
-<!-- TAB LỊCH SỬ -->
-<div id="tab-lichsu" class="tab-content">
-  <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
-  <div class="history-header">
-    <button class="btn-clear-history" onclick="confirmClearHistory()">🗑️ XÓA TẤT CẢ</button>
-    <button class="btn-clear-history" style="background: var(--primary);" onclick="exportHistoryCSV()">📤 XUẤT CSV</button>
-  </div>
-  <div id="revCard" style="margin:10px 15px;background:#fff;border-radius:16px;padding:14px;box-shadow:0 4px 12px rgba(0,0,0,.05);border-left:5px solid #00bfa5;"></div>
-  <div id="historyList" style="padding-top: 10px;"><div class="history-loading">Đang tải lịch sử</div></div>
-</div>
-
-<!-- TAB TÔI -->
-<div id="tab-toi" class="tab-content">
-  <div class="p-header">HỒ SƠ CỦA TÔI</div>
-  <div class="profile-dashboard" id="profileDashboard">
-    <div class="profile-card">
-      <div class="profile-card-title"><i class="fas fa-id-card"></i> Thông tin tài xế</div>
-      <div class="driver-info-row">
-        <div class="driver-avatar-large">🧑</div>
-        <div class="driver-details">
-          <h3 id="profileNameFull">...</h3>
-          <p><i class="fas fa-id-badge"></i> Mã số: <span id="profileID">...</span></p>
-          <p><i class="fas fa-phone-alt"></i> <span id="profilePhone">...</span></p>
-          <p><i class="fas fa-star" style="color: var(--gold);"></i> Đánh giá: <span id="profileRating">5.0</span> ⭐</p>
+    <!-- SIDEBAR -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <button class="close-sidebar" onclick="closeSidebar()">✕</button>
+            <div class="driver-avatar" id="sidebarAvatar">🧑</div>
+            <div class="driver-name" id="sidebarName">Tài xế</div>
+            <div class="driver-phone" id="sidebarPhone">...</div>
         </div>
-      </div>
-    </div>
-    <div class="profile-card">
-      <div class="profile-card-title"><i class="fas fa-car"></i> Phương tiện</div>
-      <div class="vehicle-info">
-        <div class="vehicle-icon">🚕</div>
-        <div class="vehicle-details">
-          <p><i class="fas fa-charging-station"></i> Nhiên liệu: <span id="profileFuel">...</span></p>
-          <p><i class="fas fa-tachometer-alt"></i> Loại xe: <span id="profileCarClass">...</span></p>
-          <p><i class="fas fa-id-card"></i> Biển số: <span id="profilePlate">...</span></p>
-          <p><i class="fas fa-car-side"></i> Dòng xe: <span id="profileCarModel">...</span></p>
+        <div class="sidebar-menu" id="sidebarMenu">
+            <div class="sidebar-item" onclick="closeSidebar(); showTab('home', document.querySelector('.nav-item'))">
+                <i class="fas fa-home"></i><span>Trang chủ</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); showTab('vi', document.querySelector('.nav-item'))">
+                <i class="fas fa-wallet"></i><span>Ví tiền & Gói cước</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); showTab('lichsu', document.querySelector('.nav-item'))">
+                <i class="fas fa-history"></i><span>Lịch sử</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); showTab('toi', document.querySelector('.nav-item'))">
+                <i class="fas fa-user-circle"></i><span>Hồ sơ của tôi</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); openHeatmap()">
+                <i class="fas fa-fire"></i><span>Bản đồ nhiệt AI</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); openSOS()">
+                <i class="fas fa-phone-alt"></i><span>SOS cứu hộ</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); openMaintenance()">
+                <i class="fas fa-wrench"></i><span>Bảo dưỡng xe</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); openProfit()">
+                <i class="fas fa-chart-line"></i><span>Báo cáo doanh thu</span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); openXeGhepModule()">
+                <i class="fas fa-people-arrows"></i><span>🚐 XE GHÉP <span style="background:#00bfa5; padding:2px 6px; border-radius:10px; font-size:9px; margin-left:6px;">PRO</span></span>
+            </div>
+            <div class="sidebar-item" onclick="closeSidebar(); doLogout()">
+                <i class="fas fa-sign-out-alt"></i><span>Đăng xuất</span>
+            </div>
         </div>
-      </div>
-    </div>
-    <div class="profile-card">
-      <div class="profile-card-title"><i class="fas fa-chart-simple"></i> Trạng thái & Gói cước</div>
-      <div><span class="status-badge" id="profileStatusBadge"><i class="fas fa-circle"></i> ĐANG HOẠT ĐỘNG</span></div>
-      <div class="package-info">
-        <p><i class="fas fa-gem"></i> Gói cước: <strong id="profilePlan">...</strong></p>
-        <p><i class="fas fa-calendar-alt"></i> Hết hạn: <span id="profileExpiry">...</span></p>
-        <p><i class="fas fa-satellite-dish"></i> GPS: <span id="profileAccuracy">--</span></p>
-      </div>
-    </div>
-    <div class="profile-card">
-      <div class="profile-card-title"><i class="fas fa-chart-line"></i> Doanh thu tiền mặt</div>
-      <div class="wallet-info">
-        <div>
-          <div class="wallet-balance" id="walletBalance">0đ</div>
-          <div class="wallet-label">Tổng thu nhập bạn đã thu từ khách</div>
+        <div class="sidebar-footer">
+            <div class="badge" id="sidebarId" style="background:transparent; padding-left:0;">🆔 ...</div>
+            <div class="badge" id="sidebarPlan" style="background:transparent; padding-left:0; margin-top:5px;">⭐ ...</div>
         </div>
-        <i class="fas fa-wallet" style="font-size: 40px; color: var(--primary); opacity: 0.5;"></i>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
-        <div style="background:#f0f7ff;border-radius:10px;padding:8px;text-align:center;"><div style="font-size:9px;font-weight:800;color:#64748b;">HÔM NAY</div><div id="revToday" style="font-size:12px;font-weight:900;color:#0054a3;">0đ</div></div>
-        <div style="background:#f0fdf4;border-radius:10px;padding:8px;text-align:center;"><div style="font-size:9px;font-weight:800;color:#64748b;">TUẦN NÀY</div><div id="revWeek" style="font-size:12px;font-weight:900;color:#15803d;">0đ</div></div>
-        <div style="background:#fff7ed;border-radius:10px;padding:8px;text-align:center;"><div style="font-size:9px;font-weight:800;color:#64748b;">THÁNG NÀY</div><div id="revMonth" style="font-size:12px;font-weight:900;color:#c2410c;">0đ</div></div>
-      </div>
     </div>
-    <div class="profile-card">
-      <div class="profile-card-title"><i class="fas fa-shield-alt"></i> Xác thực tài khoản</div>
-      <div class="verification-status">
-        <div>
-          <span class="verify-badge" id="verifyBadge"><i class="fas fa-clock"></i> Chưa xác thực</span>
-          <div class="wallet-label" style="margin-top: 5px;">Tăng hạn mức nhận đơn</div>
+
+    <div class="fg-service-indicator" id="fgServiceIndicator"></div>
+    <div id="offlineBanner">📵 MẤT KẾT NỐI — DỮ LIỆU ĐƯỢC LƯU CỤC BỘ</div>
+
+    <div class="header">
+        <button class="menu-btn" onclick="openSidebar()">☰</button>
+        <button class="dark-toggle-btn" onclick="toggleDarkMode()" title="Chế độ tối">🌙</button>
+    </div>
+
+    <div class="gps-status-bar" id="gpsStatusBar" onclick="forceRefreshGPS()" title="Bấm để làm mới GPS" style="cursor:pointer;">
+        <div class="gps-dot" id="gpsDot"></div>
+        <span id="gpsStatusText">GPS: Đang tìm...</span>
+        <span style="margin-left:4px;font-size:9px;opacity:0.7;">↻</span>
+    </div>
+
+    <div class="stats-bar" id="statsUI">
+        <div class="stat-item">
+            <div class="stat-label">CƯỚC (VNĐ)</div>
+            <div id="cost" class="stat-value">0</div>
         </div>
-        <button class="btn-upload" onclick="openKYC()">📤 Tải lên giấy tờ</button>
-      </div>
-      <div id="uploadProgressContainer" style="display: none; margin-top: 12px;">
-        <div style="font-size: 11px; font-weight: 600; color: var(--primary);">Đang tải lên...</div>
-        <div class="upload-progress"><div class="upload-progress-bar" id="uploadProgressBar"></div></div>
-      </div>
-      <div id="uploadedDocuments" style="margin-top: 8px; font-size: 11px; color: #7f8c8d;"></div>
-    </div>
-    <div class="profile-card">
-      <div class="profile-card-title"><i class="fas fa-cog"></i> Hành động</div>
-      <div class="action-buttons">
-        <button class="btn-action btn-danger" onclick="confirmClearAllData()">🗑️ XÓA DỮ LIỆU</button>
-        <button class="btn-action btn-secondary" onclick="doLogout()">🚪 ĐĂNG XUẤT</button>
-      </div>
-    </div>
-  </div>
-</div>
+        <div class="stat-item">
+            <div class="stat-label">KHOẢNG CÁCH (KM)</div>
+            <div id="km" class="stat-value">0.00</div>
+        </div>
+    </div> 
+
+    <div id="map"></div> 
+    <div id="gapNotice" class="gap-notice">📡 PHÁT HIỆN MẤT SÓNG - ĐANG BÙ CƯỚC...</div>
+    <div id="aiAlert" class="ai-alert"><i class="fas fa-robot"></i><span id="aiAlertText">AI phát hiện gian lận</span></div>
+
+    <!-- TAB VÍ TIỀN -->
+    <div id="tab-vi" class="tab-content">
+        <div class="p-header"><div style="font-size: 20px; font-weight: 800;">HỆ THỐNG GÓI CƯỚC</div><div id="trialBox" style="font-size: 11px; opacity: 0.9;">💳 THANH TOÁN QUA PAYOS</div></div>
+        <div class="p-grid">
+            <div class="p-card" onclick="handlePayment(0, 'TRIAL 7D')"><div class="tp-badge-trial">KHUYÊN DÙNG</div><b>TRẢI NGHIỆM</b><span>0đ</span><ul><li>✅ Dùng thử 7 ngày</li><li>✅ Đầy đủ tính năng</li></ul><div class="p-btn">KÍCH HOẠT</div></div>
+            <div class="p-card" onclick="handlePayment(5000, 'LẺ')"><b>CHUYẾN LẺ</b><span>5.000đ</span><ul><li>✅ Sử dụng trong 24h</li><li>✅ GPS Bù điểm sóng</li></ul><div class="p-btn">NẠP NGAY</div></div>
+            <div class="p-card" onclick="handlePayment(49000, 'PRO')"><b>GÓI PRO</b><span>49.000đ</span><ul><li>✅ Sử dụng 30 ngày</li><li>✅ Radar tìm khách</li></ul><div class="p-btn">NẠP NGAY</div></div>
+            <div class="p-card" onclick="handlePayment(129000, 'PROMAX')"><b>PRO MAX</b><span>129.000đ</span><ul><li>✅ Sử dụng 90 ngày</li><li>✅ Trợ lý AI đặc quyền</li></ul><div class="p-btn">NẠP NGAY</div></div>
+        </div>
+        <div class="tp-new-container">
+            <div style="font-size: 11px; font-weight: 900; color: var(--dark); margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px;">CÔNG CỤ HỖ TRỢ TÀI XẾ</div>
+            <div class="tp-grid-4">
+                <div class="tp-feature-card" onclick="openHeatmap()"><i>📡</i><span>BẢN ĐỒ NHIỆT AI</span><p>Điểm nóng khách</p></div>
+                <div class="tp-feature-card" onclick="openSOS()"><i>🆘</i><span>SOS CỨU HỘ</span><p>Cộng đồng trợ giúp</p></div>
+                <div class="tp-feature-card" onclick="openMaintenance()"><i>🛠️</i><span>TRỢ LÝ BẢO DƯỠNG</span><p>Nhắc thay dầu, lốp</p></div>
+                <div class="tp-feature-card" onclick="openProfit()"><i>📈</i><span>BÁO CÁO LỢI NHUẬN</span><p>Thống kê thực tế</p></div>
+            </div>
+        </div>
+    </div> 
+
+    <!-- TAB LỊCH SỬ -->
+    <div id="tab-lichsu" class="tab-content">
+        <div class="p-header">LỊCH SỬ CHUYẾN ĐI</div>
+        <div class="history-header">
+            <button class="btn-clear-history" onclick="confirmClearHistory()">🗑️ XÓA TẤT CẢ</button>
+            <button class="btn-clear-history" style="background: var(--primary);" onclick="exportHistoryCSV()">📤 XUẤT CSV</button>
+        </div>
+        <div id="historyList" style="padding-top: 10px;"><div class="history-loading">Đang tải lịch sử</div></div>
+    </div> 
+
+    <!-- TAB TÔI -->
+    <div id="tab-toi" class="tab-content">
+        <div class="p-header">HỒ SƠ CỦA TÔI</div>
+        <div class="profile-dashboard" id="profileDashboard">
+            <div class="profile-card">
+                <div class="profile-card-title"><i class="fas fa-id-card"></i> Thông tin tài xế</div>
+                <div class="driver-info-row">
+                    <div class="driver-avatar-large">🧑</div>
+                    <div class="driver-details">
+                        <h3 id="profileNameFull">...</h3>
+                        <p><i class="fas fa-id-badge"></i> Mã số: <span id="profileID">...</span></p>
+                        <p><i class="fas fa-phone-alt"></i> <span id="profilePhone">...</span></p>
+                        <p><i class="fas fa-star" style="color: var(--gold);"></i> Đánh giá: <span id="profileRating">5.0</span> ⭐</p>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-card">
+                <div class="profile-card-title"><i class="fas fa-car"></i> Phương tiện</div>
+                <div class="vehicle-info">
+                    <div class="vehicle-icon">🚕</div>
+                    <div class="vehicle-details">
+                        <p><i class="fas fa-charging-station"></i> Nhiên liệu: <span id="profileFuel">...</span></p>
+                        <p><i class="fas fa-tachometer-alt"></i> Loại xe: <span id="profileCarClass">...</span></p>
+                        <p><i class="fas fa-id-card"></i> Biển số: <span id="profilePlate">...</span></p>
+                        <p><i class="fas fa-car-side"></i> Dòng xe: <span id="profileCarModel">...</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-card">
+                <div class="profile-card-title"><i class="fas fa-chart-simple"></i> Trạng thái & Gói cước</div>
+                <div>
+                    <span class="status-badge" id="profileStatusBadge"><i class="fas fa-circle"></i> ĐANG HOẠT ĐỘNG</span>
+                </div>
+                <div class="package-info">
+                    <p><i class="fas fa-gem"></i> Gói cước: <strong id="profilePlan">...</strong></p>
+                    <p><i class="fas fa-calendar-alt"></i> Hết hạn: <span id="profileExpiry">...</span></p>
+                    <p><i class="fas fa-satellite-dish"></i> GPS: <span id="profileAccuracy">--</span></p>
+                    <p><i class="fas fa-microchip"></i> Chế độ nền: <span id="profileBgStatus">--</span></p>
+                </div>
+            </div>
+            <div class="profile-card">
+                <div class="profile-card-title"><i class="fas fa-coins"></i> Ví tiền</div>
+                <div class="wallet-info">
+                    <div>
+                        <div class="wallet-balance" id="walletBalance">0đ</div>
+                        <div class="wallet-label">Số dư khả dụng</div>
+                    </div>
+                    <i class="fas fa-wallet" style="font-size: 40px; color: var(--primary); opacity: 0.5;"></i>
+                </div>
+            </div>
+            <div class="profile-card">
+                <div class="profile-card-title"><i class="fas fa-shield-alt"></i> Xác thực tài khoản</div>
+                <div class="verification-status">
+                    <div>
+                        <span class="verify-badge" id="verifyBadge"><i class="fas fa-clock"></i> Chưa xác thực</span>
+                        <div class="wallet-label" style="margin-top: 5px;">Tăng hạn mức nhận đơn</div>
+                    </div>
+                    <button class="btn-upload" onclick="openVerificationUpload()">📤 Tải lên giấy tờ</button>
+                </div>
+                <div id="uploadProgressContainer" style="display: none; margin-top: 12px;">
+                    <div style="font-size: 11px; font-weight: 600; color: var(--primary);">Đang tải lên...</div>
+                    <div class="upload-progress"><div class="upload-progress-bar" id="uploadProgressBar"></div></div>
+                </div>
+                <div id="uploadedDocuments" style="margin-top: 8px; font-size: 11px; color: #7f8c8d;"></div>
+            </div>
+            <div class="profile-card">
+                <div class="profile-card-title"><i class="fas fa-cog"></i> Hành động</div>
+                <div class="action-buttons">
+                    <button class="btn-action btn-danger" onclick="confirmClearAllData()">🗑️ XÓA DỮ LIỆU</button>
+                    <button class="btn-action btn-secondary" onclick="doLogout()">🚪 ĐĂNG XUẤT</button>
+                </div>
+            </div>
+        </div>
+    </div> 
 
 <!-- FOOTER -->
 <div class="footer-panel">
-  <div id="homeControls">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <div class="online-toggle-row">
-          <div class="toggle-switch-small active" id="onlineToggleSwitch" onclick="toggleOnlineStatus()"></div>
-          <span id="onlineTextStatus">Online</span>
+    <div id="homeControls">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:12px; font-weight:800;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <!-- Nút Online/Offline (ở vị trí GIÁ/KM cũ) -->
+                <div class="online-toggle-row">
+                    <!-- Đã xóa icon 📡 -->
+                    <div class="toggle-switch-small active" id="onlineToggleSwitch" onclick="toggleOnlineStatus()"></div>
+                    <span id="onlineTextStatus">Online</span>
+                </div>
+                <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">⏳ <span id="tp-cd-val">00:00</span></div>
+            </div>
+            <!-- GIÁ/KM chuyển ra sát số tiền -->
+            <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ <span style="font-weight:800;color:#7f8c8d;font-size:10px;">/KM</span></span>
         </div>
-        <div id="tp-mini-timer" class="tp-pill-timer" style="display:none;">⏳ <span id="tp-cd-val">00:00</span></div>
-      </div>
-      <span style="color:var(--danger)"><span id="rateLabel">15,000</span>đ <span style="font-weight:800;color:#7f8c8d;font-size:10px;">/KM</span><span id="surgeBadge" class="surge-badge" style="display:none;"></span></span>
+        <!-- Giữ nguyên thanh trượt -->
+        <input type="range" id="priceSlider" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
+        <button id="mainBtn" class="btn-main" onclick="handleTrip()">🚖 BẮT ĐẦU CHUYẾN ĐI</button>
     </div>
-    <input type="range" id="priceSlider" min="10000" max="50000" step="1000" value="15000" oninput="updateRate(this.value)">
-    <button id="mainBtn" class="btn-main" onclick="handleTrip()">🚖 BẮT ĐẦU CHUYẾN ĐI</button>
-  </div>
-  <div class="nav-grid">
-    <button class="nav-item active" onclick="showTab('home', this)"><div class="nav-ico"><i class="fas fa-house"></i></div><span class="nav-lab">Trang chủ</span></button>
-    <button class="nav-item" onclick="showTab('vi', this)"><div class="nav-ico"><i class="fas fa-wallet"></i></div><span class="nav-lab">Ví tiền</span></button>
-    <button class="nav-item" onclick="showTab('lichsu', this)"><div class="nav-ico"><i class="fas fa-chart-line"></i></div><span class="nav-lab">Lịch sử</span></button>
-    <button class="nav-item" onclick="showTab('toi', this)"><div class="nav-ico"><i class="fas fa-user"></i></div><span class="nav-lab">Tôi</span></button>
-  </div>
-  <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
-</div>
-
-<!-- MODALS -->
-<div id="orderModal" class="custom-modal">
-  <div class="modal-content">
-    <h2 style="color:var(--danger); margin:0 0 5px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
-    <div class="tp-countdown-wrapper"><span id="tp-modal-timer-val">15</span></div>
-    <div style="text-align:left; background:#f5f6fa; padding:15px; border-radius:15px; margin-bottom:15px; font-size:13px; color:#333; line-height:1.5;">
-      <p style="margin:4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color:var(--primary); font-weight:900;">...</span></p>
-      <p style="margin:4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
-      <p style="margin:4px 0;">🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
-      <p style="margin:4px 0;">👥 <b>Khách hàng:</b> <span id="modalClientName">...</span></p>
-      <p style="margin:4px 0;">🚗 <b>Loại xe:</b> <span id="modalCarType" style="color:var(--gold); font-weight:bold;">4 Chỗ</span></p>
-    </div>
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-      <button class="btn-main" style="background:#7f8c8d; font-size:14px; padding:12px;" onclick="declineOrder()">BỎ QUA</button>
-      <button class="btn-main" style="background:var(--primary); font-size:14px; padding:12px;" onclick="acceptOrder()">ĐÓN KHÁCH</button>
-    </div>
-  </div>
-</div>
-
-<div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div>
-
-<div class="confirm-dialog" id="confirmDialog"><div class="confirm-content"><div class="confirm-title">🏁 XÁC NHẬN</div><div class="confirm-message" id="confirmMessage">Bạn có chắc chắn muốn thực hiện?</div><div class="confirm-buttons"><button class="btn-cancel" onclick="closeConfirmDialog()">HỦY</button><button class="btn-confirm" id="confirmOkBtn">ĐỒNG Ý</button></div></div></div>
-
-<div id="txToast"></div>
-<div id="cancelBanner" onclick="dismissCancelBanner()">⚠️ KHÁCH HÀNG ĐÃ HỦY CHUYẾN — Bấm để xác nhận</div>
-
-<!-- CHAT OVERLAY -->
-<div class="chat-overlay" id="chatOverlay">
-  <div class="chat-container">
-    <div class="chat-header"><div style="font-size: 16px; font-weight: 800;"><i class="fas fa-comments" style="color: var(--accent);"></i> Nhắn khách hàng</div><button class="chat-close" onclick="closeChat()">✕</button></div>
-    <div class="chat-messages" id="chatMessages"><div style="text-align: center; color: #999; padding: 20px;">Bắt đầu trò chuyện...</div></div>
-    <div class="chat-quick-row">
-      <button class="chat-quick-btn" onclick="sendQuickMessage('🚗 Tôi đang đến đón')">🚗 Đang đến</button>
-      <button class="chat-quick-btn" onclick="sendQuickMessage('📍 Tôi đã đến điểm đón')">📍 Đã đến</button>
-      <button class="chat-quick-btn" onclick="sendQuickMessage('✅ Tôi đã đón khách')">✅ Đã đón</button>
-      <button class="chat-quick-btn" onclick="sendQuickMessage('🏁 Đang đến điểm trả')">🏁 Đến điểm trả</button>
-    </div>
-    <div class="chat-input-row"><input type="text" class="chat-input" id="chatInput" placeholder="Nhắn tin..." onkeydown="if(event.key==='Enter') sendChatMessage()"><button class="chat-send" onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button></div>
-  </div>
-</div>
-
-<!-- TRIP INFO PANEL -->
-<div id="tripInfoPanel">
-  <div class="trip-status-bar"><div class="trip-status-dot"></div><div class="trip-status-text" id="tripStatusText">🚗 ĐANG CHẠY CHUYẾN</div><div class="trip-km-live" id="tripKmLive">0.00 KM</div></div>
-  <div class="trip-customer-card"><div class="trip-avatar">🧑</div><div class="trip-customer-info"><div class="trip-customer-name" id="tripClientName">Đang tải...</div><div class="trip-customer-phone" id="tripClientPhone">...</div></div><button class="trip-call-btn" onclick="callCustomer()">📞</button><button class="trip-chat-btn" onclick="openChat()">💬</button></div>
-  <div class="trip-route-card"><div class="trip-route-row"><div class="trip-route-icon">📍</div><div><div class="trip-route-label">Điểm đón</div><div class="trip-route-val" id="tripFrom">...</div></div></div><hr class="trip-route-divider"><div class="trip-route-row"><div class="trip-route-icon">🏁</div><div><div class="trip-route-label">Điểm đến</div><div class="trip-route-val" id="tripTo">...</div></div></div></div>
-  <div class="trip-price-row"><div><div class="trip-price-label">GIÁ HIỆN TẠI</div><div class="trip-price-val" id="tripPrice">0đ</div></div><div style="text-align:right;"><div class="trip-price-km" id="tripEstKm"></div><div class="trip-price-km" id="tripCarType"></div></div></div>
-  <div class="trip-action-buttons" id="tripActionButtons"><button class="btn-pickup" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button><button class="btn-nav" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button></div>
-  <button class="trip-end-btn" id="endTripBtn" onclick="showConfirmComplete()" style="display: none;">🏁 HOÀN THÀNH CHUYẾN</button>
-</div>
-
-<!-- AUTH SCREEN -->
-<div class="auth-screen" id="authScreen">
-  <div class="auth-logo">🚖</div>
-  <div class="auth-title">TAXI PROMAX</div>
-  <div class="auth-subtitle">Đối tác tài xế — Thu nhập cao, an toàn</div>
-  <div class="auth-box">
-    <div id="stepRegister">
-      <input type="text" class="auth-input" id="regName" placeholder="Họ và tên" maxlength="50">
-      <input type="tel" class="auth-input" id="regPhone" placeholder="Số điện thoại" maxlength="10">
-      <input type="password" class="auth-input" id="regPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" maxlength="20">
-      <input type="text" class="auth-input" id="regCccd" placeholder="CCCD/CMND (12 số)" maxlength="12">
-      <div class="input-row"><input type="text" class="auth-input" id="regPlate" placeholder="Biển số xe" maxlength="15"><input type="text" class="auth-input" id="regCarModel" placeholder="Dòng xe" maxlength="30"></div>
-      <div class="radio-group"><label class="radio-label"><input type="radio" name="fuelType" value="xang" checked> ⛽ Xăng</label><label class="radio-label"><input type="radio" name="fuelType" value="dien"> 🔋 Điện</label></div>
-      <div class="radio-group"><label class="radio-label"><input type="radio" name="carClass" value="4_seats" checked> 🚗 4 Chỗ</label><label class="radio-label"><input type="radio" name="carClass" value="7_seats"> 🚙 7 Chỗ</label></div>
-      <button class="auth-btn" id="btnRegister" onclick="doRegister()"><i class="fas fa-user-plus"></i> <span id="btnRegText">ĐĂNG KÝ TÀI XẾ</span></button>
-      <div class="auth-error" id="regError"></div>
-    </div>
-    <div id="stepLogin" style="display:none;">
-      <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
-      <input type="password" class="auth-input" id="loginPassword" placeholder="Mật khẩu">
-      <button class="auth-btn" id="btnLogin" onclick="doLogin()"><i class="fas fa-sign-in-alt"></i> <span id="btnLoginText">ĐĂNG NHẬP</span></button>
-      <div class="auth-error" id="loginError"></div>
-      <button class="forgot-btn" onclick="doForgotPassword()">🔑 Quên mật khẩu?</button>
-    </div>
-    <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">Đã có tài khoản? Đăng nhập</button>
-    <nav style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:11px;">
-      <a href="/khachhang" style="color:var(--primary);font-weight:700;text-decoration:none;">Khách hàng</a>
-      <a href="/xeghep" style="color:var(--primary);font-weight:700;text-decoration:none;">Xe ghép</a>
-    </nav>
-  </div>
-</div>
-
-<!-- MODULE XE GHÉP -->
-<div id="xeGhepModal" class="custom-modal" style="z-index: 20001;">
-  <div class="modal-content" style="max-width: 500px; width: 92%; max-height: 85vh; overflow-y: auto; padding: 0;">
-    <div style="background: linear-gradient(135deg, #0054a3, #00bfa5); padding: 16px; border-radius: 25px 25px 0 0; color: white; display: flex; justify-content: space-between; align-items: center;">
-      <div><i class="fas fa-people-arrows" style="font-size: 20px;"></i><span style="font-weight: 800; margin-left: 8px;">XE GHÉP PROMAX</span></div>
-      <button onclick="closeXeGhepModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer;">✕</button>
-    </div>
-    <div style="padding: 16px;">
-      <div style="display: flex; gap: 8px; background: #f0f0f0; padding: 4px; border-radius: 30px; margin-bottom: 20px;" id="xgTabBar">
-        <button id="xgTabDriver" onclick="switchXGTab('driver')" style="flex: 1; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #0054a3; color: white;">🚗 ĐĂNG CHUYẾN</button>
-        <button id="xgTabPassenger" onclick="switchXGTab('passenger')" style="flex: 1; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #e0e0e0;">👥 TÌM CHUYẾN</button>
-      </div>
-      <div id="xgDriverPanel">
-        <div id="xgPackageAlert" style="background: #fff3cd; padding: 12px; border-radius: 12px; margin-bottom: 16px; display: none;">
-          <i class="fas fa-gem" style="color: #f39c12;"></i>
-          <span id="xgPackageText">Bạn chưa đăng ký gói Xe Ghép</span>
-          <button onclick="showXGPayment()" style="background: #f39c12; border: none; padding: 4px 12px; border-radius: 20px; color: white; font-weight: 700; margin-left: 8px; cursor: pointer;">ĐĂNG KÝ</button>
+        <div class="nav-grid">
+            <button class="nav-item active" onclick="showTab('home', this)"><i class="fas fa-home"></i><span class="nav-lab">Trang chủ</span></button>
+            <button class="nav-item" onclick="showTab('vi', this)"><i class="fas fa-wallet"></i><span class="nav-lab">Ví tiền</span></button>
+            <button class="nav-item" onclick="showTab('lichsu', this)"><i class="fas fa-history"></i><span class="nav-lab">Lịch sử</span></button>
+            <button class="nav-item" onclick="showTab('toi', this)"><i class="fas fa-user"></i><span class="nav-lab">Tôi</span></button>
         </div>
-        <div style="display: grid; gap: 12px;">
-          <input type="text" id="xgPickup" placeholder="📍 Điểm đón" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-          <input type="text" id="xgDropoff" placeholder="🏁 Điểm trả" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-          <input type="datetime-local" id="xgDepartureTime" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <input type="number" id="xgPrice" placeholder="💰 Giá/ghế" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-            <input type="number" id="xgSeats" placeholder="💺 Số ghế" value="3" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-          </div>
-          <select id="xgVehicle" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-            <option value="4-xang">🚗 4 chỗ - Xăng</option>
-            <option value="7-xang">🚙 7 chỗ - Xăng</option>
-            <option value="4-dien">⚡ 4 chỗ - Điện</option>
-            <option value="7-dien">🔋 7 chỗ - Điện</option>
-          </select>
-          <input type="text" id="xgDriverName" placeholder="👨 Tên tài xế" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-          <input type="tel" id="xgPhone" placeholder="📞 Số điện thoại" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
-          <button onclick="publishXGRide()" style="background: linear-gradient(135deg, #0054a3, #00bfa5); color: white; padding: 14px; border: none; border-radius: 16px; font-weight: 800; font-size: 16px;">✅ ĐĂNG CHUYẾN</button>
+        <div class="brand-footer">PHÁT TRIỂN BỞI: NGUYEN XUAN DAT</div>
+    </div> 
+
+    <!-- MODALS -->
+    <div id="orderModal" class="custom-modal">
+        <div class="modal-content">
+            <h2 style="color:var(--danger); margin:0 0 5px 0; font-size: 20px;">🚨 CÓ ĐƠN ĐẶT XE MỚI!</h2>
+            <div class="tp-countdown-wrapper"><span id="tp-modal-timer-val">15</span></div>
+            <div style="text-align:left; background:#f5f6fa; padding:15px; border-radius:15px; margin-bottom:15px; font-size:13px; color:#333; line-height:1.5;">
+                <p style="margin:4px 0;">📞 <b>SĐT:</b> <span id="modalPhone" style="color:var(--primary); font-weight:900;">...</span></p>
+                <p style="margin:4px 0;">📍 <b>Đón:</b> <span id="modalFrom">...</span></p>
+                <p style="margin:4px 0;">🏁 <b>Đến:</b> <span id="modalTo">...</span></p>
+                <p style="margin:4px 0;">👥 <b>Khách hàng:</b> <span id="modalClientName">...</span></p>
+                <p style="margin:4px 0;">🚗 <b>Loại xe:</b> <span id="modalCarType" style="color:var(--gold); font-weight:bold;">4 Chỗ</span></p>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button class="btn-main" style="background:#7f8c8d; font-size:14px; padding:12px;" onclick="declineOrder()">BỎ QUA</button>
+                <button class="btn-main" style="background:var(--primary); font-size:14px; padding:12px;" onclick="acceptOrder()">ĐÓN KHÁCH</button>
+            </div>
         </div>
-      </div>
-      <div id="xgPassengerPanel" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <span style="font-weight: 700;">📋 DANH SÁCH CHUYẾN</span>
-          <button onclick="loadXGRides()" style="background: #0054a3; color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 11px; cursor: pointer;"><i class="fas fa-sync-alt"></i> Làm mới</button>
-        </div>
-        <div id="xgRidesList" style="max-height: 500px; overflow-y: auto;"></div>
-      </div>
     </div>
-  </div>
-</div>
 
-<!-- ========== LIBS (CDN) ========== -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <div id="wishModal" class="custom-modal"><div class="modal-content"><h3 style="color:var(--primary)">THƯỢNG LỘ BÌNH AN!</h3><p>Hệ thống bảo mật & GPS cao cấp đã sẵn sàng.</p><button class="btn-main" onclick="closeModal('wishModal')">ĐỒNG Ý</button></div></div>
+    <div id="endModal" class="custom-modal"><div class="modal-content"><h3>HOÀN THÀNH!</h3><div id="endSummary" style="padding: 15px 0;"></div><button class="btn-main" onclick="closeModal('endModal')">XÁC NHẬN</button></div></div> 
+    <div class="confirm-dialog" id="confirmDialog"><div class="confirm-content"><div class="confirm-title">🏁 XÁC NHẬN</div><div class="confirm-message" id="confirmMessage">Bạn có chắc chắn muốn thực hiện?</div><div class="confirm-buttons"><button class="btn-cancel" onclick="closeConfirmDialog()">HỦY</button><button class="btn-confirm" id="confirmOkBtn">ĐỒNG Ý</button></div></div></div>
+    <div id="txToast"></div>
+    <div id="cancelBanner" onclick="dismissCancelBanner()">⚠️ KHÁCH HÀNG ĐÃ HỦY CHUYẾN — Bấm để xác nhận</div>
 
-<!-- ========== CORE (thứ tự load quan trọng) ========== -->
-<script src="js/core/01-config.js"></script>
-<script src="js/core/02-utils.js"></script>
-<script src="js/core/03-auth.js"></script>
-<script src="js/core/04-gps.js"></script>
-<script src="js/core/05-map.js"></script>
-<script src="js/core/06-payment.js"></script>
-<script src="js/core/07-order.js"></script>
-<script src="js/core/08-trip.js"></script>
-<script src="js/core/09-history.js"></script>
-<script src="js/core/10-chat.js"></script>
-<script src="js/core/11-ui.js"></script>
+    <!-- CHAT OVERLAY -->
+    <div class="chat-overlay" id="chatOverlay">
+        <div class="chat-container">
+            <div class="chat-header"><div style="font-size: 16px; font-weight: 800;"><i class="fas fa-comments" style="color: var(--accent);"></i> Nhắn khách hàng</div><button class="chat-close" onclick="closeChat()">✕</button></div>
+            <div class="chat-messages" id="chatMessages"><div style="text-align: center; color: #999; padding: 20px;">Bắt đầu trò chuyện...</div></div>
+            <div class="chat-quick-row"><button class="chat-quick-btn" onclick="sendQuickMessage('🚗 Tôi đang đến đón')">🚗 Đang đến</button><button class="chat-quick-btn" onclick="sendQuickMessage('📍 Tôi đã đến điểm đón')">📍 Đã đến</button><button class="chat-quick-btn" onclick="sendQuickMessage('✅ Tôi đã đón khách')">✅ Đã đón</button><button class="chat-quick-btn" onclick="sendQuickMessage('🏁 Đang đến điểm trả')">🏁 Đến điểm trả</button></div>
+            <div class="chat-input-row"><input type="text" class="chat-input" id="chatInput" placeholder="Nhắn tin..." onkeydown="if(event.key==='Enter') sendChatMessage()"><button class="chat-send" onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button></div>
+        </div>
+    </div>
 
-<!-- ========== MODULES ========== -->
-<script src="js/modules/xeghep.js"></script>
-<script src="js/modules/ai.js"></script>
-<script src="js/modules/kyc.js"></script>
-<script src="js/modules/features.js"></script>
+    <!-- TRIP INFO PANEL -->
+    <div id="tripInfoPanel">
+        <div class="trip-status-bar"><div class="trip-status-dot"></div><div class="trip-status-text" id="tripStatusText">🚗 ĐANG CHẠY CHUYẾN</div><div class="trip-km-live" id="tripKmLive">0.00 KM</div></div>
+        <div class="trip-customer-card"><div class="trip-avatar">🧑</div><div class="trip-customer-info"><div class="trip-customer-name" id="tripClientName">Đang tải...</div><div class="trip-customer-phone" id="tripClientPhone">...</div></div><button class="trip-call-btn" id="tripCallBtn" onclick="callCustomer()">📞</button><button class="trip-chat-btn" id="tripChatBtn" onclick="openChat()">💬</button></div>
+        <div class="trip-route-card"><div class="trip-route-row"><div class="trip-route-icon">📍</div><div><div class="trip-route-label">Điểm đón</div><div class="trip-route-val" id="tripFrom">...</div></div></div><hr class="trip-route-divider"><div class="trip-route-row"><div class="trip-route-icon">🏁</div><div><div class="trip-route-label">Điểm đến</div><div class="trip-route-val" id="tripTo">...</div></div></div></div>
+        <div class="trip-price-row"><div><div class="trip-price-label">GIÁ HIỆN TẠI</div><div class="trip-price-val" id="tripPrice">0đ</div></div><div style="text-align:right;"><div class="trip-price-km" id="tripEstKm"></div><div class="trip-price-km" id="tripCarType"></div></div></div>
+        <div class="trip-action-buttons" id="tripActionButtons"><button class="btn-pickup" id="pickupBtn" onclick="confirmPickup()">✅ ĐÃ ĐÓN KHÁCH</button><button class="btn-nav" id="navToPickupBtn" onclick="navigateToPickup()">🧭 CHỈ ĐƯỜNG ĐÓN</button></div>
+        <button class="trip-end-btn" id="endTripBtn" onclick="showConfirmComplete()" style="display: none;">🏁 KẾT THÚC CHUYẾN ĐI</button>
+    </div>
 
-<!-- ========== APP BOOT ========== -->
-<script src="js/app.js"></script>
+    <!-- STREET HAIL METER -->
+    <div class="street-hail-meter" id="streetHailMeter">
+        <div class="meter-main-display"><div class="meter-time" id="meterTime">00:00:00</div><div class="meter-fare" id="meterFare">0đ</div><div class="meter-fare-label">TỔNG CƯỚC</div></div>
+        <div class="meter-stats"><div class="meter-stat-box"><div class="meter-stat-label">QUÃNG ĐƯỜNG</div><div class="meter-stat-value" id="meterDistance">0.00 km</div></div><div class="meter-stat-box"><div class="meter-stat-label">GIÁ/KM</div><div class="meter-stat-value" id="meterRate">15.000đ</div></div></div>
+        <button class="meter-close-btn" onclick="closeStreetHailMeter()">🏁 KẾT THÚC CHUYẾN</button>
+    </div>
+
+    <!-- AUTH SCREEN -->
+    <div class="auth-screen" id="authScreen">
+        <div class="auth-logo">🚖</div>
+        <div class="auth-title">TAXI PROMAX</div>
+        <div class="auth-subtitle">Đối tác tài xế — Thu nhập cao, an toàn</div>
+        <div class="auth-box">
+            <div id="stepRegister">
+                <input type="text" class="auth-input" id="regName" placeholder="Họ và tên" maxlength="50">
+                <input type="tel" class="auth-input" id="regPhone" placeholder="Số điện thoại" maxlength="10">
+                <input type="password" class="auth-input" id="regPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" maxlength="20">
+                <input type="text" class="auth-input" id="regCccd" placeholder="CCCD/CMND (12 số)" maxlength="12">
+                <div class="input-row"><input type="text" class="auth-input" id="regPlate" placeholder="Biển số xe" maxlength="15"><input type="text" class="auth-input" id="regCarModel" placeholder="Dòng xe" maxlength="30"></div>
+                <div class="radio-group"><label class="radio-label"><input type="radio" name="fuelType" value="xang" checked> ⛽ Xăng</label><label class="radio-label"><input type="radio" name="fuelType" value="dien"> 🔋 Điện</label></div>
+                <div class="radio-group"><label class="radio-label"><input type="radio" name="carClass" value="4_seats" checked> 🚗 4 Chỗ</label><label class="radio-label"><input type="radio" name="carClass" value="7_seats"> 🚙 7 Chỗ</label></div>
+                <button class="auth-btn" id="btnRegister" onclick="doRegister()"><i class="fas fa-user-plus"></i><span id="btnRegText">ĐĂNG KÝ TÀI XẾ</span></button>
+                <div class="auth-error" id="regError"></div>
+            </div>
+            <div id="stepLogin" style="display:none;">
+                <input type="tel" class="auth-input" id="loginPhone" placeholder="Số điện thoại đã đăng ký">
+                <input type="password" class="auth-input" id="loginPassword" placeholder="Mật khẩu">
+                <button class="auth-btn" id="btnLogin" onclick="doLogin()"><i class="fas fa-sign-in-alt"></i><span id="btnLoginText">ĐĂNG NHẬP</span></button>
+                <div class="auth-error" id="loginError"></div>
+            </div>
+            <button class="auth-toggle" id="btnToggle" onclick="toggleAuth()">Đã có tài khoản? Đăng nhập</button>
+            <nav aria-label="Chuyển phân hệ" style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:11px;">
+                <a href="/khachhang" style="color:var(--primary);font-weight:700;text-decoration:none;">Khách hàng</a>
+                <a href="/xeghep" style="color:var(--primary);font-weight:700;text-decoration:none;">Xe ghép</a>
+            </nav>
+        </div>
+        <div style="margin-top: 20px; text-align: center; font-size: 10px; color: #64748b;">Bằng việc tiếp tục, bạn đồng ý với <a href="#" style="color: var(--primary);">Điều khoản</a></div>
+    </div>
+
+    <!-- MODULE XE GHÉP -->
+    <div id="xeGhepModal" class="custom-modal" style="z-index: 20001;">
+        <div class="modal-content" style="max-width: 500px; width: 92%; max-height: 85vh; overflow-y: auto; padding: 0;">
+            <div style="background: linear-gradient(135deg, #0054a3, #00bfa5); padding: 16px; border-radius: 25px 25px 0 0; color: white; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <i class="fas fa-people-arrows" style="font-size: 20px;"></i>
+                    <span style="font-weight: 800; margin-left: 8px;">XE GHÉP PROMAX</span>
+                </div>
+                <button onclick="closeXeGhepModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+            
+            <div style="padding: 16px;">
+                <div style="display: flex; gap: 8px; background: #f0f0f0; padding: 4px; border-radius: 30px; margin-bottom: 20px; overflow-x: auto;" id="xgTabBar">
+                    <button id="xgTabDriver" onclick="switchXGTab('driver')" style="flex: 1; min-width: 80px; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #0054a3; color: white;">🚗 ĐĂNG CHUYẾN</button>
+                    <button id="xgTabPassenger" onclick="switchXGTab('passenger')" style="flex: 1; min-width: 80px; padding: 10px; border: none; border-radius: 30px; font-weight: 800; background: #e0e0e0;">👥 TÌM CHUYẾN</button>
+                </div>
+                
+                <div id="xgDriverPanel">
+                    <div id="xgPackageAlert" style="background: #fff3cd; padding: 12px; border-radius: 12px; margin-bottom: 16px; display: none;">
+                        <i class="fas fa-gem" style="color: #f39c12;"></i>
+                        <span id="xgPackageText" style="font-size: 12px; font-weight: 600;">Bạn chưa đăng ký gói Xe Ghép</span>
+                        <button onclick="showXGPayment()" style="background: #f39c12; border: none; padding: 4px 12px; border-radius: 20px; color: white; font-weight: 700; margin-left: 8px; cursor: pointer;">ĐĂNG KÝ</button>
+                    </div>
+                    
+                    <div style="display: grid; gap: 12px;">
+                        <input type="text" id="xgPickup" placeholder="📍 Điểm đón (VD: Quảng Yên)" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                        <input type="text" id="xgDropoff" placeholder="🏁 Điểm trả (VD: Móng Cái)" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                        <input type="datetime-local" id="xgDepartureTime" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <input type="number" id="xgPrice" placeholder="💰 Giá mỗi ghế" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                            <input type="number" id="xgSeats" placeholder="💺 Số ghế còn" value="3" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                        </div>
+                        <select id="xgVehicle" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                            <option value="4-xang">🚗 4 chỗ - Xăng</option>
+                            <option value="7-xang">🚙 7 chỗ - Xăng</option>
+                            <option value="4-dien">⚡ 4 chỗ - Điện</option>
+                            <option value="7-dien">🔋 7 chỗ - Điện</option>
+                        </select>
+                        <input type="text" id="xgDriverName" placeholder="👨 Tên tài xế" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                        <input type="tel" id="xgPhone" placeholder="📞 Số điện thoại" style="padding: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                        <button onclick="publishXGRide()" style="background: linear-gradient(135deg, #0054a3, #00bfa5); color: white; padding: 14px; border: none; border-radius: 16px; font-weight: 800; font-size: 16px;">✅ ĐĂNG CHUYẾN</button>
+                    </div>
+                </div>
+                
+                <div id="xgPassengerPanel" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-weight: 700;">📋 DANH SÁCH CHUYẾN XE GHÉP</span>
+                        <button onclick="loadXGRides()" style="background: #0054a3; color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 11px; cursor: pointer;"><i class="fas fa-sync-alt"></i> Làm mới</button>
+                    </div>
+                    <div id="xgRidesList" style="max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+                        <div style="text-align: center; padding: 30px; color: #999;">Đang tải...</div>
+                    </div>
+                </div>
+                
+                <button onclick="closeXeGhepModal()" style="width: 100%; margin-top: 20px; padding: 12px; background: #e0e0e0; border: none; border-radius: 12px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-arrow-left"></i> Quay về trang chủ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== AUTONOMOUS CORE CLIENT ========== -->
+    <script src="/autonomous-client.js"></script>
+
+    <!-- ========== FIREBASE & LIBS ========== -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <!-- CORE -->
+    <script src="js/driver/00-core-runtime.js?v=20260828-v61"></script>
+    <script src="js/driver/01-clean-fix.js?v=20260828-gps-owner1"></script>
+
+    <!-- UI / FEATURES -->
+    <script src="js/driver/02-menu-restyle.js"></script>
+    <script src="js/driver/03-premium-ui.js?v=20260828-stable2"></script>
+    <script src="js/driver/04-kyc.js"></script>
+    <script src="js/driver/05-legal.js"></script>
+    <script src="js/driver/06-ev.js"></script>
+    <script src="js/driver/07-wallet-legacy.js"></script>
+    <script src="js/driver/08-receipt.js"></script>
+    <script src="js/driver/09-sos.js"></script>
+    <script src="js/driver/10-pwa.js"></script>
+    <script src="js/driver/11-payos-payment.js"></script>
+    <script src="js/driver/13-payos-connect-v2.js"></script>
+    <script src="js/driver/16-wallet-unify.js"></script>
+    <script src="js/driver/17-unify.js?v=20260828-ops1"></script>
+    <script src="js/driver/18-anti-fraud.js?v=20260828-ops1"></script>
+    <script src="js/driver/25-gps-dual.js?v=20260828-gps-owner1"></script>
+    <script src="js/driver/23-xg-approve.js"></script>
+    <script src="js/driver/26-history-pro.js?v=20260828-ops1"></script>
+    <script src="js/location-core.js"></script>
+    <link rel="stylesheet" href="css/driver-overrides.css?v=20260828-ops1">
+    <script src="js/map.js?v=20260828-stable2"></script>
+    <script src="js/modules/gps-boost.js?v=20260828-gps-owner1"></script>
+    <script src="js/driver/15-gps-boost-inline.js?v=20260828-gps-owner1"></script>
+
+    <!-- TRIP FLOW -->
+    <script src="js/modules/ai-copilot-v4.js?v=20260828-gps-owner1"></script>
+    <script src="js/modules/trip-engine-v4.js?v=20260828-v61"></script>
+    <script src="js/driver/27-gps-final.js?v=20260828-gps-owner1"></script>
+    <script src="js/driver/28-gps-guide.js?v=20260828-gps-owner1"></script>
+    <script src="js/init-trip.js?v=20260828-v61"></script>
+    <script src="js/modules/driver-dashboard.js?v=20260828-dashboard2"></script>
+    <script src="js/modules/ops-stability.js?v=20260828-ops1"></script>
 
 </body>
 </html>
