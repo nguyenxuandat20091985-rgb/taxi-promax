@@ -1,8 +1,6 @@
 /*
- * Taxi ProMax — Driver Flow UI Adapter V6
- *
- * Nối onclick UI (index.html) với Trip Engine V6.
- * Đồng bộ data-trip-state / data-navigation-mode / data-trip-type lên document.
+ * Taxi ProMax — Driver Flow UI Adapter V6.1
+ * Nối UI ↔ Trip Engine. Không đổi state trước dialog xác nhận.
  */
 ;(function (window, document) {
   'use strict';
@@ -29,8 +27,10 @@
       document.documentElement.setAttribute('data-trip-state', status);
       document.documentElement.setAttribute('data-navigation-mode', mode);
       document.documentElement.setAttribute('data-trip-type', tripType || '');
-      document.documentElement.setAttribute('data-fare-active',
-        current && current.isFareActive && current.isFareActive() ? 'true' : 'false');
+      document.documentElement.setAttribute(
+        'data-fare-active',
+        current && current.isFareActive && current.isFareActive() ? 'true' : 'false'
+      );
       if (document.body) {
         document.body.setAttribute('data-trip-state', status);
         document.body.setAttribute('data-navigation-mode', mode);
@@ -45,9 +45,13 @@
     window.__promaxFlowAdapterBound = true;
 
     window.handleTrip = function () {
-      if (current.getCurrentState() === window.TRIP_STATE.FARE_CALCULATING ||
-          current.getCurrentState() === window.TRIP_STATE.ARRIVED_DESTINATION) {
+      const st = current.getCurrentState();
+      if (st === window.TRIP_STATE.FARE_CALCULATING || st === window.TRIP_STATE.ARRIVED_DESTINATION) {
         return current.showCompletionConfirmation();
+      }
+      if (st !== window.TRIP_STATE.IDLE) {
+        toast('⚠️ Đang có chuyến — hãy kết thúc trước');
+        return false;
       }
       return current.startStreetHail();
     };
@@ -78,44 +82,53 @@
     };
 
     window.confirmPickup = function () {
-      return current.confirmPickup();
+      const r = current.confirmPickup();
+      publishDom({});
+      return r;
     };
 
     window.arrivedAtPickup = function () {
-      return current.arrivedAtPickup();
+      const r = current.arrivedAtPickup();
+      publishDom({});
+      return r;
     };
 
     window.passengerOnboard = function () {
-      return current.passengerOnboard();
+      const r = current.passengerOnboard();
+      publishDom({});
+      return r;
     };
 
     window.arrivedAtDestination = function () {
       if (typeof current.arrivedAtDestination === 'function') {
-        return current.arrivedAtDestination();
+        const r = current.arrivedAtDestination();
+        publishDom({});
+        return r;
       }
       return false;
     };
 
+    // Dialog xác nhận — KHÔNG đổi state trước khi bấm Đồng ý
     window.showConfirmComplete = function () {
       const st = current.getCurrentState();
-      const okStates = [
-        window.TRIP_STATE.FARE_CALCULATING,
-        window.TRIP_STATE.ARRIVED_DESTINATION,
-        window.TRIP_STATE.COMPLETING
-      ];
-      if (okStates.indexOf(st) === -1) {
+      const ok =
+        st === window.TRIP_STATE.FARE_CALCULATING ||
+        st === window.TRIP_STATE.ARRIVED_DESTINATION;
+      if (!ok) {
         toast('⚠️ Chưa đến giai đoạn tính cước');
         return false;
       }
       const dialog = document.getElementById('confirmDialog');
       const message = document.getElementById('confirmMessage');
-      const ok = document.getElementById('confirmOkBtn');
-      if (!dialog || !ok) return current.completeTrip();
+      const okBtn = document.getElementById('confirmOkBtn');
+      if (!dialog || !okBtn) {
+        return current.completeTrip();
+      }
       if (message) message.textContent = 'Bạn có chắc chắn muốn kết thúc chuyến và chốt cước?';
-      ok.onclick = function () {
+      okBtn.onclick = function () {
         dialog.style.display = 'none';
         current.completeTrip();
-        publishDom({});
+        publishDom({ status: 'COMPLETED' });
       };
       dialog.style.display = 'flex';
       return true;
@@ -128,38 +141,31 @@
     const current = engine();
     if (!current) return;
 
-    const arrived = document.getElementById('btn-arrived') || document.querySelector('[data-action="arrived"]');
-    if (arrived && !arrived.dataset.flowBound) {
-      arrived.dataset.flowBound = '1';
-      arrived.addEventListener('click', function () { current.arrivedAtPickup(); publishDom({}); });
+    function once(el, key, fn) {
+      if (!el || el.dataset[key]) return;
+      el.dataset[key] = '1';
+      el.addEventListener('click', fn);
     }
 
-    const onboard = document.getElementById('btn-start-trip') || document.querySelector('[data-action="start"]');
-    if (onboard && !onboard.dataset.flowBound) {
-      onboard.dataset.flowBound = '1';
-      onboard.addEventListener('click', function () { current.passengerOnboard(); publishDom({}); });
-    }
-
-    const complete = document.getElementById('btn-complete') || document.querySelector('[data-action="complete"]');
-    if (complete && !complete.dataset.flowBound) {
-      complete.dataset.flowBound = '1';
-      complete.addEventListener('click', function () { current.showCompletionConfirmation(); });
-    }
-
-    const cancel = document.getElementById('btn-cancel') || document.querySelector('[data-action="cancel"]');
-    if (cancel && !cancel.dataset.flowBound) {
-      cancel.dataset.flowBound = '1';
-      cancel.addEventListener('click', function () { current.cancelTrip('Tài xế hủy chuyến'); publishDom({}); });
-    }
-
-    const destArrive = document.getElementById('btn-arrived-dest') || document.querySelector('[data-action="arrived-dest"]');
-    if (destArrive && !destArrive.dataset.flowBound) {
-      destArrive.dataset.flowBound = '1';
-      destArrive.addEventListener('click', function () {
-        if (typeof current.arrivedAtDestination === 'function') current.arrivedAtDestination();
-        publishDom({});
-      });
-    }
+    once(document.getElementById('btn-arrived') || document.querySelector('[data-action="arrived"]'), 'flowBound', function () {
+      current.arrivedAtPickup();
+      publishDom({});
+    });
+    once(document.getElementById('btn-start-trip') || document.querySelector('[data-action="start"]'), 'flowBound', function () {
+      current.passengerOnboard();
+      publishDom({});
+    });
+    once(document.getElementById('btn-complete') || document.querySelector('[data-action="complete"]'), 'flowBound', function () {
+      current.showCompletionConfirmation();
+    });
+    once(document.getElementById('btn-cancel') || document.querySelector('[data-action="cancel"]'), 'flowBound', function () {
+      current.cancelTrip('Tài xế hủy chuyến');
+      publishDom({});
+    });
+    once(document.getElementById('btn-arrived-dest') || document.querySelector('[data-action="arrived-dest"]'), 'flowBound', function () {
+      if (typeof current.arrivedAtDestination === 'function') current.arrivedAtDestination();
+      publishDom({});
+    });
   }
 
   function syncVisibleState(event) {
@@ -169,7 +175,9 @@
     const status = detail.status || current.getCurrentState();
     const mode = detail.navigationMode || current.getNavigationMode();
     const statusEl = document.getElementById('tripStatusText');
-    if (statusEl && typeof current.statusLabel === 'function') statusEl.textContent = current.statusLabel();
+    if (statusEl && typeof current.statusLabel === 'function') {
+      statusEl.textContent = current.statusLabel();
+    }
     publishDom({ status: status, navigationMode: mode });
   }
 
@@ -182,10 +190,12 @@
     setInterval(bindExtraButtons, 1500);
     document.addEventListener('trip:status', syncVisibleState);
     document.addEventListener('trip:fare_started', syncVisibleState);
-    document.addEventListener('trip:completed', function () { publishDom({ status: 'COMPLETED' }); });
+    document.addEventListener('trip:completed', function () {
+      publishDom({ status: 'IDLE' });
+    });
     document.addEventListener('trip:arrived_destination', syncVisibleState);
     syncVisibleState();
-    console.log('✅ driver flow adapter V6: UI → Trip Engine');
+    console.log('✅ driver flow adapter V6.1');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
