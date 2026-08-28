@@ -4,6 +4,8 @@
  */
 ;(function(window, document, undefined) {
     'use strict';
+    const aiRegistry = window.PromaxAIRegistry;
+    if (aiRegistry && !aiRegistry.claim('copilot', { role: 'driver-safety', version: '4.1' })) return;
 
     // ======================== CẤU HÌNH ========================
     const CONFIG = {
@@ -22,7 +24,6 @@
     let _enabled = true;
     let _mode = null;
     let _lastAlertTime = 0;
-    let _gpsWatchId = null;
     let _gpsUnsubscribe = null;
     let _listeners = [];
     let _lastGps = null;
@@ -117,12 +118,8 @@
         log('Khởi động chế độ Lái xe (Driving Mode)');
         _mode = 'driving';
 
-        // Lắng nghe GPS (ưu tiên dùng cockpit nếu có)
-        const cockpit = getCockpit();
-        if (cockpit && typeof cockpit.getCurrentPosition === 'function') {
-            // Có thể lấy dữ liệu từ cockpit (ví dụ: dùng sự kiện)
-            // Nhưng để đơn giản, ta vẫn dùng navigator.geolocation
-        }
+        // GPS chỉ có một owner: ProMaxGPSCore. AI Copilot chỉ quan sát
+        // dữ liệu đã lọc, không tự mở watcher hoặc tự xin quyền lần hai.
         if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
             if (_gpsUnsubscribe) _gpsUnsubscribe();
             _gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
@@ -138,16 +135,9 @@
                     timestamp: fix.timestamp || Date.now()
                 });
             });
-            log('GPS: Đã kết nối ProMaxGPSCore (single watcher)');
-        } else if (navigator.geolocation) {
-            if (_gpsWatchId) navigator.geolocation.clearWatch(_gpsWatchId);
-            _gpsWatchId = navigator.geolocation.watchPosition(
-                (pos) => handleGpsUpdate(pos),
-                (err) => log('Lỗi GPS: ' + err.message, 'error'),
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-            );
+            log('GPS: Đã kết nối ProMaxGPSCore (single owner)');
         } else {
-            log('Không có GPS sẵn sàng', 'warn');
+            log('GPS core chưa sẵn sàng; AI Copilot chờ dữ liệu, không mở watcher phụ', 'warn');
         }
 
         // Lắng nghe safety alerts
@@ -327,10 +317,6 @@
         getMode: function() { return _mode; },
         destroy: function() {
             log('Hủy AI Copilot');
-            if (_gpsWatchId) {
-                navigator.geolocation.clearWatch(_gpsWatchId);
-                _gpsWatchId = null;
-            }
             if (_gpsUnsubscribe) {
                 _gpsUnsubscribe();
                 _gpsUnsubscribe = null;
