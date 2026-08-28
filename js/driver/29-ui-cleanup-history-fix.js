@@ -242,8 +242,14 @@
     } catch (e) {}
     var nav = document.querySelector('.nav-grid');
     if (nav) nav.style.display = running ? 'none' : 'flex';
+    // Brand: luôn hiện khi idle (ghi đè CSS overrides)
     var brand = document.querySelector('.brand-footer');
-    if (brand) brand.style.display = running ? 'none' : 'block';
+    if (brand) {
+      brand.style.setProperty('display', running ? 'none' : 'block', 'important');
+      if (!running && !(brand.textContent || '').trim()) {
+        brand.textContent = 'PHÁT TRIỂN BỞI: NGUYEN XUAN DAT';
+      }
+    }
   }
 
   /* ========== BOOT ========== */
@@ -254,7 +260,23 @@
     syncNavVisibility();
   }
 
+
+  /* Ép hiện vầng quang marker + brand footer (ghi đè overrides cũ) */
+  function injectMarkerBrandCSS() {
+    if (document.getElementById('sm-pulse-ring-force')) return;
+    var s = document.createElement('style');
+    s.id = 'sm-pulse-ring-force';
+    s.textContent = [
+      '.sm-pulse-ring{display:block!important;position:absolute!important;width:48px!important;height:48px!important;border-radius:50%!important;background:rgba(0,191,165,.35)!important;animation:smSpread 2s infinite ease-out!important;pointer-events:none!important;left:50%!important;top:50%!important;margin-left:-24px!important;margin-top:-24px!important;}',
+      '@keyframes smSpread{0%{transform:scale(.55);opacity:1}100%{transform:scale(1.7);opacity:0}}',
+      '.sm-marker-container{width:48px!important;height:48px!important;}',
+      '.footer-panel .brand-footer{display:block!important;font-size:9px!important;text-align:center!important;color:#94a3b8!important;padding:4px 0 2px!important;font-weight:700!important;}'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
   function boot() {
+    injectMarkerBrandCSS();
     patchComplete();
     tick();
     setInterval(tick, 800);
