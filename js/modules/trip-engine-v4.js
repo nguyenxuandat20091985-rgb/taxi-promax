@@ -73,7 +73,7 @@
 
       this.validTransitions = Object.freeze({
         [TRIP_STATE.IDLE]: [TRIP_STATE.STREET_HAIL, TRIP_STATE.DRIVER_ACCEPT],
-        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED],
         [TRIP_STATE.DRIVER_ACCEPT]: [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
         [TRIP_STATE.NAVIGATING_TO_PICKUP]: [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED],
         [TRIP_STATE.ARRIVED_PICKUP]: [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
@@ -353,9 +353,11 @@
       if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
         window.PromaxLegacyRuntime.resetDistance();
       }
-      // Gọn: vào FARE ngay để tính KM (chuyến vẫy)
+      // Chuyến vẫy vẫn phải ghi nhận đủ các mốc nhận khách.
       if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
       this.ensureStreetHailTrip();
+      if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'street_hail', navigationMode: 'idle' })) return false;
+      if (!this.transition(TRIP_STATE.PICKUP_CONFIRMED, { source: 'street_hail' })) return false;
       if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD, { source: 'street_hail' })) return false;
       if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail' })) return false;
       return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'street_hail' });
@@ -377,9 +379,8 @@
 
     passengerOnboard() {
       if (this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP) this.arrivedAtPickup();
-      if (this.currentState === TRIP_STATE.ARRIVED_PICKUP) {
-        this.transition(TRIP_STATE.PICKUP_CONFIRMED, { source: 'onboard' });
-      }
+      // App order: ARRIVED_PICKUP → CUSTOMER_ONBOARD. Chỉ flow vẫy
+      // hoặc thao tác xác nhận pickup mới đi qua PICKUP_CONFIRMED.
       if (![TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD].includes(this.currentState)) {
         return false;
       }
@@ -392,9 +393,8 @@
         this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' });
         return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
       }
-      // Không điểm đến → tính cước ngay (giống vẫy), có thể nhập đích sau
-      this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination' });
-      return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'no_destination' });
+      // Không có điểm đến: chờ tài xế/khách nhập đích rồi mới tính cước.
+      return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'no_destination' });
     }
 
     selectDestination(destination) {
