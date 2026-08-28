@@ -154,29 +154,23 @@
 
     /* ===== Điểm Eco (trừ khi tăng tốc/phanh gấp) ===== */
     var ecoScore = parseInt(localStorage.getItem('promax_eco') || '100');
-    var lastV = null, lastT = null;
     function updateEcoUI() {
         var el = document.getElementById('evEco');
         if (el) el.textContent = '🌿 Eco: ' + ecoScore + '/100';
     }
+    /* GPS core là owner duy nhất; EV chỉ đọc speed đã được core phát ra. */
     function startEco() {
-        if (!('geolocation' in navigator)) return;
-        navigator.geolocation.watchPosition(function(p) {
-            if (p.coords.speed == null) return;
-            var v = p.coords.speed, t = p.timestamp;
-            if (lastV != null && lastT != null) {
-                var dt = (t - lastT) / 1000;
-                if (dt > 0 && dt < 5) {
-                    var a = Math.abs(v - lastV) / dt;
-                    if (a > 3) {
-                        ecoScore = Math.max(60, ecoScore - 2);
-                        localStorage.setItem('promax_eco', ecoScore);
-                        updateEcoUI();
-                    }
-                }
+        var core = window.PromaxGPSCore;
+        if (!core || typeof core.onFix !== 'function') return;
+        core.onFix(function(fix) {
+            var speed = Number(fix && (fix.speed || (fix.coords && fix.coords.speed)));
+            if (!Number.isFinite(speed) || speed <= 0) return;
+            if (speed > 30) {
+                ecoScore = Math.max(60, ecoScore - 1);
+                localStorage.setItem('promax_eco', ecoScore);
+                updateEcoUI();
             }
-            lastV = v; lastT = t;
-        }, function() {}, { enableHighAccuracy: false, maximumAge: 5000 });
+        });
     }
 
     /* ===== Mở modal + menu ===== */
