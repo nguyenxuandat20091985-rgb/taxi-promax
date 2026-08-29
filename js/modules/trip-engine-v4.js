@@ -5,9 +5,9 @@
  * - complete: FARE_CALCULATING | ARRIVED_DESTINATION → COMPLETED (1 bước)
  * - Không đổi state trước khi user xác nhận dialog
  * - Reset _completed khi bắt đầu chuyến mới
- * - Street hail: IDLE → FARE_CALCULATING (gọn)
+ * - Street hail: IDLE → STREET_HAIL → DRIVER_ACCEPT (+ updateFlowUI)
  * - App không điểm đến: sau onboard → FARE ngay
- * - UI nút: JS set display endTripBtn theo farePhase (HTML mặc định display:none)
+ * - UI nút: JS set display endTripBtn theo canCompleteTrip()
  * MIN_FARE 20000. GPS/cước do 00-core-runtime.
  */
 ;(function (window, document) {
@@ -130,7 +130,6 @@
         return;
       }
 
-      // Fallback cuối cùng. Đây không phải nguồn cộng kilomet.
       if (navigator.geolocation) {
         this.gpsWatchId = navigator.geolocation.watchPosition(
           (position) => this.updateGPS(position),
@@ -166,8 +165,6 @@
     }
 
     isFareActive() {
-      // Fare chỉ được bật sau CUSTOMER_ONBOARD. Với đơn chưa có đích,
-      // meter vẫn chạy trong TRIP_RUNNING/WAITING_DESTINATION.
       return [
         TRIP_STATE.TRIP_RUNNING,
         TRIP_STATE.WAITING_DESTINATION,
@@ -185,7 +182,6 @@
       return this.isFareActive();
     }
 
-    /** Nút kết thúc chỉ hiện khi đã tính cước / đến đích */
     canCompleteTrip() {
       return [
         TRIP_STATE.FARE_CALCULATING,
@@ -231,10 +227,12 @@
         case TRIP_STATE.STREET_HAIL:
           this.navigationMode = 'idle';
           this.ensureStreetHailTrip();
+          this.updateFlowUI(); // ★ hiện panel chuyến vẫy
           break;
 
         case TRIP_STATE.DRIVER_ACCEPT:
           this.navigationMode = payload.navigationMode || (this.isStreetHailTrip() ? 'idle' : 'pickup');
+          this.updateFlowUI(); // ★ không để UI kẹt ở Trang chủ
           break;
 
         case TRIP_STATE.NAVIGATING_TO_PICKUP:
@@ -256,8 +254,6 @@
 
         case TRIP_STATE.CUSTOMER_ONBOARD:
           this.stopWaitTimer();
-          // Mốc tính tiền bắt đầu tại thời điểm khách lên xe. Quãng đường
-          // đi đón chỉ dùng cho navigation/ETA và không được đưa vào tripKm.
           if (this.currentTrip) {
             const position = this.currentPosition();
             this.currentTrip.pickupConfirmedAt = Date.now();
@@ -385,8 +381,6 @@
       if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
         window.PromaxLegacyRuntime.resetDistance();
       }
-      // Chuyến vẫy phải dừng ở từng mốc nghiệp vụ. Không tự xác nhận
-      // khách lên xe và không bắt đầu tính cước khi tài xế mới chọn chuyến.
       if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
       this.ensureStreetHailTrip();
       return this.transition(TRIP_STATE.DRIVER_ACCEPT, {
@@ -411,28 +405,21 @@
 
     passengerOnboard() {
       if (this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP) this.arrivedAtPickup();
-      // App order: ARRIVED_PICKUP → CUSTOMER_ONBOARD. Chỉ flow vẫy
-      // hoặc thao tác xác nhận pickup mới đi qua PICKUP_CONFIRMED.
       if (![TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD].includes(this.currentState)) {
         return false;
       }
       if (this.currentState !== TRIP_STATE.CUSTOMER_ONBOARD) {
         if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD)) return false;
       }
-      // Chuyến vẫy có thể không có điểm đến. Sau khi khách lên xe,
-      // chuyến vẫy được chạy và tính cước bình thường; không ép nhập đích.
       if (this.isStreetHailTrip()) {
         if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail_onboard' })) return false;
         return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'street_hail_onboard' });
       }
-      // Đơn đặt có điểm đến chuyển sang chạy chuyến rồi điều hướng đích.
       if (this.hasDestination()) {
         this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'has_destination' });
         this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' });
         return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
       }
-      // Đơn đặt chưa có điểm đến vẫn bắt đầu tripKm/fare sau onboard,
-      // sau đó mới hiển thị ô nhập điểm đến; không tính quãng đường đi đón.
       if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination_onboard' })) return false;
       return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'no_destination' });
     }
@@ -479,7 +466,6 @@
         this.log('completeTrip từ state không hợp lệ: ' + st, 'warn');
         return false;
       }
-      // Một bước → COMPLETED (legacy lưu lịch sử + UI)
       return this.transition(TRIP_STATE.COMPLETED, { source: 'driver' });
     }
 
@@ -491,7 +477,6 @@
       return this.transition(TRIP_STATE.ARRIVED_DESTINATION, { source: 'driver' });
     }
 
-    // Compatibility API for Firebase/UI modules that hand an order to the engine.
     acceptOrder(tripId, tripData) {
       return this.beginAppTrip(tripId, tripData || {});
     }
@@ -506,7 +491,6 @@
         this.log('Chưa đến giai đoạn chốt cước: ' + st, 'warn');
         return false;
       }
-      // Không đổi state trước khi user xác nhận
       if (typeof window.showConfirmComplete === 'function') {
         return window.showConfirmComplete();
       }
@@ -636,7 +620,6 @@
 
       if (actions) actions.style.display = pickupPhase || pickupConfirmed || waitingDestination ? 'flex' : 'none';
       if (pickupBtn) {
-        // display do CSS data-trip-state
         pickupBtn.textContent = this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP ? '✅ ĐÃ ĐẾN ĐIỂM ĐÓN' : '🚗 KHÁCH ĐÃ LÊN XE';
         pickupBtn.onclick = () => this.currentState === TRIP_STATE.PICKUP_CONFIRMED || this.currentState === TRIP_STATE.ARRIVED_PICKUP
           ? this.passengerOnboard()
@@ -646,7 +629,6 @@
         navBtn.onclick = () => this.openNavigation(this.navigationMode === 'destination' ? 'destination' : 'pickup');
       }
 
-      // ★ FIX: bật/tắt nút kết thúc chuyến (HTML mặc định display:none)
       if (endBtn) {
         endBtn.style.display = showEnd ? 'block' : 'none';
         endBtn.disabled = !showEnd;
@@ -763,7 +745,10 @@
       const destination = target.lat != null && target.lng != null
         ? `\( {target.lat}, \){target.lng}`
         : encodeURIComponent(target.address || '');
-      window.open(`https://www.google.com/maps/dir/?api=1&origin=\( {number(position.lat)}, \){number(position.lng)}&destination=${destination}&travelmode=driving`, '_blank');
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&origin=\( {number(position.lat)}, \){number(position.lng)}&destination=${destination}&travelmode=driving`,
+        '_blank'
+      );
       return true;
     }
 
