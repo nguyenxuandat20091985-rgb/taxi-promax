@@ -1,11 +1,14 @@
 /**
  * ai-copilot-v4.js - Trợ lý AI thông minh cho Taxi Promax
- * Phiên bản: 4.1 (đã tinh chỉnh theo góp ý)
+ * Phiên bản: 4.2
+ * - Tắt toast hướng dẫn chuyến (CUSTOMER_ONBOARD / FARE_CALCULATING / …) — tránh che map & nút kết thúc
+ * - Giữ cảnh báo an toàn: GPS yếu, phanh/tăng tốc gấp, harsh safety
+ * - Alert UI đẩy lên trên (không chồng panel dưới)
  */
 ;(function(window, document, undefined) {
     'use strict';
     const aiRegistry = window.PromaxAIRegistry;
-    if (aiRegistry && !aiRegistry.claim('copilot', { role: 'driver-safety', version: '4.1' })) return;
+    if (aiRegistry && !aiRegistry.claim('copilot', { role: 'driver-safety', version: '4.2' })) return;
 
     // ======================== CẤU HÌNH ========================
     const CONFIG = {
@@ -15,9 +18,11 @@
         ROUTE_DEVIATION_CRITICAL: 300,
         HARSH_ACCEL_THRESHOLD: 3.0,
         HARSH_BRAKE_THRESHOLD: -3.5,
-        MIN_SPEED_FOR_ACCEL: 2.0, // m/s (~7.2 km/h) - tránh nhiễu khi đứng yên
+        MIN_SPEED_FOR_ACCEL: 2.0, // m/s (\~7.2 km/h)
         DEBOUNCE_MS: 5000,
         FIREBASE_ALERTS_PATH: '/ai/alerts',
+        // false = không hiện toast hướng dẫn chuyến (đề xuất vận hành)
+        SHOW_TRIP_GUIDE_TOASTS: false
     };
 
     // ======================== BIẾN NỘI BỘ ========================
@@ -42,41 +47,40 @@
 
     // ======================== LOGGING ========================
     function log(msg, type = 'info') {
-        const prefix = '[AI-Copilot v4.1]';
+        const prefix = '[AI-Copilot v4.2]';
         if (type === 'warn') console.warn(prefix, msg);
         else if (type === 'error') console.error(prefix, msg);
         else console.log(prefix, msg);
     }
 
-    // ======================== GIAO TIẾP VỚI CÁC MODULE KHÁC ========================
+    // ======================== GIAO TIẾP MODULE ========================
     function getCockpit() { return window.cockpit || null; }
     function getSafety() { return window.safety || null; }
-    
-    // ✅ Cập nhật hàm getFirebase để tương thích với window.db hoặc window.firebase
+
     function getFirebase() {
         if (window.db && typeof window.db.ref === 'function') {
-            return window.db; // Anh đang dùng cách này trong index.html
+            return window.db;
         }
         if (window.firebase && typeof window.firebase.database === 'function') {
-            return window.firebase.database(); // Fallback
+            return window.firebase.database();
         }
         return null;
     }
 
-    // ======================== CẢNH BÁO HIỂN THỊ UI ========================
+    // ======================== CẢNH BÁO UI ========================
     function showAlert(message, type = 'warning', duration = 8000) {
-        // (code giữ nguyên như cũ, không thay đổi)
         let container = document.querySelector('.ai-copilot-alerts');
         if (!container) {
             container = document.createElement('div');
             container.className = 'ai-copilot-alerts';
+            // Đặt phía trên (dưới GPS pill) — không che panel / nút kết thúc
             container.style.cssText = `
                 position: fixed;
-                bottom: 20px;
+                top: calc(env(safe-area-inset-top, 0px) + 56px);
                 left: 50%;
                 transform: translateX(-50%);
-                z-index: 9999;
-                max-width: 90%;
+                z-index: 3000;
+                max-width: 92%;
                 pointer-events: none;
                 display: flex;
                 flex-direction: column;
@@ -87,18 +91,21 @@
         }
         const alertEl = document.createElement('div');
         alertEl.className = `alert alert-${type}`;
+        const bg = type === 'danger' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#0d9488';
+        const fg = type === 'warning' ? '#212529' : '#fff';
         alertEl.style.cssText = `
             pointer-events: auto;
-            background: ${type === 'danger' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#17a2b8'};
-            color: ${type === 'warning' ? '#212529' : '#fff'};
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            font-weight: 500;
+            background: ${bg};
+            color: ${fg};
+            padding: 10px 18px;
+            border-radius: 12px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+            font-weight: 600;
             transition: opacity 0.3s ease;
             opacity: 1;
-            font-size: 1rem;
-            max-width: 600px;
+            font-size: 13px;
+            line-height: 1.45;
+            max-width: 420px;
             text-align: center;
         `;
         alertEl.textContent = message;
@@ -113,13 +120,11 @@
         });
     }
 
-    // ======================== CHẾ ĐỘ LÁI XE (DRIVING MODE) ========================
+    // ======================== DRIVING MODE ========================
     function startDrivingMode() {
         log('Khởi động chế độ Lái xe (Driving Mode)');
         _mode = 'driving';
 
-        // GPS chỉ có một owner: ProMaxGPSCore. AI Copilot chỉ quan sát
-        // dữ liệu đã lọc, không tự mở watcher hoặc tự xin quyền lần hai.
         if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
             if (_gpsUnsubscribe) _gpsUnsubscribe();
             _gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
@@ -140,7 +145,6 @@
             log('GPS core chưa sẵn sàng; AI Copilot chờ dữ liệu, không mở watcher phụ', 'warn');
         }
 
-        // Lắng nghe safety alerts
         document.addEventListener('safety:alert', (e) => {
             if (!_enabled) return;
             const { type, message } = e.detail || {};
@@ -149,9 +153,11 @@
             }
         });
 
-        // Lắng nghe sự kiện chuyến đi từ trip-engine (sẽ được phát ra sau)
+        // Hướng dẫn chuyến: tắt mặc định (SHOW_TRIP_GUIDE_TOASTS = false)
+        // Chỉ giữ COMPLETED nếu bật guide; safety vẫn luôn hoạt động ở trên.
         document.addEventListener('trip:status', (e) => {
             if (!_enabled) return;
+            if (!CONFIG.SHOW_TRIP_GUIDE_TOASTS) return;
             const status = String(e.detail?.status || '').toUpperCase();
             if (status === 'ARRIVED_PICKUP') {
                 showAlert('📍 Anh đã đến điểm đón, bấm "Đã đến điểm đón" để xác nhận.', 'info', 6000);
@@ -167,15 +173,17 @@
         });
     }
 
-    // Xử lý cập nhật GPS (đã áp dụng gợi ý chống nhiễu)
     function handleGpsUpdate(position) {
         if (!_enabled) return;
         const coords = position.coords;
         const accuracy = coords.accuracy;
         const speed = coords.speed || 0;
 
-        // Cảnh báo độ chính xác: không lặp toast ở mọi GPS fix.
-        const gpsAlertKind = accuracy > CONFIG.GPS_ACCURACY_CRITICAL ? 'critical' : accuracy > CONFIG.GPS_ACCURACY_WARN ? 'weak' : '';
+        const gpsAlertKind = accuracy > CONFIG.GPS_ACCURACY_CRITICAL
+            ? 'critical'
+            : accuracy > CONFIG.GPS_ACCURACY_WARN
+                ? 'weak'
+                : '';
         const now = Date.now();
         if (gpsAlertKind && (gpsAlertKind !== _lastGpsAlertKind || now - _lastGpsAlertAt >= 30000)) {
             _lastGpsAlertAt = now;
@@ -189,7 +197,6 @@
             _lastGpsAlertKind = '';
         }
 
-        // 🛡️ Chỉ tính gia tốc khi xe thực sự di chuyển (trên 2 m/s)
         if (_lastGps && speed > CONFIG.MIN_SPEED_FOR_ACCEL) {
             const dt = (position.timestamp - _lastGps.timestamp) / 1000;
             if (dt > 0 && dt < 5) {
@@ -203,23 +210,16 @@
             }
         }
 
-        /* 
-         * ✅ TODO: Tích hợp với Route Engine để tính khoảng cách vuông góc 
-         * từ (coords.latitude, coords.longitude) đến polyline của chuyến đi.
-         * Nếu distance > CONFIG.ROUTE_DEVIATION_WARN -> showAlert(...)
-         */
-
-        // Cập nhật _lastGps
         _lastGps = {
             timestamp: position.timestamp,
             speed: speed,
             lat: coords.latitude,
             lng: coords.longitude,
-            accuracy: accuracy,
+            accuracy: accuracy
         };
     }
 
-    // ======================== CHẾ ĐỘ GIÁM SÁT (MONITORING MODE) ========================
+    // ======================== MONITORING MODE ========================
     function startMonitoringMode() {
         log('Khởi động chế độ Giám sát (Monitoring Mode)');
         _mode = 'monitoring';
@@ -236,20 +236,17 @@
             log('Không tìm thấy Firebase, chuyển sang chế độ mô phỏng', 'warn');
             const mockInterval = setInterval(() => {
                 if (!_enabled) { clearInterval(mockInterval); return; }
-                const mockAlert = generateMockAlert();
-                displayAdminAlert(mockAlert);
+                displayAdminAlert(generateMockAlert());
             }, 15000);
             _listeners.push({ type: 'interval', ref: mockInterval });
         }
 
-        document.addEventListener('admin:refresh', (e) => {
+        document.addEventListener('admin:refresh', () => {
             log('Admin yêu cầu làm mới dữ liệu', 'info');
-            // Có thể gọi API lấy dữ liệu mới
         });
     }
 
     function displayAdminAlert(alertData) {
-        // (code giữ nguyên, không thay đổi)
         let container = document.querySelector('.admin-alerts .alert-list');
         if (!container) {
             const adminPanel = document.querySelector('.admin-panel, #admin-dashboard');
@@ -289,21 +286,21 @@
             '⚠️ Tài xế Nguyễn Văn A hủy 3 chuyến liên tiếp trong 1 giờ',
             '📊 Khu vực Quận 1 đang thiếu 3 xe – gợi ý kích hoạt surge pricing',
             '🔔 Tài xế Trần Thị B có 2 khiếu nại về thái độ trong ngày',
-            '📈 Doanh thu hôm nay thấp hơn 20% so với cùng kỳ tuần trước',
+            '📈 Doanh thu hôm nay thấp hơn 20% so với cùng kỳ tuần trước'
         ];
         const severities = ['warning', 'critical', 'info', 'warning', 'critical'];
         const idx = Math.floor(Math.random() * messages.length);
         return {
             message: messages[idx],
             severity: severities[idx] || 'warning',
-            timestamp: Date.now(),
+            timestamp: Date.now()
         };
     }
 
     // ======================== PUBLIC API ========================
     const publicAPI = {
         init: function() {
-            log('Khởi tạo AI Copilot v4.1...');
+            log('Khởi tạo AI Copilot v4.2...');
             const mode = detectMode();
             if (!mode) {
                 log('Không xác định được chế độ, thoát.', 'warn');
@@ -314,6 +311,11 @@
         },
         enable: function() { _enabled = true; log('Đã bật'); },
         disable: function() { _enabled = false; log('Đã tắt'); },
+        /** Bật lại toast hướng dẫn chuyến nếu cần */
+        setTripGuideToasts: function(on) {
+            CONFIG.SHOW_TRIP_GUIDE_TOASTS = !!on;
+            log('SHOW_TRIP_GUIDE_TOASTS = ' + CONFIG.SHOW_TRIP_GUIDE_TOASTS);
+        },
         getMode: function() { return _mode; },
         destroy: function() {
             log('Hủy AI Copilot');
@@ -323,8 +325,7 @@
             }
             const db = getFirebase();
             if (db) {
-                const alertsRef = db.ref(CONFIG.FIREBASE_ALERTS_PATH);
-                alertsRef.off();
+                try { db.ref(CONFIG.FIREBASE_ALERTS_PATH).off(); } catch (_) {}
             }
             _listeners.forEach(l => {
                 if (l.type === 'interval') clearInterval(l.ref);
@@ -334,7 +335,7 @@
             _enabled = false;
             const container = document.querySelector('.ai-copilot-alerts');
             if (container) container.remove();
-        },
+        }
     };
 
     window.aiCopilotV4 = publicAPI;
