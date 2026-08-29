@@ -47,7 +47,7 @@
         constructor() {
             this.currentState = TRIP_STATE.IDLE;
             this.currentTrip = null;
-            this.tripType = null; // 'STREET_HAIL' | 'APP_DESTINATION' | 'APP_NO_DESTINATION'
+            this.tripType = null;
             this.navigationMode = 'idle';
             this.fareStartedAt = null;
             this.odometerKm = 0;
@@ -56,21 +56,16 @@
             this.lastGoodPosition = null;
             this.waitTimer = null;
             this._completed = false;
-            this._handlers = {};
+            this._lastPosition = null;
 
-            // Định nghĩa transition hợp lệ cho từng state (chung)
             this.validTransitions = this._buildTransitions();
-
-            // Đăng ký sự kiện
             this._bindEvents();
         }
 
-        // ===== XÂY DỰNG BẢNG TRANSITION =====
         _buildTransitions() {
             const allStates = Object.values(TRIP_STATE);
             const transitions = {};
 
-            // Mặc định: tất cả state đều có thể chuyển về IDLE hoặc CANCELLED (nếu không phải IDLE/CANCELLED)
             allStates.forEach(state => {
                 transitions[state] = [];
                 if (state !== TRIP_STATE.IDLE && state !== TRIP_STATE.CANCELLED && state !== TRIP_STATE.COMPLETED) {
@@ -78,10 +73,10 @@
                 }
             });
 
-            // ===== STREET HAIL =====
+            // Street Hail
             transitions[TRIP_STATE.IDLE].push(TRIP_STATE.STREET_HAIL);
             transitions[TRIP_STATE.STREET_HAIL] = [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED];
-            transitions[TRIP_STATE.DRIVER_ACCEPT].push(TRIP_STATE.PICKUP_CONFIRMED); // Street hail bỏ qua navigation
+            transitions[TRIP_STATE.DRIVER_ACCEPT].push(TRIP_STATE.PICKUP_CONFIRMED);
             transitions[TRIP_STATE.PICKUP_CONFIRMED] = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.CUSTOMER_ONBOARD] = [TRIP_STATE.START_METER, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.START_METER] = [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED];
@@ -94,21 +89,17 @@
             transitions[TRIP_STATE.COMPLETED] = [TRIP_STATE.IDLE];
             transitions[TRIP_STATE.CANCELLED] = [TRIP_STATE.IDLE];
 
-            // ===== APP WITH DESTINATION =====
-            // IDLE → DRIVER_ACCEPT được thêm ở trên
+            // App with Destination
             transitions[TRIP_STATE.DRIVER_ACCEPT] = [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.NAVIGATING_TO_PICKUP] = [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.ARRIVED_PICKUP] = [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.PICKUP_CONFIRMED] = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.CUSTOMER_ONBOARD] = [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED];
-            // DESTINATION_SELECTED, TRIP_RUNNING, FARE, v.v. đã được định nghĩa ở trên
 
             return transitions;
         }
 
-        // ===== CORE =====
         _bindEvents() {
-            // Lắng nghe GPS từ core
             document.addEventListener('gps:position', (e) => {
                 if (e.detail) this.updateGPS(e.detail);
             });
@@ -157,7 +148,6 @@
                     break;
 
                 case TRIP_STATE.DRIVER_ACCEPT:
-                    // Xác định navigation mode dựa trên loại chuyến
                     if (this.tripType === TRIP_TYPE.STREET_HAIL) {
                         this.navigationMode = 'idle';
                     } else {
@@ -185,14 +175,12 @@
                     }
                     this.odometerKm = 0;
                     this.fareStartedAt = Date.now();
-                    // Reset distance trong core
                     if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
                         window.PromaxLegacyRuntime.resetDistance();
                     }
                     break;
 
                 case TRIP_STATE.START_METER:
-                    // Chỉ dành cho Street Hail: bắt đầu đồng hồ ngay khi khách lên xe
                     this.navigationMode = 'idle';
                     this.fareStartedAt = Date.now();
                     this.odometerKm = 0;
@@ -211,7 +199,6 @@
                     break;
 
                 case TRIP_STATE.TRIP_RUNNING:
-                    // Có thể xử lý thêm
                     break;
 
                 case TRIP_STATE.FARE_CALCULATING:
@@ -255,7 +242,6 @@
          */
         startStreetHail() {
             if (this.currentState !== TRIP_STATE.IDLE) {
-                // Nếu đang có chuyến và chưa hoàn thành, hỏi xác nhận kết thúc
                 if (this._isTripActive()) {
                     this.emit('confirm_complete', {});
                     return false;
@@ -264,8 +250,7 @@
             }
             this._completed = false;
             this.tripType = TRIP_TYPE.STREET_HAIL;
-            this.currentTrip = null; // sẽ tạo mới trong STREET_HAIL
-            // Reset các biến
+            this.currentTrip = null;
             this.odometerKm = 0;
             this.fareStartedAt = null;
             if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
@@ -295,7 +280,6 @@
             return this.transition(TRIP_STATE.NAVIGATING_TO_PICKUP, { source: 'app_order' });
         }
 
-        // Alias cho acceptOrder
         acceptOrder(orderId, orderData) {
             return this.beginAppTrip(orderId, orderData);
         }
@@ -366,7 +350,6 @@
                 return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
             }
             if (state === TRIP_STATE.STREET_HAIL || state === TRIP_STATE.DRIVER_ACCEPT) {
-                // Trong Street Hail, bỏ qua navigation, đến thẳng PICKUP_CONFIRMED
                 return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
             }
             return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
@@ -385,18 +368,14 @@
                 if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD)) return false;
             }
 
-            // Sau khi khách lên xe, xác định bước tiếp theo
             if (this.tripType === TRIP_TYPE.STREET_HAIL) {
-                // Chuyến vẫy: bắt đầu đồng hồ ngay
                 if (!this.transition(TRIP_STATE.START_METER, { source: 'street_hail_onboard' })) return false;
                 return this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail_onboard' });
             } else if (this.tripType === TRIP_TYPE.APP_DESTINATION) {
-                // App có điểm đến: chọn điểm đến và chạy ngay
                 if (!this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'has_destination' })) return false;
                 if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' })) return false;
                 return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
             } else {
-                // App không điểm đến: chờ nhập
                 if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination_onboard' })) return false;
                 return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'no_destination' });
             }
@@ -481,20 +460,16 @@
                 timestamp: Number(position.timestamp) || Date.now()
             };
 
-            // Nếu đang trong chuyến và đã bắt đầu tính cước, cập nhật quãng đường
             if (this._isFareActive()) {
                 this._updateDistance(position);
                 this._updateFare();
             }
 
-            // Phát sự kiện cho UI
             this.emit('gps_update', this.lastGoodPosition);
         }
 
         _updateDistance(position) {
-            // Sử dụng core để tính distance (giữ nguyên thuật toán cũ)
             if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.processLocation === 'function') {
-                // Core sẽ tự cập nhật totalKm, ta chỉ lấy lại
                 window.PromaxLegacyRuntime.processLocation({
                     latitude: position.lat,
                     longitude: position.lng,
@@ -505,7 +480,6 @@
                 });
                 this.odometerKm = window.PromaxLegacyRuntime.getTotalKm();
             } else {
-                // Fallback: tính đơn giản bằng Haversine
                 if (this._lastPosition) {
                     const dist = this._haversine(
                         this._lastPosition.lat, this._lastPosition.lng,
@@ -597,13 +571,11 @@
             if (this._completed) return;
             this._completed = true;
             this.odometerKm = this._getOdometerFromCore();
-            // Lưu lịch sử
             this.emit('completed', {
                 totalKm: this.odometerKm,
                 trip: this.currentTrip,
                 payload
             });
-            // Reset về IDLE
             this.currentState = TRIP_STATE.IDLE;
             this.currentTrip = null;
             this.tripType = null;
@@ -640,7 +612,6 @@
 
         // ===== UI UPDATE =====
         _updateUI() {
-            // UI sẽ được cập nhật qua sự kiện
             this.emit('ui_update', {
                 state: this.currentState,
                 trip: this.currentTrip,
@@ -656,7 +627,6 @@
         // ===== DESTROY =====
         destroy() {
             this.stopWaitTimer();
-            // Hủy các listener nếu có
         }
     }
 
@@ -666,13 +636,10 @@
     window.TRIP_STATE = TRIP_STATE;
     window.TRIP_TYPE = TRIP_TYPE;
 
-    // Đảm bảo legacy bridge vẫn hoạt động
     if (window.PromaxLegacyRuntime) {
         const origProcess = window.PromaxLegacyRuntime.processLocation;
         window.PromaxLegacyRuntime.processLocation = function(location) {
-            // Gọi core xử lý distance
             if (typeof origProcess === 'function') origProcess(location);
-            // Cập nhật vào engine
             if (location && location.latitude != null && location.longitude != null) {
                 engine.updateGPS({
                     lat: location.latitude,
