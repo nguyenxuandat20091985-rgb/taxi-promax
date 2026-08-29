@@ -1,6 +1,6 @@
 // Extracted from index.html; load order is intentionally preserved.
     // ============================================================
-    // TAXI PROMAX - FULL VERSION v6.0
+    // TAXI PROMAX - FULL VERSION v7.0 (FIX GPS + CONTROLLER)
     // ============================================================
 
     const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
@@ -14,7 +14,8 @@
     let fcmToken = null;
 
 // ==================== BIẾN TOÀN CỤC ====================
-let map, driverMarker, customerMarker, routeLayer;
+let map, customerMarker, routeLayer;
+// KHÔNG CÒN driverMarker (để VehicleTrackingController quản lý)
 let currentLat = null, currentLng = null;
 let currentHeading = 0;
 let isRunning = false;
@@ -31,7 +32,7 @@ let cancelListener = null;
 let wakeLock = null;
 let countdownInterval = null;
 let _isModalOpening = false;
-let _orderListenerStarted = false; // Cờ ngăn gọi listener trùng
+let _orderListenerStarted = false;
 let _processedOrders = new Set();
 let isStreetHail = false;
 let lastDisplayedFare = 0;
@@ -516,7 +517,7 @@ let hasCenteredMap = false;
             toggle.classList.remove('active');
             text.innerText = 'Offline';
             if (orderListener) { orderListener.off(); orderListener = null; }
-            _orderListenerStarted = false; // reset để có thể bật lại khi online
+            _orderListenerStarted = false;
             stopLocationPushing();
             stopAIDispatch();
             showToast('⏸ Đã chuyển sang trạng thái Offline');
@@ -714,12 +715,34 @@ let hasCenteredMap = false;
 
         saveLocationToHistory(latitude, longitude, accuracy, currentTime);
         updateGpsStatusUI(accuracy, false);
-        updateDriverMarker(latitude, longitude, true, {
-            accuracy: accuracy,
-            speed: speed,
-            heading: heading,
-            timestamp: currentTime
-        });
+
+        // ===== GỬI VỊ TRÍ VÀO CONTROLLER (DUY NHẤT) =====
+        // Đảm bảo controller đã được khởi tạo và sẵn sàng
+        if (window.VehicleTrackingController && typeof window.VehicleTrackingController.updateVehiclePosition === 'function') {
+            window.VehicleTrackingController.updateVehiclePosition(latitude, longitude, {
+                accuracy: accuracy,
+                speed: speed,
+                heading: heading,
+                timestamp: currentTime
+            });
+        } else {
+            // Fallback: nếu controller chưa tải, tự tạo marker tạm (chỉ để không mất map)
+            // Nhưng controller sẽ được load ngay sau đó, nên fallback này hiếm khi xảy ra.
+            console.warn('[GPS] VehicleTrackingController chưa sẵn sàng, fallback marker tạm');
+            if (typeof window.driverMarker === 'undefined' && map) {
+                const icon = L.divIcon({
+                    html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${currentHeading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
+                    className: '', iconSize: [48,48], iconAnchor: [24,24]
+                });
+                window.driverMarker = L.marker([latitude, longitude], { icon, zIndexOffset: 1000 }).addTo(map);
+                window.driverMarker.setLatLng([latitude, longitude]);
+                map.setView([latitude, longitude], 17);
+                hasCenteredMap = true;
+            } else if (window.driverMarker) {
+                window.driverMarker.setLatLng([latitude, longitude]);
+                if (hasCenteredMap) map.panTo([latitude, longitude], { animate: true, duration: 0.6 });
+            }
+        }
 
         // Fix trên 300m chỉ dùng để đặt marker/đồng bộ vị trí gần đúng.
         // Không tạo mốc kilomet từ một điểm GPS quá rộng.
@@ -765,47 +788,8 @@ let hasCenteredMap = false;
         return ACCURACY_NORMAL;
     }
 
-    function updateDriverMarker(lat, lng, forceCenter, meta) {
-        // Core vẫn là nơi validate GPS và cộng fare. Controller là owner duy nhất
-        // của marker/camera để không tạo hai mũi tên hoặc nhiều panTo.
-        if (window.VehicleTrackingController && typeof window.VehicleTrackingController.onCoreAcceptedPosition === 'function') {
-            window.VehicleTrackingController.onCoreAcceptedPosition({
-                lat: lat,
-                lng: lng,
-                accuracy: Number(meta && meta.accuracy) || 999,
-                speed: Number(meta && meta.speed) || 0,
-                heading: meta && meta.heading != null ? meta.heading : currentHeading,
-                timestamp: Number(meta && meta.timestamp) || Date.now()
-            });
-            return;
-        }
-        if (!map) return;
-        if (!driverMarker) {
-            const icon = L.divIcon({
-                html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${currentHeading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
-                className: '', iconSize: [48,48], iconAnchor: [24,24]
-            });
-            driverMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(map);
-            map.setView([lat, lng], 17);
-            hasCenteredMap = true;
-            window.__lastMapFollowAt = Date.now();
-        } else {
-            driverMarker.setLatLng([lat, lng]);
-            const compass = document.getElementById('compass');
-            if (compass) compass.style.transform = `rotate(${currentHeading}deg)`;
-            // Luôn theo xe (idle + đang chạy), throttle 800ms để mượt
-            const now = Date.now();
-            const last = window.__lastMapFollowAt || 0;
-            const shouldFollow = forceCenter || !hasCenteredMap || isRunning || (now - last > 800);
-            if (shouldFollow) {
-                try {
-                    map.panTo([lat, lng], { animate: true, duration: 0.6 });
-                    window.__lastMapFollowAt = now;
-                    hasCenteredMap = true;
-                } catch (e) {}
-            }
-        }
-    }
+    // ===== KHÔNG CÒN HÀM updateDriverMarker =====
+    // Đã thay thế bằng gọi VehicleTrackingController.updateVehiclePosition
 
     function updateAllDisplays(km, fare) {
         const kmEl = document.getElementById('km');
@@ -903,8 +887,9 @@ let hasCenteredMap = false;
             },
             (err) => {
                 console.error('[GPS] error:', err.code, err.message);
-                if (window.VehicleTrackingController && typeof window.VehicleTrackingController.handleGpsError === 'function') {
-                    window.VehicleTrackingController.handleGpsError(err);
+                // Báo lỗi cho controller
+                if (window.VehicleTrackingController && typeof window.VehicleTrackingController.notifyGpsLost === 'function') {
+                    window.VehicleTrackingController.notifyGpsLost();
                 }
                 gpsRetryCount++;
                 let msg = 'GPS: Lỗi';
@@ -948,7 +933,12 @@ let hasCenteredMap = false;
         gpsRetryCount = 0;
         startGPS();
         if (currentLat && currentLng && map) {
-            map.flyTo([currentLat, currentLng], 17, { duration: 1 });
+            // Nếu controller đang quản lý, hãy để controller xử lý follow
+            if (window.VehicleTrackingController && typeof window.VehicleTrackingController.setFollow === 'function') {
+                window.VehicleTrackingController.setFollow(true);
+            } else {
+                map.flyTo([currentLat, currentLng], 17, { duration: 1 });
+            }
             hasCenteredMap = true;
         }
     }
@@ -1734,7 +1724,11 @@ async function initApp() {
         if (customerMarker) map.removeLayer(customerMarker);
         const icon = L.divIcon({ html: "<div class='customer-marker'>🧍</div>", className: '', iconSize: [26,26], iconAnchor: [13,13] });
         customerMarker = L.marker([lat, lng], { icon }).addTo(map);
-        if (driverMarker) map.fitBounds(L.featureGroup([driverMarker, customerMarker]).getBounds().pad(0.3));
+        // Không gọi fitBounds với driverMarker vì driverMarker do controller quản lý
+        // Chỉ flyTo để hiển thị cả hai điểm
+        if (currentLat && currentLng) {
+            map.flyTo([(currentLat + lat) / 2, (currentLng + lng) / 2], 14);
+        }
     }
 
     function confirmPickup() {
