@@ -1,6 +1,6 @@
 // Extracted from index.html; load order is intentionally preserved.
     // ============================================================
-    // TAXI PROMAX - FULL VERSION v7.0 (FIX GPS + CONTROLLER)
+    // TAXI PROMAX - FULL VERSION v7.1 (FIX FARE WITH WEAK GPS)
     // ============================================================
 
     const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
@@ -717,7 +717,6 @@ let hasCenteredMap = false;
         updateGpsStatusUI(accuracy, false);
 
         // ===== GỬI VỊ TRÍ VÀO CONTROLLER (DUY NHẤT) =====
-        // Đảm bảo controller đã được khởi tạo và sẵn sàng
         if (window.VehicleTrackingController && typeof window.VehicleTrackingController.updateVehiclePosition === 'function') {
             window.VehicleTrackingController.updateVehiclePosition(latitude, longitude, {
                 accuracy: accuracy,
@@ -726,8 +725,7 @@ let hasCenteredMap = false;
                 timestamp: currentTime
             });
         } else {
-            // Fallback: nếu controller chưa tải, tự tạo marker tạm (chỉ để không mất map)
-            // Nhưng controller sẽ được load ngay sau đó, nên fallback này hiếm khi xảy ra.
+            // Fallback marker tạm (hiếm khi xảy ra)
             console.warn('[GPS] VehicleTrackingController chưa sẵn sàng, fallback marker tạm');
             if (typeof window.driverMarker === 'undefined' && map) {
                 const icon = L.divIcon({
@@ -744,15 +742,15 @@ let hasCenteredMap = false;
             }
         }
 
-        // Fix trên 300m chỉ dùng để đặt marker/đồng bộ vị trí gần đúng.
-        // Không tạo mốc kilomet từ một điểm GPS quá rộng.
-        if (accuracy > ACCURACY_MAX) {
-            syncDriverLocation();
-            return;
-        }
-
+        // ==================== SỬA LỖI TÍNH CƯỚC KHI GPS YẾU ====================
+        // Không bỏ qua tính KM nếu accuracy > 300m, mà dùng lastValidPos để ước lượng
+        // (chỉ tính nếu accuracy <= 1000m để tránh sai số quá lớn)
         const fareActive = !window.tripEngine || typeof window.tripEngine.isFareActive !== 'function' || window.tripEngine.isFareActive();
-        if (isRunning && fareActive && isGoodEnoughForFare && lastValidPos) {
+
+        // Trường hợp GPS tốt (<= 300m) và đủ chính xác: tính KM theo logic cũ
+        const useForFare = (accuracy <= ACCURACY_MAX) && isGoodEnoughForFare;
+
+        if (useForFare && isRunning && fareActive && lastValidPos) {
             const timeDiff = currentTime - lastValidTime;
 
             if (timeDiff > GAP_THRESHOLD) {
@@ -772,12 +770,26 @@ let hasCenteredMap = false;
                     updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
                 }
             }
-        }
-
-        if (isGoodEnoughForFare || !lastValidPos) {
             lastValidPos = { lat: latitude, lng: longitude };
             lastValidTime = currentTime;
         }
+        // Trường hợp GPS trung bình (300m < accuracy <= 1000m): vẫn tính KM nhưng dùng Haversine
+        else if (isRunning && fareActive && lastValidPos && accuracy <= 1000) {
+            const dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, latitude, longitude);
+            if (dist > 0.01 && dist < 0.5) {
+                totalKm += dist;
+                updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
+            }
+            lastValidPos = { lat: latitude, lng: longitude };
+            lastValidTime = currentTime;
+        }
+        // Nếu chưa có lastValidPos và accuracy chấp nhận được, lưu lại
+        else if (!lastValidPos && accuracy <= 1000) {
+            lastValidPos = { lat: latitude, lng: longitude };
+            lastValidTime = currentTime;
+        }
+
+        // Đồng bộ vị trí lên Firebase
         syncDriverLocation();
     }
 
@@ -887,7 +899,6 @@ let hasCenteredMap = false;
             },
             (err) => {
                 console.error('[GPS] error:', err.code, err.message);
-                // Báo lỗi cho controller
                 if (window.VehicleTrackingController && typeof window.VehicleTrackingController.notifyGpsLost === 'function') {
                     window.VehicleTrackingController.notifyGpsLost();
                 }
@@ -933,7 +944,6 @@ let hasCenteredMap = false;
         gpsRetryCount = 0;
         startGPS();
         if (currentLat && currentLng && map) {
-            // Nếu controller đang quản lý, hãy để controller xử lý follow
             if (window.VehicleTrackingController && typeof window.VehicleTrackingController.setFollow === 'function') {
                 window.VehicleTrackingController.setFollow(true);
             } else {
@@ -987,7 +997,6 @@ let hasCenteredMap = false;
     function setNavVisible(visible) {
         const nav = document.querySelector('.nav-grid');
         if (nav) nav.style.display = visible ? 'flex' : 'none';
-        // Brand luôn hiện khi idle; chỉ ẩn khi đang chạy chuyến
         const brand = document.querySelector('.brand-footer');
         if (brand) brand.style.setProperty('display', visible ? 'block' : 'none', 'important');
     }
@@ -1217,7 +1226,6 @@ async function initApp() {
         initMap();
         await initBackgroundGeolocation();
         
-        // ⭐ KHỞI TẠO THEO DÕI THỜI TIẾT & VỊ TRÍ
         initWeatherTracking();
         
         startOrderListener();
@@ -1232,8 +1240,6 @@ async function initApp() {
         initPushNotifications();
         updateVerificationStatus();
         loadDocumentsList();
-        
-        // Thêm nút Quên mật khẩu
         addForgotPasswordButton();
         
         const walletBalance = document.getElementById('walletBalance');
@@ -1289,7 +1295,6 @@ async function initApp() {
     }
 
     function initMap() {
-        // map.js là owner duy nhất; core chỉ lấy lại instance, không tạo L.map lần hai.
         if (window.PromaxMap && typeof window.PromaxMap.ensure === 'function') {
             map = window.PromaxMap.ensure();
             window.__promaxCoreGpsOwner = true;
@@ -1549,7 +1554,7 @@ async function initApp() {
         }, 3600000);
     }
 
-    // ==================== ORDER HANDLING (ĐÃ SỬA LỖI HIỂN THỊ 2 LẦN) ====================
+    // ==================== ORDER HANDLING ====================
     async function autonomousOrderEligible(order) {
         if (!window.TaxiAutonomous || !order || order.pickupLat == null || order.pickupLng == null) return true;
         try {
@@ -1572,7 +1577,6 @@ async function initApp() {
     }
 
     function startOrderListener() {
-        // Nếu đã có listener hoặc đang offline thì không khởi tạo lại
         if (_orderListenerStarted || !isDriverOnline) return;
         if (orderListener) { 
             orderListener.off(); 
@@ -1582,10 +1586,7 @@ async function initApp() {
 
         orderListener = db.ref('datxe').orderByChild('status').equalTo('waiting');
         orderListener.on('child_added', async (snap) => {
-            // ⭐ QUAN TRỌNG: KHÔNG XỬ LÝ NẾU ĐANG HIỂN THỊ MODAL
-            if (_isModalOpening || isRunning || isLocked || !isDriverOnline) {
-                return;
-            }
+            if (_isModalOpening || isRunning || isLocked || !isDriverOnline) return;
 
             const order = snap.val(), orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
@@ -1607,7 +1608,6 @@ async function initApp() {
             if (!(await autonomousOrderEligible(order))) return;
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
             
-            // Đánh dấu đã xử lý và bắt đầu hiển thị modal
             _processedOrders.add(orderId); 
             _isModalOpening = true; 
             currentOrderId = orderId; 
@@ -1671,7 +1671,7 @@ async function initApp() {
 
         currentCustomerData = result.snapshot?.val?.() || currentCustomerData;
         closeModal('orderModal');
-        _isModalOpening = false; // Reset cờ sau khi đóng
+        _isModalOpening = false;
 
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng)
             createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
@@ -1724,8 +1724,6 @@ async function initApp() {
         if (customerMarker) map.removeLayer(customerMarker);
         const icon = L.divIcon({ html: "<div class='customer-marker'>🧍</div>", className: '', iconSize: [26,26], iconAnchor: [13,13] });
         customerMarker = L.marker([lat, lng], { icon }).addTo(map);
-        // Không gọi fitBounds với driverMarker vì driverMarker do controller quản lý
-        // Chỉ flyTo để hiển thị cả hai điểm
         if (currentLat && currentLng) {
             map.flyTo([(currentLat + lat) / 2, (currentLng + lng) / 2], 14);
         }
@@ -1819,14 +1817,13 @@ async function initApp() {
     }
 
     function completeTrip() {
-        const MIN_FARE = 20000; // cước tối thiểu (khớp thực tế vận hành)
+        const MIN_FARE = 20000;
         const finalKm = Number(totalKm) || 0;
         let finalCost = Math.round(finalKm * currentRate);
         if (finalCost < MIN_FARE) finalCost = MIN_FARE;
 
         const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
 
-        // Luôn lưu lịch sử trước khi reset biến
         saveHistory(finalKm, finalCost.toLocaleString('vi-VN'), finalCost, tripType);
 
         if (currentOrderId && !isStreetHail) {
@@ -1870,7 +1867,6 @@ async function initApp() {
             mainBtn.style.background = "var(--accent)";
         }
 
-        // Hiện lại tab sau khi kết thúc chuyến
         showTabsAfterTrip();
 
         if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
@@ -1911,7 +1907,6 @@ async function initApp() {
             tripType: tripType || 'STREET_HAIL'
         };
 
-        // 1. Luôn ghi localStorage trước (quan trọng nhất)
         try {
             let history = JSON.parse(localStorage.getItem('trip_history') || '[]');
             if (!Array.isArray(history)) history = [];
@@ -1921,7 +1916,6 @@ async function initApp() {
             console.warn('[saveHistory] localStorage error:', e);
         }
 
-        // 2. Ghi Firebase (nếu có uid thật)
         if (uid && uid !== 'local') {
             try {
                 await db.ref(`trips/${uid}/${now}`).set(tripData);
@@ -1930,7 +1924,6 @@ async function initApp() {
             }
         }
 
-        // 3. Render lại lịch sử ngay
         if (typeof renderHistory === 'function') {
             try { renderHistory(); } catch (e) {}
         }
@@ -1939,8 +1932,6 @@ async function initApp() {
         }
     }
 
-
-    // Export cho History Pro + trip engine (V6)
     window.saveHistory = saveHistory;
 
     async function renderHistory() {
