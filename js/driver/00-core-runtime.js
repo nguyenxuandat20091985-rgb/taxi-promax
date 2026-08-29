@@ -31,6 +31,7 @@ let cancelListener = null;
 let wakeLock = null;
 let countdownInterval = null;
 let _isModalOpening = false;
+let _orderListenerStarted = false; // Cờ ngăn gọi listener trùng
 let _processedOrders = new Set();
 let isStreetHail = false;
 let lastDisplayedFare = 0;
@@ -515,6 +516,7 @@ let hasCenteredMap = false;
             toggle.classList.remove('active');
             text.innerText = 'Offline';
             if (orderListener) { orderListener.off(); orderListener = null; }
+            _orderListenerStarted = false; // reset để có thể bật lại khi online
             stopLocationPushing();
             stopAIDispatch();
             showToast('⏸ Đã chuyển sang trạng thái Offline');
@@ -1557,7 +1559,7 @@ async function initApp() {
         }, 3600000);
     }
 
-    // ==================== ORDER HANDLING ====================
+    // ==================== ORDER HANDLING (ĐÃ SỬA LỖI HIỂN THỊ 2 LẦN) ====================
     async function autonomousOrderEligible(order) {
         if (!window.TaxiAutonomous || !order || order.pickupLat == null || order.pickupLng == null) return true;
         try {
@@ -1578,12 +1580,23 @@ async function initApp() {
             return true;
         }
     }
+
     function startOrderListener() {
-        if (!isDriverOnline) return;
-        if (orderListener) { orderListener.off(); orderListener = null; }
+        // Nếu đã có listener hoặc đang offline thì không khởi tạo lại
+        if (_orderListenerStarted || !isDriverOnline) return;
+        if (orderListener) { 
+            orderListener.off(); 
+            orderListener = null; 
+        }
+        _orderListenerStarted = true;
+
         orderListener = db.ref('datxe').orderByChild('status').equalTo('waiting');
         orderListener.on('child_added', async (snap) => {
-            if (_isModalOpening || isRunning || isLocked || !isDriverOnline) return;
+            // ⭐ QUAN TRỌNG: KHÔNG XỬ LÝ NẾU ĐANG HIỂN THỊ MODAL
+            if (_isModalOpening || isRunning || isLocked || !isDriverOnline) {
+                return;
+            }
+
             const order = snap.val(), orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
             if (order.expiresAt && Number(order.expiresAt) <= Date.now()) {
@@ -1604,6 +1617,7 @@ async function initApp() {
             if (!(await autonomousOrderEligible(order))) return;
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
             
+            // Đánh dấu đã xử lý và bắt đầu hiển thị modal
             _processedOrders.add(orderId); 
             _isModalOpening = true; 
             currentOrderId = orderId; 
@@ -1667,6 +1681,8 @@ async function initApp() {
 
         currentCustomerData = result.snapshot?.val?.() || currentCustomerData;
         closeModal('orderModal');
+        _isModalOpening = false; // Reset cờ sau khi đóng
+
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng)
             createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
         showTripPanel(currentCustomerData);
@@ -1681,7 +1697,6 @@ async function initApp() {
         document.getElementById('statsUI').classList.add('show');
         listenForCustomerCancel();
         listenForChat();
-        _isModalOpening = false;
         speak('Đã nhận đơn.');
         startForegroundService();
         enableKeepAwake();
@@ -2171,6 +2186,7 @@ async function initApp() {
             disableKeepAwake();
             
             if (orderListener) { orderListener.off(); orderListener = null; }
+            _orderListenerStarted = false;
             if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
             if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
             if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
