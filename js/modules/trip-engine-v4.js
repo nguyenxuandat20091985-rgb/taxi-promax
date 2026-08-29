@@ -81,7 +81,7 @@
         [TRIP_STATE.CUSTOMER_ONBOARD]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
         [TRIP_STATE.WAITING_DESTINATION]: [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
         [TRIP_STATE.DESTINATION_SELECTED]: [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.TRIP_RUNNING]: [TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.CANCELLED],
+        [TRIP_STATE.TRIP_RUNNING]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.CANCELLED],
         [TRIP_STATE.FARE_CALCULATING]: [TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
         [TRIP_STATE.ARRIVED_DESTINATION]: [TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
         [TRIP_STATE.COMPLETING]: [TRIP_STATE.COMPLETED],
@@ -166,7 +166,15 @@
     }
 
     isFareActive() {
-      return this.currentState === TRIP_STATE.FARE_CALCULATING;
+      // Fare chỉ được bật sau CUSTOMER_ONBOARD. Với đơn chưa có đích,
+      // meter vẫn chạy trong TRIP_RUNNING/WAITING_DESTINATION.
+      return [
+        TRIP_STATE.TRIP_RUNNING,
+        TRIP_STATE.WAITING_DESTINATION,
+        TRIP_STATE.FARE_CALCULATING,
+        TRIP_STATE.ARRIVED_DESTINATION,
+        TRIP_STATE.COMPLETING
+      ].includes(this.currentState);
     }
 
     isTripActive() {
@@ -174,7 +182,7 @@
     }
 
     isMeterRunning() {
-      return this.currentState === TRIP_STATE.FARE_CALCULATING;
+      return this.isFareActive();
     }
 
     transition(nextState, payload = {}) {
@@ -239,6 +247,21 @@
 
         case TRIP_STATE.CUSTOMER_ONBOARD:
           this.stopWaitTimer();
+          // Mốc tính tiền bắt đầu tại thời điểm khách lên xe. Quãng đường
+          // đi đón chỉ dùng cho navigation/ETA và không được đưa vào tripKm.
+          if (this.currentTrip) {
+            const position = this.currentPosition();
+            this.currentTrip.pickupConfirmedAt = Date.now();
+            this.currentTrip.pickupConfirmedLat = position ? position.lat : null;
+            this.currentTrip.pickupConfirmedLng = position ? position.lng : null;
+            this.currentTrip.tripKm = 0;
+            this.currentTrip.fare = 0;
+          }
+          this.currentOdometerKm = 0;
+          this.fareStartedAt = Date.now();
+          if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
+            window.PromaxLegacyRuntime.resetDistance();
+          }
           this.updateFlowUI();
           break;
 
@@ -353,14 +376,14 @@
       if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
         window.PromaxLegacyRuntime.resetDistance();
       }
-      // Chuyến vẫy vẫn phải ghi nhận đủ các mốc nhận khách.
+      // Chuyến vẫy phải dừng ở từng mốc nghiệp vụ. Không tự xác nhận
+      // khách lên xe và không bắt đầu tính cước khi tài xế mới chọn chuyến.
       if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
       this.ensureStreetHailTrip();
-      if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'street_hail', navigationMode: 'idle' })) return false;
-      if (!this.transition(TRIP_STATE.PICKUP_CONFIRMED, { source: 'street_hail' })) return false;
-      if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD, { source: 'street_hail' })) return false;
-      if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail' })) return false;
-      return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'street_hail' });
+      return this.transition(TRIP_STATE.DRIVER_ACCEPT, {
+        source: 'street_hail',
+        navigationMode: 'idle'
+      });
     }
 
     arrivedAtPickup() {
@@ -387,13 +410,21 @@
       if (this.currentState !== TRIP_STATE.CUSTOMER_ONBOARD) {
         if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD)) return false;
       }
-      // Có điểm đến → nav destination rồi FARE
+      // Chuyến vẫy có thể không có điểm đến. Sau khi khách lên xe,
+      // chuyến vẫy được chạy và tính cước bình thường; không ép nhập đích.
+      if (this.isStreetHailTrip()) {
+        if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail_onboard' })) return false;
+        return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'street_hail_onboard' });
+      }
+      // Đơn đặt có điểm đến chuyển sang chạy chuyến rồi điều hướng đích.
       if (this.hasDestination()) {
         this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'has_destination' });
         this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' });
         return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
       }
-      // Không có điểm đến: chờ tài xế/khách nhập đích rồi mới tính cước.
+      // Đơn đặt chưa có điểm đến vẫn bắt đầu tripKm/fare sau onboard,
+      // sau đó mới hiển thị ô nhập điểm đến; không tính quãng đường đi đón.
+      if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination_onboard' })) return false;
       return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'no_destination' });
     }
 
