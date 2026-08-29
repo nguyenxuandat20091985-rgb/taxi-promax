@@ -1,472 +1,691 @@
 /**
- * Taxi ProMax — Driver Trip Flow Engine V7.0 (AI nâng cao)
- *
- * - Tích hợp học máy đơn giản (tần suất khách theo giờ/ngày)
- * - Dự báo nhu cầu dựa trên thời tiết, sự kiện
- * - Điểm số thông minh: khoảng cách, mật độ tài xế, xu hướng
- * - Gợi ý tối ưu theo loại xe (xăng/điện)
- * - Giữ nguyên luồng trạng thái (IDLE → STREET_HAIL → ...)
+ * Taxi ProMax — Trip Engine V8.0 (3 luồng riêng biệt)
+ * 
+ * - Luồng 1: Street Hail (chuyến vẫy)
+ * - Luồng 2: App Booking with Destination (có điểm đến)
+ * - Luồng 3: App Booking without Destination (không điểm đến)
+ * 
+ * Tất cả luồng đều dùng chung state machine, nhưng logic transition khác nhau.
  */
-;(function (window, document) {
-  'use strict';
+;(function(window, document, undefined) {
+    'use strict';
 
-  // ========== HẰNG SỐ ==========
-  const TRIP_STATE = Object.freeze({
-    IDLE: 'IDLE',
-    STREET_HAIL: 'STREET_HAIL',
-    DRIVER_ACCEPT: 'DRIVER_ACCEPT',
-    NAVIGATING_TO_PICKUP: 'NAVIGATING_TO_PICKUP',
-    ARRIVED_PICKUP: 'ARRIVED_PICKUP',
-    PICKUP_CONFIRMED: 'PICKUP_CONFIRMED',
-    CUSTOMER_ONBOARD: 'CUSTOMER_ONBOARD',
-    WAITING_DESTINATION: 'WAITING_DESTINATION',
-    DESTINATION_SELECTED: 'DESTINATION_SELECTED',
-    TRIP_RUNNING: 'TRIP_RUNNING',
-    FARE_CALCULATING: 'FARE_CALCULATING',
-    ARRIVED_DESTINATION: 'ARRIVED_DESTINATION',
-    COMPLETING: 'COMPLETING',
-    COMPLETED: 'COMPLETED',
-    CANCELLED: 'CANCELLED'
-  });
+    // ==================== CONSTANTS ====================
+    const TRIP_STATE = Object.freeze({
+        IDLE: 'IDLE',
 
-  const TRIP_TYPE = Object.freeze({
-    STREET_HAIL: 'STREET_HAIL',
-    APP_DESTINATION: 'APP_DESTINATION',
-    APP_NO_DESTINATION: 'APP_NO_DESTINATION'
-  });
+        // Chung cho cả 3 luồng
+        DRIVER_ACCEPT: 'DRIVER_ACCEPT',
+        NAVIGATING_TO_PICKUP: 'NAVIGATING_TO_PICKUP',
+        ARRIVED_PICKUP: 'ARRIVED_PICKUP',
+        PICKUP_CONFIRMED: 'PICKUP_CONFIRMED',
+        CUSTOMER_ONBOARD: 'CUSTOMER_ONBOARD',
+        TRIP_RUNNING: 'TRIP_RUNNING',
+        FARE_CALCULATING: 'FARE_CALCULATING',
+        ARRIVED_DESTINATION: 'ARRIVED_DESTINATION',
+        COMPLETING: 'COMPLETING',
+        COMPLETED: 'COMPLETED',
+        CANCELLED: 'CANCELLED',
 
-  const CONFIG = Object.freeze({
-    FARE_BASE: 15000,
-    FARE_PER_KM: 12000,
-    MIN_FARE: 20000,
-    MAX_FARE: 500000,
-    MAX_SPEED_KMH: 140,
-    FIREBASE_PATH: 'datxe',
-    ALERTS_PATH: 'ai/alerts'
-  });
+        // Riêng Street Hail
+        STREET_HAIL: 'STREET_HAIL',
+        START_METER: 'START_METER',
 
-  // ========== TIỆN ÍCH ==========
-  function number(value, fallback = 0) {
-    const result = Number(value);
-    return Number.isFinite(result) ? result : fallback;
-  }
-  function hasText(value) {
-    return typeof value === 'string' && value.trim() !== '' && value.trim() !== 'Chưa xác định';
-  }
+        // Riêng App
+        WAITING_DESTINATION: 'WAITING_DESTINATION',
+        DESTINATION_SELECTED: 'DESTINATION_SELECTED'
+    });
 
-  // ========== HÀM KHOẢNG CÁCH HAVERSINE ==========
-  function haversine(lat1, lng1, lat2, lng2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) ** 2 +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLng/2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
+    const TRIP_TYPE = Object.freeze({
+        STREET_HAIL: 'STREET_HAIL',
+        APP_DESTINATION: 'APP_DESTINATION',
+        APP_NO_DESTINATION: 'APP_NO_DESTINATION'
+    });
 
-  // ========== LỚP AI THÔNG MINH ==========
-  class SmartAI {
-    constructor() {
-      // Lưu lịch sử đơn hàng theo điểm (lat,lng) -> { count, times: [] }
-      this.history = new Map();
-      // Bộ nhớ cache thời tiết
-      this.weatherCache = null;
-      this.weatherExpiry = 0;
-      // Danh sách tài xế gần đó (sẽ được cập nhật từ Firebase)
-      this.nearbyDrivers = [];
-      // Loại xe của tài xế (xăng/điện) – lấy từ profile
-      this.fuelType = 'xang'; // mặc định
-      // Hệ số điều chỉnh
-      this.boostFactor = 1.0;
-    }
+    // ==================== TRIP ENGINE CLASS ====================
+    class TripEngine {
+        constructor() {
+            this.currentState = TRIP_STATE.IDLE;
+            this.currentTrip = null;
+            this.tripType = null; // 'STREET_HAIL' | 'APP_DESTINATION' | 'APP_NO_DESTINATION'
+            this.navigationMode = 'idle';
+            this.fareStartedAt = null;
+            this.odometerKm = 0;
+            this.waitTimeMin = 0;
+            this.lastKnownPosition = null;
+            this.lastGoodPosition = null;
+            this.waitTimer = null;
+            this._completed = false;
+            this._handlers = {};
 
-    // Khởi tạo với dữ liệu tài xế
-    init(driverProfile) {
-      if (driverProfile) {
-        this.fuelType = driverProfile.fuelType || 'xang';
-      }
-      this.loadHistoryFromLocal();
-      this.fetchWeather();
-      this.startPeriodicUpdate();
-    }
+            // Định nghĩa transition hợp lệ cho từng state (chung)
+            this.validTransitions = this._buildTransitions();
 
-    // Tải lịch sử từ localStorage
-    loadHistoryFromLocal() {
-      try {
-        const raw = localStorage.getItem('ai_trip_history');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          this.history = new Map(Object.entries(parsed));
+            // Đăng ký sự kiện
+            this._bindEvents();
         }
-      } catch (e) {}
-    }
 
-    // Lưu lịch sử
-    saveHistory() {
-      try {
-        const obj = Object.fromEntries(this.history);
-        localStorage.setItem('ai_trip_history', JSON.stringify(obj));
-      } catch (e) {}
-    }
+        // ===== XÂY DỰNG BẢNG TRANSITION =====
+        _buildTransitions() {
+            const allStates = Object.values(TRIP_STATE);
+            const transitions = {};
 
-    // Ghi nhận một chuyến đi hoàn thành
-    recordTrip(lat, lng, timestamp) {
-      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      if (!this.history.has(key)) {
-        this.history.set(key, { count: 0, times: [] });
-      }
-      const entry = this.history.get(key);
-      entry.count += 1;
-      entry.times.push(timestamp || Date.now());
-      // Giữ tối đa 1000 mốc thời gian
-      if (entry.times.length > 1000) entry.times.shift();
-      this.saveHistory();
-    }
+            // Mặc định: tất cả state đều có thể chuyển về IDLE hoặc CANCELLED (nếu không phải IDLE/CANCELLED)
+            allStates.forEach(state => {
+                transitions[state] = [];
+                if (state !== TRIP_STATE.IDLE && state !== TRIP_STATE.CANCELLED && state !== TRIP_STATE.COMPLETED) {
+                    transitions[state].push(TRIP_STATE.CANCELLED);
+                }
+            });
 
-    // Lấy tần suất theo giờ hiện tại và ngày trong tuần
-    getFrequency(lat, lng) {
-      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      const entry = this.history.get(key);
-      if (!entry || entry.times.length === 0) return 0;
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentDay = now.getDay(); // 0=CN
-      // Lọc các thời điểm cùng giờ và cùng ngày trong tuần
-      const filtered = entry.times.filter(ts => {
-        const d = new Date(ts);
-        return d.getHours() === currentHour && d.getDay() === currentDay;
-      });
-      // Trả về tần suất trung bình (số chuyến / số ngày có dữ liệu)
-      return filtered.length / Math.max(1, Math.ceil(entry.times.length / 7));
-    }
+            // ===== STREET HAIL =====
+            transitions[TRIP_STATE.IDLE].push(TRIP_STATE.STREET_HAIL);
+            transitions[TRIP_STATE.STREET_HAIL] = [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.DRIVER_ACCEPT].push(TRIP_STATE.PICKUP_CONFIRMED); // Street hail bỏ qua navigation
+            transitions[TRIP_STATE.PICKUP_CONFIRMED] = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.CUSTOMER_ONBOARD] = [TRIP_STATE.START_METER, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.START_METER] = [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.TRIP_RUNNING] = [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.WAITING_DESTINATION] = [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.DESTINATION_SELECTED] = [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.FARE_CALCULATING] = [TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.ARRIVED_DESTINATION] = [TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.COMPLETING] = [TRIP_STATE.COMPLETED];
+            transitions[TRIP_STATE.COMPLETED] = [TRIP_STATE.IDLE];
+            transitions[TRIP_STATE.CANCELLED] = [TRIP_STATE.IDLE];
 
-    // Lấy thời tiết hiện tại
-    async fetchWeather(lat, lng) {
-      if (this.weatherCache && Date.now() < this.weatherExpiry) return this.weatherCache;
-      try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (data.current_weather) {
-          this.weatherCache = {
-            temp: data.current_weather.temperature,
-            weathercode: data.current_weather.weathercode,
-            wind: data.current_weather.windspeed
-          };
-          this.weatherExpiry = Date.now() + 600000; // 10 phút
+            // ===== APP WITH DESTINATION =====
+            // IDLE → DRIVER_ACCEPT được thêm ở trên
+            transitions[TRIP_STATE.DRIVER_ACCEPT] = [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.NAVIGATING_TO_PICKUP] = [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.ARRIVED_PICKUP] = [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.PICKUP_CONFIRMED] = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.CUSTOMER_ONBOARD] = [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED];
+            // DESTINATION_SELECTED, TRIP_RUNNING, FARE, v.v. đã được định nghĩa ở trên
+
+            return transitions;
         }
-      } catch (e) {
-        console.warn('[SmartAI] Không lấy được thời tiết', e);
-      }
-      return this.weatherCache;
-    }
 
-    // Cập nhật danh sách tài xế gần đó (từ Firebase)
-    updateNearbyDrivers(drivers) {
-      this.nearbyDrivers = drivers || [];
-    }
-
-    // Tính điểm thông minh cho một điểm nóng
-    async calculateScore(spot, driverLat, driverLng) {
-      const dist = haversine(driverLat, driverLng, spot.lat, spot.lng);
-      // 1. Tần suất lịch sử
-      const freq = this.getFrequency(spot.lat, spot.lng);
-      // 2. Khoảng cách: càng gần càng tốt (tối đa 1, tối thiểu 0)
-      const distScore = Math.max(0, 1 - dist / 15); // trong vòng 15km
-      // 3. Thời tiết: nếu mưa (weathercode >= 51) thì tăng nhu cầu
-      let weatherBonus = 0;
-      if (this.weatherCache && this.weatherCache.weathercode >= 51) {
-        weatherBonus = 0.3;
-      }
-      // 4. Mật độ tài xế: nếu có ít tài xế gần điểm đó, điểm cao hơn
-      let driverDensity = 0;
-      if (this.nearbyDrivers.length > 0) {
-        const nearbyCount = this.nearbyDrivers.filter(d => {
-          const d2 = haversine(d.lat, d.lng, spot.lat, spot.lng);
-          return d2 < 3; // trong bán kính 3km
-        }).length;
-        driverDensity = Math.max(0, 1 - nearbyCount / 10); // ít tài xế => điểm cao
-      }
-      // 5. Loại xe: nếu xe điện và điểm có trạm sạc (mặc định cộng thêm)
-      let evBonus = 0;
-      if (this.fuelType === 'dien') {
-        // Giả định các điểm có tên chứa "sân bay", "trung tâm" có trạm sạc
-        if (spot.name.includes('Sân bay') || spot.name.includes('Trung tâm')) {
-          evBonus = 0.2;
+        // ===== CORE =====
+        _bindEvents() {
+            // Lắng nghe GPS từ core
+            document.addEventListener('gps:position', (e) => {
+                if (e.detail) this.updateGPS(e.detail);
+            });
         }
-      }
-      // 6. Xu hướng (tăng đột biến) – dựa trên tần suất gần đây
-      const recentTrend = this.getRecentTrend(spot.lat, spot.lng);
-      const trendBonus = Math.min(0.5, recentTrend * 0.1);
 
-      const score = (freq * 0.4 + distScore * 0.3 + driverDensity * 0.2 + weatherBonus * 0.1 + evBonus * 0.1 + trendBonus);
-      return Math.min(5, score * 2.5); // làm tròn về thang 0-5
-    }
+        getCurrentState() { return this.currentState; }
+        getCurrentTrip() { return this.currentTrip; }
+        getOdometer() { return this.odometerKm; }
+        getWaitTime() { return this.waitTimeMin; }
+        getNavigationMode() { return this.navigationMode; }
 
-    // Xu hướng gần đây (số chuyến trong 30 phút qua)
-    getRecentTrend(lat, lng) {
-      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      const entry = this.history.get(key);
-      if (!entry) return 0;
-      const now = Date.now();
-      const recent = entry.times.filter(ts => now - ts < 30 * 60 * 1000);
-      return recent.length;
-    }
+        // ===== PHƯƠNG THỨC CHÍNH =====
+        transition(nextState, payload = {}) {
+            const allowed = this.validTransitions[this.currentState] || [];
+            if (!allowed.includes(nextState)) {
+                console.warn(`[TripEngine] Invalid transition: ${this.currentState} -> ${nextState}`);
+                this.emit('error', { code: 'INVALID_TRANSITION', from: this.currentState, to: nextState });
+                return false;
+            }
 
-    // Khởi động cập nhật định kỳ
-    startPeriodicUpdate() {
-      setInterval(() => {
-        this.fetchWeather();
-        // Có thể cập nhật danh sách tài xế từ Firebase nếu có
-      }, 300000); // 5 phút
-    }
-  }
-
-  // ========== LỚP TRIP ENGINE CHÍNH ==========
-  class TripEngine {
-    constructor() {
-      this.currentState = TRIP_STATE.IDLE;
-      this.currentTrip = null;
-      this.navigationMode = 'idle';
-      this.fareStartedAt = null;
-      this.currentOdometerKm = 0;
-      this.waitTimeMin = 0;
-      this.lastKnownPosition = null;
-      this.lastGpsUpdate = null;
-      this.gpsWatchId = null;
-      this.gpsUnsubscribe = null;
-      this.waitTimer = null;
-      this._completed = false;
-      this.ai = new SmartAI();
-
-      // Định nghĩa các chuyển đổi trạng thái (giữ nguyên)
-      this.validTransitions = Object.freeze({
-        [TRIP_STATE.IDLE]: [TRIP_STATE.STREET_HAIL, TRIP_STATE.DRIVER_ACCEPT],
-        [TRIP_STATE.STREET_HAIL]: [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.DRIVER_ACCEPT]: [TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.NAVIGATING_TO_PICKUP]: [TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.ARRIVED_PICKUP]: [TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.PICKUP_CONFIRMED]: [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.CUSTOMER_ONBOARD]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.WAITING_DESTINATION]: [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.DESTINATION_SELECTED]: [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.TRIP_RUNNING]: [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.FARE_CALCULATING]: [TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.ARRIVED_DESTINATION]: [TRIP_STATE.COMPLETING, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED],
-        [TRIP_STATE.COMPLETING]: [TRIP_STATE.COMPLETED],
-        [TRIP_STATE.COMPLETED]: [TRIP_STATE.IDLE],
-        [TRIP_STATE.CANCELLED]: [TRIP_STATE.IDLE]
-      });
-
-      this.init();
-    }
-
-    init() {
-      // Khởi tạo AI với profile tài xế (lấy từ localStorage hoặc window)
-      const profile = this.loadDriverProfile();
-      this.ai.init(profile);
-      this.publishLegacyState();
-      this.startGpsListener();
-      this.log('Trip Flow Engine V7.0 (AI nâng cao) khởi động — IDLE');
-    }
-
-    loadDriverProfile() {
-      try {
-        const raw = localStorage.getItem('driver_profile');
-        if (raw) return JSON.parse(raw);
-      } catch (e) {}
-      return null;
-    }
-
-    // Các phương thức GPS, transition, state... tương tự như trước
-    // (giữ nguyên để không phá vỡ các module khác)
-    startGpsListener() {
-      if (window.PromaxGPSCore && typeof window.PromaxGPSCore.onFix === 'function') {
-        this.gpsUnsubscribe = window.PromaxGPSCore.onFix((fix) => {
-          if (!fix || fix.error) return;
-          this.updateGPS({
-            coords: {
-              latitude: number(fix.lat),
-              longitude: number(fix.lng),
-              accuracy: number(fix.accuracy, 999),
-              speed: number(fix.speed),
-              heading: number(fix.heading)
-            },
-            timestamp: number(fix.timestamp, Date.now())
-          });
-        });
-        return;
-      }
-      if (window.cockpit && typeof window.cockpit.onPosition === 'function') {
-        window.cockpit.onPosition((position) => this.updateGPS({
-          coords: {
-            latitude: number(position.lat),
-            longitude: number(position.lng),
-            accuracy: number(position.accuracy, 999),
-            speed: number(position.speed) / 3.6,
-            heading: number(position.heading)
-          },
-          timestamp: number(position.timestamp, Date.now())
-        }));
-        return;
-      }
-      if (navigator.geolocation) {
-        this.gpsWatchId = navigator.geolocation.watchPosition(
-          (position) => this.updateGPS(position),
-          (error) => this.log('GPS lỗi: ' + error.message, 'warn'),
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-        );
-      }
-    }
-
-    updateGPS(position) {
-      if (!position || !position.coords) return;
-      const coords = position.coords;
-      this.lastKnownPosition = {
-        lat: number(coords.latitude),
-        lng: number(coords.longitude),
-        accuracy: number(coords.accuracy, 999),
-        speed: number(coords.speed),
-        heading: number(coords.heading),
-        timestamp: number(position.timestamp, Date.now())
-      };
-      this.lastGpsUpdate = this.lastKnownPosition;
-      this.currentOdometerKm = this.readLegacyKm();
-      this.updateFlowUI();
-    }
-
-    // ... các phương thức khác giữ nguyên (transition, onEnter, ...)
-    // Để tiết kiệm dung lượng, tôi sẽ chỉ viết phần nâng cấp AI và các hàm liên quan.
-    // Các phương thức còn lại (transition, onEnter, completeTrip, ...) giữ nguyên từ file gốc.
-
-    // ===== PHẦN NÂNG CẤP AI =====
-    // Ghi nhận chuyến đi hoàn thành vào lịch sử AI
-    recordTripToAI() {
-      if (!this.currentTrip) return;
-      const pickup = this.pickup();
-      if (pickup && pickup.lat && pickup.lng) {
-        this.ai.recordTrip(pickup.lat, pickup.lng);
-      }
-      const dest = this.destination();
-      if (dest && dest.lat && dest.lng) {
-        this.ai.recordTrip(dest.lat, dest.lng);
-      }
-    }
-
-    // Gợi ý điểm nóng thông minh (dùng khi tài xế ở IDLE)
-    async getSmartHotspots() {
-      const pos = this.currentPosition();
-      if (!pos) return [];
-      // Lấy danh sách hotspots từ file 01-clean-fix (nếu có)
-      let hotspots = [];
-      if (window.HOTSPOTS_AI) {
-        const city = this.detectCity(pos.lat, pos.lng);
-        hotspots = window.HOTSPOTS_AI[city] || window.HOTSPOTS_AI['Hà Nội'] || [];
-      } else {
-        // Dữ liệu mẫu nếu không có
-        hotspots = [
-          { name: 'Sân bay Nội Bài', lat: 21.2142, lng: 105.8075, t: 'airport' },
-          { name: 'Hoàn Kiếm', lat: 21.0285, lng: 105.8542, t: 'fun' },
-          // ... thêm
-        ];
-      }
-      // Tính điểm từng hotspot
-      const scored = await Promise.all(hotspots.map(async (spot) => {
-        const score = await this.ai.calculateScore(spot, pos.lat, pos.lng);
-        return { ...spot, score, dist: haversine(pos.lat, pos.lng, spot.lat, spot.lng) };
-      }));
-      // Sắp xếp theo điểm giảm dần, khoảng cách tăng dần
-      scored.sort((a, b) => b.score - a.score || a.dist - b.dist);
-      return scored;
-    }
-
-    // Phát hiện thành phố dựa trên tọa độ (dùng dữ liệu từ CITY_COORDS nếu có)
-    detectCity(lat, lng) {
-      if (window.CITY_COORDS) {
-        let minDist = Infinity, nearest = null;
-        for (const [city, coord] of Object.entries(window.CITY_COORDS)) {
-          const d = haversine(lat, lng, coord.lat, coord.lng);
-          if (d < minDist) { minDist = d; nearest = city; }
+            const previousState = this.currentState;
+            this.currentState = nextState;
+            this._onEnter(nextState, previousState, payload);
+            this._publishState();
+            this.emit('status', {
+                status: nextState,
+                previousStatus: previousState,
+                state: nextState,
+                navigationMode: this.navigationMode,
+                trip: this.currentTrip,
+                payload
+            });
+            return true;
         }
-        return nearest || 'Hà Nội';
-      }
-      // Fallback theo vĩ độ
-      if (lat > 18) return 'Hà Nội';
-      if (lat > 15) return 'Đà Nẵng';
-      return 'TP.HCM';
-    }
 
-    // Hiển thị gợi ý AI lên màn hình (có thể gọi từ menu)
-    async showAISuggestion() {
-      const hotspots = await this.getSmartHotspots();
-      if (!hotspots || hotspots.length === 0) {
-        if (typeof window.showToast === 'function') {
-          window.showToast('🤖 AI chưa có dữ liệu điểm nóng tại khu vực này.');
+        _onEnter(state, previousState, payload) {
+            switch (state) {
+                case TRIP_STATE.IDLE:
+                    this.navigationMode = 'idle';
+                    this.stopWaitTimer();
+                    break;
+
+                case TRIP_STATE.STREET_HAIL:
+                    this._ensureStreetHailTrip();
+                    this.navigationMode = 'idle';
+                    break;
+
+                case TRIP_STATE.DRIVER_ACCEPT:
+                    // Xác định navigation mode dựa trên loại chuyến
+                    if (this.tripType === TRIP_TYPE.STREET_HAIL) {
+                        this.navigationMode = 'idle';
+                    } else {
+                        this.navigationMode = 'pickup';
+                    }
+                    break;
+
+                case TRIP_STATE.NAVIGATING_TO_PICKUP:
+                    this.navigationMode = 'pickup';
+                    this._drawRoute('pickup');
+                    break;
+
+                case TRIP_STATE.ARRIVED_PICKUP:
+                    this.navigationMode = 'pickup';
+                    break;
+
+                case TRIP_STATE.PICKUP_CONFIRMED:
+                    this.navigationMode = 'pickup';
+                    break;
+
+                case TRIP_STATE.CUSTOMER_ONBOARD:
+                    this.stopWaitTimer();
+                    if (this.currentTrip) {
+                        this.currentTrip.pickupConfirmedAt = Date.now();
+                    }
+                    this.odometerKm = 0;
+                    this.fareStartedAt = Date.now();
+                    // Reset distance trong core
+                    if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
+                        window.PromaxLegacyRuntime.resetDistance();
+                    }
+                    break;
+
+                case TRIP_STATE.START_METER:
+                    // Chỉ dành cho Street Hail: bắt đầu đồng hồ ngay khi khách lên xe
+                    this.navigationMode = 'idle';
+                    this.fareStartedAt = Date.now();
+                    this.odometerKm = 0;
+                    break;
+
+                case TRIP_STATE.WAITING_DESTINATION:
+                    this.navigationMode = 'idle';
+                    this.startWaitTimer();
+                    this.emit('request_destination', { message: 'Vui lòng nhập điểm đến để bắt đầu tính cước.' });
+                    break;
+
+                case TRIP_STATE.DESTINATION_SELECTED:
+                    this.navigationMode = 'destination';
+                    this._drawRoute('destination');
+                    this.stopWaitTimer();
+                    break;
+
+                case TRIP_STATE.TRIP_RUNNING:
+                    // Có thể xử lý thêm
+                    break;
+
+                case TRIP_STATE.FARE_CALCULATING:
+                    if (!this.fareStartedAt) this.fareStartedAt = Date.now();
+                    this.odometerKm = this._getOdometerFromCore();
+                    this._updateFare();
+                    break;
+
+                case TRIP_STATE.ARRIVED_DESTINATION:
+                    this.navigationMode = 'idle';
+                    this.emit('arrived_destination', {});
+                    break;
+
+                case TRIP_STATE.COMPLETING:
+                    this.navigationMode = 'idle';
+                    break;
+
+                case TRIP_STATE.COMPLETED:
+                    this._completeTrip(payload);
+                    break;
+
+                case TRIP_STATE.CANCELLED:
+                    this.stopWaitTimer();
+                    this._cancelTrip(payload.reason || 'Tài xế hủy chuyến');
+                    break;
+            }
+            this._updateUI();
         }
-        return;
-      }
-      const top = hotspots[0];
-      const msg = `🔥 AI đề xuất: ${top.name} (điểm ${top.score.toFixed(1)}/5, cách ${top.dist.toFixed(1)}km)`;
-      if (typeof window.showToast === 'function') {
-        window.showToast(msg);
-      }
-      // Vẽ lên bản đồ (nếu có)
-      if (typeof map !== 'undefined' && map) {
-        // Xóa lớp cũ nếu có
-        if (this._aiLayer) {
-          try { map.removeLayer(this._aiLayer); } catch (e) {}
+
+        _publishState() {
+            document.documentElement.setAttribute('data-trip-state', this.currentState);
+            document.documentElement.setAttribute('data-navigation-mode', this.navigationMode);
+            document.documentElement.setAttribute('data-trip-type', this.tripType || 'none');
+            document.documentElement.setAttribute('data-fare-active', this._isFareActive() ? 'true' : 'false');
         }
-        const group = L.layerGroup().addTo(map);
-        hotspots.slice(0, 5).forEach((spot) => {
-          const color = spot.score >= 4 ? '#d32f2f' : spot.score >= 3 ? '#f7931e' : '#00bfa5';
-          const circle = L.circle([spot.lat, spot.lng], {
-            radius: 400 + spot.score * 120,
-            color: color,
-            weight: 2,
-            fillColor: color,
-            fillOpacity: 0.3
-          });
-          circle.bindTooltip(`${spot.name} (${spot.score.toFixed(1)}/5)`);
-          group.addLayer(circle);
-        });
-        this._aiLayer = group;
-        // Fly to điểm tốt nhất
-        if (top) map.flyTo([top.lat, top.lng], 14);
-      }
+
+        // ===== CÁC HÀM KHỞI TẠO CHUYẾN =====
+
+        /**
+         * Bắt đầu chuyến vẫy
+         */
+        startStreetHail() {
+            if (this.currentState !== TRIP_STATE.IDLE) {
+                // Nếu đang có chuyến và chưa hoàn thành, hỏi xác nhận kết thúc
+                if (this._isTripActive()) {
+                    this.emit('confirm_complete', {});
+                    return false;
+                }
+                return false;
+            }
+            this._completed = false;
+            this.tripType = TRIP_TYPE.STREET_HAIL;
+            this.currentTrip = null; // sẽ tạo mới trong STREET_HAIL
+            // Reset các biến
+            this.odometerKm = 0;
+            this.fareStartedAt = null;
+            if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
+                window.PromaxLegacyRuntime.resetDistance();
+            }
+            if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
+            return this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'street_hail' });
+        }
+
+        /**
+         * Nhận đơn từ App (có hoặc không có điểm đến)
+         */
+        beginAppTrip(orderId, orderData) {
+            if (this.currentState !== TRIP_STATE.IDLE) {
+                console.warn('[TripEngine] Cannot start app trip when state=', this.currentState);
+                return false;
+            }
+            this._completed = false;
+            this.currentTrip = this._normalizeAppTrip(orderId, orderData);
+            this.tripType = this.currentTrip.type;
+            this.odometerKm = 0;
+            this.fareStartedAt = null;
+            if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
+                window.PromaxLegacyRuntime.resetDistance();
+            }
+            if (!this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'app_order', navigationMode: 'pickup' })) return false;
+            return this.transition(TRIP_STATE.NAVIGATING_TO_PICKUP, { source: 'app_order' });
+        }
+
+        // Alias cho acceptOrder
+        acceptOrder(orderId, orderData) {
+            return this.beginAppTrip(orderId, orderData);
+        }
+
+        // ===== HÀM HỖ TRỢ =====
+
+        _normalizeAppTrip(orderId, orderData) {
+            const hasDestination = Boolean(
+                (orderData.dropoffLat != null && orderData.dropoffLng != null) ||
+                (orderData.dropoff && typeof orderData.dropoff === 'string' && orderData.dropoff.trim() !== '')
+            );
+            const type = hasDestination ? TRIP_TYPE.APP_DESTINATION : TRIP_TYPE.APP_NO_DESTINATION;
+            return {
+                id: orderId || orderData.id || null,
+                type: type,
+                isStreetHail: false,
+                clientName: orderData.clientName || 'Khách',
+                phone: orderData.phone || '',
+                pickup: orderData.pickup || 'Vị trí hiện tại',
+                dropoff: orderData.dropoff || null,
+                dropoffLat: orderData.dropoffLat != null ? Number(orderData.dropoffLat) : null,
+                dropoffLng: orderData.dropoffLng != null ? Number(orderData.dropoffLng) : null,
+                pickupLat: orderData.pickupLat != null ? Number(orderData.pickupLat) : null,
+                pickupLng: orderData.pickupLng != null ? Number(orderData.pickupLng) : null,
+                estimatePrice: orderData.estimatePrice || 0,
+                estimateKm: orderData.estimateKm || 0,
+                carType: orderData.carType || '4_seats',
+                ...orderData
+            };
+        }
+
+        _ensureStreetHailTrip() {
+            if (this.currentTrip && this.tripType === TRIP_TYPE.STREET_HAIL) return;
+            this.currentTrip = {
+                id: null,
+                type: TRIP_TYPE.STREET_HAIL,
+                isStreetHail: true,
+                clientName: '🚕 Khách vẫy',
+                phone: '',
+                pickup: 'Vị trí hiện tại',
+                dropoff: null,
+                dropoffLat: null,
+                dropoffLng: null,
+                pickupLat: this.lastGoodPosition ? this.lastGoodPosition.lat : null,
+                pickupLng: this.lastGoodPosition ? this.lastGoodPosition.lng : null,
+                estimatePrice: 0,
+                estimateKm: 0,
+                carType: '4_seats'
+            };
+            this.tripType = TRIP_TYPE.STREET_HAIL;
+        }
+
+        _getOdometerFromCore() {
+            if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.getTotalKm === 'function') {
+                return window.PromaxLegacyRuntime.getTotalKm();
+            }
+            return this.odometerKm;
+        }
+
+        // ===== CÁC HÀNH ĐỘNG =====
+
+        confirmPickup() {
+            const state = this.currentState;
+            if (state === TRIP_STATE.NAVIGATING_TO_PICKUP) {
+                return this.transition(TRIP_STATE.ARRIVED_PICKUP);
+            }
+            if (state === TRIP_STATE.ARRIVED_PICKUP && this.tripType !== TRIP_TYPE.STREET_HAIL) {
+                return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
+            }
+            if (state === TRIP_STATE.STREET_HAIL || state === TRIP_STATE.DRIVER_ACCEPT) {
+                // Trong Street Hail, bỏ qua navigation, đến thẳng PICKUP_CONFIRMED
+                return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
+            }
+            return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
+        }
+
+        arrivedAtPickup() {
+            return this.transition(TRIP_STATE.ARRIVED_PICKUP);
+        }
+
+        passengerOnboard() {
+            if (this.currentState === TRIP_STATE.NAVIGATING_TO_PICKUP) this.arrivedAtPickup();
+            if (![TRIP_STATE.ARRIVED_PICKUP, TRIP_STATE.PICKUP_CONFIRMED, TRIP_STATE.CUSTOMER_ONBOARD].includes(this.currentState)) {
+                return false;
+            }
+            if (this.currentState !== TRIP_STATE.CUSTOMER_ONBOARD) {
+                if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD)) return false;
+            }
+
+            // Sau khi khách lên xe, xác định bước tiếp theo
+            if (this.tripType === TRIP_TYPE.STREET_HAIL) {
+                // Chuyến vẫy: bắt đầu đồng hồ ngay
+                if (!this.transition(TRIP_STATE.START_METER, { source: 'street_hail_onboard' })) return false;
+                return this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail_onboard' });
+            } else if (this.tripType === TRIP_TYPE.APP_DESTINATION) {
+                // App có điểm đến: chọn điểm đến và chạy ngay
+                if (!this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'has_destination' })) return false;
+                if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' })) return false;
+                return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
+            } else {
+                // App không điểm đến: chờ nhập
+                if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination_onboard' })) return false;
+                return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'no_destination' });
+            }
+        }
+
+        selectDestination(destination) {
+            if (this.currentState !== TRIP_STATE.WAITING_DESTINATION) {
+                console.warn('[TripEngine] Cannot select destination when state=', this.currentState);
+                return false;
+            }
+            const normalized = this._normalizeDestination(destination);
+            if (!normalized) return false;
+            if (this.currentTrip) {
+                this.currentTrip.dropoff = normalized.address;
+                this.currentTrip.dropoffLat = normalized.lat;
+                this.currentTrip.dropoffLng = normalized.lng;
+                this.currentTrip.destination = normalized;
+            }
+            if (!this.transition(TRIP_STATE.DESTINATION_SELECTED, { destination: normalized })) return false;
+            if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'destination_selected' })) return false;
+            return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'destination_selected' });
+        }
+
+        startDestinationRoute(destination) {
+            return this.selectDestination(destination);
+        }
+
+        _normalizeDestination(value) {
+            if (typeof value === 'string') {
+                const address = value.trim();
+                return address ? { address, lat: null, lng: null } : null;
+            }
+            if (!value || typeof value.address !== 'string' || value.address.trim() === '') return null;
+            return {
+                address: value.address.trim(),
+                lat: value.lat != null ? Number(value.lat) : null,
+                lng: value.lng != null ? Number(value.lng) : null
+            };
+        }
+
+        completeTrip() {
+            const st = this.currentState;
+            if (![TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING].includes(st)) {
+                console.warn('[TripEngine] completeTrip from invalid state:', st);
+                return false;
+            }
+            return this.transition(TRIP_STATE.COMPLETED, { source: 'driver' });
+        }
+
+        arrivedAtDestination() {
+            if (this.currentState === TRIP_STATE.TRIP_RUNNING) {
+                this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'arrived_dest' });
+            }
+            if (this.currentState !== TRIP_STATE.FARE_CALCULATING) return false;
+            return this.transition(TRIP_STATE.ARRIVED_DESTINATION, { source: 'driver' });
+        }
+
+        showCompletionConfirmation() {
+            const st = this.currentState;
+            if (![TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION].includes(st)) {
+                console.warn('[TripEngine] showCompletionConfirmation from invalid state:', st);
+                return false;
+            }
+            this.emit('confirm_complete', {});
+            return true;
+        }
+
+        cancelTrip(reason = 'Tài xế hủy chuyến') {
+            if (!this._isTripActive()) return false;
+            return this.transition(TRIP_STATE.CANCELLED, { reason });
+        }
+
+        // ===== GPS UPDATE =====
+        updateGPS(position) {
+            if (!position || position.lat == null || position.lng == null) return;
+            this.lastGoodPosition = {
+                lat: Number(position.lat),
+                lng: Number(position.lng),
+                accuracy: Number(position.accuracy) || 999,
+                speed: Number(position.speed) || 0,
+                heading: Number(position.heading) || 0,
+                timestamp: Number(position.timestamp) || Date.now()
+            };
+
+            // Nếu đang trong chuyến và đã bắt đầu tính cước, cập nhật quãng đường
+            if (this._isFareActive()) {
+                this._updateDistance(position);
+                this._updateFare();
+            }
+
+            // Phát sự kiện cho UI
+            this.emit('gps_update', this.lastGoodPosition);
+        }
+
+        _updateDistance(position) {
+            // Sử dụng core để tính distance (giữ nguyên thuật toán cũ)
+            if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.processLocation === 'function') {
+                // Core sẽ tự cập nhật totalKm, ta chỉ lấy lại
+                window.PromaxLegacyRuntime.processLocation({
+                    latitude: position.lat,
+                    longitude: position.lng,
+                    accuracy: position.accuracy || 999,
+                    heading: position.heading || 0,
+                    speed: position.speed || 0,
+                    timestamp: position.timestamp || Date.now()
+                });
+                this.odometerKm = window.PromaxLegacyRuntime.getTotalKm();
+            } else {
+                // Fallback: tính đơn giản bằng Haversine
+                if (this._lastPosition) {
+                    const dist = this._haversine(
+                        this._lastPosition.lat, this._lastPosition.lng,
+                        position.lat, position.lng
+                    );
+                    if (dist > 0.01 && dist < 0.5) {
+                        this.odometerKm += dist;
+                    }
+                }
+                this._lastPosition = { lat: position.lat, lng: position.lng };
+            }
+        }
+
+        _updateFare() {
+            const km = this.odometerKm;
+            const rate = window.PromaxLegacyRuntime ? window.PromaxLegacyRuntime.getRate() : 15000;
+            const fare = Math.max(20000, Math.round(km * rate));
+            this.emit('fare_update', { km: km, fare: fare });
+        }
+
+        _haversine(lat1, lng1, lat2, lng2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // ===== NAVIGATION =====
+        _drawRoute(mode) {
+            const target = mode === 'pickup' ? this._pickup() : this._destination();
+            if (!target || !target.lat || !target.lng) return;
+            const position = this.lastGoodPosition || {};
+            if (window.drawRoute && typeof window.drawRoute === 'function') {
+                window.drawRoute(position.lat, position.lng, target.lat, target.lng);
+            }
+        }
+
+        openNavigation(mode) {
+            const target = mode === 'pickup' ? this._pickup() : this._destination();
+            if (!target) return false;
+            const position = this.lastGoodPosition || {};
+            const dest = target.lat && target.lng
+                ? `${target.lat},${target.lng}`
+                : encodeURIComponent(target.address || '');
+            window.open(
+                `https://www.google.com/maps/dir/?api=1&origin=${position.lat},${position.lng}&destination=${dest}&travelmode=driving`,
+                '_blank'
+            );
+            return true;
+        }
+
+        _pickup() {
+            if (!this.currentTrip) return null;
+            return {
+                address: this.currentTrip.pickup || '',
+                lat: this.currentTrip.pickupLat || null,
+                lng: this.currentTrip.pickupLng || null
+            };
+        }
+
+        _destination() {
+            if (!this.currentTrip) return null;
+            return {
+                address: this.currentTrip.dropoff || '',
+                lat: this.currentTrip.dropoffLat || null,
+                lng: this.currentTrip.dropoffLng || null
+            };
+        }
+
+        // ===== STATE HELPERS =====
+        _isFareActive() {
+            return [
+                TRIP_STATE.TRIP_RUNNING,
+                TRIP_STATE.WAITING_DESTINATION,
+                TRIP_STATE.DESTINATION_SELECTED,
+                TRIP_STATE.FARE_CALCULATING,
+                TRIP_STATE.ARRIVED_DESTINATION,
+                TRIP_STATE.COMPLETING
+            ].includes(this.currentState);
+        }
+
+        _isTripActive() {
+            return ![TRIP_STATE.IDLE, TRIP_STATE.COMPLETED, TRIP_STATE.CANCELLED].includes(this.currentState);
+        }
+
+        // ===== COMPLETE / CANCEL =====
+        _completeTrip(payload) {
+            if (this._completed) return;
+            this._completed = true;
+            this.odometerKm = this._getOdometerFromCore();
+            // Lưu lịch sử
+            this.emit('completed', {
+                totalKm: this.odometerKm,
+                trip: this.currentTrip,
+                payload
+            });
+            // Reset về IDLE
+            this.currentState = TRIP_STATE.IDLE;
+            this.currentTrip = null;
+            this.tripType = null;
+            this.fareStartedAt = null;
+            this._publishState();
+            this._updateUI();
+        }
+
+        _cancelTrip(reason) {
+            this.emit('cancelled', { reason });
+            this.currentState = TRIP_STATE.IDLE;
+            this.currentTrip = null;
+            this.tripType = null;
+            this._publishState();
+            this._updateUI();
+        }
+
+        // ===== TIMER =====
+        startWaitTimer() {
+            this.stopWaitTimer();
+            this.waitTimer = setInterval(() => {
+                if (this.currentState === TRIP_STATE.WAITING_DESTINATION) {
+                    this.waitTimeMin += 1 / 60;
+                }
+            }, 1000);
+        }
+
+        stopWaitTimer() {
+            if (this.waitTimer) {
+                clearInterval(this.waitTimer);
+                this.waitTimer = null;
+            }
+        }
+
+        // ===== UI UPDATE =====
+        _updateUI() {
+            // UI sẽ được cập nhật qua sự kiện
+            this.emit('ui_update', {
+                state: this.currentState,
+                trip: this.currentTrip,
+                tripType: this.tripType
+            });
+        }
+
+        // ===== EMIT / EVENT =====
+        emit(type, detail = {}) {
+            document.dispatchEvent(new CustomEvent(`trip:${type}`, { detail }));
+        }
+
+        // ===== DESTROY =====
+        destroy() {
+            this.stopWaitTimer();
+            // Hủy các listener nếu có
+        }
     }
 
-    // Ghi đè phương thức completeTrip để lưu lịch sử AI
-    completeTrip() {
-      if (this.currentState !== TRIP_STATE.FARE_CALCULATING && this.currentState !== TRIP_STATE.ARRIVED_DESTINATION && this.currentState !== TRIP_STATE.COMPLETING) {
-        this.log('completeTrip từ state không hợp lệ: ' + this.currentState, 'warn');
-        return false;
-      }
-      // Lưu lịch sử trước khi hoàn tất
-      this.recordTripToAI();
-      return this.transition(TRIP_STATE.COMPLETED, { source: 'driver' });
+    // ==================== KHỞI TẠO ====================
+    const engine = new TripEngine();
+    window.tripEngine = engine;
+    window.TRIP_STATE = TRIP_STATE;
+    window.TRIP_TYPE = TRIP_TYPE;
+
+    // Đảm bảo legacy bridge vẫn hoạt động
+    if (window.PromaxLegacyRuntime) {
+        const origProcess = window.PromaxLegacyRuntime.processLocation;
+        window.PromaxLegacyRuntime.processLocation = function(location) {
+            // Gọi core xử lý distance
+            if (typeof origProcess === 'function') origProcess(location);
+            // Cập nhật vào engine
+            if (location && location.latitude != null && location.longitude != null) {
+                engine.updateGPS({
+                    lat: location.latitude,
+                    lng: location.longitude,
+                    accuracy: location.accuracy,
+                    speed: location.speed,
+                    heading: location.heading,
+                    timestamp: location.timestamp
+                });
+            }
+        };
     }
 
-    // Các phương thức khác giữ nguyên (để tránh lỗi)
-    // ... (toàn bộ phần còn lại của class TripEngine từ file gốc, nhưng đã nâng cấp AI)
-    // Vì dung lượng giới hạn, tôi viết tóm tắt các phương thức chính cần giữ nguyên.
-    // Anh có thể copy phần còn lại từ file cũ vào đây.
-    // Dưới đây là phần cần bổ sung:
-  }
+    console.log('✅ TripEngine V8.0 loaded — 3 separate trip flows');
 
-  // Khởi tạo engine và gán vào window
-  const engine = new TripEngine();
-  window.tripEngine = engine;
-  window.TRIP_STATE = TRIP_STATE;
-  window.TRIP_TYPE = TRIP_TYPE;
-  window.TRIP_FLOW_CONFIG = CONFIG;
-  // Cung cấp hàm gọi AI từ bên ngoài
-  window.showAISuggestion = function() {
-    if (engine && typeof engine.showAISuggestion === 'function') {
-      engine.showAISuggestion();
-    } else {
-      console.warn('TripEngine chưa sẵn sàng');
-    }
-  };
-  window.addEventListener('beforeunload', () => engine.destroy());
 })(window, document);
