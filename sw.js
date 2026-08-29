@@ -1,23 +1,25 @@
 /**
- * TAXI PROMAX - SERVICE WORKER v4.0 (FINAL)
+ * TAXI PROMAX - SERVICE WORKER v4.1
  * Gộp ưu điểm: Network First + Cache CDN + Push + Background Sync
  * Phát triển bởi: NGUYỄN XUÂN ĐẠT
+ *
+ * [2026-08-29] Bump CACHE_NAME để đẩy bản trip-engine có nút kết thúc chuyến
  */
 
-// [FIX] Nâng version — bắt browser reload SW mới
-const CACHE_NAME = 'taxi-promax-v8-20260827-ui3';
+// ★ Bump version — buộc xóa cache cũ, nạp JS mới (trip-engine-v4 fix endTripBtn)
+const CACHE_NAME = 'taxi-promax-v8-20260829-endtrip';
 
 // Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
     // ===== 4 APP CHÍNH =====
     './',
-    './index.html',        // App Tài Xế (nguồn)
-    './khachhang.html',    // App Khách Hàng (nguồn)
-    './xeghep.html',       // App Xe Ghép (nguồn)
-    './admin.html',        // Admin Dashboard (nguồn)
-    '/khachhang',          // Clean URL khách hàng
-    '/xeghep',             // Clean URL xe ghép
-    '/admin',              // Clean URL admin
+    './index.html',
+    './khachhang.html',
+    './xeghep.html',
+    './admin.html',
+    '/khachhang',
+    '/xeghep',
+    '/admin',
     './manifest.json',
 
     // ===== TAXI PROMAX UI v6 =====
@@ -25,7 +27,11 @@ const ASSETS_TO_CACHE = [
     './js/modules/promax-map-ui.js',
     './js/modules/promax-care-ai.js',
 
-    // ===== FIREBASE SDK (offline được) =====
+    // ===== TRIP ENGINE (nút kết thúc chuyến) =====
+    './js/modules/trip-engine-v4.js',
+    './js/init-trip.js',
+
+    // ===== FIREBASE SDK =====
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',
 
@@ -33,26 +39,23 @@ const ASSETS_TO_CACHE = [
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
 
-    // ===== FONT AWESOME (icon menu, nút bấm) =====
+    // ===== FONT AWESOME =====
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-
-    // Tile map dùng OpenStreetMap và tải theo nhu cầu; không cache Carto cũ.
 ];
 
 // ============================================================
 // 1. INSTALL
 // ============================================================
 self.addEventListener('install', (event) => {
-    console.log('[SW v5] Đang cài đặt...');
+    console.log('[SW v4.1] Đang cài đặt...', CACHE_NAME);
     self.skipWaiting();
 
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            // Cache riêng lẻ — 1 file lỗi không ảnh hưởng file khác
             return Promise.all(
                 ASSETS_TO_CACHE.map(url =>
                     cache.add(url).catch(err => {
-                        console.warn('[SW v5] Bỏ qua:', url, err.message);
+                        console.warn('[SW v4.1] Bỏ qua:', url, err.message);
                     })
                 )
             );
@@ -64,12 +67,12 @@ self.addEventListener('install', (event) => {
 // 2. ACTIVATE — Xóa cache cũ
 // ============================================================
 self.addEventListener('activate', (event) => {
-    console.log('[SW v5] Đang kích hoạt...');
+    console.log('[SW v4.1] Đang kích hoạt...', CACHE_NAME);
     event.waitUntil(
         caches.keys().then((keyList) =>
             Promise.all(
                 keyList.filter(key => key !== CACHE_NAME).map(key => {
-                    console.log('[SW v5] Xóa cache cũ:', key);
+                    console.log('[SW v4.1] Xóa cache cũ:', key);
                     return caches.delete(key);
                 })
             )
@@ -83,7 +86,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
-    // ===== KHÔNG CACHE các request động =====
     if (
         url.includes('/api/') ||
         url.includes('firebasedatabase.app') ||
@@ -95,7 +97,7 @@ self.addEventListener('fetch', (event) => {
         url.includes('open-meteo.com') ||
         event.request.method !== 'GET'
     ) {
-        return; // để browser xử lý
+        return;
     }
 
     event.respondWith(
@@ -112,12 +114,16 @@ self.addEventListener('fetch', (event) => {
             .catch(() => {
                 return caches.match(event.request).then((cached) => {
                     if (cached) {
-                        console.log('[SW v5] Offline → cache:', url);
+                        console.log('[SW v4.1] Offline → cache:', url);
                         return cached;
                     }
                     if (event.request.mode === 'navigate') {
                         const path = new URL(event.request.url).pathname;
-                        const fallback = path === '/khachhang' ? '/khachhang.html' : path === '/xeghep' ? '/xeghep.html' : path === '/admin' ? '/admin.html' : './index.html';
+                        const fallback =
+                            path === '/khachhang' ? '/khachhang.html' :
+                            path === '/xeghep' ? '/xeghep.html' :
+                            path === '/admin' ? '/admin.html' :
+                            './index.html';
                         return caches.match(fallback).then(page => page || caches.match('./index.html'));
                     }
                     return new Response('', { status: 503 });
@@ -131,7 +137,7 @@ self.addEventListener('fetch', (event) => {
 // ============================================================
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-pending-trips') {
-        console.log('[SW v5] Background sync...');
+        console.log('[SW v4.1] Background sync...');
         self.clients.matchAll().then(clients => {
             clients.forEach(client => {
                 client.postMessage({ type: 'SYNC_PENDING_TRIPS' });
@@ -150,7 +156,7 @@ self.addEventListener('push', (event) => {
         event.waitUntil(
             self.registration.showNotification(data.title || 'TAXI PROMAX', {
                 body:    data.body || 'Có thông báo mới',
-                icon:    data.icon || './manifest.json',  // dùng manifest icon (không 404)
+                icon:    data.icon || './manifest.json',
                 badge:   './manifest.json',
                 vibrate: [300, 100, 300],
                 data:    { url: data.url || './' },
@@ -158,7 +164,7 @@ self.addEventListener('push', (event) => {
             })
         );
     } catch (err) {
-        console.error('[SW v5] Push error:', err);
+        console.error('[SW v4.1] Push error:', err);
     }
 });
 
