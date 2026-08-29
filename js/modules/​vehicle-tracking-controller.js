@@ -1,17 +1,16 @@
 /**
- * Taxi ProMax — Vehicle Tracking Controller v2.0
+ * Taxi ProMax — Vehicle Tracking Controller v3.0
  * 
- * Chỉ điều khiển MARKER và MAP CAMERA.
+ * CHỈ ĐIỀU KHIỂN MARKER VÀ MAP CAMERA.
  * KHÔNG thay đổi logic GPS, Kalman, Anti-teleport, Fare.
  * 
  * GPS → (xử lý cũ) → accepted position → Controller → Marker + Map
  */
-;(function(window, document, undefined) {
+;(function (window, document, undefined) {
     'use strict';
 
     // ==================== STATE ====================
     const state = {
-        // Vị trí hợp lệ cuối cùng (đã qua Kalman + Anti-teleport)
         lat: null,
         lng: null,
         heading: 0,
@@ -19,33 +18,23 @@
         accuracy: 999,
         timestamp: null,
 
-        // Trạng thái GPS
-        status: 'INIT', // INIT | SEARCHING | READY | MOVING | GPS_LOST | RECOVERING | ERROR
+        status: 'INIT',
         isFollowing: true,
         hasFix: false,
         gpsLost: false,
         lastValidAt: null,
 
-        // Marker
         marker: null,
-        markerLayer: null,
-
-        // Map
         map: null,
 
-        // UI Elements
         followBtn: null,
         statusEl: null,
 
-        // Config
-        followThreshold: 800, // ms giữa các lần pan
-        teleportThreshold: 0.5, // km, nếu nhảy quá xa thì reject
-        gpsLostTimeout: 10000, // ms không có GPS -> báo mất
+        followThreshold: 800,
+        gpsLostTimeout: 10000,
         _lastPanTime: 0,
         _gpsLostTimer: null,
-        _watchId: null,
-        _isInitialized: false,
-        _pendingPosition: null
+        _isInitialized: false
     };
 
     // ==================== DOM HELPERS ====================
@@ -139,7 +128,6 @@
             const compass = document.getElementById('compass');
             if (compass) compass.style.transform = `rotate(${heading}deg)`;
         }
-        // Đồng bộ với biến toàn cục cũ (để các module khác dùng)
         if (window.driverMarker) window.driverMarker = marker;
         if (window.currentHeading !== undefined) window.currentHeading = heading || 0;
     }
@@ -156,7 +144,6 @@
             map.panTo([lat, lng], { animate: true, duration: 0.6 });
             state._lastPanTime = now;
         } catch (e) {
-            // fallback
             map.setView([lat, lng], zoom, { animate: true });
         }
         if (window.__lastMapFollowAt !== undefined) window.__lastMapFollowAt = now;
@@ -252,7 +239,6 @@
         const speed = meta && meta.speed != null ? meta.speed : 0;
         const timestamp = meta && meta.timestamp != null ? meta.timestamp : Date.now();
 
-        // Cập nhật state
         state.lat = lat;
         state.lng = lng;
         state.heading = heading;
@@ -262,26 +248,21 @@
         state.lastValidAt = timestamp;
         state.hasFix = true;
 
-        // Xác định trạng thái di chuyển
         if (speed > 2) {
             state.status = 'MOVING';
         } else {
             state.status = 'READY';
         }
 
-        // Cập nhật marker
         updateMarker(lat, lng, heading);
 
-        // Cập nhật map nếu đang follow
         if (state.isFollowing) {
             updateMapCamera(lat, lng);
         }
 
-        // Cập nhật UI
         updateStatusUI(state.status, accuracy);
         updateFollowButton();
 
-        // Reset timer mất GPS
         clearTimeout(state._gpsLostTimer);
         state._gpsLostTimer = setTimeout(() => {
             if (state.status !== 'GPS_LOST') {
@@ -294,7 +275,6 @@
             }
         }, state.gpsLostTimeout);
 
-        // Nếu đang ở trạng thái GPS_LOST, chuyển sang RECOVERING khi có GPS mới
         if (state.gpsLost) {
             state.gpsLost = false;
             state.status = 'RECOVERING';
@@ -307,15 +287,11 @@
             }, 500);
         }
 
-        // Đồng bộ với biến toàn cục cũ (cho các module cũ)
         if (window.currentLat !== undefined) window.currentLat = lat;
         if (window.currentLng !== undefined) window.currentLng = lng;
         if (window.currentHeading !== undefined) window.currentHeading = heading;
     }
 
-    /**
-     * Báo mất GPS (gọi từ 00-core-runtime.js khi watchPosition lỗi)
-     */
     function notifyGpsLost() {
         state.status = 'GPS_LOST';
         state.gpsLost = true;
@@ -323,26 +299,19 @@
         clearTimeout(state._gpsLostTimer);
     }
 
-    /**
-     * Khởi tạo controller
-     */
     function init() {
         if (state._isInitialized) return;
         state._isInitialized = true;
 
-        // Tạo UI
         state.followBtn = createFollowButton();
         state.statusEl = createStatusIndicator();
 
-        // Lấy map và marker hiện có
         getMap();
         getMarker();
 
-        // Cập nhật trạng thái ban đầu
         updateFollowButton();
         updateStatusUI('SEARCHING', 999);
 
-        // Lắng nghe sự kiện từ map (tài xế kéo map -> tắt follow)
         const map = getMap();
         if (map) {
             map.on('dragstart', function() {
@@ -356,7 +325,6 @@
             });
         }
 
-        // Đăng ký vào window để các module cũ gọi
         window.VehicleTrackingController = {
             updateVehiclePosition: updateVehiclePosition,
             notifyGpsLost: notifyGpsLost,
@@ -381,18 +349,14 @@
                     updateMapCamera(state.lat, state.lng, true);
                 }
             },
-            // Cho phép core cũ gọi để đồng bộ marker
             onCoreAcceptedPosition: function(data) {
-                // Đây là điểm kết nối với 00-core-runtime.js
-                // data = { lat, lng, accuracy, speed, heading, timestamp }
                 updateVehiclePosition(data.lat, data.lng, data);
             }
         };
 
-        console.log('✅ VehicleTrackingController v2 initialized');
+        console.log('✅ VehicleTrackingController v3.0 initialized');
     }
 
-    // ==================== KHỞI ĐỘNG ====================
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
