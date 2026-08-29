@@ -55,14 +55,19 @@ function statuses(events) {
   return events.filter((event) => event.type === 'trip:status').map((event) => event.detail.status);
 }
 
-// Flow 1: street hail starts only after the complete pickup/onboard sequence.
+// Flow 1: street hail requires explicit pickup confirmation and onboard action.
 {
   const { engine, events } = createEngine();
   assert.equal(engine.startStreetHail(), true);
-  assert.deepEqual(statuses(events), [
-    'STREET_HAIL', 'DRIVER_ACCEPT', 'PICKUP_CONFIRMED', 'CUSTOMER_ONBOARD',
-    'TRIP_RUNNING', 'FARE_CALCULATING'
-  ]);
+  assert.equal(engine.getCurrentState(), 'DRIVER_ACCEPT');
+  assert.equal(engine.isFareActive(), false);
+  assert.deepEqual(statuses(events), ['STREET_HAIL', 'DRIVER_ACCEPT']);
+
+  assert.equal(engine.confirmPickup(), true);
+  assert.equal(engine.getCurrentState(), 'PICKUP_CONFIRMED');
+  assert.equal(engine.isFareActive(), false);
+  assert.equal(engine.passengerOnboard(), true);
+  assert.equal(engine.getCurrentState(), 'FARE_CALCULATING');
   assert.equal(engine.getNavigationMode(), 'idle');
   assert.equal(engine.isFareActive(), true);
   assert.equal(engine.completeTrip(), true);
@@ -77,13 +82,13 @@ function statuses(events) {
   assert.equal(engine.arrivedAtPickup(), true);
   assert.equal(engine.passengerOnboard(), true);
   assert.equal(engine.getCurrentState(), 'WAITING_DESTINATION');
-  assert.equal(engine.isFareActive(), false);
+  assert.equal(engine.isFareActive(), true);
   assert.equal(engine.selectDestination({ address: 'B', lat: 21.1, lng: 105.1 }), true);
   assert.equal(engine.getNavigationMode(), 'destination');
   assert.equal(engine.isFareActive(), true);
   assert.deepEqual(statuses(events), [
     'DRIVER_ACCEPT', 'NAVIGATING_TO_PICKUP', 'ARRIVED_PICKUP', 'CUSTOMER_ONBOARD',
-    'WAITING_DESTINATION', 'DESTINATION_SELECTED', 'TRIP_RUNNING', 'FARE_CALCULATING'
+    'TRIP_RUNNING', 'WAITING_DESTINATION', 'DESTINATION_SELECTED', 'TRIP_RUNNING', 'FARE_CALCULATING'
   ]);
 }
 
