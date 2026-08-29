@@ -712,7 +712,12 @@ let hasCenteredMap = false;
 
         saveLocationToHistory(latitude, longitude, accuracy, currentTime);
         updateGpsStatusUI(accuracy, false);
-        updateDriverMarker(latitude, longitude, true);
+        updateDriverMarker(latitude, longitude, true, {
+            accuracy: accuracy,
+            speed: speed,
+            heading: heading,
+            timestamp: currentTime
+        });
 
         // Fix trên 300m chỉ dùng để đặt marker/đồng bộ vị trí gần đúng.
         // Không tạo mốc kilomet từ một điểm GPS quá rộng.
@@ -758,7 +763,20 @@ let hasCenteredMap = false;
         return ACCURACY_NORMAL;
     }
 
-    function updateDriverMarker(lat, lng, forceCenter) {
+    function updateDriverMarker(lat, lng, forceCenter, meta) {
+        // Core vẫn là nơi validate GPS và cộng fare. Controller là owner duy nhất
+        // của marker/camera để không tạo hai mũi tên hoặc nhiều panTo.
+        if (window.VehicleTrackingController && typeof window.VehicleTrackingController.onCoreAcceptedPosition === 'function') {
+            window.VehicleTrackingController.onCoreAcceptedPosition({
+                lat: lat,
+                lng: lng,
+                accuracy: Number(meta && meta.accuracy) || 999,
+                speed: Number(meta && meta.speed) || 0,
+                heading: meta && meta.heading != null ? meta.heading : currentHeading,
+                timestamp: Number(meta && meta.timestamp) || Date.now()
+            });
+            return;
+        }
         if (!map) return;
         if (!driverMarker) {
             const icon = L.divIcon({
@@ -883,6 +901,9 @@ let hasCenteredMap = false;
             },
             (err) => {
                 console.error('[GPS] error:', err.code, err.message);
+                if (window.VehicleTrackingController && typeof window.VehicleTrackingController.handleGpsError === 'function') {
+                    window.VehicleTrackingController.handleGpsError(err);
+                }
                 gpsRetryCount++;
                 let msg = 'GPS: Lỗi';
                 if (err.code === 1) {
