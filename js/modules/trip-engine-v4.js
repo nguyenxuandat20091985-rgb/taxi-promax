@@ -7,7 +7,7 @@
  * - Reset _completed khi bắt đầu chuyến mới
  * - Street hail: IDLE → FARE_CALCULATING (gọn)
  * - App không điểm đến: sau onboard → FARE ngay
- * - UI nút: CSS data-trip-state (JS không set display end/pickup/nav)
+ * - UI nút: JS set display endTripBtn theo farePhase (HTML mặc định display:none)
  * MIN_FARE 20000. GPS/cước do 00-core-runtime.
  */
 ;(function (window, document) {
@@ -183,6 +183,15 @@
 
     isMeterRunning() {
       return this.isFareActive();
+    }
+
+    /** Nút kết thúc chỉ hiện khi đã tính cước / đến đích */
+    canCompleteTrip() {
+      return [
+        TRIP_STATE.FARE_CALCULATING,
+        TRIP_STATE.ARRIVED_DESTINATION,
+        TRIP_STATE.COMPLETING
+      ].includes(this.currentState);
     }
 
     transition(nextState, payload = {}) {
@@ -605,6 +614,11 @@
         if (panel) panel.style.display = 'none';
         if (home) home.style.display = 'block';
         if (stats) stats.classList.remove('show');
+        if (endBtn) {
+          endBtn.style.display = 'none';
+          endBtn.disabled = true;
+          endBtn.setAttribute('aria-hidden', 'true');
+        }
         return;
       }
 
@@ -618,7 +632,7 @@
       const pickupPhase = [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.NAVIGATING_TO_PICKUP, TRIP_STATE.ARRIVED_PICKUP].includes(this.currentState);
       const pickupConfirmed = this.currentState === TRIP_STATE.PICKUP_CONFIRMED;
       const waitingDestination = this.currentState === TRIP_STATE.WAITING_DESTINATION;
-      const farePhase = this.isFareActive();
+      const showEnd = this.canCompleteTrip();
 
       if (actions) actions.style.display = pickupPhase || pickupConfirmed || waitingDestination ? 'flex' : 'none';
       if (pickupBtn) {
@@ -631,7 +645,16 @@
       if (navBtn) {
         navBtn.onclick = () => this.openNavigation(this.navigationMode === 'destination' ? 'destination' : 'pickup');
       }
+
+      // ★ FIX: bật/tắt nút kết thúc chuyến (HTML mặc định display:none)
       if (endBtn) {
+        endBtn.style.display = showEnd ? 'block' : 'none';
+        endBtn.disabled = !showEnd;
+        if (showEnd) {
+          endBtn.removeAttribute('aria-hidden');
+        } else {
+          endBtn.setAttribute('aria-hidden', 'true');
+        }
         endBtn.textContent = this.currentState === TRIP_STATE.ARRIVED_DESTINATION
           ? '🏁 CHỐT CƯỚC & KẾT THÚC'
           : '🏁 KẾT THÚC CHUYẾN ĐI';
@@ -738,9 +761,9 @@
       if (!target) return false;
       const position = this.currentPosition() || {};
       const destination = target.lat != null && target.lng != null
-        ? `${target.lat},${target.lng}`
+        ? `\( {target.lat}, \){target.lng}`
         : encodeURIComponent(target.address || '');
-      window.open(`https://www.google.com/maps/dir/?api=1&origin=${number(position.lat)},${number(position.lng)}&destination=${destination}&travelmode=driving`, '_blank');
+      window.open(`https://www.google.com/maps/dir/?api=1&origin=\( {number(position.lat)}, \){number(position.lng)}&destination=${destination}&travelmode=driving`, '_blank');
       return true;
     }
 
@@ -759,7 +782,7 @@
     syncStateToFirebase(state) {
       if (!window.db || !this.currentTrip || !this.currentTrip.id) return;
       try {
-        window.db.ref(`${CONFIG.FIREBASE_PATH}/${this.currentTrip.id}`).update({
+        window.db.ref(`\( {CONFIG.FIREBASE_PATH}/ \){this.currentTrip.id}`).update({
           status: state,
           navigationMode: this.navigationMode,
           lastUpdate: Date.now()
