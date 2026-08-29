@@ -1,13 +1,12 @@
 /*
  * Taxi ProMax — Driver Trip Flow Engine V6.1 (ổn định)
  *
- * Đợt 1+2:
  * - complete: FARE_CALCULATING | ARRIVED_DESTINATION → COMPLETED (1 bước)
  * - Không đổi state trước khi user xác nhận dialog
  * - Reset _completed khi bắt đầu chuyến mới
  * - Street hail: IDLE → STREET_HAIL → DRIVER_ACCEPT (+ updateFlowUI)
- * - App không điểm đến: sau onboard → FARE ngay
- * - UI nút: JS set display endTripBtn theo canCompleteTrip()
+ * - App không điểm đến: sau onboard → FARE
+ * - UI: JS set display endTripBtn theo canCompleteTrip()
  * MIN_FARE 20000. GPS/cước do 00-core-runtime.
  */
 ;(function (window, document) {
@@ -374,6 +373,7 @@
         if (this.isFareActive() || this.currentState === TRIP_STATE.ARRIVED_DESTINATION) {
           return this.showCompletionConfirmation();
         }
+        // Kẹt state (UI về home) → cho hủy rồi bắt đầu lại nếu caller muốn
         return false;
       }
       this._completed = false;
