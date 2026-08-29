@@ -1,8 +1,11 @@
-// Extracted from index.html; load order is intentionally preserved.
-    // ============================================================
-    // TAXI PROMAX - FULL VERSION v7.2 (STABLE FARE + GPS)
-    // ============================================================
+// ============================================================
+// TAXI PROMAX - CORE RUNTIME v9.0 (FULL, INTEGRATED WITH TRIP ENGINE)
+// ============================================================
 
+(function(window, document, undefined) {
+    'use strict';
+
+    // ==================== FIREBASE ====================
     const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
     if (!firebase.apps.length) firebase.initializeApp({ 
         databaseURL: FIREBASE_URL,
@@ -13,325 +16,94 @@
     let messaging = null;
     let fcmToken = null;
 
-// ==================== BIẾN TOÀN CỤC ====================
-let map, customerMarker, routeLayer;
-// KHÔNG CÒN driverMarker (để VehicleTrackingController quản lý)
-let currentLat = null, currentLng = null;
-let currentHeading = 0;
-let isRunning = false;
-let hasPickedUp = false;
-let totalKm = 0;
-let lastValidPos = null;
-let lastValidTime = 0;
-let currentRate = 15000;
-let currentOrderId = null;
-let currentCustomerData = null;
-let orderListener = null;
-let chatListener = null;
-let cancelListener = null;
-let wakeLock = null;
-let countdownInterval = null;
-let _isModalOpening = false;
-let _orderListenerStarted = false;
-let _processedOrders = new Set();
-let isStreetHail = false;
-let lastDisplayedFare = 0;
-let isGapMode = false;
-let streetHailTimerInterval = null;
-let backgroundGeolocation = null;
-let isBackgroundTracking = false;
-let locationHistory = [];
-let isDriverOnline = true;
-let locationPushInterval = null;
-let aiDispatchInterval = null;
-let soundEnabled = true;
-let ratingListener = null;
-let _cancelListener = null;
+    // ==================== BIẾN TOÀN CỤC ====================
+    let map = null;
+    let customerMarker = null;
+    let routeLayer = null;
+    let currentLat = null;
+    let currentLng = null;
+    let currentHeading = 0;
+    let currentRate = 15000;
+    let currentOrderId = null;
+    let currentCustomerData = null;
+    let orderListener = null;
+    let chatListener = null;
+    let cancelListener = null;
+    let wakeLock = null;
+    let countdownInterval = null;
+    let _isModalOpening = false;
+    let _orderListenerStarted = false;
+    let _processedOrders = new Set();
+    let lastDisplayedFare = 0;
+    let isGapMode = false;
+    let streetHailTimerInterval = null;
+    let backgroundGeolocation = null;
+    let isBackgroundTracking = false;
+    let locationHistory = [];
+    let isDriverOnline = true;
+    let locationPushInterval = null;
+    let aiDispatchInterval = null;
+    let soundEnabled = true;
+    let ratingListener = null;
+    let _cancelListener = null;
+    let isLocked = false;
+    let isDarkMode = localStorage.getItem('promax_dark') === 'true';
 
-let lastSpeeds = [];
-let fraudAlertShown = false;
-let isLocked = false;
-let isDarkMode = localStorage.getItem('promax_dark') === 'true';
-
-let driverInfo = {
-    uid: null, name: '', phone: '', plate: '', carModel: '', fuelType: 'xang', carClass: '4_seats'
-};
-
-// ==================== DANH SÁCH 63 TỈNH THÀNH VIỆT NAM ====================
-const VIETNAM_PROVINCES = [
-    // Thành phố trực thuộc Trung ương
-    { id: 'hanoi', name: 'Hà Nội', lat: 21.0285, lng: 105.8542, region: 'Đồng bằng sông Hồng' },
-    { id: 'hochiminh', name: 'TP. Hồ Chí Minh', lat: 10.8231, lng: 106.6297, region: 'Đông Nam Bộ' },
-    { id: 'danang', name: 'Đà Nẵng', lat: 16.0544, lng: 108.2022, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'haiphong', name: 'Hải Phòng', lat: 20.8449, lng: 106.6881, region: 'Đồng bằng sông Hồng' },
-    { id: 'cantho', name: 'Cần Thơ', lat: 10.0452, lng: 105.7469, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'hue', name: 'Huế', lat: 16.4637, lng: 107.5909, region: 'Bắc Trung Bộ' },
-    
-    // Đồng bằng sông Hồng
-    { id: 'vinhphuc', name: 'Vĩnh Phúc', lat: 21.3609, lng: 105.5474, region: 'Đồng bằng sông Hồng' },
-    { id: 'bacninh', name: 'Bắc Ninh', lat: 21.1861, lng: 106.0763, region: 'Đồng bằng sông Hồng' },
-    { id: 'quangninh', name: 'Quảng Ninh', lat: 20.9500, lng: 107.0833, region: 'Đồng bằng sông Hồng' },
-    { id: 'hungyen', name: 'Hưng Yên', lat: 20.6464, lng: 106.0511, region: 'Đồng bằng sông Hồng' },
-    { id: 'haiduong', name: 'Hải Dương', lat: 20.9410, lng: 106.3248, region: 'Đồng bằng sông Hồng' },
-    { id: 'thaibinh', name: 'Thái Bình', lat: 20.4461, lng: 106.3369, region: 'Đồng bằng sông Hồng' },
-    { id: 'namdinh', name: 'Nam Định', lat: 20.4388, lng: 106.1621, region: 'Đồng bằng sông Hồng' },
-    { id: 'hanam', name: 'Hà Nam', lat: 20.5833, lng: 105.9167, region: 'Đồng bằng sông Hồng' },
-    { id: 'ninhbinh', name: 'Ninh Bình', lat: 20.2500, lng: 105.9667, region: 'Đồng bằng sông Hồng' },
-    
-    // Trung du và miền núi phía Bắc
-    { id: 'haugiang', name: 'Hà Giang', lat: 22.7667, lng: 104.9833, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'caobang', name: 'Cao Bằng', lat: 22.6667, lng: 106.2500, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'laocai', name: 'Lào Cai', lat: 22.4833, lng: 103.9667, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'baccan', name: 'Bắc Kạn', lat: 22.1333, lng: 105.8333, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'langson', name: 'Lạng Sơn', lat: 21.8333, lng: 106.7333, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'tuyenquang', name: 'Tuyên Quang', lat: 21.8167, lng: 105.2167, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'yenbai', name: 'Yên Bái', lat: 21.7000, lng: 104.8667, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'thainguyen', name: 'Thái Nguyên', lat: 21.5667, lng: 105.8167, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'phutho', name: 'Phú Thọ', lat: 21.4167, lng: 105.2000, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'bacquang', name: 'Bắc Giang', lat: 21.2667, lng: 106.2000, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'sonla', name: 'Sơn La', lat: 21.3167, lng: 103.9000, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'dienbien', name: 'Điện Biên', lat: 21.3833, lng: 103.0167, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'hoabinh', name: 'Hòa Bình', lat: 20.8333, lng: 105.3333, region: 'Trung du miền núi Bắc Bộ' },
-    { id: 'laichau', name: 'Lai Châu', lat: 22.0667, lng: 103.1500, region: 'Trung du miền núi Bắc Bộ' },
-    
-    // Bắc Trung Bộ
-    { id: 'thanhhoa', name: 'Thanh Hóa', lat: 19.8000, lng: 105.7667, region: 'Bắc Trung Bộ' },
-    { id: 'nghean', name: 'Nghệ An', lat: 18.6667, lng: 105.6667, region: 'Bắc Trung Bộ' },
-    { id: 'hatinh', name: 'Hà Tĩnh', lat: 18.3333, lng: 105.9000, region: 'Bắc Trung Bộ' },
-    { id: 'quangbinh', name: 'Quảng Bình', lat: 17.4667, lng: 106.6000, region: 'Bắc Trung Bộ' },
-    { id: 'quangtri', name: 'Quảng Trị', lat: 16.7500, lng: 107.1833, region: 'Bắc Trung Bộ' },
-    { id: 'thuathienhue', name: 'Thừa Thiên Huế', lat: 16.4637, lng: 107.5909, region: 'Bắc Trung Bộ' },
-    
-    // Duyên hải Nam Trung Bộ
-    { id: 'quangnam', name: 'Quảng Nam', lat: 15.5667, lng: 108.5000, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'quangngai', name: 'Quảng Ngãi', lat: 15.1167, lng: 108.8000, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'binhdinh', name: 'Bình Định', lat: 13.7667, lng: 109.2333, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'phuyen', name: 'Phú Yên', lat: 13.0833, lng: 109.3000, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'khanhhoa', name: 'Khánh Hòa', lat: 12.2500, lng: 109.1833, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'ninhthuan', name: 'Ninh Thuận', lat: 11.5667, lng: 108.9833, region: 'Duyên hải Nam Trung Bộ' },
-    { id: 'binhthuan', name: 'Bình Thuận', lat: 11.0833, lng: 108.0833, region: 'Duyên hải Nam Trung Bộ' },
-    
-    // Tây Nguyên
-    { id: 'kontum', name: 'Kon Tum', lat: 14.3500, lng: 108.0000, region: 'Tây Nguyên' },
-    { id: 'gialai', name: 'Gia Lai', lat: 13.7500, lng: 108.2500, region: 'Tây Nguyên' },
-    { id: 'daklak', name: 'Đắk Lắk', lat: 12.6667, lng: 108.0500, region: 'Tây Nguyên' },
-    { id: 'daknong', name: 'Đắk Nông', lat: 12.0000, lng: 107.6667, region: 'Tây Nguyên' },
-    { id: 'lamdong', name: 'Lâm Đồng', lat: 11.5500, lng: 108.1500, region: 'Tây Nguyên' },
-    
-    // Đông Nam Bộ
-    { id: 'binhphuoc', name: 'Bình Phước', lat: 11.7500, lng: 106.9167, region: 'Đông Nam Bộ' },
-    { id: 'tayninh', name: 'Tây Ninh', lat: 11.3000, lng: 106.1000, region: 'Đông Nam Bộ' },
-    { id: 'binhduong', name: 'Bình Dương', lat: 11.0000, lng: 106.6667, region: 'Đông Nam Bộ' },
-    { id: 'dongnai', name: 'Đồng Nai', lat: 11.0000, lng: 107.1667, region: 'Đông Nam Bộ' },
-    { id: 'baria', name: 'Bà Rịa - Vũng Tàu', lat: 10.5000, lng: 107.1667, region: 'Đông Nam Bộ' },
-    
-    // Đồng bằng sông Cửu Long
-    { id: 'longan', name: 'Long An', lat: 10.5333, lng: 106.4167, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'tiengiang', name: 'Tiền Giang', lat: 10.3667, lng: 106.3500, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'bentre', name: 'Bến Tre', lat: 10.2333, lng: 106.3833, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'vinhlong', name: 'Vĩnh Long', lat: 10.2500, lng: 105.9667, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'travinh', name: 'Trà Vinh', lat: 9.9333, lng: 106.3333, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'haujiang', name: 'Hậu Giang', lat: 9.7833, lng: 105.4667, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'soctrang', name: 'Sóc Trăng', lat: 9.6000, lng: 105.9667, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'baclieu', name: 'Bạc Liêu', lat: 9.2833, lng: 105.7333, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'camau', name: 'Cà Mau', lat: 9.1833, lng: 105.1500, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'dongthap', name: 'Đồng Tháp', lat: 10.4667, lng: 105.6333, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'angiang', name: 'An Giang', lat: 10.3833, lng: 105.4167, region: 'Đồng bằng sông Cửu Long' },
-    { id: 'kiengiang', name: 'Kiên Giang', lat: 10.0167, lng: 105.0833, region: 'Đồng bằng sông Cửu Long' }
-];
-
-// ==================== THỜI TIẾT REAL-TIME ====================
-let currentWeather = null;
-let currentProvince = null;
-let weatherUpdateInterval = null;
-
-// Hàm tìm tỉnh gần nhất dựa trên tọa độ
-function findNearestProvince(lat, lng) {
-    let nearest = null;
-    let minDist = Infinity;
-    
-    for (const province of VIETNAM_PROVINCES) {
-        const dist = haversineDistance(lat, lng, province.lat, province.lng);
-        if (dist < minDist) {
-            minDist = dist;
-            nearest = province;
-        }
-    }
-    
-    return nearest;
-}
-
-// Hàm lấy thời tiết từ OpenWeather
-async function fetchWeather(lat, lng) {
-    try {
-        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=b1b15e88fa797225412429c1c50c122a&units=metric&lang=vi`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.cod === 200) {
-            currentWeather = {
-                temp: Math.round(data.main.temp),
-                feels_like: Math.round(data.main.feels_like),
-                humidity: data.main.humidity,
-                description: data.weather[0].description,
-                icon: data.weather[0].icon,
-                wind_speed: data.wind.speed,
-                city: data.name,
-                updatedAt: Date.now()
-            };
-            
-            // Cập nhật UI
-            updateWeatherUI();
-            return currentWeather;
-        }
-    } catch (error) {
-        console.warn('[Weather] Lỗi lấy thời tiết:', error);
-        return null;
-    }
-}
-
-// Cập nhật UI hiển thị thời tiết
-function updateWeatherUI() {
-    if (!currentWeather) return;
-    
-    // Tìm hoặc tạo element hiển thị thời tiết
-    let weatherEl = document.getElementById('weatherDisplay');
-    if (!weatherEl) {
-        weatherEl = document.createElement('div');
-        weatherEl.id = 'weatherDisplay';
-        weatherEl.style.cssText = 'position:fixed;top:55px;right:10px;z-index:1002;background:rgba(255,255,255,0.95);border-radius:12px;padding:6px 12px;font-size:10px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);';
-        document.body.appendChild(weatherEl);
-    }
-    
-    const iconMap = {
-        '01d': '☀️', '01n': '🌙',
-        '02d': '⛅', '02n': '⛅',
-        '03d': '☁️', '03n': '☁️',
-        '04d': '☁️', '04n': '☁️',
-        '09d': '🌧️', '09n': '🌧️',
-        '10d': '🌦️', '10n': '🌦️',
-        '11d': '⛈️', '11n': '⛈️',
-        '13d': '❄️', '13n': '❄️',
-        '50d': '🌫️', '50n': '🌫️'
+    let driverInfo = {
+        uid: null, name: '', phone: '', plate: '', carModel: '', fuelType: 'xang', carClass: '4_seats'
     };
-    
-    const icon = iconMap[currentWeather.icon] || '🌡️';
-    const temp = currentWeather.temp;
-    const desc = currentWeather.description;
-    const province = currentProvince ? currentProvince.name : 'Đang xác định';
-    
-    weatherEl.innerHTML = `
-        <span>📍 ${province}</span>
-        <span>${icon} ${temp}°C</span>
-        <span style="font-weight:400;color:#64748b;">${desc}</span>
-    `;
-}
 
-// Hàm cập nhật vị trí và thời tiết tự động
-async function updateLocationAndWeather(lat, lng) {
-    if (!lat || !lng) return;
-    
-    // Tìm tỉnh hiện tại
-    const province = findNearestProvince(lat, lng);
-    if (province) {
-        currentProvince = province;
-        
-        // Cập nhật biến toàn cục
-        if (typeof driverInfo !== 'undefined') {
-            driverInfo.currentProvince = province.name;
-            driverInfo.currentRegion = province.region;
-        }
-        
-        // Log
-        console.log(`📍 [Location] Bạn đang ở: ${province.name} (${province.region})`);
-        
-        // Lấy thời tiết
-        await fetchWeather(lat, lng);
-        
-        // Thông báo nếu thay đổi tỉnh
-        const lastProvince = localStorage.getItem('last_province');
-        if (lastProvince && lastProvince !== province.name) {
-            showToast(`📍 Bạn đã vào ${province.name} - ${province.region}`);
-            speak(`Bạn đã vào địa phận ${province.name}`);
-        }
-        localStorage.setItem('last_province', province.name);
+    // ==================== GPS CONSTANTS ====================
+    const GAP_THRESHOLD = 15000;
+    const ACCURACY_STRICT = 80;
+    const ACCURACY_NORMAL = 150;
+    const ACCURACY_MAX = 300;
+    const MIN_DISTANCE_DELTA = 0.008;
+    const MAX_HISTORY_SIZE = 500;
+    let gpsWatchId = null;
+    let gpsFirstFixTime = null;
+    let gpsRetryCount = 0;
+    let lastAccuracy = 999;
+    let hasCenteredMap = false;
+
+    // ==================== HÀM TIỆN ÍCH ====================
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) ** 2 +
+                  Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+                  Math.sin(dLon/2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
-}
 
-// Khởi tạo theo dõi vị trí và thời tiết
-function initWeatherTracking() {
-    // Lấy vị trí hiện tại
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                await updateLocationAndWeather(lat, lng);
-            },
-            (err) => {
-                console.warn('[Weather] Không lấy được vị trí:', err.message);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
+    function number(value, fallback = 0) {
+        const result = Number(value);
+        return Number.isFinite(result) ? result : fallback;
     }
-    
-    // Cập nhật thời tiết mỗi 10 phút
-    if (weatherUpdateInterval) clearInterval(weatherUpdateInterval);
-    weatherUpdateInterval = setInterval(async () => {
-        if (currentLat && currentLng) {
-            await updateLocationAndWeather(currentLat, currentLng);
+
+    function showToast(msg) {
+        const toast = document.getElementById('txToast');
+        if (!toast) return;
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'vi-VN';
+            window.speechSynthesis.speak(msg);
         }
-    }, 600000); // 10 phút
-    
-    // Cập nhật khi GPS thay đổi
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                if (currentLat !== lat || currentLng !== lng) {
-                    currentLat = lat;
-                    currentLng = lng;
-                    await updateLocationAndWeather(lat, lng);
-                }
-            },
-            () => {},
-            { enableHighAccuracy: true, maximumAge: 30000 }
-        );
     }
-}
 
-// Thêm hàm getWeather để các module khác gọi
-function getWeather() {
-    return currentWeather;
-}
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) modal.style.display = 'none';
+    }
 
-function getCurrentProvince() {
-    return currentProvince;
-}
-
-// ==================== CÁC HẰNG SỐ KHÁC ====================
-const HOTSPOTS = [
-    { name: "Sân bay Quốc tế Vân Đồn", lat: 21.1179, lng: 107.4143, intensity: 0.9, timeSlots: [5,6,7,8,17,18,19,20] },
-    { name: "Bến xe Bãi Cháy", lat: 20.9675, lng: 107.0500, intensity: 0.8, timeSlots: [7,8,9,16,17,18] },
-    { name: "Khu du lịch Tuần Châu", lat: 20.9300, lng: 107.0667, intensity: 0.7, timeSlots: [9,10,11,14,15,16,17] },
-    { name: "Chợ Đêm Cái Rồng", lat: 20.9800, lng: 107.0900, intensity: 0.85, timeSlots: [18,19,20,21,22] },
-    { name: "Trung tâm TP Hạ Long", lat: 20.9511, lng: 107.0800, intensity: 0.95, timeSlots: [8,9,10,11,17,18,19,20] }
-];
-
-const GAP_THRESHOLD = 15000;
-const ACCURACY_STRICT = 80;
-const ACCURACY_NORMAL = 150;
-const ACCURACY_MAX = 300;
-const MIN_DISTANCE_DELTA = 0.008;
-const MAX_HISTORY_SIZE = 500;
-let gpsWatchId = null;
-let gpsFirstFixTime = null;
-let gpsRetryCount = 0;
-let lastAccuracy = 999;
-let hasCenteredMap = false;
-
-    // ==================== HÀM HASH MẬT KHẨU ====================
     function hashPassword(str) {
         let h = 0;
         for (let i = 0; i < str.length; i++) {
@@ -341,324 +113,7 @@ let hasCenteredMap = false;
         return 'h' + Math.abs(h).toString(36) + '_' + str.length;
     }
 
-    // ==================== HÀM TIỆN ÍCH ====================
-    function haversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    }
-
-    function encryptData(data, key) {
-        try {
-            return CryptoJS.AES.encrypt(JSON.stringify(data), key || driverInfo.uid || 'default_key').toString();
-        } catch(e) { return data; }
-    }
-
-    function decryptData(encrypted, key) {
-        try {
-            const bytes = CryptoJS.AES.decrypt(encrypted, key || driverInfo.uid || 'default_key');
-            return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-        } catch(e) { return null; }
-    }
-
-    // ==================== DARK MODE ====================
-    function toggleDarkMode() {
-        isDarkMode = !isDarkMode;
-        localStorage.setItem('promax_dark', isDarkMode ? 'true' : 'false');
-        document.body.classList.toggle('dark-mode', isDarkMode);
-        const btn = document.querySelector('.dark-toggle-btn');
-        if (btn) btn.textContent = isDarkMode ? '☀️' : '🌙';
-        showToast(isDarkMode ? '🌙 Đã chuyển sang chế độ tối' : '☀️ Đã chuyển sang chế độ sáng');
-    }
-
-    // ==================== GPS ====================
-    async function requestRoadDistance(p1, p2) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${p1.lng},${p1.lat};${p2.lng},${p2.lat}?overview=false`;
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-            if (data.routes && data.routes.length > 0) {
-                return data.routes[0].distance / 1000;
-            }
-        } catch (error) {
-            console.warn('[OSRM] Lỗi, fallback Haversine:', error);
-        }
-        return haversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-    }
-
-    function saveLocationToHistory(lat, lng, accuracy, timestamp) {
-        try {
-            locationHistory.push({ lat, lng, accuracy, timestamp });
-            if (locationHistory.length > MAX_HISTORY_SIZE) locationHistory.shift();
-            localStorage.setItem('location_history', JSON.stringify(locationHistory));
-        } catch(e) { console.warn('Save location error:', e); }
-    }
-    
-    function loadLocationHistory() {
-        try {
-            const saved = localStorage.getItem('location_history');
-            if (saved) locationHistory = JSON.parse(saved);
-        } catch(e) {}
-    }
-
-    async function enableKeepAwake() {
-        try {
-            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-                const { KeepAwake } = Capacitor.Plugins;
-                if (KeepAwake) {
-                    await KeepAwake.keepAwake();
-                }
-            }
-        } catch(e) { console.warn('KeepAwake error:', e); }
-    }
-    
-    async function disableKeepAwake() {
-        try {
-            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-                const { KeepAwake } = Capacitor.Plugins;
-                if (KeepAwake) {
-                    await KeepAwake.allowSleep();
-                }
-            }
-        } catch(e) {}
-    }
-
-    function startLocationPushing() {
-        if (locationPushInterval) clearInterval(locationPushInterval);
-        locationPushInterval = setInterval(() => {
-            if (isDriverOnline && currentLat && currentLng && driverInfo.uid) {
-                try {
-                    db.ref(`driver_locations/${driverInfo.uid}`).set({
-                        lat: currentLat,
-                        lng: currentLng,
-                        heading: currentHeading,
-                        timestamp: Date.now(),
-                        status: isRunning ? 'busy' : 'ready'
-                    }).catch(() => {});
-                } catch(e) {}
-            }
-        }, 5000);
-    }
-    
-    function stopLocationPushing() {
-        if (locationPushInterval) {
-            clearInterval(locationPushInterval);
-            locationPushInterval = null;
-        }
-    }
-
-    // ==================== AI DISPATCH ====================
-    async function checkNearbyOrders() {
-        if (!isDriverOnline || isRunning || isLocked || _isModalOpening) return;
-        if (!currentLat || !currentLng) return;
-        
-        try {
-            const snapshot = await db.ref('datxe').orderByChild('status').equalTo('waiting').limitToFirst(20).once('value');
-            const orders = snapshot.val();
-            if (!orders) return;
-            
-            let nearestOrder = null;
-            let nearestDistance = 3;
-            
-            for (const [orderId, order] of Object.entries(orders)) {
-                if (!order.pickupLat || !order.pickupLng) continue;
-                if (_processedOrders.has(orderId)) continue;
-                if (order.carType !== driverInfo.carClass && order.carType !== 'both') continue;
-                
-                const distance = haversineDistance(currentLat, currentLng, order.pickupLat, order.pickupLng);
-                if (distance < nearestDistance) {
-                    nearestDistance = distance;
-                    nearestOrder = { id: orderId, ...order, distance };
-                }
-            }
-            
-            if (nearestOrder && nearestDistance < 3) {
-                showToast(`🎯 AI gợi ý: Có đơn cách ${nearestDistance.toFixed(1)}km, hãy bật Online để nhận!`);
-                if (soundEnabled) speak(`Có đơn gần bạn, chỉ ${nearestDistance.toFixed(1)} kilômét`);
-            }
-        } catch(e) {
-            console.warn('[AI DISPATCH] Lỗi:', e);
-        }
-    }
-    
-    function startAIDispatch() {
-        if (aiDispatchInterval) clearInterval(aiDispatchInterval);
-        aiDispatchInterval = setInterval(() => {
-            checkNearbyOrders();
-        }, 30000);
-    }
-    
-    function stopAIDispatch() {
-        if (aiDispatchInterval) {
-            clearInterval(aiDispatchInterval);
-            aiDispatchInterval = null;
-        }
-    }
-
-    function toggleOnlineStatus() {
-        isDriverOnline = !isDriverOnline;
-        const toggle = document.getElementById('onlineToggleSwitch');
-        const text = document.getElementById('onlineTextStatus');
-        
-        if (isDriverOnline) {
-            toggle.classList.add('active');
-            text.innerText = 'Online';
-            startOrderListener();
-            startLocationPushing();
-            startAIDispatch();
-            showToast('✅ Đã chuyển sang trạng thái Online - Sẵn sàng nhận đơn');
-            if (soundEnabled) speak("Bạn đã online, sẵn sàng nhận đơn");
-        } else {
-            toggle.classList.remove('active');
-            text.innerText = 'Offline';
-            if (orderListener) { orderListener.off(); orderListener = null; }
-            _orderListenerStarted = false;
-            stopLocationPushing();
-            stopAIDispatch();
-            showToast('⏸ Đã chuyển sang trạng thái Offline');
-            if (soundEnabled) speak("Bạn đã offline, tạm dừng nhận đơn");
-        }
-        
-        if (driverInfo.uid) {
-            db.ref(`tai_xe_online/${driverInfo.uid}/online`).set(isDriverOnline).catch(()=>{});
-        }
-    }
-
-    // ==================== UPLOAD GIẤY TỜ ====================
-    async function openVerificationUpload() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*,.pdf';
-        input.multiple = true;
-        
-        input.onchange = async (e) => {
-            const files = e.target.files;
-            if (!files.length) return;
-            
-            const container = document.getElementById('uploadProgressContainer');
-            const bar = document.getElementById('uploadProgressBar');
-            const docContainer = document.getElementById('uploadedDocuments');
-            
-            container.style.display = 'block';
-            bar.style.width = '0%';
-            
-            let uploaded = 0;
-            const docList = [];
-            
-            for (const file of files) {
-                try {
-                    const path = `verification/${driverInfo.uid}/${Date.now()}_${file.name}`;
-                    const uploadTask = storage.ref().child(path).put(file);
-                    
-                    await new Promise((resolve, reject) => {
-                        uploadTask.on('state_changed',
-                            (snapshot) => {
-                                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                                bar.style.width = Math.min(100, progress + (uploaded / files.length * 100)) + '%';
-                            },
-                            reject,
-                            resolve
-                        );
-                    });
-                    
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    await db.ref(`drivers/${driverInfo.uid}/documents`).push({
-                        url: downloadURL,
-                        name: file.name,
-                        type: file.type,
-                        size: file.size,
-                        uploadedAt: Date.now()
-                    });
-                    
-                    uploaded++;
-                    docList.push(`📄 ${file.name}`);
-                    bar.style.width = (uploaded / files.length * 100) + '%';
-                    
-                } catch(error) {
-                    console.error('Upload error:', error);
-                    showToast('⚠️ Lỗi upload: ' + error.message);
-                }
-            }
-            
-            container.style.display = 'none';
-            
-            if (uploaded > 0) {
-                docContainer.innerHTML = docList.map(d => `<div style="padding: 2px 0;">✅ ${d}</div>`).join('');
-                showToast(`✅ Đã upload ${uploaded} tài liệu thành công!`);
-                updateVerificationStatus();
-                speak('Đã tải lên giấy tờ thành công');
-            }
-        };
-        input.click();
-    }
-
-    async function updateVerificationStatus() {
-        try {
-            const snap = await db.ref(`drivers/${driverInfo.uid}/documents`).once('value');
-            const docs = snap.val();
-            const badge = document.getElementById('verifyBadge');
-            if (docs && Object.keys(docs).length > 0) {
-                badge.innerHTML = '<i class="fas fa-check-circle" style="color: #2e7d32;"></i> Đã xác thực';
-                badge.style.background = '#e8f5e9';
-                badge.style.color = '#2e7d32';
-            }
-        } catch(e) {}
-    }
-
-    // ==================== PUSH NOTIFICATION ====================
-    async function initPushNotifications() {
-        try {
-            if (!firebase.messaging) {
-                console.warn('Firebase Messaging không khả dụng');
-                return;
-            }
-            
-            messaging = firebase.messaging();
-            
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                console.warn('Push notification bị từ chối');
-                return;
-            }
-            
-            try {
-                fcmToken = await messaging.getToken({
-                    vapidKey: 'BAA3S8g0HhHj2rCq8j4KpQ1lX6yM5nV7wP9rT2uE3fG4hJ5kL6mN7oP8qR9sT0uV'
-                });
-                
-                if (fcmToken && driverInfo.uid) {
-                    await db.ref(`drivers/${driverInfo.uid}/fcmTokens`).push(fcmToken);
-                    console.log('FCM token đã đăng ký');
-                }
-            } catch(e) {
-                console.warn('Không lấy được FCM token:', e);
-            }
-            
-            messaging.onMessage((payload) => {
-                const title = payload.notification?.title || '📨 Thông báo';
-                const body = payload.notification?.body || '';
-                showToast(`📨 ${title}: ${body}`);
-                
-                if (payload.data?.type === 'new_order') {
-                    setTimeout(checkNearbyOrders, 1000);
-                }
-                
-                if (payload.data?.type === 'trip_cancelled') {
-                    showCancelBanner();
-                }
-            });
-            
-        } catch(e) {
-            console.warn('Push notification không khởi tạo được:', e);
-        }
-    }
-
-    // ==================== GPS FUNCTIONS ====================
+    // ==================== GPS STATUS UI ====================
     function updateGpsStatusUI(accuracy, isError, errorMsg) {
         const dot = document.getElementById('gpsDot');
         const text = document.getElementById('gpsStatusText');
@@ -682,7 +137,6 @@ let hasCenteredMap = false;
             dot.className = 'gps-dot weak';
             text.innerText = `GPS: Yếu (±${acc}m)`;
         } else {
-            // Vẫn hiển thị vị trí gần đúng trên map, nhưng không dùng để tính cước.
             dot.className = 'gps-dot bad';
             text.innerText = `GPS: Gần đúng (±${acc}m) — bật Vị trí chính xác`;
         }
@@ -691,6 +145,7 @@ let hasCenteredMap = false;
         if (profileAcc) profileAcc.innerText = `±${acc}m`;
     }
 
+    // ==================== XỬ LÝ GPS ====================
     function processBackgroundLocation(location) {
         const latitude = location.latitude ?? location.coords?.latitude;
         const longitude = location.longitude ?? location.coords?.longitude;
@@ -701,9 +156,6 @@ let hasCenteredMap = false;
 
         if (latitude == null || longitude == null || isNaN(latitude) || isNaN(longitude)) return;
 
-        const threshold = getAccuracyThreshold();
-        const isGoodEnoughForFare = accuracy <= threshold || accuracy <= ACCURACY_NORMAL;
-
         if (!gpsFirstFixTime) gpsFirstFixTime = Date.now();
         gpsRetryCount = 0;
 
@@ -713,10 +165,17 @@ let hasCenteredMap = false;
             currentHeading = Math.round(heading);
         }
 
-        saveLocationToHistory(latitude, longitude, accuracy, currentTime);
+        // Lưu lịch sử
+        try {
+            locationHistory.push({ lat: latitude, lng: longitude, accuracy, timestamp: currentTime });
+            if (locationHistory.length > MAX_HISTORY_SIZE) locationHistory.shift();
+            localStorage.setItem('location_history', JSON.stringify(locationHistory));
+        } catch(e) {}
+
+        // Cập nhật UI GPS
         updateGpsStatusUI(accuracy, false);
 
-        // ===== GỬI VỊ TRÍ VÀO CONTROLLER (DUY NHẤT) =====
+        // Gửi vào VehicleTrackingController để hiển thị marker
         if (window.VehicleTrackingController && typeof window.VehicleTrackingController.updateVehiclePosition === 'function') {
             window.VehicleTrackingController.updateVehiclePosition(latitude, longitude, {
                 accuracy: accuracy,
@@ -724,119 +183,30 @@ let hasCenteredMap = false;
                 heading: heading,
                 timestamp: currentTime
             });
+        }
+
+        // Gửi vào TripEngine để tính cước và quản lý chuyến
+        if (window.tripEngine && typeof window.tripEngine.updateGPS === 'function') {
+            window.tripEngine.updateGPS({
+                lat: latitude,
+                lng: longitude,
+                accuracy: accuracy,
+                speed: speed,
+                heading: heading,
+                timestamp: currentTime
+            });
         } else {
-            // Fallback marker tạm (hiếm khi xảy ra)
-            console.warn('[GPS] VehicleTrackingController chưa sẵn sàng, fallback marker tạm');
-            if (typeof window.driverMarker === 'undefined' && map) {
-                const icon = L.divIcon({
-                    html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${currentHeading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
-                    className: '', iconSize: [48,48], iconAnchor: [24,24]
-                });
-                window.driverMarker = L.marker([latitude, longitude], { icon, zIndexOffset: 1000 }).addTo(map);
-                window.driverMarker.setLatLng([latitude, longitude]);
-                map.setView([latitude, longitude], 17);
-                hasCenteredMap = true;
-            } else if (window.driverMarker) {
-                window.driverMarker.setLatLng([latitude, longitude]);
-                if (hasCenteredMap) map.panTo([latitude, longitude], { animate: true, duration: 0.6 });
+            // Fallback: nếu tripEngine chưa load, gọi legacy (nếu có)
+            if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.processLocation === 'function') {
+                window.PromaxLegacyRuntime.processLocation(location);
             }
         }
 
-        // ==================== TÍNH CƯỚC ĐƠN GIẢN HÓA ====================
-        const fareActive = !window.tripEngine || typeof window.tripEngine.isFareActive !== 'function' || window.tripEngine.isFareActive();
-
-        if (isRunning && fareActive) {
-            // Lần đầu tiên chạy chuyến: khởi tạo lastValidPos
-            if (!lastValidPos) {
-                lastValidPos = { lat: latitude, lng: longitude };
-                lastValidTime = currentTime;
-            } else {
-                // Tính khoảng cách từ vị trí trước đó
-                const dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, latitude, longitude);
-                // Chỉ cộng nếu khoảng cách hợp lý (0.01-0.5km) để tránh nhảy số sai
-                if (dist > 0.01 && dist < 0.5) {
-                    totalKm += dist;
-                    updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
-                }
-                // Luôn cập nhật lastValidPos để so sánh lần sau
-                lastValidPos = { lat: latitude, lng: longitude };
-                lastValidTime = currentTime;
-            }
-        } else {
-            // Nếu không có chuyến, vẫn lưu vị trí hiện tại để dùng khi có chuyến
-            if (!lastValidPos) {
-                lastValidPos = { lat: latitude, lng: longitude };
-                lastValidTime = currentTime;
-            }
-        }
-
-        // Đồng bộ vị trí lên Firebase
+        // Đồng bộ lên Firebase
         syncDriverLocation();
     }
 
-    function getAccuracyThreshold() {
-        if (!gpsFirstFixTime) return ACCURACY_STRICT;
-        const elapsed = Date.now() - gpsFirstFixTime;
-        if (elapsed < 15000) return ACCURACY_STRICT;
-        return ACCURACY_NORMAL;
-    }
-
-    // ===== KHÔNG CÒN HÀM updateDriverMarker =====
-    // Đã thay thế bằng gọi VehicleTrackingController.updateVehiclePosition
-
-    function updateAllDisplays(km, fare) {
-        const kmEl = document.getElementById('km');
-        const costEl = document.getElementById('cost');
-        if (kmEl) kmEl.innerText = km.toFixed(2);
-        if (costEl) costEl.innerText = fare.toLocaleString();
-        
-        const tripKmLive = document.getElementById('tripKmLive');
-        const tripPrice = document.getElementById('tripPrice');
-        if (tripKmLive) tripKmLive.innerText = km.toFixed(2) + ' KM';
-        if (tripPrice) tripPrice.innerHTML = fare.toLocaleString() + 'đ';
-        
-        const meterFare = document.getElementById('meterFare');
-        const meterDistance = document.getElementById('meterDistance');
-        if (meterFare && document.getElementById('streetHailMeter').classList.contains('show')) {
-            meterFare.innerText = fare.toLocaleString() + 'đ';
-            if (meterDistance) meterDistance.innerText = km.toFixed(2) + ' km';
-        }
-        
-        if (fare !== lastDisplayedFare) {
-            lastDisplayedFare = fare;
-            if (costEl) costEl.classList.add('scale');
-            if (tripPrice) tripPrice.classList.add('scale');
-            setTimeout(() => {
-                if (costEl) costEl.classList.remove('scale');
-                if (tripPrice) tripPrice.classList.remove('scale');
-            }, 200);
-            playTickSound();
-        }
-    }
-
-    function playTickSound() {
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.frequency.value = 880;
-            gainNode.gain.value = 0.08;
-            oscillator.start();
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
-            oscillator.stop(audioCtx.currentTime + 0.2);
-        } catch(e) {}
-    }
-
-    function showGapNotice() {
-        const notice = document.getElementById('gapNotice');
-        if (notice) {
-            notice.classList.add('show');
-            setTimeout(() => notice.classList.remove('show'), 3000);
-        }
-    }
-
+    // ==================== GPS START/STOP ====================
     function startGPS() {
         window.__promaxCoreGpsOwner = true;
         if (!('geolocation' in navigator)) {
@@ -899,7 +269,7 @@ let hasCenteredMap = false;
 
                 if (gpsRetryCount <= 5) {
                     setTimeout(() => {
-                        if (!lastValidPos) startGPS();
+                        if (!currentLat) startGPS();
                     }, 4000);
                 }
             },
@@ -931,6 +301,87 @@ let hasCenteredMap = false;
                 map.flyTo([currentLat, currentLng], 17, { duration: 1 });
             }
             hasCenteredMap = true;
+        }
+    }
+
+    // ==================== ĐỒNG BỘ VỚI FIREBASE ====================
+    function syncDriverLocation() {
+        if (!currentLat || !currentLng || !driverInfo.uid) return;
+        try {
+            const trip = window.tripEngine ? window.tripEngine.getCurrentTrip() : null;
+            const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+            db.ref(`tai_xe_online/${driverInfo.uid}`).set({
+                lat: currentLat,
+                lng: currentLng,
+                heading: currentHeading,
+                status: state === 'IDLE' ? 'ready' : 'busy',
+                lastUpdate: Date.now(),
+                plate: driverInfo.plate,
+                name: driverInfo.name,
+                isGapMode: isGapMode,
+                backgroundMode: isBackgroundTracking,
+                online: isDriverOnline
+            }).catch(()=>{});
+        } catch(e) {}
+    }
+
+    function syncDriverOnline(isOnline) {
+        if (!driverInfo.uid) return;
+        if (isOnline) syncDriverLocation();
+        else db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
+    }
+
+    // ==================== CÁC HÀM UI ====================
+    function updateAllDisplays(km, fare) {
+        const kmEl = document.getElementById('km');
+        const costEl = document.getElementById('cost');
+        if (kmEl) kmEl.innerText = km.toFixed(2);
+        if (costEl) costEl.innerText = fare.toLocaleString();
+        
+        const tripKmLive = document.getElementById('tripKmLive');
+        const tripPrice = document.getElementById('tripPrice');
+        if (tripKmLive) tripKmLive.innerText = km.toFixed(2) + ' KM';
+        if (tripPrice) tripPrice.innerHTML = fare.toLocaleString() + 'đ';
+        
+        const meterFare = document.getElementById('meterFare');
+        const meterDistance = document.getElementById('meterDistance');
+        if (meterFare && document.getElementById('streetHailMeter').classList.contains('show')) {
+            meterFare.innerText = fare.toLocaleString() + 'đ';
+            if (meterDistance) meterDistance.innerText = km.toFixed(2) + ' km';
+        }
+        
+        if (fare !== lastDisplayedFare) {
+            lastDisplayedFare = fare;
+            if (costEl) costEl.classList.add('scale');
+            if (tripPrice) tripPrice.classList.add('scale');
+            setTimeout(() => {
+                if (costEl) costEl.classList.remove('scale');
+                if (tripPrice) tripPrice.classList.remove('scale');
+            }, 200);
+            playTickSound();
+        }
+    }
+
+    function playTickSound() {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 880;
+            gain.gain.value = 0.08;
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
+            osc.stop(audioCtx.currentTime + 0.2);
+        } catch(e) {}
+    }
+
+    function showGapNotice() {
+        const notice = document.getElementById('gapNotice');
+        if (notice) {
+            notice.classList.add('show');
+            setTimeout(() => notice.classList.remove('show'), 3000);
         }
     }
 
@@ -969,24 +420,28 @@ let hasCenteredMap = false;
         const dialog = document.getElementById('confirmDialog');
         if (dialog) dialog.style.display = 'none'; 
     }
-    
+
     function showConfirmComplete() {
-        showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', () => completeTrip());
+        if (window.tripEngine && typeof window.tripEngine.showCompletionConfirmation === 'function') {
+            window.tripEngine.showCompletionConfirmation();
+        } else {
+            showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', () => {
+                if (window.tripEngine && typeof window.tripEngine.completeTrip === 'function') {
+                    window.tripEngine.completeTrip();
+                }
+            });
+        }
     }
 
-    // === Ẩn/hiện bottom nav khi đang vận hành chuyến ===
+    // ==================== ẨN/HIỆN BOTTOM NAV ====================
     function setNavVisible(visible) {
         const nav = document.querySelector('.nav-grid');
         if (nav) nav.style.display = visible ? 'flex' : 'none';
         const brand = document.querySelector('.brand-footer');
         if (brand) brand.style.setProperty('display', visible ? 'block' : 'none', 'important');
     }
-    function hideTabsDuringTrip() {
-        setNavVisible(false);
-    }
-    function showTabsAfterTrip() {
-        setNavVisible(true);
-    }
+    function hideTabsDuringTrip() { setNavVisible(false); }
+    function showTabsAfterTrip() { setNavVisible(true); }
 
     // ==================== AUTH ====================
     function persistDriverSession(session) {
@@ -1104,7 +559,6 @@ let hasCenteredMap = false;
         }
     }
 
-    // ==================== FORGOT PASSWORD ====================
     async function doForgotPassword() {
         const phone = prompt('🔑 NHẬP SỐ ĐIỆN THOẠI ĐÃ ĐĂNG KÝ:');
         if (!phone) return;
@@ -1168,113 +622,7 @@ let hasCenteredMap = false;
         }
     }
 
-// ==================== INIT APP ====================
-async function initApp() {
-    try {
-        const saved = localStorage.getItem('driverInfo');
-        if (saved) driverInfo = JSON.parse(saved);
-        
-        if (isDarkMode) {
-            document.body.classList.add('dark-mode');
-            const btn = document.querySelector('.dark-toggle-btn');
-            if (btn) btn.textContent = '☀️';
-        }
-        
-        document.getElementById('sidebarName').innerText = driverInfo.name || 'Tài xế';
-        document.getElementById('sidebarPhone').innerText = driverInfo.phone || '...';
-        document.getElementById('sidebarId').innerHTML = '🆔 ' + (driverInfo.uid?.slice(-8) || '...');
-        document.getElementById('sidebarPlan').innerHTML = '⭐ ' + (driverInfo.active_plan || 'MIỄN PHÍ');
-        
-        document.getElementById('profileNameFull').innerText = driverInfo.name || '...';
-        document.getElementById('profileID').innerText = driverInfo.uid?.slice(-8) || '...';
-        document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
-        document.getElementById('profilePlate').innerText = driverInfo.plate || '...';
-        document.getElementById('profileCarModel').innerText = driverInfo.carModel || '...';
-        document.getElementById('profileFuel').innerText = driverInfo.fuelType === 'xang' ? '⛽ Xăng' : '🔋 Điện';
-        document.getElementById('profileCarClass').innerText = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-        
-        try {
-            const ratingSnap = await db.ref(`ratings/${driverInfo.uid}`).once('value');
-            const ratings = ratingSnap.val();
-            if (ratings) {
-                const vals = Object.values(ratings);
-                const avg = vals.reduce((s, r) => s + (r.rating || 0), 0) / vals.length;
-                document.getElementById('profileRating').innerText = avg.toFixed(1);
-            }
-        } catch(e) {}
-        
-        loadLocationHistory();
-        initMap();
-        await initBackgroundGeolocation();
-        
-        initWeatherTracking();
-        
-        startOrderListener();
-        renderHistory();
-        initCountdown();
-        syncDriverOnline(true);
-        startAIHotspotChecker();
-        startPackageExpiryChecker();
-        startForegroundService();
-        startLocationPushing();
-        startAIDispatch();
-        initPushNotifications();
-        updateVerificationStatus();
-        loadDocumentsList();
-        addForgotPasswordButton();
-        
-        const walletBalance = document.getElementById('walletBalance');
-        if (walletBalance) {
-            try {
-                const snap = await db.ref(`drivers/${driverInfo.uid}/wallet`).once('value');
-                const balance = snap.val() || Math.floor(Math.random() * 500000 + 100000);
-                walletBalance.innerText = balance.toLocaleString() + 'đ';
-            } catch(e) {
-                walletBalance.innerText = (Math.floor(Math.random() * 500000 + 100000)).toLocaleString() + 'đ';
-            }
-        }
-        
-    } catch(e) { 
-        console.error('Init error:', e); 
-    }
-}
-    async function loadDocumentsList() {
-        try {
-            const snap = await db.ref(`drivers/${driverInfo.uid}/documents`).once('value');
-            const docs = snap.val();
-            const container = document.getElementById('uploadedDocuments');
-            if (docs && Object.keys(docs).length > 0) {
-                container.innerHTML = Object.values(docs).map(d => 
-                    `<div style="padding: 2px 0;">✅ ${d.name || 'Tài liệu'}</div>`
-                ).join('');
-            }
-        } catch(e) {}
-    }
-
-    function addForgotPasswordButton() {
-        const loginForm = document.getElementById('stepLogin');
-        if (!loginForm) return;
-        if (loginForm.querySelector('[data-forgot-added]')) return;
-        
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.dataset.forgotAdded = '1';
-        btn.className = 'forgot-btn';
-        btn.innerHTML = '🔑 Quên mật khẩu?';
-        btn.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            doForgotPassword();
-        };
-        
-        const loginBtn = loginForm.querySelector('.auth-btn');
-        if (loginBtn) {
-            loginBtn.insertAdjacentElement('afterend', btn);
-        } else {
-            loginForm.appendChild(btn);
-        }
-    }
-
+    // ==================== INIT MAP ====================
     function initMap() {
         if (window.PromaxMap && typeof window.PromaxMap.ensure === 'function') {
             map = window.PromaxMap.ensure();
@@ -1303,77 +651,215 @@ async function initApp() {
         return map;
     }
 
-    function startForegroundService() {
-        const indicator = document.getElementById('fgServiceIndicator');
-        if (indicator) indicator.classList.add('active');
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').then(lock => { wakeLock = lock; }).catch(() => {});
+    // ==================== THỜI TIẾT ====================
+    const VIETNAM_PROVINCES = [
+        // Thành phố trực thuộc Trung ương
+        { id: 'hanoi', name: 'Hà Nội', lat: 21.0285, lng: 105.8542, region: 'Đồng bằng sông Hồng' },
+        { id: 'hochiminh', name: 'TP. Hồ Chí Minh', lat: 10.8231, lng: 106.6297, region: 'Đông Nam Bộ' },
+        { id: 'danang', name: 'Đà Nẵng', lat: 16.0544, lng: 108.2022, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'haiphong', name: 'Hải Phòng', lat: 20.8449, lng: 106.6881, region: 'Đồng bằng sông Hồng' },
+        { id: 'cantho', name: 'Cần Thơ', lat: 10.0452, lng: 105.7469, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'hue', name: 'Huế', lat: 16.4637, lng: 107.5909, region: 'Bắc Trung Bộ' },
+        // Đồng bằng sông Hồng
+        { id: 'vinhphuc', name: 'Vĩnh Phúc', lat: 21.3609, lng: 105.5474, region: 'Đồng bằng sông Hồng' },
+        { id: 'bacninh', name: 'Bắc Ninh', lat: 21.1861, lng: 106.0763, region: 'Đồng bằng sông Hồng' },
+        { id: 'quangninh', name: 'Quảng Ninh', lat: 20.9500, lng: 107.0833, region: 'Đồng bằng sông Hồng' },
+        { id: 'hungyen', name: 'Hưng Yên', lat: 20.6464, lng: 106.0511, region: 'Đồng bằng sông Hồng' },
+        { id: 'haiduong', name: 'Hải Dương', lat: 20.9410, lng: 106.3248, region: 'Đồng bằng sông Hồng' },
+        { id: 'thaibinh', name: 'Thái Bình', lat: 20.4461, lng: 106.3369, region: 'Đồng bằng sông Hồng' },
+        { id: 'namdinh', name: 'Nam Định', lat: 20.4388, lng: 106.1621, region: 'Đồng bằng sông Hồng' },
+        { id: 'hanam', name: 'Hà Nam', lat: 20.5833, lng: 105.9167, region: 'Đồng bằng sông Hồng' },
+        { id: 'ninhbinh', name: 'Ninh Bình', lat: 20.2500, lng: 105.9667, region: 'Đồng bằng sông Hồng' },
+        // Trung du và miền núi phía Bắc
+        { id: 'haugiang', name: 'Hà Giang', lat: 22.7667, lng: 104.9833, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'caobang', name: 'Cao Bằng', lat: 22.6667, lng: 106.2500, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'laocai', name: 'Lào Cai', lat: 22.4833, lng: 103.9667, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'baccan', name: 'Bắc Kạn', lat: 22.1333, lng: 105.8333, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'langson', name: 'Lạng Sơn', lat: 21.8333, lng: 106.7333, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'tuyenquang', name: 'Tuyên Quang', lat: 21.8167, lng: 105.2167, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'yenbai', name: 'Yên Bái', lat: 21.7000, lng: 104.8667, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'thainguyen', name: 'Thái Nguyên', lat: 21.5667, lng: 105.8167, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'phutho', name: 'Phú Thọ', lat: 21.4167, lng: 105.2000, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'bacquang', name: 'Bắc Giang', lat: 21.2667, lng: 106.2000, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'sonla', name: 'Sơn La', lat: 21.3167, lng: 103.9000, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'dienbien', name: 'Điện Biên', lat: 21.3833, lng: 103.0167, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'hoabinh', name: 'Hòa Bình', lat: 20.8333, lng: 105.3333, region: 'Trung du miền núi Bắc Bộ' },
+        { id: 'laichau', name: 'Lai Châu', lat: 22.0667, lng: 103.1500, region: 'Trung du miền núi Bắc Bộ' },
+        // Bắc Trung Bộ
+        { id: 'thanhhoa', name: 'Thanh Hóa', lat: 19.8000, lng: 105.7667, region: 'Bắc Trung Bộ' },
+        { id: 'nghean', name: 'Nghệ An', lat: 18.6667, lng: 105.6667, region: 'Bắc Trung Bộ' },
+        { id: 'hatinh', name: 'Hà Tĩnh', lat: 18.3333, lng: 105.9000, region: 'Bắc Trung Bộ' },
+        { id: 'quangbinh', name: 'Quảng Bình', lat: 17.4667, lng: 106.6000, region: 'Bắc Trung Bộ' },
+        { id: 'quangtri', name: 'Quảng Trị', lat: 16.7500, lng: 107.1833, region: 'Bắc Trung Bộ' },
+        { id: 'thuathienhue', name: 'Thừa Thiên Huế', lat: 16.4637, lng: 107.5909, region: 'Bắc Trung Bộ' },
+        // Duyên hải Nam Trung Bộ
+        { id: 'quangnam', name: 'Quảng Nam', lat: 15.5667, lng: 108.5000, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'quangngai', name: 'Quảng Ngãi', lat: 15.1167, lng: 108.8000, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'binhdinh', name: 'Bình Định', lat: 13.7667, lng: 109.2333, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'phuyen', name: 'Phú Yên', lat: 13.0833, lng: 109.3000, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'khanhhoa', name: 'Khánh Hòa', lat: 12.2500, lng: 109.1833, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'ninhthuan', name: 'Ninh Thuận', lat: 11.5667, lng: 108.9833, region: 'Duyên hải Nam Trung Bộ' },
+        { id: 'binhthuan', name: 'Bình Thuận', lat: 11.0833, lng: 108.0833, region: 'Duyên hải Nam Trung Bộ' },
+        // Tây Nguyên
+        { id: 'kontum', name: 'Kon Tum', lat: 14.3500, lng: 108.0000, region: 'Tây Nguyên' },
+        { id: 'gialai', name: 'Gia Lai', lat: 13.7500, lng: 108.2500, region: 'Tây Nguyên' },
+        { id: 'daklak', name: 'Đắk Lắk', lat: 12.6667, lng: 108.0500, region: 'Tây Nguyên' },
+        { id: 'daknong', name: 'Đắk Nông', lat: 12.0000, lng: 107.6667, region: 'Tây Nguyên' },
+        { id: 'lamdong', name: 'Lâm Đồng', lat: 11.5500, lng: 108.1500, region: 'Tây Nguyên' },
+        // Đông Nam Bộ
+        { id: 'binhphuoc', name: 'Bình Phước', lat: 11.7500, lng: 106.9167, region: 'Đông Nam Bộ' },
+        { id: 'tayninh', name: 'Tây Ninh', lat: 11.3000, lng: 106.1000, region: 'Đông Nam Bộ' },
+        { id: 'binhduong', name: 'Bình Dương', lat: 11.0000, lng: 106.6667, region: 'Đông Nam Bộ' },
+        { id: 'dongnai', name: 'Đồng Nai', lat: 11.0000, lng: 107.1667, region: 'Đông Nam Bộ' },
+        { id: 'baria', name: 'Bà Rịa - Vũng Tàu', lat: 10.5000, lng: 107.1667, region: 'Đông Nam Bộ' },
+        // Đồng bằng sông Cửu Long
+        { id: 'longan', name: 'Long An', lat: 10.5333, lng: 106.4167, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'tiengiang', name: 'Tiền Giang', lat: 10.3667, lng: 106.3500, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'bentre', name: 'Bến Tre', lat: 10.2333, lng: 106.3833, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'vinhlong', name: 'Vĩnh Long', lat: 10.2500, lng: 105.9667, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'travinh', name: 'Trà Vinh', lat: 9.9333, lng: 106.3333, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'haujiang', name: 'Hậu Giang', lat: 9.7833, lng: 105.4667, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'soctrang', name: 'Sóc Trăng', lat: 9.6000, lng: 105.9667, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'baclieu', name: 'Bạc Liêu', lat: 9.2833, lng: 105.7333, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'camau', name: 'Cà Mau', lat: 9.1833, lng: 105.1500, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'dongthap', name: 'Đồng Tháp', lat: 10.4667, lng: 105.6333, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'angiang', name: 'An Giang', lat: 10.3833, lng: 105.4167, region: 'Đồng bằng sông Cửu Long' },
+        { id: 'kiengiang', name: 'Kiên Giang', lat: 10.0167, lng: 105.0833, region: 'Đồng bằng sông Cửu Long' }
+    ];
+
+    let currentWeather = null;
+    let currentProvince = null;
+    let weatherUpdateInterval = null;
+
+    function findNearestProvince(lat, lng) {
+        let nearest = null;
+        let minDist = Infinity;
+        for (const province of VIETNAM_PROVINCES) {
+            const dist = haversineDistance(lat, lng, province.lat, province.lng);
+            if (dist < minDist) { minDist = dist; nearest = province; }
+        }
+        return nearest;
+    }
+
+    async function fetchWeather(lat, lng) {
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=b1b15e88fa797225412429c1c50c122a&units=metric&lang=vi`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.cod === 200) {
+                currentWeather = {
+                    temp: Math.round(data.main.temp),
+                    feels_like: Math.round(data.main.feels_like),
+                    humidity: data.main.humidity,
+                    description: data.weather[0].description,
+                    icon: data.weather[0].icon,
+                    wind_speed: data.wind.speed,
+                    city: data.name,
+                    updatedAt: Date.now()
+                };
+                updateWeatherUI();
+                return currentWeather;
+            }
+        } catch (error) {
+            console.warn('[Weather] Lỗi lấy thời tiết:', error);
+        }
+        return null;
+    }
+
+    function updateWeatherUI() {
+        if (!currentWeather) return;
+        let weatherEl = document.getElementById('weatherDisplay');
+        if (!weatherEl) {
+            weatherEl = document.createElement('div');
+            weatherEl.id = 'weatherDisplay';
+            weatherEl.style.cssText = 'position:fixed;top:55px;right:10px;z-index:1002;background:rgba(255,255,255,0.95);border-radius:12px;padding:6px 12px;font-size:10px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);';
+            document.body.appendChild(weatherEl);
+        }
+        const iconMap = {
+            '01d': '☀️', '01n': '🌙',
+            '02d': '⛅', '02n': '⛅',
+            '03d': '☁️', '03n': '☁️',
+            '04d': '☁️', '04n': '☁️',
+            '09d': '🌧️', '09n': '🌧️',
+            '10d': '🌦️', '10n': '🌦️',
+            '11d': '⛈️', '11n': '⛈️',
+            '13d': '❄️', '13n': '❄️',
+            '50d': '🌫️', '50n': '🌫️'
+        };
+        const icon = iconMap[currentWeather.icon] || '🌡️';
+        const temp = currentWeather.temp;
+        const desc = currentWeather.description;
+        const province = currentProvince ? currentProvince.name : 'Đang xác định';
+        weatherEl.innerHTML = `<span>📍 ${province}</span><span>${icon} ${temp}°C</span><span style="font-weight:400;color:#64748b;">${desc}</span>`;
+    }
+
+    async function updateLocationAndWeather(lat, lng) {
+        if (!lat || !lng) return;
+        const province = findNearestProvince(lat, lng);
+        if (province) {
+            currentProvince = province;
+            console.log(`📍 [Location] Bạn đang ở: ${province.name} (${province.region})`);
+            await fetchWeather(lat, lng);
+            const lastProvince = localStorage.getItem('last_province');
+            if (lastProvince && lastProvince !== province.name) {
+                showToast(`📍 Bạn đã vào ${province.name} - ${province.region}`);
+                speak(`Bạn đã vào địa phận ${province.name}`);
+            }
+            localStorage.setItem('last_province', province.name);
         }
     }
-    
-    function stopForegroundService() {
-        const indicator = document.getElementById('fgServiceIndicator');
-        if (indicator) indicator.classList.remove('active');
-        if (wakeLock) { wakeLock.release(); wakeLock = null; }
+
+    function initWeatherTracking() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    await updateLocationAndWeather(pos.coords.latitude, pos.coords.longitude);
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+        if (weatherUpdateInterval) clearInterval(weatherUpdateInterval);
+        weatherUpdateInterval = setInterval(async () => {
+            if (currentLat && currentLng) await updateLocationAndWeather(currentLat, currentLng);
+        }, 600000);
     }
 
-    function syncDriverLocation() {
-        if (!currentLat || !currentLng || !driverInfo.uid) return;
-        try {
-            db.ref(`tai_xe_online/${driverInfo.uid}`).set({
-                lat: currentLat, lng: currentLng, heading: currentHeading,
-                status: isRunning ? 'busy' : 'ready', lastUpdate: Date.now(),
-                plate: driverInfo.plate, name: driverInfo.name,
-                isGapMode: isGapMode, backgroundMode: isBackgroundTracking,
-                online: isDriverOnline
-            }).catch(()=>{});
-        } catch(e) {}
-    }
+    function getWeather() { return currentWeather; }
+    function getCurrentProvince() { return currentProvince; }
 
-    function syncDriverOnline(isOnline) {
-        if (!driverInfo.uid) return;
-        if (isOnline) syncDriverLocation();
-        else db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
-    }
+    // ==================== HOTSPOTS ====================
+    const HOTSPOTS = [
+        { name: "Sân bay Quốc tế Vân Đồn", lat: 21.1179, lng: 107.4143, intensity: 0.9, timeSlots: [5,6,7,8,17,18,19,20] },
+        { name: "Bến xe Bãi Cháy", lat: 20.9675, lng: 107.0500, intensity: 0.8, timeSlots: [7,8,9,16,17,18] },
+        { name: "Khu du lịch Tuần Châu", lat: 20.9300, lng: 107.0667, intensity: 0.7, timeSlots: [9,10,11,14,15,16,17] },
+        { name: "Chợ Đêm Cái Rồng", lat: 20.9800, lng: 107.0900, intensity: 0.85, timeSlots: [18,19,20,21,22] },
+        { name: "Trung tâm TP Hạ Long", lat: 20.9511, lng: 107.0800, intensity: 0.95, timeSlots: [8,9,10,11,17,18,19,20] }
+    ];
 
-    function drawRoute(fromLat, fromLng, toLat, toLng) {
-        if (routeLayer) map.removeLayer(routeLayer);
-        if (!fromLat || !fromLng || !toLat || !toLng) return;
-        fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
-            .then(r => r.json())
-            .then(data => { 
-                if (data.routes?.[0]) {
-                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                    routeLayer = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.8 }).addTo(map);
-                    if (!isStreetHail) map.fitBounds(routeLayer.getBounds().pad(0.2));
-                }
-            })
-            .catch(() => {});
-    }
-
-    function geocodeAddress(address, callback) {
-        if (!address) return;
-        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
-            .then(r => r.json())
-            .then(data => { if (data && data[0]) callback(parseFloat(data[0].lat), parseFloat(data[0].lon)); })
-            .catch(() => {});
-    }
-
-    let heatmapLayers = [];
     function openHeatmap() {
-        if (heatmapLayers.length) heatmapLayers.forEach(l => map.removeLayer(l));
-        heatmapLayers = [];
+        if (!map) return;
+        if (window.heatmapLayers) {
+            window.heatmapLayers.forEach(l => map.removeLayer(l));
+            window.heatmapLayers = [];
+        }
         const currentHour = new Date().getHours();
+        const layers = [];
         HOTSPOTS.forEach(spot => {
             const isActive = spot.timeSlots.includes(currentHour);
             const marker = L.circleMarker([spot.lat, spot.lng], {
-                radius: isActive ? 18 : 8, fillColor: isActive ? '#ff4444' : '#ffaa44', color: '#fff', weight: 2, fillOpacity: 0.7
+                radius: isActive ? 18 : 8,
+                fillColor: isActive ? '#ff4444' : '#ffaa44',
+                color: '#fff',
+                weight: 2,
+                fillOpacity: 0.7
             }).addTo(map);
             marker.bindTooltip(`<b>${spot.name}</b><br>${isActive ? '🔥 Đang cao điểm' : '⏰ Sắp cao điểm'}`);
-            heatmapLayers.push(marker);
+            layers.push(marker);
         });
+        window.heatmapLayers = layers;
         showToast('🔥 Đã hiển thị điểm nóng khách hàng');
-        if (lastValidPos) map.flyTo([lastValidPos.lat, lastValidPos.lng], 13);
+        if (currentLat && currentLng) map.flyTo([currentLat, currentLng], 13);
         closeSidebar();
     }
 
@@ -1381,20 +867,241 @@ async function initApp() {
         setInterval(() => {
             const hour = new Date().getHours();
             const activeSpots = HOTSPOTS.filter(s => s.timeSlots.includes(hour));
-            if (activeSpots.length && !isRunning && !_isModalOpening && isDriverOnline) {
+            if (activeSpots.length && isDriverOnline && !_isModalOpening) {
                 const nearest = activeSpots[0];
-                showToast(`🔥 Gợi ý: Khu vực ${nearest.name} đang có nhu cầu cao!`);
-                speak(`Khu vực ${nearest.name} đang có nhiều khách.`);
+                const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+                if (state === 'IDLE' || state === 'COMPLETED' || state === 'CANCELLED') {
+                    showToast(`🔥 Gợi ý: Khu vực ${nearest.name} đang có nhu cầu cao!`);
+                    speak(`Khu vực ${nearest.name} đang có nhiều khách.`);
+                }
             }
         }, 600000);
     }
 
-    function showAIAlert(msg) { 
-        const alertDiv = document.getElementById('aiAlert'); 
-        if (!alertDiv) return;
-        document.getElementById('aiAlertText').innerText = msg; 
-        alertDiv.classList.add('show'); 
-        setTimeout(() => alertDiv.classList.remove('show'), 5000); 
+    // ==================== AI DISPATCH ====================
+    async function checkNearbyOrders() {
+        if (!isDriverOnline || isLocked || _isModalOpening) return;
+        const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+        if (state !== 'IDLE' && state !== 'COMPLETED' && state !== 'CANCELLED') return;
+        if (!currentLat || !currentLng) return;
+        
+        try {
+            const snapshot = await db.ref('datxe').orderByChild('status').equalTo('waiting').limitToFirst(20).once('value');
+            const orders = snapshot.val();
+            if (!orders) return;
+            
+            let nearestOrder = null;
+            let nearestDistance = 3;
+            
+            for (const [orderId, order] of Object.entries(orders)) {
+                if (!order.pickupLat || !order.pickupLng) continue;
+                if (_processedOrders.has(orderId)) continue;
+                if (order.carType !== driverInfo.carClass && order.carType !== 'both') continue;
+                
+                const distance = haversineDistance(currentLat, currentLng, order.pickupLat, order.pickupLng);
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestOrder = { id: orderId, ...order, distance };
+                }
+            }
+            
+            if (nearestOrder && nearestDistance < 3) {
+                showToast(`🎯 AI gợi ý: Có đơn cách ${nearestDistance.toFixed(1)}km, hãy bật Online để nhận!`);
+                if (soundEnabled) speak(`Có đơn gần bạn, chỉ ${nearestDistance.toFixed(1)} kilômét`);
+            }
+        } catch(e) {
+            console.warn('[AI DISPATCH] Lỗi:', e);
+        }
+    }
+    
+    function startAIDispatch() {
+        if (aiDispatchInterval) clearInterval(aiDispatchInterval);
+        aiDispatchInterval = setInterval(checkNearbyOrders, 30000);
+    }
+    
+    function stopAIDispatch() {
+        if (aiDispatchInterval) { clearInterval(aiDispatchInterval); aiDispatchInterval = null; }
+    }
+
+    // ==================== LOCATION PUSHING ====================
+    function startLocationPushing() {
+        if (locationPushInterval) clearInterval(locationPushInterval);
+        locationPushInterval = setInterval(() => {
+            if (isDriverOnline && currentLat && currentLng && driverInfo.uid) {
+                try {
+                    db.ref(`driver_locations/${driverInfo.uid}`).set({
+                        lat: currentLat,
+                        lng: currentLng,
+                        heading: currentHeading,
+                        timestamp: Date.now(),
+                        status: (window.tripEngine && window.tripEngine.getCurrentState() !== 'IDLE') ? 'busy' : 'ready'
+                    }).catch(() => {});
+                } catch(e) {}
+            }
+        }, 5000);
+    }
+    
+    function stopLocationPushing() {
+        if (locationPushInterval) { clearInterval(locationPushInterval); locationPushInterval = null; }
+    }
+
+    // ==================== ONLINE/OFFLINE ====================
+    function toggleOnlineStatus() {
+        isDriverOnline = !isDriverOnline;
+        const toggle = document.getElementById('onlineToggleSwitch');
+        const text = document.getElementById('onlineTextStatus');
+        
+        if (isDriverOnline) {
+            toggle.classList.add('active');
+            text.innerText = 'Online';
+            startOrderListener();
+            startLocationPushing();
+            startAIDispatch();
+            showToast('✅ Đã chuyển sang trạng thái Online - Sẵn sàng nhận đơn');
+            if (soundEnabled) speak("Bạn đã online, sẵn sàng nhận đơn");
+        } else {
+            toggle.classList.remove('active');
+            text.innerText = 'Offline';
+            if (orderListener) { orderListener.off(); orderListener = null; }
+            _orderListenerStarted = false;
+            stopLocationPushing();
+            stopAIDispatch();
+            showToast('⏸ Đã chuyển sang trạng thái Offline');
+            if (soundEnabled) speak("Bạn đã offline, tạm dừng nhận đơn");
+        }
+        
+        if (driverInfo.uid) {
+            db.ref(`tai_xe_online/${driverInfo.uid}/online`).set(isDriverOnline).catch(()=>{});
+        }
+    }
+
+    // ==================== UPLOAD GIẤY TỜ ====================
+    async function openVerificationUpload() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*,.pdf';
+        input.multiple = true;
+        
+        input.onchange = async (e) => {
+            const files = e.target.files;
+            if (!files.length) return;
+            
+            const container = document.getElementById('uploadProgressContainer');
+            const bar = document.getElementById('uploadProgressBar');
+            const docContainer = document.getElementById('uploadedDocuments');
+            
+            container.style.display = 'block';
+            bar.style.width = '0%';
+            
+            let uploaded = 0;
+            const docList = [];
+            
+            for (const file of files) {
+                try {
+                    const path = `verification/${driverInfo.uid}/${Date.now()}_${file.name}`;
+                    const uploadTask = storage.ref().child(path).put(file);
+                    
+                    await new Promise((resolve, reject) => {
+                        uploadTask.on('state_changed',
+                            (snapshot) => {
+                                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                bar.style.width = Math.min(100, progress + (uploaded / files.length * 100)) + '%';
+                            },
+                            reject,
+                            resolve
+                        );
+                    });
+                    
+                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    await db.ref(`drivers/${driverInfo.uid}/documents`).push({
+                        url: downloadURL,
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        uploadedAt: Date.now()
+                    });
+                    
+                    uploaded++;
+                    docList.push(`📄 ${file.name}`);
+                    bar.style.width = (uploaded / files.length * 100) + '%';
+                    
+                } catch(error) {
+                    console.error('Upload error:', error);
+                    showToast('⚠️ Lỗi upload: ' + error.message);
+                }
+            }
+            
+            container.style.display = 'none';
+            
+            if (uploaded > 0) {
+                docContainer.innerHTML = docList.map(d => `<div style="padding: 2px 0;">✅ ${d}</div>`).join('');
+                showToast(`✅ Đã upload ${uploaded} tài liệu thành công!`);
+                updateVerificationStatus();
+                speak('Đã tải lên giấy tờ thành công');
+            }
+        };
+        input.click();
+    }
+
+    async function updateVerificationStatus() {
+        try {
+            const snap = await db.ref(`drivers/${driverInfo.uid}/documents`).once('value');
+            const docs = snap.val();
+            const badge = document.getElementById('verifyBadge');
+            if (docs && Object.keys(docs).length > 0) {
+                badge.innerHTML = '<i class="fas fa-check-circle" style="color: #2e7d32;"></i> Đã xác thực';
+                badge.style.background = '#e8f5e9';
+                badge.style.color = '#2e7d32';
+            }
+        } catch(e) {}
+    }
+
+    async function loadDocumentsList() {
+        try {
+            const snap = await db.ref(`drivers/${driverInfo.uid}/documents`).once('value');
+            const docs = snap.val();
+            const container = document.getElementById('uploadedDocuments');
+            if (docs && Object.keys(docs).length > 0) {
+                container.innerHTML = Object.values(docs).map(d => 
+                    `<div style="padding: 2px 0;">✅ ${d.name || 'Tài liệu'}</div>`
+                ).join('');
+            }
+        } catch(e) {}
+    }
+
+    // ==================== PUSH NOTIFICATION ====================
+    async function initPushNotifications() {
+        try {
+            if (!firebase.messaging) {
+                console.warn('Firebase Messaging không khả dụng');
+                return;
+            }
+            messaging = firebase.messaging();
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                console.warn('Push notification bị từ chối');
+                return;
+            }
+            try {
+                fcmToken = await messaging.getToken({
+                    vapidKey: 'BAA3S8g0HhHj2rCq8j4KpQ1lX6yM5nV7wP9rT2uE3fG4hJ5kL6mN7oP8qR9sT0uV'
+                });
+                if (fcmToken && driverInfo.uid) {
+                    await db.ref(`drivers/${driverInfo.uid}/fcmTokens`).push(fcmToken);
+                    console.log('FCM token đã đăng ký');
+                }
+            } catch(e) { console.warn('Không lấy được FCM token:', e); }
+            
+            messaging.onMessage((payload) => {
+                const title = payload.notification?.title || '📨 Thông báo';
+                const body = payload.notification?.body || '';
+                showToast(`📨 ${title}: ${body}`);
+                if (payload.data?.type === 'new_order') setTimeout(checkNearbyOrders, 1000);
+                if (payload.data?.type === 'trip_cancelled') showCancelBanner();
+            });
+        } catch(e) {
+            console.warn('Push notification không khởi tạo được:', e);
+        }
     }
 
     // ==================== PAYMENT & PACKAGE ====================
@@ -1403,7 +1110,6 @@ async function initApp() {
             showToast('⚠️ Vui lòng đăng nhập trước');
             return;
         }
-        
         if (amount === 0) {
             const nextWeek = Date.now() + (7 * 24 * 60 * 60 * 1000);
             await db.ref(`drivers/${driverInfo.uid}`).update({ tp_expiry: nextWeek, active_plan: plan });
@@ -1412,18 +1118,12 @@ async function initApp() {
             initCountdown();
             return;
         }
-        
         try {
             showToast('⏳ Đang tạo liên kết thanh toán...');
-            
             const orderId = `DRV_${driverInfo.uid}_${Date.now()}`;
             const response = await fetch('https://api.payos.vn/v1/payment-requests', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-client-id': 'YOUR_CLIENT_ID',
-                    'x-api-key': 'YOUR_API_KEY'
-                },
+                headers: { 'Content-Type': 'application/json', 'x-client-id': 'YOUR_CLIENT_ID', 'x-api-key': 'YOUR_API_KEY' },
                 body: JSON.stringify({
                     amount: amount,
                     description: `Nạp gói ${plan} - TAXI PROMAX`,
@@ -1435,7 +1135,6 @@ async function initApp() {
                     expiredAt: Math.floor((Date.now() + 15 * 60 * 1000) / 1000)
                 })
             });
-            
             const data = await response.json();
             if (data.data?.checkoutUrl) {
                 window.open(data.data.checkoutUrl, '_blank');
@@ -1457,12 +1156,8 @@ async function initApp() {
                 if (data.data?.status === 'PAID') {
                     clearInterval(interval);
                     showToast('✅ Thanh toán thành công! Đang cập nhật gói cước...');
-                    
                     const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
-                    await db.ref(`drivers/${driverInfo.uid}`).update({ 
-                        tp_expiry: expiry, 
-                        active_plan: data.data.description || 'PRO'
-                    });
+                    await db.ref(`drivers/${driverInfo.uid}`).update({ tp_expiry: expiry, active_plan: data.data.description || 'PRO' });
                     isLocked = false;
                     initCountdown();
                     showToast('🎉 Gói cước đã được kích hoạt!');
@@ -1479,7 +1174,6 @@ async function initApp() {
                 const snap = await db.ref(`drivers/${driverInfo.uid}`).once('value');
                 const d = snap.val();
                 const now = Date.now();
-                
                 const planShow = document.getElementById('planShow');
                 const cdVal = document.getElementById('tp-cd-val');
                 const profilePlan = document.getElementById('profilePlan');
@@ -1490,14 +1184,12 @@ async function initApp() {
                 if (d && d.tp_expiry && parseInt(d.tp_expiry) > now) {
                     const expiry = parseInt(d.tp_expiry);
                     const days = Math.floor((expiry - now) / 86400000);
-                    
                     if (planShow) planShow.innerText = `⭐ GÓI: ${d.active_plan || 'PROMAX'}`;
                     if (cdVal) cdVal.innerText = days + "n";
                     if (profilePlan) profilePlan.innerText = d.active_plan || 'TRIAL';
                     if (profileExpiry) profileExpiry.innerText = new Date(expiry).toLocaleDateString('vi-VN');
                     if (sidebarPlan) sidebarPlan.innerHTML = `⭐ ${d.active_plan || 'PROMAX'}`;
                     if (miniTimer) miniTimer.style.display = 'inline-flex';
-                    
                     isLocked = false;
                 } else {
                     if (planShow) planShow.innerText = "⭐ GÓI: MIỄN PHÍ";
@@ -1505,17 +1197,17 @@ async function initApp() {
                     if (profileExpiry) profileExpiry.innerText = 'Hết hạn';
                     if (sidebarPlan) sidebarPlan.innerHTML = '⭐ MIỄN PHÍ';
                     if (miniTimer) miniTimer.style.display = 'none';
-                    
-                    if (!isLocked && !isRunning) { 
-                        isLocked = true; 
-                        showToast('⚠️ Gói cước đã hết hạn! Vui lòng gia hạn để nhận đơn.'); 
+                    if (!isLocked) {
+                        isLocked = true;
+                        const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+                        if (state === 'IDLE' || state === 'COMPLETED' || state === 'CANCELLED') {
+                            showToast('⚠️ Gói cước đã hết hạn! Vui lòng gia hạn để nhận đơn.');
+                        }
                     }
                 }
-            } catch(e) { 
-                console.warn('initCountdown error:', e); 
-            }
+            } catch(e) { console.warn('initCountdown error:', e); }
         };
-        check(); 
+        check();
         setInterval(check, 60000);
     }
 
@@ -1529,7 +1221,7 @@ async function initApp() {
                     if (remaining > 0 && remaining < 86400000) {
                         const hours = Math.floor(remaining / 3600000);
                         if (hours <= 24 && hours > 0) showToast(`⚠️ Gói cước còn ${hours} giờ, hãy gia hạn!`);
-                    } else if (remaining <= 0) { isLocked = true; }
+                    }
                 }
             } catch(e) {}
         }, 3600000);
@@ -1552,35 +1244,26 @@ async function initApp() {
             var payload = await window.TaxiAutonomous.allocationScore({pickup:{lat:Number(order.pickupLat),lng:Number(order.pickupLng)},hotspotWeight:1,drivers:[driver]});
             var candidate = payload && payload.result && payload.result.candidates && payload.result.candidates[0];
             return !candidate || candidate.eligible !== false;
-        } catch (_) {
-            return true;
-        }
+        } catch (_) { return true; }
     }
 
     function startOrderListener() {
         if (_orderListenerStarted || !isDriverOnline) return;
-        if (orderListener) { 
-            orderListener.off(); 
-            orderListener = null; 
-        }
+        if (orderListener) { orderListener.off(); orderListener = null; }
         _orderListenerStarted = true;
 
         orderListener = db.ref('datxe').orderByChild('status').equalTo('waiting');
         orderListener.on('child_added', async (snap) => {
-            if (_isModalOpening || isRunning || isLocked || !isDriverOnline) return;
+            if (_isModalOpening || isLocked || !isDriverOnline) return;
+            const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+            if (state !== 'IDLE' && state !== 'COMPLETED' && state !== 'CANCELLED') return;
 
             const order = snap.val(), orderId = snap.key;
             if (!order || order.status !== 'waiting') return;
             if (order.expiresAt && Number(order.expiresAt) <= Date.now()) {
                 db.ref(`datxe/${orderId}`).transaction(current => {
                     if (!current || current.status !== 'waiting') return;
-                    return {
-                        ...current,
-                        status: 'cancelled',
-                        cancelReason: 'expired',
-                        cancelledAt: Date.now(),
-                        statusHistory: { ...(current.statusHistory || {}), cancelled: Date.now() }
-                    };
+                    return { ...current, status: 'cancelled', cancelReason: 'expired', cancelledAt: Date.now(), statusHistory: { ...(current.statusHistory || {}), cancelled: Date.now() } };
                 });
                 return;
             }
@@ -1589,11 +1272,10 @@ async function initApp() {
             if (!(await autonomousOrderEligible(order))) return;
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
             
-            _processedOrders.add(orderId); 
-            _isModalOpening = true; 
-            currentOrderId = orderId; 
+            _processedOrders.add(orderId);
+            _isModalOpening = true;
+            currentOrderId = orderId;
             currentCustomerData = order;
-            isStreetHail = false;
             
             document.getElementById('modalPhone').innerText = order.phone || '...';
             document.getElementById('modalFrom').innerText = order.pickup || '...';
@@ -1601,15 +1283,15 @@ async function initApp() {
             document.getElementById('modalClientName').innerText = order.clientName || 'Khách';
             document.getElementById('modalCarType').innerText = order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
             
-            let countdown = 15; 
+            let countdown = 15;
             document.getElementById('tp-modal-timer-val').innerText = countdown;
             document.getElementById('orderModal').style.display = 'flex';
             
             if (countdownInterval) clearInterval(countdownInterval);
-            countdownInterval = setInterval(() => { 
-                countdown--; 
-                document.getElementById('tp-modal-timer-val').innerText = countdown; 
-                if (countdown <= 0) declineOrder(); 
+            countdownInterval = setInterval(() => {
+                countdown--;
+                document.getElementById('tp-modal-timer-val').innerText = countdown;
+                if (countdown <= 0) declineOrder();
             }, 1000);
             
             speak("Có đơn đặt xe mới.");
@@ -1620,89 +1302,101 @@ async function initApp() {
         clearInterval(countdownInterval);
         if (!currentOrderId || !currentCustomerData) return;
 
-        // RESET lastValidPos và lastValidTime trước khi bắt đầu chuyến mới
-        lastValidPos = null;
-        lastValidTime = 0;
-        totalKm = 0;
-        lastDisplayedFare = 0;
-
-        const orderRef = db.ref(`datxe/${currentOrderId}`);
-        let result;
-        try {
-            result = await orderRef.transaction(order => {
-                if (!order || order.status !== 'waiting') return;
-                return {
-                    ...order,
-                    status: 'driving',
-                    driverId: driverInfo.uid,
-                    driverName: driverInfo.name,
-                    driverPhone: driverInfo.phone,
-                    driverPlate: driverInfo.plate,
-                    acceptedAt: Date.now(),
-                    statusHistory: { ...(order.statusHistory || {}), driving: Date.now() }
-                };
-            });
-        } catch (error) {
-            _isModalOpening = false;
-            showToast('Không thể nhận chuyến. Vui lòng thử lại.');
-            return;
+        // Gọi tripEngine để nhận đơn
+        if (window.tripEngine && typeof window.tripEngine.acceptOrder === 'function') {
+            const success = await window.tripEngine.acceptOrder(currentOrderId, currentCustomerData);
+            if (!success) {
+                _isModalOpening = false;
+                showToast('Không thể nhận chuyến. Vui lòng thử lại.');
+                return;
+            }
+        } else {
+            // Fallback
+            const orderRef = db.ref(`datxe/${currentOrderId}`);
+            let result;
+            try {
+                result = await orderRef.transaction(order => {
+                    if (!order || order.status !== 'waiting') return;
+                    return { ...order, status: 'driving', driverId: driverInfo.uid, driverName: driverInfo.name, driverPhone: driverInfo.phone, driverPlate: driverInfo.plate, acceptedAt: Date.now(), statusHistory: { ...(order.statusHistory || {}), driving: Date.now() } };
+                });
+            } catch (error) {
+                _isModalOpening = false;
+                showToast('Không thể nhận chuyến. Vui lòng thử lại.');
+                return;
+            }
+            if (!result || !result.committed) {
+                closeModal('orderModal');
+                _isModalOpening = false;
+                _processedOrders.add(currentOrderId);
+                showToast('Đơn này đã được tài xế khác nhận hoặc đã hết hạn.');
+                return;
+            }
+            currentCustomerData = result.snapshot?.val?.() || currentCustomerData;
         }
 
-        if (!result || !result.committed) {
-            closeModal('orderModal');
-            _isModalOpening = false;
-            _processedOrders.add(currentOrderId);
-            showToast('Đơn này đã được tài xế khác nhận hoặc đã hết hạn.');
-            return;
-        }
-
-        currentCustomerData = result.snapshot?.val?.() || currentCustomerData;
         closeModal('orderModal');
         _isModalOpening = false;
 
         if (currentCustomerData.pickupLat && currentCustomerData.pickupLng)
             createCustomerMarker(currentCustomerData.pickupLat, currentCustomerData.pickupLng);
-        showTripPanel(currentCustomerData);
-        isRunning = true;
-        hideTabsDuringTrip();
-        hasPickedUp = false;
-        isStreetHail = false;
-        document.getElementById('km').innerText = '0.00';
-        document.getElementById('cost').innerText = '0';
-        document.getElementById('statsUI').classList.add('show');
-        listenForCustomerCancel();
-        listenForChat();
+        
+        // TripEngine sẽ tự động cập nhật UI qua sự kiện
         speak('Đã nhận đơn.');
         startForegroundService();
         enableKeepAwake();
-        if (window.tripEngine && typeof window.tripEngine.beginAppTrip === 'function') {
-            window.tripEngine.beginAppTrip(currentOrderId, currentCustomerData);
+    }
+
+    function declineOrder() {
+        clearInterval(countdownInterval);
+        closeModal('orderModal');
+        _isModalOpening = false;
+        speak("Đã bỏ qua đơn.");
+    }
+
+    // ==================== TRIP HANDLING ====================
+    function handleTrip() {
+        if (window.tripEngine && typeof window.tripEngine.getCurrentState === 'function') {
+            const state = window.tripEngine.getCurrentState();
+            if (state !== 'IDLE' && state !== 'COMPLETED' && state !== 'CANCELLED') {
+                showConfirmComplete();
+                return;
+            }
+        }
+        if (window.tripEngine && typeof window.tripEngine.startStreetHail === 'function') {
+            const success = window.tripEngine.startStreetHail();
+            if (!success) showToast('⚠️ Không thể bắt đầu chuyến vẫy');
+        } else {
+            showToast('⚠️ TripEngine chưa sẵn sàng');
         }
     }
 
-    function declineOrder() { 
-        clearInterval(countdownInterval); 
-        closeModal('orderModal'); 
-        _isModalOpening = false; 
-        speak("Đã bỏ qua đơn."); 
+    function closeStreetHailMeter() {
+        document.getElementById('streetHailMeter').classList.remove('show');
+        if (streetHailTimerInterval) clearInterval(streetHailTimerInterval);
+        showConfirmComplete();
     }
 
-    function showTripPanel(order) {
-        document.getElementById('homeControls').style.display = 'none';
-        document.getElementById('tripInfoPanel').style.display = 'block';
-        document.getElementById('statsUI').classList.add('show');
-        document.getElementById('tripClientName').innerText = order.clientName || 'Khách';
-        document.getElementById('tripClientPhone').innerText = order.phone || '...';
-        document.getElementById('tripFrom').innerText = order.pickup || '...';
-        document.getElementById('tripTo').innerText = order.dropoff || '...';
-        const price = order.estimatePrice || 0, km = order.estimateKm || 0;
-        document.getElementById('tripPrice').innerHTML = price > 0 ? price.toLocaleString() + 'đ' : 'Tính theo KM';
-        document.getElementById('tripEstKm').innerHTML = km > 0 ? km.toFixed(1) + ' km' : '';
-        document.getElementById('tripCarType').innerHTML = order.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-        document.getElementById('tripActionButtons').style.display = 'flex';
-        document.getElementById('endTripBtn').style.display = 'none';
-        document.getElementById('tripStatusText').innerHTML = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
-        if (order.pickupLat && order.pickupLng) drawRoute(currentLat, currentLng, order.pickupLat, order.pickupLng);
+    // ==================== ROUTE & MARKER ====================
+    function drawRoute(fromLat, fromLng, toLat, toLng) {
+        if (routeLayer) map.removeLayer(routeLayer);
+        if (!fromLat || !fromLng || !toLat || !toLng) return;
+        fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.routes?.[0]) {
+                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    routeLayer = L.polyline(coords, { color: '#0054a3', weight: 5, opacity: 0.8 }).addTo(map);
+                }
+            })
+            .catch(() => {});
+    }
+
+    function geocodeAddress(address, callback) {
+        if (!address) return;
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
+            .then(r => r.json())
+            .then(data => { if (data && data[0]) callback(parseFloat(data[0].lat), parseFloat(data[0].lon)); })
+            .catch(() => {});
     }
 
     function createCustomerMarker(lat, lng) {
@@ -1714,169 +1408,173 @@ async function initApp() {
         }
     }
 
-    function confirmPickup() {
-        hasPickedUp = true;
-        document.getElementById('tripActionButtons').style.display = 'none';
-        document.getElementById('endTripBtn').style.display = 'block';
-        document.getElementById('tripStatusText').innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
-        if (customerMarker) map.removeLayer(customerMarker);
-        if (currentOrderId && !isStreetHail) {
-            const pickedUpAt = Date.now();
-            currentCustomerData = {
-                ...currentCustomerData,
-                status: 'in_progress',
-                pickedUpAt,
-                statusHistory: { ...(currentCustomerData.statusHistory || {}), picked_up: pickedUpAt, in_progress: pickedUpAt }
-            };
-            db.ref(`datxe/${currentOrderId}`).update({
-                status: 'in_progress',
-                pickedUpAt,
-                statusHistory: currentCustomerData.statusHistory
-            }).catch(() => {});
-        }
-        if (currentCustomerData?.dropoffLat && currentCustomerData?.dropoffLng)
-            drawRoute(currentLat, currentLng, currentCustomerData.dropoffLat, currentCustomerData.dropoffLng);
-        else if (currentCustomerData?.dropoff)
-            geocodeAddress(currentCustomerData.dropoff, (lat,lng) => drawRoute(currentLat, currentLng, lat, lng));
-        speak('Đã đón khách, bắt đầu hành trình.');
+    // ==================== CHAT ====================
+    function listenForChat() {
+        if (chatListener) db.ref(`chat/${chatListener}`).off();
+        chatListener = currentOrderId;
+        if (!currentOrderId) return;
+        db.ref(`chat/${currentOrderId}`).orderByChild('timestamp').on('child_added', (snap) => {
+            const msg = snap.val();
+            if (msg && msg.sender !== 'driver') appendChatMessage(msg);
+        });
     }
 
-    function navigateToPickup() {
-        if (!currentCustomerData) return;
-        if (currentCustomerData.pickupLat && currentCustomerData.pickupLng) {
-            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${currentCustomerData.pickupLat},${currentCustomerData.pickupLng}&travelmode=driving`, '_blank');
+    function openChat() {
+        document.getElementById('chatOverlay').style.display = 'flex';
+        const cm = document.getElementById('chatMessages');
+        if (cm.children.length === 1 && cm.children[0].style.textAlign === 'center') cm.innerHTML = '';
+    }
+    
+    function closeChat() { document.getElementById('chatOverlay').style.display = 'none'; }
+    
+    function sendQuickMessage(msg) {
+        if (!currentOrderId) return;
+        db.ref(`chat/${currentOrderId}`).push({ sender: 'driver', from: 'driver', senderName: driverInfo.name, text: msg, timestamp: Date.now() });
+        appendChatMessage({ text: msg, sender: 'driver', timestamp: Date.now() });
+    }
+    
+    function sendChatMessage() {
+        const input = document.getElementById('chatInput'), text = input.value.trim();
+        if (!text || !currentOrderId) return;
+        db.ref(`chat/${currentOrderId}`).push({ sender: 'driver', from: 'driver', senderName: driverInfo.name, text, timestamp: Date.now() });
+        appendChatMessage({ text, sender: 'driver', timestamp: Date.now() });
+        input.value = '';
+    }
+    
+    function appendChatMessage(msg) {
+        const container = document.getElementById('chatMessages');
+        if (container.children.length === 1 && container.children[0].style.textAlign === 'center') container.innerHTML = '';
+        const isMe = msg.sender === 'driver';
+        const time = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+        const div = document.createElement('div');
+        div.className = 'chat-message ' + (isMe ? 'sent' : 'received');
+        div.innerHTML = `${msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;">${time}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function callCustomer() {
+        const phone = document.getElementById('tripClientPhone').innerText;
+        if (phone && phone !== '...' && phone !== '---') window.location.href = 'tel:' + phone;
+        else showToast('⚠️ Chưa có số điện thoại khách hàng');
+    }
+
+    // ==================== CANCEL ====================
+    function listenForCustomerCancel() {
+        if (cancelListener) db.ref(`datxe/${cancelListener}/status`).off();
+        cancelListener = currentOrderId;
+        if (!currentOrderId) return;
+        db.ref(`datxe/${currentOrderId}/status`).on('value', (snap) => {
+            if (snap.val() === 'cancelled') {
+                const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+                if (state !== 'IDLE' && state !== 'COMPLETED' && state !== 'CANCELLED') {
+                    showCancelBanner();
+                }
+            }
+        });
+    }
+    
+    function showCancelBanner() { document.getElementById('cancelBanner').style.display = 'block'; speak("Cảnh báo! Khách hàng đã hủy chuyến."); }
+    
+    function dismissCancelBanner() {
+        document.getElementById('cancelBanner').style.display = 'none';
+        if (window.tripEngine && typeof window.tripEngine.cancelTrip === 'function') {
+            window.tripEngine.cancelTrip('Khách hàng đã hủy');
+        }
+    }
+
+    // ==================== UI HELPERS ====================
+    function updateRate(v) {
+        currentRate = parseInt(v);
+        document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
+        const meterRate = document.getElementById('meterRate');
+        if (meterRate) meterRate.innerText = currentRate.toLocaleString() + 'đ';
+    }
+
+    function showTab(tab, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        if (tab === 'home') {
+            const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+            if (state !== 'IDLE' && state !== 'COMPLETED' && state !== 'CANCELLED') {
+                document.getElementById('homeControls').style.display = 'none';
+                document.getElementById('tripInfoPanel').style.display = 'block';
+                document.getElementById('statsUI').classList.add('show');
+            } else {
+                document.getElementById('homeControls').style.display = 'block';
+                document.getElementById('tripInfoPanel').style.display = 'none';
+                document.getElementById('statsUI').classList.remove('show');
+            }
+            setTimeout(() => map.invalidateSize(), 300);
         } else {
-            window.open(`https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(currentCustomerData.pickup)}&travelmode=driving`, '_blank');
-        }
-    }
-
-    // ==================== TRIP HANDLING ====================
-    function handleTrip() {
-        if (!isRunning) {
-            // Reset các biến cho chuyến vẫy
-            isRunning = true;
-            hideTabsDuringTrip();
-            hasPickedUp = true;
-            totalKm = 0;
-            isStreetHail = true;
-            currentOrderId = null;
-            lastDisplayedFare = 0;
-            lastValidPos = null;
-            lastValidTime = 0;
-            isGapMode = false;
-            
-            currentCustomerData = {
-                clientName: '🚕 Khách vẫy', phone: '', pickup: 'Vị trí hiện tại', dropoff: 'Chưa xác định',
-                estimatePrice: 0, estimateKm: 0, carType: driverInfo.carClass || '4_seats', isStreetHail: true
-            };
-            
-            document.getElementById('km').innerText = '0.00';
-            document.getElementById('cost').innerText = '0';
-            document.getElementById('statsUI').classList.add('show');
             document.getElementById('homeControls').style.display = 'none';
-            document.getElementById('tripInfoPanel').style.display = 'block';
-            document.getElementById('tripClientName').innerText = '🚕 Khách vẫy';
-            document.getElementById('tripClientPhone').innerText = '---';
-            document.getElementById('tripFrom').innerText = 'Vị trí hiện tại';
-            document.getElementById('tripTo').innerText = 'Chưa xác định';
-            document.getElementById('tripPrice').innerHTML = '0đ';
-            document.getElementById('tripKmLive').innerText = '0.00 KM';
-            document.getElementById('tripCarType').innerHTML = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-            document.getElementById('tripActionButtons').style.display = 'none';
-            document.getElementById('endTripBtn').style.display = 'block';
-            document.getElementById('tripStatusText').innerHTML = '🚕 CHUYẾN VẪY - ĐANG CHẠY';
-            
-            startForegroundService();
-            enableKeepAwake();
-            speak("Bắt đầu chuyến vẫy. Đồng hồ sẽ nhảy khi xe di chuyển.");
-            showToast("🚕 Chuyến vẫy đã bắt đầu! Đồng hồ tính cước đã sẵn sàng.");
-            document.getElementById('wishModal').style.display = 'flex';
-        } else {
-            showConfirmComplete();
+            document.getElementById('tripInfoPanel').style.display = 'none';
+            document.getElementById('statsUI').classList.remove('show');
+            const tabEl = document.getElementById('tab-' + tab);
+            if (tabEl) tabEl.style.display = 'flex';
+            if (tab === 'lichsu') renderHistory();
         }
     }
-
-    function closeStreetHailMeter() {
-        document.getElementById('streetHailMeter').classList.remove('show');
-        if (streetHailTimerInterval) clearInterval(streetHailTimerInterval);
-        showConfirmComplete();
+    
+    function openSOS() {
+        speak("Đang phát tín hiệu SOS.");
+        showToast("🚨 Đã gửi tín hiệu cứu hộ!");
+        if (driverInfo.uid && currentLat && currentLng) {
+            db.ref(`sos/${driverInfo.uid}`).set({
+                lat: currentLat, lng: currentLng,
+                name: driverInfo.name, phone: driverInfo.phone,
+                timestamp: Date.now(), status: 'active'
+            });
+        }
+        closeSidebar();
+    }
+    
+    function openMaintenance() {
+        showToast("🔧 Kiểm tra áp suất lốp trước khi khởi hành.");
+        closeSidebar();
+    }
+    
+    function openProfit() {
+        const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
+        const today = new Date().setHours(0,0,0,0);
+        const stats = {
+            today: history.filter(h => h.timestamp >= today).reduce((s, h) => s + (h.cost || 0), 0),
+            week: history.filter(h => h.timestamp >= Date.now() - 7*86400000).reduce((s, h) => s + (h.cost || 0), 0),
+            month: history.filter(h => h.timestamp >= Date.now() - 30*86400000).reduce((s, h) => s + (h.cost || 0), 0),
+            total: history.reduce((s, h) => s + (h.cost || 0), 0),
+            trips: history.length
+        };
+        const msg = `📊 BÁO CÁO DOANH THU\n─────────────────\n📅 Hôm nay:  ${stats.today.toLocaleString()}đ\n📆 Tuần này: ${stats.week.toLocaleString()}đ\n📆 Tháng này: ${stats.month.toLocaleString()}đ\n💰 Tổng:     ${stats.total.toLocaleString()}đ\n🚖 Số chuyến: ${stats.trips}\n${stats.trips > 0 ? `💰 Trung bình: ${(stats.total/stats.trips).toLocaleString()}đ/chuyến` : ''}`;
+        showToast(msg);
+        closeSidebar();
     }
 
-    function completeTrip() {
-        const MIN_FARE = 20000;
-        const finalKm = Number(totalKm) || 0;
-        let finalCost = Math.round(finalKm * currentRate);
-        if (finalCost < MIN_FARE) finalCost = MIN_FARE;
-
-        const tripType = isStreetHail ? 'STREET_HAIL' : 'APP_BOOKING';
-
-        saveHistory(finalKm, finalCost.toLocaleString('vi-VN'), finalCost, tripType);
-
-        if (currentOrderId && !isStreetHail) {
-            db.ref(`datxe/${currentOrderId}`).update({
-                status: 'completed',
-                completedAt: Date.now(),
-                actualKm: finalKm,
-                actualPrice: finalCost,
-                statusHistory: { ...(currentCustomerData && currentCustomerData.statusHistory ? currentCustomerData.statusHistory : {}), completed: Date.now() }
-            }).catch(function(){});
+    function doLogout() {
+        const state = window.tripEngine ? window.tripEngine.getCurrentState() : 'IDLE';
+        if (state !== 'IDLE' && state !== 'COMPLETED' && state !== 'CANCELLED') {
+            showToast('⚠️ Vui lòng kết thúc chuyến đi trước khi đăng xuất');
+            return;
         }
-
-        isRunning = false;
-        hasPickedUp = false;
-        isStreetHail = false;
-        totalKm = 0;
-        lastDisplayedFare = 0;
-        currentOrderId = null;
-        currentCustomerData = null;
-        lastValidPos = null;
-        lastValidTime = 0;
-        isGapMode = false;
-
-        const streetMeter = document.getElementById('streetHailMeter');
-        if (streetMeter) streetMeter.classList.remove('show');
-        if (typeof streetHailTimerInterval !== 'undefined' && streetHailTimerInterval) {
-            clearInterval(streetHailTimerInterval);
-            streetHailTimerInterval = null;
-        }
-
-        const tripPanel = document.getElementById('tripInfoPanel');
-        const homeControls = document.getElementById('homeControls');
-        const statsUI = document.getElementById('statsUI');
-        const mainBtn = document.getElementById('mainBtn');
-
-        if (tripPanel) tripPanel.style.display = 'none';
-        if (homeControls) homeControls.style.display = 'block';
-        if (statsUI) statsUI.classList.remove('show');
-        if (mainBtn) {
-            mainBtn.innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
-            mainBtn.style.background = "var(--accent)";
-        }
-
-        showTabsAfterTrip();
-
-        if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
-        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-
-        stopForegroundService();
-        disableKeepAwake();
-
-        const endSummary = document.getElementById('endSummary');
-        if (endSummary) {
-            endSummary.innerHTML = `Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString('vi-VN')}đ</b><br><span style="font-size:11px;">${tripType === 'STREET_HAIL' ? '🚕 Chuyến vẫy' : '📱 Chuyến app'}</span>`;
-        }
-
-        const endModal = document.getElementById('endModal');
-        if (endModal) endModal.style.display = 'flex';
-
-        speak(`Chuyến đi kết thúc. Tổng tiền ${finalCost.toLocaleString('vi-VN')} đồng.`);
-
-        const kmEl = document.getElementById('km');
-        const costEl = document.getElementById('cost');
-        if (kmEl) kmEl.innerText = '0.00';
-        if (costEl) costEl.innerText = '0';
+        showConfirmDialog('Bạn có chắc chắn muốn đăng xuất?', () => {
+            stopBackgroundGeolocation();
+            stopGPS();
+            stopLocationPushing();
+            stopAIDispatch();
+            stopForegroundService();
+            disableKeepAwake();
+            if (orderListener) { orderListener.off(); orderListener = null; }
+            _orderListenerStarted = false;
+            if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
+            if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
+            if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
+            if (driverInfo?.uid) { db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{}); }
+            localStorage.removeItem('driverInfo');
+            location.reload();
+        });
     }
 
+    // ==================== LỊCH SỬ ====================
     async function saveHistory(km, costLabel, costRaw, tripType) {
         const now = Date.now();
         const timeLabel = new Date().toLocaleString('vi-VN');
@@ -1898,24 +1596,13 @@ async function initApp() {
             if (!Array.isArray(history)) history = [];
             history.unshift(tripData);
             localStorage.setItem('trip_history', JSON.stringify(history.slice(0, 100)));
-        } catch (e) {
-            console.warn('[saveHistory] localStorage error:', e);
-        }
+        } catch (e) { console.warn('[saveHistory] localStorage error:', e); }
 
         if (uid && uid !== 'local') {
-            try {
-                await db.ref(`trips/${uid}/${now}`).set(tripData);
-            } catch (e) {
-                console.warn('[saveHistory] Firebase offline:', e);
-            }
+            try { await db.ref(`trips/${uid}/${now}`).set(tripData); } catch (e) {}
         }
-
-        if (typeof renderHistory === 'function') {
-            try { renderHistory(); } catch (e) {}
-        }
-        if (typeof window.renderHistoryPro === 'function') {
-            try { window.renderHistoryPro(); } catch (e) {}
-        }
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof window.renderHistoryPro === 'function') window.renderHistoryPro();
     }
 
     window.saveHistory = saveHistory;
@@ -1925,9 +1612,9 @@ async function initApp() {
         try {
             const snap = await db.ref(`trips/${driverInfo.uid}`).orderByChild('timestamp').limitToLast(50).once('value');
             const data = snap.val();
-            if (data) { 
+            if (data) {
                 const trips = Object.values(data).reverse();
-                if (trips.length) { 
+                if (trips.length) {
                     list.innerHTML = trips.map(h => `
                         <div class="history-card">
                             <div class="h-info">
@@ -1936,8 +1623,8 @@ async function initApp() {
                                 <span class="h-source ${h.tripType === 'STREET_HAIL' ? 'street' : 'cloud'}">${h.tripType === 'STREET_HAIL' ? '🚕 Vẫy' : '📱 App'}</span>
                             </div>
                             <div class="h-price">${h.costLabel}đ</div>
-                        </div>`).join(''); 
-                    return; 
+                        </div>`).join('');
+                    return;
                 }
             }
         } catch(e) {}
@@ -1957,12 +1644,8 @@ async function initApp() {
     function exportHistoryCSV() {
         const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
         if (!history.length) { showToast('⚠️ Không có dữ liệu để xuất'); return; }
-        
         let csv = 'Thời gian,Quãng đường (KM),Tiền cước (VNĐ),Loại chuyến\n';
-        history.forEach(h => {
-            csv += `${h.time},${h.km.toFixed(2)},${h.cost},${h.tripType === 'STREET_HAIL' ? 'Vẫy' : 'App'}\n`;
-        });
-        
+        history.forEach(h => { csv += `${h.time},${h.km.toFixed(2)},${h.cost},${h.tripType === 'STREET_HAIL' ? 'Vẫy' : 'App'}\n`; });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -1971,222 +1654,13 @@ async function initApp() {
         showToast('✅ Đã xuất file CSV');
     }
 
-    // ==================== CHAT ====================
-    function listenForChat() {
-        if (chatListener) db.ref(`chat/${chatListener}`).off();
-        chatListener = currentOrderId;
-        if (!currentOrderId) return;
-        db.ref(`chat/${currentOrderId}`).orderByChild('timestamp').on('child_added', (snap) => {
-            const msg = snap.val();
-            if (msg && msg.sender !== 'driver') appendChatMessage(msg);
-        });
-    }
-
-    function openChat() { 
-        document.getElementById('chatOverlay').style.display = 'flex'; 
-        const cm = document.getElementById('chatMessages'); 
-        if (cm.children.length === 1 && cm.children[0].style.textAlign === 'center') cm.innerHTML = ''; 
-    }
-    
-    function closeChat() { document.getElementById('chatOverlay').style.display = 'none'; }
-    
-    function sendQuickMessage(msg) {
-        if (!currentOrderId) return;
-        db.ref(`chat/${currentOrderId}`).push({ sender: 'driver', from: 'driver', senderName: driverInfo.name, text: msg, timestamp: Date.now() });
-        appendChatMessage({ text: msg, sender: 'driver', timestamp: Date.now() });
-    }
-    
-    function sendChatMessage() { 
-        const input = document.getElementById('chatInput'), text = input.value.trim(); 
-        if (!text || !currentOrderId) return;
-        db.ref(`chat/${currentOrderId}`).push({ sender: 'driver', from: 'driver', senderName: driverInfo.name, text, timestamp: Date.now() });
-        appendChatMessage({ text, sender: 'driver', timestamp: Date.now() }); 
-        input.value = '';
-    }
-    
-    function appendChatMessage(msg) { 
-        const container = document.getElementById('chatMessages');
-        if (container.children.length === 1 && container.children[0].style.textAlign === 'center') container.innerHTML = '';
-        const isMe = msg.sender === 'driver'; 
-        const time = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-        const div = document.createElement('div'); 
-        div.className = 'chat-message ' + (isMe ? 'sent' : 'received');
-        div.innerHTML = `${msg.text}<div style="font-size:9px;opacity:0.6;margin-top:4px;">${time}</div>`;
-        container.appendChild(div); 
-        container.scrollTop = container.scrollHeight;
-    }
-    
-    function callCustomer() { 
-        const phone = document.getElementById('tripClientPhone').innerText; 
-        if (phone && phone !== '...' && phone !== '---') window.location.href = 'tel:' + phone; 
-        else showToast('⚠️ Chưa có số điện thoại khách hàng'); 
-    }
-
-    function listenForCustomerCancel() {
-        if (cancelListener) db.ref(`datxe/${cancelListener}/status`).off();
-        cancelListener = currentOrderId;
-        if (!currentOrderId) return;
-        db.ref(`datxe/${currentOrderId}/status`).on('value', (snap) => { 
-            if (snap.val() === 'cancelled' && isRunning) showCancelBanner(); 
-        });
-    }
-    
-    function showCancelBanner() { document.getElementById('cancelBanner').style.display = 'block'; speak("Cảnh báo! Khách hàng đã hủy chuyến."); }
-    
-    function dismissCancelBanner() { 
-        document.getElementById('cancelBanner').style.display = 'none'; 
-        if (isRunning) {
-            isRunning = false; isStreetHail = false;
-            document.getElementById('tripInfoPanel').style.display = 'none';
-            document.getElementById('homeControls').style.display = 'block';
-            document.getElementById('statsUI').classList.remove('show');
-            document.getElementById('mainBtn').innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
-            document.getElementById('mainBtn').style.background = "var(--accent)";
-            if (wakeLock) { wakeLock.release(); wakeLock = null; }
-            totalKm = 0; lastDisplayedFare = 0; lastValidPos = null; lastValidTime = 0;
-            document.getElementById('km').innerText = '0.00';
-            document.getElementById('cost').innerText = '0';
-            if (customerMarker) map.removeLayer(customerMarker);
-            if (routeLayer) map.removeLayer(routeLayer);
-            customerMarker = null; routeLayer = null;
-            stopForegroundService();
-            disableKeepAwake();
-        }
-    }
-
-    function updateRate(v) { 
-        currentRate = parseInt(v); 
-        document.getElementById('rateLabel').innerText = currentRate.toLocaleString();
-        const meterRate = document.getElementById('meterRate');
-        if (meterRate) meterRate.innerText = currentRate.toLocaleString() + 'đ';
-    }
-    
-    function speak(text) { 
-        if ('speechSynthesis' in window) { 
-            window.speechSynthesis.cancel(); 
-            const msg = new SpeechSynthesisUtterance(text); 
-            msg.lang = 'vi-VN'; 
-            window.speechSynthesis.speak(msg); 
-        } 
-    }
-    
-    function showToast(msg) { 
-        const toast = document.getElementById('txToast'); 
-        if (!toast) return;
-        toast.innerText = msg; 
-        toast.classList.add('show'); 
-        setTimeout(() => toast.classList.remove('show'), 3000); 
-    }
-    
-    function closeModal(id) { 
-        const modal = document.getElementById(id);
-        if (modal) modal.style.display = 'none'; 
-    }
-    
-    function showTab(tab, btn) {
-        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-        if (btn) btn.classList.add('active');
-        if (tab === 'home') {
-            if (isRunning) { 
-                document.getElementById('homeControls').style.display = 'none'; 
-                document.getElementById('tripInfoPanel').style.display = 'block'; 
-                document.getElementById('statsUI').classList.add('show');
-            } else { 
-                document.getElementById('homeControls').style.display = 'block'; 
-                document.getElementById('tripInfoPanel').style.display = 'none'; 
-                document.getElementById('statsUI').classList.remove('show');
-            }
-            setTimeout(() => map.invalidateSize(), 300);
-        } else {
-            document.getElementById('homeControls').style.display = 'none';
-            document.getElementById('tripInfoPanel').style.display = 'none';
-            document.getElementById('statsUI').classList.remove('show');
-            const tabEl = document.getElementById('tab-' + tab);
-            if (tabEl) tabEl.style.display = 'flex';
-            if (tab === 'lichsu') renderHistory();
-        }
-    }
-    
-    function openSOS() { 
-        speak("Đang phát tín hiệu SOS."); 
-        showToast("🚨 Đã gửi tín hiệu cứu hộ!"); 
-        if (driverInfo.uid && currentLat && currentLng) {
-            db.ref(`sos/${driverInfo.uid}`).set({
-                lat: currentLat, lng: currentLng,
-                name: driverInfo.name, phone: driverInfo.phone,
-                timestamp: Date.now(), status: 'active'
-            });
-        }
-        closeSidebar(); 
-    }
-    
-    function openMaintenance() { 
-        showToast("🔧 Kiểm tra áp suất lốp trước khi khởi hành."); 
-        closeSidebar(); 
-    }
-    
-    function openProfit() { 
-        const history = JSON.parse(localStorage.getItem('trip_history') || '[]'); 
-        const today = new Date().setHours(0,0,0,0);
-        
-        const stats = {
-            today: history.filter(h => h.timestamp >= today).reduce((s, h) => s + (h.cost || 0), 0),
-            week: history.filter(h => h.timestamp >= Date.now() - 7*86400000).reduce((s, h) => s + (h.cost || 0), 0),
-            month: history.filter(h => h.timestamp >= Date.now() - 30*86400000).reduce((s, h) => s + (h.cost || 0), 0),
-            total: history.reduce((s, h) => s + (h.cost || 0), 0),
-            trips: history.length
-        };
-        
-        const msg = `📊 BÁO CÁO DOANH THU\n─────────────────\n📅 Hôm nay:  ${stats.today.toLocaleString()}đ\n📆 Tuần này: ${stats.week.toLocaleString()}đ\n📆 Tháng này: ${stats.month.toLocaleString()}đ\n💰 Tổng:     ${stats.total.toLocaleString()}đ\n🚖 Số chuyến: ${stats.trips}\n${stats.trips > 0 ? `💰 Trung bình: ${(stats.total/stats.trips).toLocaleString()}đ/chuyến` : ''}`;
-        showToast(msg); 
-        closeSidebar();
-    }
-
-    function doLogout() {
-        if (isRunning) {
-            showToast('⚠️ Vui lòng kết thúc chuyến đi trước khi đăng xuất');
-            return;
-        }
-        showConfirmDialog('Bạn có chắc chắn muốn đăng xuất?', () => {
-            stopBackgroundGeolocation();
-            stopGPS();
-            stopLocationPushing();
-            stopAIDispatch();
-            stopForegroundService();
-            disableKeepAwake();
-            
-            if (orderListener) { orderListener.off(); orderListener = null; }
-            _orderListenerStarted = false;
-            if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
-            if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
-            if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
-            
-            if (driverInfo?.uid) {
-                db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{});
-            }
-            
-            localStorage.removeItem('driverInfo');
-            location.reload();
-        });
-    }
-
     // ==================== BACKGROUND GEOLOCATION ====================
     async function initBackgroundGeolocation() {
         const isCapacitor = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
-        if (!isCapacitor) {
-            startGPS();
-            return;
-        }
-        
+        if (!isCapacitor) { startGPS(); return; }
         try {
-            if (typeof BackgroundGeolocation === 'undefined') {
-                startGPS();
-                return;
-            }
-            
+            if (typeof BackgroundGeolocation === 'undefined') { startGPS(); return; }
             backgroundGeolocation = BackgroundGeolocation;
-            
             await backgroundGeolocation.ready({
                 desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
                 distanceFilter: 10,
@@ -2205,60 +1679,25 @@ async function initApp() {
                 maxBatchSize: 50,
                 batchSync: true
             });
-            
-            backgroundGeolocation.onLocation((location) => {
-                processBackgroundLocation(location);
-            }, (error) => {
-                console.error('[BG] Lỗi location:', error);
-            });
-            
-            backgroundGeolocation.onMotionChange((event) => {
-                const dot = document.getElementById('gpsDot');
-                if (dot) event.isMoving ? dot.classList.add('bg') : dot.classList.remove('bg');
-            });
-            
-            backgroundGeolocation.onConnectivityChange((state) => {
-                if (state.connected) syncOfflineLocations();
-            });
-            
+            backgroundGeolocation.onLocation((location) => { processBackgroundLocation(location); }, (error) => { console.error('[BG] Lỗi location:', error); });
+            backgroundGeolocation.onMotionChange((event) => { const dot = document.getElementById('gpsDot'); if (dot) event.isMoving ? dot.classList.add('bg') : dot.classList.remove('bg'); });
+            backgroundGeolocation.onConnectivityChange((state) => { if (state.connected) syncOfflineLocations(); });
             const state = await backgroundGeolocation.getState();
-            if (!state.enabled) {
-                await backgroundGeolocation.start();
-                isBackgroundTracking = true;
-                showToast('📍 Đã bật định vị nền (chạy khi tắt màn hình)');
-            }
-            
+            if (!state.enabled) { await backgroundGeolocation.start(); isBackgroundTracking = true; showToast('📍 Đã bật định vị nền (chạy khi tắt màn hình)'); }
             await syncOfflineLocations();
-            
-            const dot = document.getElementById('gpsDot');
-            if (dot) dot.classList.add('bg');
-            const statusText = document.getElementById('gpsStatusText');
-            if (statusText) statusText.innerText = 'GPS: NÂNG CAO (CHẠY NGẦM)';
-            const bgStatus = document.getElementById('profileBgStatus');
-            if (bgStatus) bgStatus.innerText = '✅ Đang chạy nền';
-            
-        } catch (error) {
-            console.error('[BG] Lỗi khởi tạo:', error);
-            startGPS();
-        }
+            const dot = document.getElementById('gpsDot'); if (dot) dot.classList.add('bg');
+            const statusText = document.getElementById('gpsStatusText'); if (statusText) statusText.innerText = 'GPS: NÂNG CAO (CHẠY NGẦM)';
+            const bgStatus = document.getElementById('profileBgStatus'); if (bgStatus) bgStatus.innerText = '✅ Đang chạy nền';
+        } catch (error) { console.error('[BG] Lỗi khởi tạo:', error); startGPS(); }
     }
     
     function stopBackgroundGeolocation() {
-        if (backgroundGeolocation && isBackgroundTracking) {
-            backgroundGeolocation.stop();
-            isBackgroundTracking = false;
-        }
+        if (backgroundGeolocation && isBackgroundTracking) { backgroundGeolocation.stop(); isBackgroundTracking = false; }
     }
     
     async function syncOfflineLocations() {
         if (!backgroundGeolocation) return;
-        try {
-            const locations = await backgroundGeolocation.getLocations();
-            if (locations && locations.length > 0) {
-                for (const loc of locations) await processBackgroundLocation(loc);
-                await backgroundGeolocation.clearLocations();
-            }
-        } catch(e) {}
+        try { const locations = await backgroundGeolocation.getLocations(); if (locations && locations.length > 0) { for (const loc of locations) await processBackgroundLocation(loc); await backgroundGeolocation.clearLocations(); } } catch(e) {}
     }
 
     // ==================== XE GHÉP MODULE ====================
@@ -2283,9 +1722,8 @@ async function initApp() {
                 const expiry = xgCurrentUser?.expiry || 0;
                 const alertEl = document.getElementById('xgPackageAlert');
                 const textEl = document.getElementById('xgPackageText');
-                if (Date.now() < expiry) {
-                    if (alertEl) alertEl.style.display = 'none';
-                } else {
+                if (Date.now() < expiry) { if (alertEl) alertEl.style.display = 'none'; }
+                else {
                     if (alertEl) alertEl.style.display = 'flex';
                     if (textEl) textEl.innerText = 'Gói Xe Ghép đã hết hạn! Vui lòng gia hạn.';
                     xgCurrentUser = null;
@@ -2315,33 +1753,16 @@ async function initApp() {
         } catch(e) {}
     }
 
-    function closeXeGhepModal() {
-        document.getElementById('xeGhepModal').style.display = 'none';
-    }
+    function closeXeGhepModal() { document.getElementById('xeGhepModal').style.display = 'none'; }
 
     function switchXGTab(tab) {
-        const panels = {
-            driver: 'xgDriverPanel',
-            passenger: 'xgPassengerPanel',
-            bookings: 'xgBookingsPanel',
-            requests: 'xgRequestsPanel',
-            chat: 'xgChatPanel'
-        };
-        const tabs = {
-            driver: 'xgTabDriver',
-            passenger: 'xgTabPassenger',
-            bookings: 'xgTabBookings',
-            requests: 'xgTabRequests',
-            chat: 'xgTabChat'
-        };
+        const panels = { driver: 'xgDriverPanel', passenger: 'xgPassengerPanel', bookings: 'xgBookingsPanel', requests: 'xgRequestsPanel', chat: 'xgChatPanel' };
+        const tabs = { driver: 'xgTabDriver', passenger: 'xgTabPassenger', bookings: 'xgTabBookings', requests: 'xgTabRequests', chat: 'xgTabChat' };
         for (const key in panels) {
             const p = document.getElementById(panels[key]);
             const t = document.getElementById(tabs[key]);
             if (p) p.style.display = (key === tab) ? 'block' : 'none';
-            if (t) {
-                if (key === tab) { t.style.background = '#0054a3'; t.style.color = 'white'; }
-                else { t.style.background = '#e0e0e0'; t.style.color = '#333'; }
-            }
+            if (t) { if (key === tab) { t.style.background = '#0054a3'; t.style.color = 'white'; } else { t.style.background = '#e0e0e0'; t.style.color = '#333'; } }
         }
         if (tab === 'passenger') loadXGRides();
         if (tab === 'bookings') renderXGBookings();
@@ -2353,12 +1774,7 @@ async function initApp() {
         const confirmPay = confirm('💰 ĐĂNG KÝ GÓI XE GHÉP\n\n• Phí: 99.000đ / tháng\n• Đăng chuyến không giới hạn\n• Nhận đặt ghế + chat realtime\n\nBấm OK để thanh toán (Demo - lưu cục bộ)');
         if (confirmPay) {
             const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
-            xgCurrentUser = {
-                name: driverInfo?.name || 'Tài xế',
-                phone: driverInfo?.phone || '',
-                expiry: expiry,
-                registeredAt: Date.now()
-            };
+            xgCurrentUser = { name: driverInfo?.name || 'Tài xế', phone: driverInfo?.phone || '', expiry: expiry, registeredAt: Date.now() };
             localStorage.setItem('xg_driver_session', JSON.stringify(xgCurrentUser));
             const alertEl = document.getElementById('xgPackageAlert');
             if (alertEl) alertEl.style.display = 'none';
@@ -2459,19 +1875,11 @@ async function initApp() {
         try {
             const snapshot = await db.ref(XG_DB_REF).orderByChild('timestamp').once('value');
             const data = snapshot.val();
-            if (!data) {
-                container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🚫 Chưa có chuyến xe ghép nào</div>';
-                return;
-            }
+            if (!data) { container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🚫 Chưa có chuyến xe ghép nào</div>'; return; }
             let rides = [];
-            for (let id in data) {
-                if (data[id].status === 'active') rides.push({ id, ...data[id] });
-            }
+            for (let id in data) { if (data[id].status === 'active') rides.push({ id, ...data[id] }); }
             rides.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            if (rides.length === 0) {
-                container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🚫 Không có chuyến nào đang hoạt động</div>';
-                return;
-            }
+            if (rides.length === 0) { container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">🚫 Không có chuyến nào đang hoạt động</div>'; return; }
             let html = '';
             for (const ride of rides) {
                 const priceFormatted = new Intl.NumberFormat('vi-VN').format(ride.price) + ' ₫';
@@ -2496,10 +1904,7 @@ async function initApp() {
                 `;
             }
             container.innerHTML = html;
-        } catch(e) {
-            console.error(e);
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:red;">⚠️ Lỗi tải dữ liệu</div>';
-        }
+        } catch(e) { container.innerHTML = '<div style="text-align:center;padding:20px;color:red;">⚠️ Lỗi tải dữ liệu</div>'; }
     }
 
     function escapeHtmlXG(str) {
@@ -2901,11 +2306,8 @@ async function initApp() {
     }
 
     const xgBootCheck = setInterval(() => {
-        if (driverInfo && !xgListenersStarted) {
-            startXGListeners();
-        }
+        if (driverInfo && !xgListenersStarted) startXGListeners();
     }, 2000);
-
     startXGAutoRefresh();
 
     // ==================== LOGIN RESCUE ====================
@@ -3108,107 +2510,355 @@ async function initApp() {
     });
 
     // ==================== ONLINE/OFFLINE ====================
-    window.addEventListener('online', () => { 
-        document.getElementById('offlineBanner').style.display = 'none'; 
-        syncDriverOnline(true); 
+    window.addEventListener('online', () => {
+        document.getElementById('offlineBanner').style.display = 'none';
+        syncDriverOnline(true);
         if (isDriverOnline) {
             startOrderListener();
             startLocationPushing();
             startAIDispatch();
         }
-        showToast('✅ Đã kết nối lại'); 
+        showToast('✅ Đã kết nối lại');
     });
     
-    window.addEventListener('offline', () => { 
-        document.getElementById('offlineBanner').style.display = 'block'; 
-        syncDriverOnline(false); 
+    window.addEventListener('offline', () => {
+        document.getElementById('offlineBanner').style.display = 'block';
+        syncDriverOnline(false);
         stopLocationPushing();
         stopAIDispatch();
     });
 
-    // ==================== KHỞI ĐỘNG ====================
-    window.onload = () => {
-        const saved = localStorage.getItem('driverInfo');
-        if (saved) { 
-            driverInfo = JSON.parse(saved); 
-            document.getElementById('authScreen').style.display = 'none'; 
-            initApp(); 
+    // ==================== DARK MODE ====================
+    function toggleDarkMode() {
+        isDarkMode = !isDarkMode;
+        localStorage.setItem('promax_dark', isDarkMode ? 'true' : 'false');
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        const btn = document.querySelector('.dark-toggle-btn');
+        if (btn) btn.textContent = isDarkMode ? '☀️' : '🌙';
+        showToast(isDarkMode ? '🌙 Đã chuyển sang chế độ tối' : '☀️ Đã chuyển sang chế độ sáng');
+    }
+
+    // ==================== FOREGROUND SERVICE ====================
+    function startForegroundService() {
+        const indicator = document.getElementById('fgServiceIndicator');
+        if (indicator) indicator.classList.add('active');
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').then(lock => { wakeLock = lock; }).catch(() => {});
+        }
+    }
+    
+    function stopForegroundService() {
+        const indicator = document.getElementById('fgServiceIndicator');
+        if (indicator) indicator.classList.remove('active');
+        if (wakeLock) { wakeLock.release(); wakeLock = null; }
+    }
+
+    async function enableKeepAwake() {
+        try {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const { KeepAwake } = Capacitor.Plugins;
+                if (KeepAwake) await KeepAwake.keepAwake();
+            }
+        } catch(e) {}
+    }
+    
+    async function disableKeepAwake() {
+        try {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const { KeepAwake } = Capacitor.Plugins;
+                if (KeepAwake) await KeepAwake.allowSleep();
+            }
+        } catch(e) {}
+    }
+
+    // ==================== KHỞI ĐỘNG APP ====================
+    async function initApp() {
+        try {
+            const saved = localStorage.getItem('driverInfo');
+            if (saved) driverInfo = JSON.parse(saved);
+            
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                const btn = document.querySelector('.dark-toggle-btn');
+                if (btn) btn.textContent = '☀️';
+            }
+            
+            document.getElementById('sidebarName').innerText = driverInfo.name || 'Tài xế';
+            document.getElementById('sidebarPhone').innerText = driverInfo.phone || '...';
+            document.getElementById('sidebarId').innerHTML = '🆔 ' + (driverInfo.uid?.slice(-8) || '...');
+            document.getElementById('sidebarPlan').innerHTML = '⭐ ' + (driverInfo.active_plan || 'MIỄN PHÍ');
+            
+            document.getElementById('profileNameFull').innerText = driverInfo.name || '...';
+            document.getElementById('profileID').innerText = driverInfo.uid?.slice(-8) || '...';
+            document.getElementById('profilePhone').innerText = driverInfo.phone || '...';
+            document.getElementById('profilePlate').innerText = driverInfo.plate || '...';
+            document.getElementById('profileCarModel').innerText = driverInfo.carModel || '...';
+            document.getElementById('profileFuel').innerText = driverInfo.fuelType === 'xang' ? '⛽ Xăng' : '🔋 Điện';
+            document.getElementById('profileCarClass').innerText = driverInfo.carClass === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+            
+            try {
+                const ratingSnap = await db.ref(`ratings/${driverInfo.uid}`).once('value');
+                const ratings = ratingSnap.val();
+                if (ratings) {
+                    const vals = Object.values(ratings);
+                    const avg = vals.reduce((s, r) => s + (r.rating || 0), 0) / vals.length;
+                    document.getElementById('profileRating').innerText = avg.toFixed(1);
+                }
+            } catch(e) {}
+            
+            loadLocationHistory();
+            initMap();
+            await initBackgroundGeolocation();
+            initWeatherTracking();
+            
+            startOrderListener();
+            renderHistory();
+            initCountdown();
+            syncDriverOnline(true);
+            startAIHotspotChecker();
+            startPackageExpiryChecker();
+            startForegroundService();
+            startLocationPushing();
+            startAIDispatch();
+            initPushNotifications();
+            updateVerificationStatus();
+            loadDocumentsList();
+            addForgotPasswordButton();
+            
+            const walletBalance = document.getElementById('walletBalance');
+            if (walletBalance) {
+                try {
+                    const snap = await db.ref(`drivers/${driverInfo.uid}/wallet`).once('value');
+                    const balance = snap.val() || Math.floor(Math.random() * 500000 + 100000);
+                    walletBalance.innerText = balance.toLocaleString() + 'đ';
+                } catch(e) {
+                    walletBalance.innerText = (Math.floor(Math.random() * 500000 + 100000)).toLocaleString() + 'đ';
+                }
+            }
+
+            // Lắng nghe sự kiện từ tripEngine để cập nhật UI
+            document.addEventListener('trip:fare_update', (e) => {
+                if (e.detail && typeof e.detail.km !== 'undefined' && typeof e.detail.fare !== 'undefined') {
+                    updateAllDisplays(e.detail.km, e.detail.fare);
+                }
+            });
+            document.addEventListener('trip:ui_update', (e) => {
+                updateTripUI(e.detail);
+            });
+            document.addEventListener('trip:completed', () => {
+                document.getElementById('tripInfoPanel').style.display = 'none';
+                document.getElementById('homeControls').style.display = 'block';
+                document.getElementById('statsUI').classList.remove('show');
+                document.getElementById('mainBtn').innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
+                document.getElementById('mainBtn').style.background = "var(--accent)";
+                showTabsAfterTrip();
+                if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
+                if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+                stopForegroundService();
+                disableKeepAwake();
+            });
+            document.addEventListener('trip:cancelled', () => {
+                document.getElementById('tripInfoPanel').style.display = 'none';
+                document.getElementById('homeControls').style.display = 'block';
+                document.getElementById('statsUI').classList.remove('show');
+                document.getElementById('mainBtn').innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
+                document.getElementById('mainBtn').style.background = "var(--accent)";
+                showTabsAfterTrip();
+                if (customerMarker) { map.removeLayer(customerMarker); customerMarker = null; }
+                if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+                stopForegroundService();
+                disableKeepAwake();
+            });
+            document.addEventListener('trip:confirm_complete', () => {
+                showConfirmComplete();
+            });
+
+        } catch(e) { console.error('Init error:', e); }
+    }
+
+    function updateTripUI(detail) {
+        const state = detail.state || 'IDLE';
+        const trip = detail.trip;
+        if (!trip) return;
+
+        const isStreetHail = trip.type === 'STREET_HAIL' || trip.isStreetHail;
+
+        if (state === 'IDLE' || state === 'COMPLETED' || state === 'CANCELLED') {
+            document.getElementById('tripInfoPanel').style.display = 'none';
+            document.getElementById('homeControls').style.display = 'block';
+            document.getElementById('statsUI').classList.remove('show');
+            document.getElementById('mainBtn').innerText = "🚖 BẮT ĐẦU CHUYẾN ĐI";
+            document.getElementById('mainBtn').style.background = "var(--accent)";
+            showTabsAfterTrip();
+            return;
+        }
+
+        document.getElementById('homeControls').style.display = 'none';
+        document.getElementById('tripInfoPanel').style.display = 'block';
+        document.getElementById('statsUI').classList.add('show');
+        hideTabsDuringTrip();
+
+        document.getElementById('tripClientName').innerText = trip.clientName || (isStreetHail ? '🚕 Khách vẫy' : 'Khách');
+        document.getElementById('tripClientPhone').innerText = trip.phone || (isStreetHail ? '---' : '...');
+        document.getElementById('tripFrom').innerText = trip.pickup || 'Vị trí hiện tại';
+        document.getElementById('tripTo').innerText = trip.dropoff || (isStreetHail ? 'Chưa xác định' : '...');
+        document.getElementById('tripCarType').innerHTML = trip.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
+
+        const statusText = document.getElementById('tripStatusText');
+        const labels = {
+            'STREET_HAIL': '🚕 CHUYẾN VẪY',
+            'DRIVER_ACCEPT': '✅ ĐÃ NHẬN ĐƠN',
+            'NAVIGATING_TO_PICKUP': '🧭 ĐANG ĐI ĐÓN KHÁCH',
+            'ARRIVED_PICKUP': '📍 ĐÃ ĐẾN ĐIỂM ĐÓN',
+            'PICKUP_CONFIRMED': '⏳ ĐANG CHỜ KHÁCH LÊN XE',
+            'CUSTOMER_ONBOARD': '🚗 KHÁCH ĐÃ LÊN XE',
+            'START_METER': '💰 BẮT ĐẦU TÍNH CƯỚC',
+            'WAITING_DESTINATION': '🏁 CHỜ NHẬP ĐIỂM ĐẾN',
+            'DESTINATION_SELECTED': '🧭 ĐÃ CHỌN ĐIỂM ĐẾN',
+            'TRIP_RUNNING': '🚕 ĐANG CHẠY CHUYẾN',
+            'FARE_CALCULATING': '💰 ĐANG TÍNH CƯỚC',
+            'ARRIVED_DESTINATION': '🏁 ĐÃ ĐẾN ĐÍCH',
+            'COMPLETING': '⏳ ĐANG CHỐT CƯỚC',
+            'COMPLETED': '✅ HOÀN THÀNH',
+            'CANCELLED': '❌ ĐÃ HỦY'
+        };
+        if (statusText) statusText.innerText = labels[state] || state;
+
+        const pickupBtn = document.getElementById('pickupBtn');
+        const navBtn = document.getElementById('navToPickupBtn');
+        const endBtn = document.getElementById('endTripBtn');
+        const actions = document.getElementById('tripActionButtons');
+
+        const pickupPhase = ['DRIVER_ACCEPT', 'NAVIGATING_TO_PICKUP', 'ARRIVED_PICKUP'].includes(state);
+        const pickupConfirmed = state === 'PICKUP_CONFIRMED';
+        const waitingDestination = state === 'WAITING_DESTINATION';
+        const showEnd = ['FARE_CALCULATING', 'ARRIVED_DESTINATION', 'COMPLETING'].includes(state);
+
+        if (actions) actions.style.display = (pickupPhase || pickupConfirmed || waitingDestination) ? 'flex' : 'none';
+        if (pickupBtn) {
+            pickupBtn.textContent = state === 'NAVIGATING_TO_PICKUP' ? '✅ ĐÃ ĐẾN ĐIỂM ĐÓN' : '🚗 KHÁCH ĐÃ LÊN XE';
+            pickupBtn.onclick = () => {
+                if (state === 'PICKUP_CONFIRMED' || state === 'ARRIVED_PICKUP') {
+                    if (window.tripEngine && typeof window.tripEngine.passengerOnboard === 'function') {
+                        window.tripEngine.passengerOnboard();
+                    }
+                } else {
+                    if (window.tripEngine && typeof window.tripEngine.confirmPickup === 'function') {
+                        window.tripEngine.confirmPickup();
+                    }
+                }
+            };
+        }
+        if (navBtn) {
+            navBtn.onclick = () => {
+                if (window.tripEngine && typeof window.tripEngine.openNavigation === 'function') {
+                    const mode = state === 'DESTINATION_SELECTED' || state === 'TRIP_RUNNING' ? 'destination' : 'pickup';
+                    window.tripEngine.openNavigation(mode);
+                }
+            };
+        }
+        if (endBtn) {
+            endBtn.style.display = showEnd ? 'block' : 'none';
+            endBtn.textContent = state === 'ARRIVED_DESTINATION' ? '🏁 CHỐT CƯỚC & KẾT THÚC' : '🏁 KẾT THÚC CHUYẾN ĐI';
+            endBtn.onclick = () => {
+                if (window.tripEngine && typeof window.tripEngine.showCompletionConfirmation === 'function') {
+                    window.tripEngine.showCompletionConfirmation();
+                }
+            };
+        }
+    }
+
+    function loadLocationHistory() {
+        try {
+            const saved = localStorage.getItem('location_history');
+            if (saved) locationHistory = JSON.parse(saved);
+        } catch(e) {}
+    }
+
+    function addForgotPasswordButton() {
+        const loginForm = document.getElementById('stepLogin');
+        if (!loginForm) return;
+        if (loginForm.querySelector('[data-forgot-added]')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.forgotAdded = '1';
+        btn.className = 'forgot-btn';
+        btn.innerHTML = '🔑 Quên mật khẩu?';
+        btn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            doForgotPassword();
+        };
+        const loginBtn = loginForm.querySelector('.auth-btn');
+        if (loginBtn) loginBtn.insertAdjacentElement('afterend', btn);
+        else loginForm.appendChild(btn);
+    }
+
+    // ==================== PROMAX DRIVER FLOW BRIDGE ====================
+    window.PromaxLegacyRuntime = {
+        getTotalKm: function() {
+            if (window.tripEngine && typeof window.tripEngine.getOdometer === 'function') {
+                return window.tripEngine.getOdometer();
+            }
+            return 0;
+        },
+        getRate: function() { return Number(currentRate) || 15000; },
+        getTripContext: function() {
+            if (window.tripEngine && typeof window.tripEngine.getCurrentTrip === 'function') {
+                const trip = window.tripEngine.getCurrentTrip();
+                return { id: trip?.id || currentOrderId, data: trip };
+            }
+            return { id: currentOrderId, data: currentCustomerData };
+        },
+        acceptOrder: function() { return acceptOrder(); },
+        processLocation: function(location) { return processBackgroundLocation(location); },
+        getPosition: function() {
+            if (currentLat == null || currentLng == null) return null;
+            return { lat: Number(currentLat), lng: Number(currentLng), heading: Number(currentHeading) || 0, timestamp: Date.now() };
+        },
+        setTripContext: function(orderId, orderData) {
+            currentOrderId = orderId || null;
+            currentCustomerData = orderData || null;
+        },
+        setFlowState: function(next) {
+            // Đã chuyển sang tripEngine, không dùng nữa
+        },
+        resetDistance: function() {
+            // Đã chuyển sang tripEngine
         }
     };
-    
 
-
-// ==================== PROMAX DRIVER FLOW BRIDGE ====================
-// Public adapter for Trip Engine. The legacy variables remain private to this
-// classic script; all new flow code talks through this explicit API.
-window.PromaxLegacyRuntime = {
-    getTotalKm: function() { return Number(totalKm) || 0; },
-    getRate: function() { return Number(currentRate) || 15000; },
-    getTripContext: function() {
-        return { id: currentOrderId, data: currentCustomerData };
-    },
-    acceptOrder: function() {
-        return acceptOrder();
-    },
-    processLocation: function(location) {
-        return processBackgroundLocation(location);
-    },
-    getPosition: function() {
-        if (currentLat == null || currentLng == null) return null;
-        return {
-            lat: Number(currentLat),
-            lng: Number(currentLng),
-            heading: Number(currentHeading) || 0,
-            timestamp: Date.now()
-        };
-    },
-    setTripContext: function(orderId, orderData) {
-        currentOrderId = orderId || null;
-        currentCustomerData = orderData || null;
-        if (orderData && orderData.isStreetHail) isStreetHail = true;
-    },
-    setFlowState: function(next) {
-        next = next || {};
-        isRunning = Boolean(next.isRunning);
-        hasPickedUp = Boolean(next.hasPickedUp);
-        isStreetHail = Boolean(next.isStreetHail);
-        window.navigationMode = next.navigationMode || 'idle';
-        window.fareActive = Boolean(next.fareActive);
-    },
-    resetDistance: function() {
-        totalKm = 0;
-        lastValidPos = null;
-        lastValidTime = 0;
-        lastDisplayedFare = 0;
-        isGapMode = false;
-    }
-};
-
-window.__PromaxLegacyHandlers = {
-    completeTrip: function() {
-        return completeTrip();
-    },
-    cancelTrip: function(reason) {
-        if (currentOrderId && typeof db !== 'undefined') {
-            db.ref(`datxe/${currentOrderId}`).update({
-                status: 'cancelled',
-                cancelReason: reason || 'Tài xế hủy',
-                cancelledAt: Date.now()
-            }).catch(function() {});
+    window.__PromaxLegacyHandlers = {
+        completeTrip: function() {
+            if (window.tripEngine && typeof window.tripEngine.completeTrip === 'function') {
+                return window.tripEngine.completeTrip();
+            }
+            return false;
+        },
+        cancelTrip: function(reason) {
+            if (window.tripEngine && typeof window.tripEngine.cancelTrip === 'function') {
+                return window.tripEngine.cancelTrip(reason);
+            }
+            return false;
         }
-        isRunning = false;
-        hasPickedUp = false;
-        isStreetHail = false;
-        totalKm = 0;
-        currentOrderId = null;
-        currentCustomerData = null;
-        if (typeof stopForegroundService === 'function') stopForegroundService();
-        if (typeof disableKeepAwake === 'function') disableKeepAwake();
-        var panel = document.getElementById('tripInfoPanel');
-        var home = document.getElementById('homeControls');
-        var stats = document.getElementById('statsUI');
-        if (panel) panel.style.display = 'none';
-        if (home) home.style.display = 'block';
-        if (stats) stats.classList.remove('show');
-    }
-};
+    };
+
+    // ==================== KHỞI ĐỘNG APP KHI WINDOW LOAD ====================
+    window.onload = function() {
+        const saved = localStorage.getItem('driverInfo');
+        if (saved) {
+            try {
+                driverInfo = JSON.parse(saved);
+                document.getElementById('authScreen').style.display = 'none';
+                initApp();
+            } catch(e) {
+                console.warn('Parse driverInfo error:', e);
+                localStorage.removeItem('driverInfo');
+                document.getElementById('authScreen').style.display = 'flex';
+            }
+        } else {
+            document.getElementById('authScreen').style.display = 'flex';
+        }
+    };
+
+})(window, document);
