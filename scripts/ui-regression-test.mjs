@@ -8,6 +8,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('index.html');
 const sw = read('sw.js');
 const map = read('js/map.js');
+const tracking = read('js/modules/vehicle-tracking-controller.js');
 const premium = read('js/driver/03-premium-ui.js');
 const core = read('js/driver/00-core-runtime.js');
 const cockpit = read('js/modules/cockpit.js');
@@ -31,7 +32,8 @@ const careApi = read('api/ai-care.js');
 const aiRegistry = read('js/modules/ai-registry.js');
 const aiCopilot = read('js/modules/ai-copilot-v4.js');
 
-assert.match(html, /<script src="js\/map\.js\?v=20260828-stable2"><\/script>/);
+assert.match(html, /<script src="js\/map\.js\?v=20260828-follow2"><\/script>/);
+assert.match(html, /vehicle-tracking-controller\.js\?v=20260828-follow1/);
 assert.match(html, /01-clean-fix\.js\?v=20260828-gps-owner1/);
 assert.match(html, /driver-overrides\.css\?v=20260828-ops1/);
 assert.match(html, /<script src="js\/driver\/03-premium-ui\.js\?v=20260828-stable2"><\/script>/);
@@ -48,9 +50,19 @@ assert.doesNotMatch(cockpit, /basemaps\.cartocdn\.com|cartodb/i);
 assert.doesNotMatch(cockpitInline, /basemaps\.cartocdn\.com|cartodb/i);
 assert.match(map, /tile\.openstreetmap\.org/);
 assert.match(map, /OpenStreetMap contributors/);
-assert.match(map, /PromaxLegacyRuntime/);
-assert.doesNotMatch(map, /sm-pulse-ring/);
 assert.equal((map.match(/L\.map\(/g) || []).length, 1, 'map.js must have one Leaflet map owner');
+assert.match(map, /setVehicleMarker/);
+assert.match(map, /vehicleMarker\.setLatLng/);
+assert.match(map, /Không tạo marker mới/);
+assert.match(tracking, /toggleFollow/);
+assert.match(tracking, /handleMapDrag/);
+assert.match(tracking, /onCoreAcceptedPosition/);
+assert.match(tracking, /speed < 5/);
+assert.match(tracking, /speed > 80/);
+assert.match(tracking, /setVehicleMarker/);
+assert.match(tracking, /THEO XE/i);
+assert.match(overrides, /\.vehicle-follow-button/);
+assert.match(overrides, /\.gps-debug-panel/);
 
 // Premium nav phải hỗ trợ cả nhãn tiếng Việt và tiếng Anh.
 assert.match(premium, /<svg viewBox=/);
@@ -76,6 +88,8 @@ assert.match(core, /enableHighAccuracy:\s*true/);
 assert.match(core, /maximumAge:\s*0/);
 assert.match(core, /accuracy > ACCURACY_MAX/);
 assert.match(core, /Gần đúng/);
+assert.match(core, /onCoreAcceptedPosition/);
+assert.match(core, /updateDriverMarker\(latitude, longitude, true, \{/);
 
 // Service worker phải xóa cache cũ và không precache Carto/API key cũ.
 assert.match(sw, /taxi-promax-v8-20260827-ui3/);
