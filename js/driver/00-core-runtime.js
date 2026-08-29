@@ -1,6 +1,6 @@
 // Extracted from index.html; load order is intentionally preserved.
     // ============================================================
-    // TAXI PROMAX - FULL VERSION v7.1 (FIX FARE WITH WEAK GPS)
+    // TAXI PROMAX - FULL VERSION v7.2 (STABLE FARE + GPS)
     // ============================================================
 
     const FIREBASE_URL = "https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app";
@@ -742,51 +742,32 @@ let hasCenteredMap = false;
             }
         }
 
-        // ==================== SỬA LỖI TÍNH CƯỚC KHI GPS YẾU ====================
-        // Không bỏ qua tính KM nếu accuracy > 300m, mà dùng lastValidPos để ước lượng
-        // (chỉ tính nếu accuracy <= 1000m để tránh sai số quá lớn)
+        // ==================== TÍNH CƯỚC ĐƠN GIẢN HÓA ====================
         const fareActive = !window.tripEngine || typeof window.tripEngine.isFareActive !== 'function' || window.tripEngine.isFareActive();
 
-        // Trường hợp GPS tốt (<= 300m) và đủ chính xác: tính KM theo logic cũ
-        const useForFare = (accuracy <= ACCURACY_MAX) && isGoodEnoughForFare;
-
-        if (useForFare && isRunning && fareActive && lastValidPos) {
-            const timeDiff = currentTime - lastValidTime;
-
-            if (timeDiff > GAP_THRESHOLD) {
-                showGapNotice();
-                isGapMode = true;
-                requestRoadDistance(lastValidPos, { lat: latitude, lng: longitude }).then(roadKm => {
-                    if (roadKm > 0 && roadKm < 5) {
-                        totalKm += roadKm;
-                        updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
-                    }
-                });
-                setTimeout(() => { isGapMode = false; }, 5000);
+        if (isRunning && fareActive) {
+            // Lần đầu tiên chạy chuyến: khởi tạo lastValidPos
+            if (!lastValidPos) {
+                lastValidPos = { lat: latitude, lng: longitude };
+                lastValidTime = currentTime;
             } else {
+                // Tính khoảng cách từ vị trí trước đó
                 const dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, latitude, longitude);
-                if (dist > MIN_DISTANCE_DELTA && dist < 0.5) {
+                // Chỉ cộng nếu khoảng cách hợp lý (0.01-0.5km) để tránh nhảy số sai
+                if (dist > 0.01 && dist < 0.5) {
                     totalKm += dist;
                     updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
                 }
+                // Luôn cập nhật lastValidPos để so sánh lần sau
+                lastValidPos = { lat: latitude, lng: longitude };
+                lastValidTime = currentTime;
             }
-            lastValidPos = { lat: latitude, lng: longitude };
-            lastValidTime = currentTime;
-        }
-        // Trường hợp GPS trung bình (300m < accuracy <= 1000m): vẫn tính KM nhưng dùng Haversine
-        else if (isRunning && fareActive && lastValidPos && accuracy <= 1000) {
-            const dist = haversineDistance(lastValidPos.lat, lastValidPos.lng, latitude, longitude);
-            if (dist > 0.01 && dist < 0.5) {
-                totalKm += dist;
-                updateAllDisplays(totalKm, Math.round(totalKm * currentRate));
+        } else {
+            // Nếu không có chuyến, vẫn lưu vị trí hiện tại để dùng khi có chuyến
+            if (!lastValidPos) {
+                lastValidPos = { lat: latitude, lng: longitude };
+                lastValidTime = currentTime;
             }
-            lastValidPos = { lat: latitude, lng: longitude };
-            lastValidTime = currentTime;
-        }
-        // Nếu chưa có lastValidPos và accuracy chấp nhận được, lưu lại
-        else if (!lastValidPos && accuracy <= 1000) {
-            lastValidPos = { lat: latitude, lng: longitude };
-            lastValidTime = currentTime;
         }
 
         // Đồng bộ vị trí lên Firebase
@@ -1639,6 +1620,12 @@ async function initApp() {
         clearInterval(countdownInterval);
         if (!currentOrderId || !currentCustomerData) return;
 
+        // RESET lastValidPos và lastValidTime trước khi bắt đầu chuyến mới
+        lastValidPos = null;
+        lastValidTime = 0;
+        totalKm = 0;
+        lastDisplayedFare = 0;
+
         const orderRef = db.ref(`datxe/${currentOrderId}`);
         let result;
         try {
@@ -1679,9 +1666,7 @@ async function initApp() {
         isRunning = true;
         hideTabsDuringTrip();
         hasPickedUp = false;
-        totalKm = 0;
         isStreetHail = false;
-        lastDisplayedFare = 0;
         document.getElementById('km').innerText = '0.00';
         document.getElementById('cost').innerText = '0';
         document.getElementById('statsUI').classList.add('show');
@@ -1768,6 +1753,7 @@ async function initApp() {
     // ==================== TRIP HANDLING ====================
     function handleTrip() {
         if (!isRunning) {
+            // Reset các biến cho chuyến vẫy
             isRunning = true;
             hideTabsDuringTrip();
             hasPickedUp = true;
