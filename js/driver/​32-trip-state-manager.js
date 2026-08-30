@@ -12,25 +12,18 @@
 ;(function(window, document, undefined) {
     'use strict';
 
-    // ==================== CONSTANTS ====================
     const TRIP_TYPES = {
         IDLE: 'IDLE',
         STREET_HAIL: 'STREET_HAIL',
         APP_TRIP: 'APP_TRIP'
     };
 
-    // ==================== STATE ====================
     const state = {
         currentType: TRIP_TYPES.IDLE,
         isLocked: false,
         listeners: []
     };
 
-    // ==================== MAIN FUNCTIONS ====================
-
-    /**
-     * Thiết lập trạng thái hiện tại
-     */
     function setTripType(type) {
         if (!Object.values(TRIP_TYPES).includes(type)) {
             console.warn('[TripStateManager] Invalid type:', type);
@@ -40,38 +33,22 @@
         const oldType = state.currentType;
         state.currentType = type;
 
-        // Cập nhật UI
         updateDocumentState(type);
-
-        // Đồng bộ Firebase
         syncToFirebase(type);
-
-        // Notify listeners
         notifyListeners(type, oldType);
-
-        // Cập nhật button
         updateMainButton(type);
 
         return true;
     }
 
-    /**
-     * Lấy trạng thái hiện tại
-     */
     function getCurrentType() {
         return state.currentType;
     }
 
-    /**
-     * Kiểm tra có đang có chuyến không
-     */
     function isTripActive() {
         return state.currentType !== TRIP_TYPES.IDLE;
     }
 
-    /**
-     * Lock/Unlock để ngăn chuyển đổi khi đang xử lý
-     */
     function setLocked(locked) {
         state.isLocked = locked;
     }
@@ -80,9 +57,6 @@
         return state.isLocked;
     }
 
-    /**
-     * Đăng ký lắng nghe thay đổi trạng thái
-     */
     function addListener(callback) {
         if (typeof callback === 'function') {
             state.listeners.push(callback);
@@ -94,8 +68,6 @@
             return fn !== callback;
         });
     }
-
-    // ==================== UI UPDATES ====================
 
     function updateDocumentState(type) {
         document.documentElement.setAttribute('data-trip-type', type);
@@ -130,8 +102,6 @@
         });
     }
 
-    // ==================== FIREBASE SYNC ====================
-
     function syncToFirebase(type) {
         try {
             const uid = window.driverInfo ? window.driverInfo.uid : null;
@@ -146,8 +116,6 @@
         } catch(e) {}
     }
 
-    // ==================== PUBLIC API ====================
-
     window.TripStateManager = {
         TRIP_TYPES: TRIP_TYPES,
         setTripType: setTripType,
@@ -159,7 +127,6 @@
         removeListener: removeListener
     };
 
-    // Gắn vào window
     window.__tripTypes = TRIP_TYPES;
 
     console.log('✅ TripStateManager v1.0 loaded — central state management');
