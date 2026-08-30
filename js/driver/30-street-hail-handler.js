@@ -14,15 +14,15 @@
 
     // ==================== STATE ====================
     const state = {
-        isActive: false,          // Đang có chuyến vẫy?
-        totalKm: 0,              // Tổng quãng đường (km)
-        startTime: null,         // Thời điểm bắt đầu
-        lastPosition: null,      // Vị trí cuối cùng để tính khoảng cách
-        lastTime: null,          // Thời điểm cập nhật cuối
-        isGapMode: false,        // Chế độ bù mất sóng
-        intervalId: null,        // Timer cập nhật UI
-        fareRate: 15000,         // Giá/km (lấy từ core)
-        minFare: 20000           // Cước tối thiểu
+        isActive: false,
+        totalKm: 0,
+        startTime: null,
+        lastPosition: null,
+        lastTime: null,
+        isGapMode: false,
+        intervalId: null,
+        fareRate: 15000,
+        minFare: 20000
     };
 
     // ==================== DOM REFERENCES ====================
@@ -51,13 +51,8 @@
     }
 
     // ==================== CORE FUNCTIONS ====================
-
-    /**
-     * Bắt đầu chuyến vẫy
-     */
     function startStreetHail() {
         if (state.isActive) {
-            // Đã có chuyến, hỏi kết thúc
             if (typeof window.showConfirmDialog === 'function') {
                 window.showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', function() {
                     endStreetHail();
@@ -68,7 +63,6 @@
             return;
         }
 
-        // Reset state
         state.isActive = true;
         state.totalKm = 0;
         state.startTime = Date.now();
@@ -79,16 +73,13 @@
         state.lastTime = Date.now();
         state.isGapMode = false;
 
-        // Cập nhật UI
         showStreetHailUI();
         updateDisplay(0, 0);
         startUIUpdateTimer();
 
-        // Hiển thị modal chúc
         const wishModal = document.getElementById('wishModal');
         if (wishModal) wishModal.style.display = 'flex';
 
-        // Phát âm thanh
         if (typeof window.speak === 'function') {
             window.speak('Bắt đầu chuyến vẫy. Đồng hồ sẽ nhảy khi xe di chuyển.');
         }
@@ -96,13 +87,9 @@
             window.showToast('🚕 Chuyến vẫy đã bắt đầu! Đồng hồ tính cước đã sẵn sàng.');
         }
 
-        // Đồng bộ Firebase
         syncToFirebase('active');
     }
 
-    /**
-     * Kết thúc chuyến vẫy
-     */
     function endStreetHail() {
         if (!state.isActive) {
             if (typeof window.showToast === 'function') {
@@ -111,20 +98,16 @@
             return;
         }
 
-        // Dừng timer
         stopUIUpdateTimer();
 
-        // Tính cước cuối cùng
         const finalKm = state.totalKm;
         const rate = getFareRate();
         let finalCost = Math.round(finalKm * rate);
         if (finalCost < state.minFare) finalCost = state.minFare;
 
-        // Lưu lịch sử
         if (typeof window.saveHistory === 'function') {
             window.saveHistory(finalKm, finalCost.toLocaleString('vi-VN'), finalCost, 'STREET_HAIL');
         } else {
-            // Fallback: lưu vào localStorage
             try {
                 const history = JSON.parse(localStorage.getItem('trip_history') || '[]');
                 history.unshift({
@@ -141,21 +124,17 @@
             } catch(e) {}
         }
 
-        // Reset state
         state.isActive = false;
         state.totalKm = 0;
         state.startTime = null;
         state.lastPosition = null;
         state.lastTime = null;
 
-        // Cập nhật UI
         hideStreetHailUI();
         showEndSummary(finalKm, finalCost);
 
-        // Đồng bộ Firebase
         syncToFirebase('idle');
 
-        // Phát âm thanh
         if (typeof window.speak === 'function') {
             window.speak(`Chuyến vẫy kết thúc. Tổng tiền ${finalCost.toLocaleString('vi-VN')} đồng.`);
         }
@@ -165,10 +144,6 @@
     }
 
     // ==================== GPS UPDATE ====================
-
-    /**
-     * Gọi từ core khi có vị trí GPS mới
-     */
     function onGPSUpdate(position) {
         if (!state.isActive) return;
         if (!position || position.lat == null || position.lng == null) return;
@@ -178,35 +153,29 @@
         const accuracy = Number(position.accuracy) || 999;
         const timestamp = Number(position.timestamp) || Date.now();
 
-        // Lưu vị trí hiện tại
         const currentPos = { lat, lng };
 
-        // Nếu chưa có lastPosition, gán và thoát
         if (!state.lastPosition) {
             state.lastPosition = currentPos;
             state.lastTime = timestamp;
             return;
         }
 
-        // Tính khoảng cách Haversine
         const dist = haversineDistance(
             state.lastPosition.lat, state.lastPosition.lng,
             currentPos.lat, currentPos.lng
         );
 
-        // Giới hạn khoảng cách tối đa mỗi lần để tránh nhảy số (0.5km)
         if (dist > 0.01 && dist < 0.5) {
             state.totalKm += dist;
             updateDisplay(state.totalKm, Math.round(state.totalKm * getFareRate()));
         }
 
-        // Cập nhật lastPosition
         state.lastPosition = currentPos;
         state.lastTime = timestamp;
     }
 
     // ==================== UI ====================
-
     function showStreetHailUI() {
         const els = getElements();
         if (els.homeControls) els.homeControls.style.display = 'none';
@@ -217,7 +186,6 @@
             els.mainBtn.style.background = '#f39c12';
         }
 
-        // Cập nhật thông tin khách hàng (mặc định cho chuyến vẫy)
         if (els.tripClientName) els.tripClientName.innerText = '🚕 Khách vẫy';
         if (els.tripClientPhone) els.tripClientPhone.innerText = '---';
         if (els.tripFrom) els.tripFrom.innerText = 'Vị trí hiện tại';
@@ -229,7 +197,6 @@
         if (els.tripStatusText) els.tripStatusText.innerHTML = '🚕 CHUYẾN VẪY - ĐANG CHẠY';
         if (els.tripActionButtons) els.tripActionButtons.style.display = 'none';
 
-        // Hiển thị nút Kết thúc chuyến
         if (els.endTripBtn) {
             els.endTripBtn.style.display = 'block';
             els.endTripBtn.innerText = '🏁 KẾT THÚC CHUYẾN ĐI';
@@ -246,7 +213,6 @@
             };
         }
 
-        // Ẩn tab navigation
         const nav = document.querySelector('.nav-grid');
         if (nav) nav.style.display = 'none';
         const brand = document.querySelector('.brand-footer');
@@ -267,13 +233,11 @@
             els.endTripBtn.onclick = null;
         }
 
-        // Hiện lại tab navigation
         const nav = document.querySelector('.nav-grid');
         if (nav) nav.style.display = 'flex';
         const brand = document.querySelector('.brand-footer');
         if (brand) brand.style.display = 'block';
 
-        // Reset display KM và cước
         if (els.kmDisplay) els.kmDisplay.innerText = '0.00';
         if (els.costDisplay) els.costDisplay.innerText = '0';
     }
@@ -303,7 +267,6 @@
         stopUIUpdateTimer();
         state.intervalId = setInterval(function() {
             if (state.isActive) {
-                // Cập nhật lại display mỗi giây (đồng bộ với core)
                 const km = state.totalKm;
                 const fare = Math.round(km * getFareRate());
                 updateDisplay(km, fare);
@@ -319,7 +282,6 @@
     }
 
     // ==================== HELPERS ====================
-
     function getFareRate() {
         if (window.currentRate !== undefined && window.currentRate !== null) {
             return Number(window.currentRate);
@@ -356,7 +318,6 @@
     }
 
     // ==================== PUBLIC API ====================
-
     window.StreetHailHandler = {
         start: startStreetHail,
         end: endStreetHail,
@@ -365,33 +326,6 @@
         getTotalKm: function() { return state.totalKm; },
         getFare: function() { return Math.round(state.totalKm * getFareRate()); }
     };
-
-    // ==================== KẾT NỐI VỚI CORE ====================
-
-    // Lắng nghe sự kiện GPS từ core (nếu có)
-    document.addEventListener('gps:position', function(e) {
-        if (e.detail) {
-            window.StreetHailHandler.onGPSUpdate(e.detail);
-        }
-    });
-
-    // Nếu core gọi processBackgroundLocation, ta cũng bắt
-    if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.processLocation === 'function') {
-        const origProcess = window.PromaxLegacyRuntime.processLocation;
-        window.PromaxLegacyRuntime.processLocation = function(location) {
-            // Gọi xử lý gốc
-            if (typeof origProcess === 'function') origProcess(location);
-            // Gọi handler
-            if (location && location.latitude != null && location.longitude != null) {
-                window.StreetHailHandler.onGPSUpdate({
-                    lat: location.latitude,
-                    lng: location.longitude,
-                    accuracy: location.accuracy || 999,
-                    timestamp: location.timestamp || Date.now()
-                });
-            }
-        };
-    }
 
     // Gắn vào window để core gọi khi cần
     window.startStreetHail = startStreetHail;
