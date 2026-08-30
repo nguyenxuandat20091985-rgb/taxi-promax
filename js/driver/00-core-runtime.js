@@ -2473,69 +2473,58 @@
 
 
     // ==================== MISSING HANDLER STUBS (safe defaults) ====================
-    if (typeof acceptOrder !== 'function') {
-        function acceptOrder() {
-            if (window.AppTripHandler && typeof window.AppTripHandler.accept === 'function') {
-                return window.AppTripHandler.accept();
-            }
-            showToast('⚠️ Chưa sẵn sàng nhận đơn app');
+    // Dùng gán biến (var/assignment), KHÔNG dùng function declaration trong if (strict mode block-scope).
+    var acceptOrder = function acceptOrder() {
+        if (window.AppTripHandler && typeof window.AppTripHandler.accept === 'function') {
+            return window.AppTripHandler.accept();
         }
-    }
-    if (typeof confirmPickup !== 'function') {
-        function confirmPickup() {
-            if (window.tripEngine && typeof window.tripEngine.confirmPickup === 'function') {
-                return window.tripEngine.confirmPickup();
-            }
-            if (window.AppTripHandler && typeof window.AppTripHandler.confirmPickup === 'function') {
-                return window.AppTripHandler.confirmPickup();
-            }
-            showToast('✅ Đã xác nhận đón khách');
+        showToast('⚠️ Chưa sẵn sàng nhận đơn app');
+    };
+    var confirmPickup = function confirmPickup() {
+        if (window.tripEngine && typeof window.tripEngine.confirmPickup === 'function') {
+            return window.tripEngine.confirmPickup();
         }
-    }
-    if (typeof navigateToPickup !== 'function') {
-        function navigateToPickup() {
-            if (window.tripEngine && typeof window.tripEngine.openNavigation === 'function') {
-                return window.tripEngine.openNavigation('pickup');
-            }
-            if (currentLat != null && currentLng != null) {
-                window.open('https://www.google.com/maps/dir/?api=1&destination=' + currentLat + ',' + currentLng, '_blank');
-            }
+        if (window.AppTripHandler && typeof window.AppTripHandler.confirmPickup === 'function') {
+            return window.AppTripHandler.confirmPickup();
         }
-    }
-    if (typeof showConfirmComplete !== 'function') {
-        function showConfirmComplete() {
-            if (window.tripEngine && typeof window.tripEngine.showCompletionConfirmation === 'function') {
-                return window.tripEngine.showCompletionConfirmation();
-            }
-            if (window.StreetHailHandler && window.StreetHailHandler.isActive()) {
-                return closeStreetHailMeter();
-            }
-            showConfirmDialog('Kết thúc chuyến đi?', function() {
-                if (window.StreetHailHandler) window.StreetHailHandler.end();
-            });
+        showToast('✅ Đã xác nhận đón khách');
+    };
+    var navigateToPickup = function navigateToPickup() {
+        if (window.tripEngine && typeof window.tripEngine.openNavigation === 'function') {
+            return window.tripEngine.openNavigation('pickup');
         }
-    }
-    if (typeof confirmClearHistory !== 'function') {
-        function confirmClearHistory() {
-            showConfirmDialog('Xóa toàn bộ lịch sử chuyến?', function() {
-                localStorage.removeItem('trip_history');
-                if (typeof renderHistory === 'function') renderHistory();
-                showToast('🗑️ Đã xóa lịch sử');
-            });
+        if (currentLat != null && currentLng != null) {
+            window.open('https://www.google.com/maps/dir/?api=1&destination=' + currentLat + ',' + currentLng, '_blank');
         }
-    }
-    if (typeof confirmClearAllData !== 'function') {
-        function confirmClearAllData() {
-            showConfirmDialog('Xóa toàn bộ dữ liệu local (không xóa tài khoản)?', function() {
-                try {
-                    var keep = localStorage.getItem('driverInfo');
-                    localStorage.clear();
-                    if (keep) localStorage.setItem('driverInfo', keep);
-                } catch (e) {}
-                showToast('🗑️ Đã xóa dữ liệu local');
-            });
+    };
+    var showConfirmComplete = function showConfirmComplete() {
+        if (window.tripEngine && typeof window.tripEngine.showCompletionConfirmation === 'function') {
+            return window.tripEngine.showCompletionConfirmation();
         }
-    }
+        if (window.StreetHailHandler && window.StreetHailHandler.isActive()) {
+            return closeStreetHailMeter();
+        }
+        showConfirmDialog('Kết thúc chuyến đi?', function() {
+            if (window.StreetHailHandler) window.StreetHailHandler.end();
+        });
+    };
+    var confirmClearHistory = function confirmClearHistory() {
+        showConfirmDialog('Xóa toàn bộ lịch sử chuyến?', function() {
+            localStorage.removeItem('trip_history');
+            if (typeof renderHistory === 'function') renderHistory();
+            showToast('🗑️ Đã xóa lịch sử');
+        });
+    };
+    var confirmClearAllData = function confirmClearAllData() {
+        showConfirmDialog('Xóa toàn bộ dữ liệu local (không xóa tài khoản)?', function() {
+            try {
+                var keep = localStorage.getItem('driverInfo');
+                localStorage.clear();
+                if (keep) localStorage.setItem('driverInfo', keep);
+            } catch (e) {}
+            showToast('🗑️ Đã xóa dữ liệu local');
+        });
+    };
 
     // ==================== EXPORT TO WINDOW (onclick handlers) ====================
     // Các nút HTML dùng onclick="showTab(...)" / handleTrip() — phải gắn lên window
@@ -2588,10 +2577,26 @@
         confirmClearAllData: confirmClearAllData
     };
     Object.keys(__promaxExports).forEach(function(k) {
-        if (typeof __promaxExports[k] === 'function') {
-            window[k] = __promaxExports[k];
+        try {
+            if (typeof __promaxExports[k] === 'function') {
+                window[k] = __promaxExports[k];
+            }
+        } catch (e) {
+            console.warn('Export failed:', k, e);
         }
     });
+    // Bảo đảm auth luôn bấm được dù export khác lỗi
+    window.doLogin = doLogin;
+    window.doRegister = doRegister;
+    window.toggleAuth = toggleAuth;
+    window.showTab = showTab;
+    window.handleTrip = handleTrip;
+    window.toggleOnlineStatus = toggleOnlineStatus;
+    window.updateRate = updateRate;
+    window.openSidebar = openSidebar;
+    window.closeSidebar = closeSidebar;
+    window.doLogout = doLogout;
+    window.toggleDarkMode = toggleDarkMode;
     // Fallback handleTrip nếu init-trip/trip-engine chưa sẵn sàng
     if (typeof window.handleTrip !== 'function') {
         window.handleTrip = handleTrip;
