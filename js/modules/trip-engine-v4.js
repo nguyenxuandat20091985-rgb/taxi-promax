@@ -354,24 +354,16 @@
 
         startStreetHail() {
             if (window.StreetHailHandler && typeof window.StreetHailHandler.start === 'function') {
-                const ok = window.StreetHailHandler.start();
-                if (ok !== false) {
-                    try {
-                        this.tripType = (typeof TRIP_TYPE !== 'undefined' && TRIP_TYPE.STREET_HAIL) ? TRIP_TYPE.STREET_HAIL : 'STREET_HAIL';
-                        if (typeof TRIP_STATE !== 'undefined') {
-                            this.currentState = TRIP_STATE.STREET_HAIL;
-                        }
-                        this._publishState && this._publishState();
-                    } catch (e) {}
-                }
-                return ok;
+                return window.StreetHailHandler.start();
             }
-            if (typeof window.startStreetHail === 'function') return window.startStreetHail();
-            console.warn('[TripEngine] StreetHailHandler not ready');
+            if (typeof window.startStreetHail === 'function') {
+                return window.startStreetHail();
+            }
+            console.warn('[TripEngine] StreetHailHandler missing');
             return false;
         }
 
-                completeTrip() {
+        completeTrip() {
             const st = this.currentState;
             if (![TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.COMPLETING].includes(st)) {
                 console.warn('[TripEngine] completeTrip from invalid state:', st);
