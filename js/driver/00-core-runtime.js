@@ -2470,6 +2470,136 @@
         resetDistance: function() {}
     };
 
+
+
+    // ==================== MISSING HANDLER STUBS (safe defaults) ====================
+    if (typeof acceptOrder !== 'function') {
+        function acceptOrder() {
+            if (window.AppTripHandler && typeof window.AppTripHandler.accept === 'function') {
+                return window.AppTripHandler.accept();
+            }
+            showToast('⚠️ Chưa sẵn sàng nhận đơn app');
+        }
+    }
+    if (typeof confirmPickup !== 'function') {
+        function confirmPickup() {
+            if (window.tripEngine && typeof window.tripEngine.confirmPickup === 'function') {
+                return window.tripEngine.confirmPickup();
+            }
+            if (window.AppTripHandler && typeof window.AppTripHandler.confirmPickup === 'function') {
+                return window.AppTripHandler.confirmPickup();
+            }
+            showToast('✅ Đã xác nhận đón khách');
+        }
+    }
+    if (typeof navigateToPickup !== 'function') {
+        function navigateToPickup() {
+            if (window.tripEngine && typeof window.tripEngine.openNavigation === 'function') {
+                return window.tripEngine.openNavigation('pickup');
+            }
+            if (currentLat != null && currentLng != null) {
+                window.open('https://www.google.com/maps/dir/?api=1&destination=' + currentLat + ',' + currentLng, '_blank');
+            }
+        }
+    }
+    if (typeof showConfirmComplete !== 'function') {
+        function showConfirmComplete() {
+            if (window.tripEngine && typeof window.tripEngine.showCompletionConfirmation === 'function') {
+                return window.tripEngine.showCompletionConfirmation();
+            }
+            if (window.StreetHailHandler && window.StreetHailHandler.isActive()) {
+                return closeStreetHailMeter();
+            }
+            showConfirmDialog('Kết thúc chuyến đi?', function() {
+                if (window.StreetHailHandler) window.StreetHailHandler.end();
+            });
+        }
+    }
+    if (typeof confirmClearHistory !== 'function') {
+        function confirmClearHistory() {
+            showConfirmDialog('Xóa toàn bộ lịch sử chuyến?', function() {
+                localStorage.removeItem('trip_history');
+                if (typeof renderHistory === 'function') renderHistory();
+                showToast('🗑️ Đã xóa lịch sử');
+            });
+        }
+    }
+    if (typeof confirmClearAllData !== 'function') {
+        function confirmClearAllData() {
+            showConfirmDialog('Xóa toàn bộ dữ liệu local (không xóa tài khoản)?', function() {
+                try {
+                    var keep = localStorage.getItem('driverInfo');
+                    localStorage.clear();
+                    if (keep) localStorage.setItem('driverInfo', keep);
+                } catch (e) {}
+                showToast('🗑️ Đã xóa dữ liệu local');
+            });
+        }
+    }
+
+    // ==================== EXPORT TO WINDOW (onclick handlers) ====================
+    // Các nút HTML dùng onclick="showTab(...)" / handleTrip() — phải gắn lên window
+    // vì toàn bộ core chạy trong IIFE (không còn global tự động).
+    var __promaxExports = {
+        showTab: showTab,
+        handleTrip: handleTrip,
+        toggleOnlineStatus: toggleOnlineStatus,
+        updateRate: updateRate,
+        openSidebar: openSidebar,
+        closeSidebar: closeSidebar,
+        toggleDarkMode: toggleDarkMode,
+        toggleAuth: toggleAuth,
+        doLogin: doLogin,
+        doRegister: doRegister,
+        doLogout: doLogout,
+        forceRefreshGPS: forceRefreshGPS,
+        handlePayment: handlePayment,
+        openSOS: openSOS,
+        openHeatmap: openHeatmap,
+        openMaintenance: openMaintenance,
+        openProfit: openProfit,
+        closeModal: closeModal,
+        closeStreetHailMeter: closeStreetHailMeter,
+        closeConfirmDialog: closeConfirmDialog,
+        declineOrder: declineOrder,
+        dismissCancelBanner: dismissCancelBanner,
+        callCustomer: callCustomer,
+        openChat: openChat,
+        closeChat: closeChat,
+        sendChatMessage: sendChatMessage,
+        sendQuickMessage: sendQuickMessage,
+        exportHistoryCSV: exportHistoryCSV,
+        openVerificationUpload: openVerificationUpload,
+        publishXGRide: publishXGRide,
+        loadXGRides: loadXGRides,
+        switchXGTab: switchXGTab,
+        showXGPayment: showXGPayment,
+        closeXeGhepModal: closeXeGhepModal,
+        showConfirmDialog: showConfirmDialog,
+        showToast: showToast,
+        speak: speak,
+        renderHistory: renderHistory,
+        saveHistory: saveHistory,
+        acceptOrder: acceptOrder,
+        confirmPickup: confirmPickup,
+        navigateToPickup: navigateToPickup,
+        showConfirmComplete: showConfirmComplete,
+        confirmClearHistory: confirmClearHistory,
+        confirmClearAllData: confirmClearAllData
+    };
+    Object.keys(__promaxExports).forEach(function(k) {
+        if (typeof __promaxExports[k] === 'function') {
+            window[k] = __promaxExports[k];
+        }
+    });
+    // Fallback handleTrip nếu init-trip/trip-engine chưa sẵn sàng
+    if (typeof window.handleTrip !== 'function') {
+        window.handleTrip = handleTrip;
+    }
+    // Giữ bản core làm fallback cho street hail
+    window.__promaxCoreHandleTrip = handleTrip;
+    window.__promaxCoreShowTab = showTab;
+
     // ==================== KHỞI ĐỘNG APP KHI WINDOW LOAD ====================
     window.onload = function() {
         const saved = localStorage.getItem('driverInfo');
