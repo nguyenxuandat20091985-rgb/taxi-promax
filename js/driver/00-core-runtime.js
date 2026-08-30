@@ -1,5 +1,5 @@
 // ============================================================
-// TAXI PROMAX - CORE RUNTIME v9.0 (INTEGRATED WITH HANDLERS)
+// TAXI PROMAX - CORE RUNTIME v9.0 (FULL VERSION)
 // ============================================================
 
 (function(window, document, undefined) {
@@ -13,8 +13,6 @@
     });
     const db = firebase.database();
     const storage = firebase.storage();
-    let messaging = null;
-    let fcmToken = null;
 
     // ==================== BIẾN TOÀN CỤC ====================
     let map = null;
@@ -44,8 +42,6 @@
     let locationPushInterval = null;
     let aiDispatchInterval = null;
     let soundEnabled = true;
-    let ratingListener = null;
-    let _cancelListener = null;
     let isLocked = false;
     let isDarkMode = localStorage.getItem('promax_dark') === 'true';
 
@@ -180,7 +176,7 @@
             });
         }
 
-        // Gửi GPS cho Street Hail Handler (nếu có)
+        // Gửi GPS cho Street Hail Handler
         if (window.StreetHailHandler && typeof window.StreetHailHandler.onGPSUpdate === 'function') {
             window.StreetHailHandler.onGPSUpdate({
                 lat: latitude,
@@ -192,7 +188,7 @@
             });
         }
 
-        // Gửi GPS cho App Trip Handler (nếu có)
+        // Gửi GPS cho App Trip Handler
         if (window.AppTripHandler && typeof window.AppTripHandler.onGPSUpdate === 'function') {
             window.AppTripHandler.onGPSUpdate({
                 lat: latitude,
@@ -409,7 +405,6 @@
     }
 
     function showConfirmDialog(message, onConfirm) {
-        // Dùng UI Handler nếu có
         if (window.TripUIHandler && typeof window.TripUIHandler.showConfirmDialog === 'function') {
             window.TripUIHandler.showConfirmDialog(message, onConfirm);
             return;
@@ -941,8 +936,57 @@
             initCountdown();
             return;
         }
-        // ... (giữ nguyên phần thanh toán PayOS)
-        showToast('💳 Chức năng thanh toán đang được nâng cấp. Vui lòng thử lại sau.');
+        try {
+            showToast('⏳ Đang tạo liên kết thanh toán...');
+            const orderId = `DRV_${driverInfo.uid}_${Date.now()}`;
+            const response = await fetch('https://api.payos.vn/v1/payment-requests', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-client-id': 'YOUR_CLIENT_ID',
+                    'x-api-key': 'YOUR_API_KEY'
+                },
+                body: JSON.stringify({
+                    amount: amount,
+                    description: `Nạp gói ${plan} - TAXI PROMAX`,
+                    orderCode: orderId,
+                    buyerName: driverInfo.name || 'Tài xế',
+                    buyerPhone: driverInfo.phone || '',
+                    returnUrl: window.location.href,
+                    cancelUrl: window.location.href,
+                    expiredAt: Math.floor((Date.now() + 15 * 60 * 1000) / 1000)
+                })
+            });
+            const data = await response.json();
+            if (data.data?.checkoutUrl) {
+                window.open(data.data.checkoutUrl, '_blank');
+                monitorPaymentStatus(orderId);
+            } else {
+                showToast('⚠️ Không thể tạo thanh toán, vui lòng thử lại');
+            }
+        } catch(e) {
+            console.error('PayOS error:', e);
+            showToast('⚠️ Lỗi thanh toán: ' + e.message);
+        }
+    }
+
+    function monitorPaymentStatus(orderCode) {
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`https://api.payos.vn/v1/payment-requests/${orderCode}`);
+                const data = await response.json();
+                if (data.data?.status === 'PAID') {
+                    clearInterval(interval);
+                    showToast('✅ Thanh toán thành công! Đang cập nhật gói cước...');
+                    const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
+                    await db.ref(`drivers/${driverInfo.uid}`).update({ tp_expiry: expiry, active_plan: data.data.description || 'PRO' });
+                    isLocked = false;
+                    initCountdown();
+                    showToast('🎉 Gói cước đã được kích hoạt!');
+                    speak('Thanh toán thành công');
+                }
+            } catch(e) {}
+        }, 3000);
     }
 
     function initCountdown() {
@@ -1052,11 +1096,9 @@
             if (!(await autonomousOrderEligible(order))) return;
             if (order.carType !== driverInfo.carClass && order.carType !== 'both') return;
             
-            // Sử dụng AppTripHandler để hiển thị modal
             if (window.AppTripHandler && typeof window.AppTripHandler.showOrderModal === 'function') {
                 window.AppTripHandler.showOrderModal(orderId, order);
             } else {
-                // Fallback: hiển thị modal cũ
                 _processedOrders.add(orderId);
                 _isModalOpening = true;
                 currentOrderId = orderId;
@@ -1093,9 +1135,7 @@
 
     // ==================== TRIP HANDLING ====================
     function handleTrip() {
-        // Ưu tiên dùng Street Hail Handler mới
         if (window.StreetHailHandler && typeof window.StreetHailHandler.start === 'function') {
-            // Kiểm tra xem có đang chạy chuyến app không
             const isAppTrip = window.AppTripHandler ? window.AppTripHandler.isRunning() : false;
             if (isAppTrip) {
                 showToast('⚠️ Đang có chuyến app. Vui lòng kết thúc trước.');
@@ -1104,8 +1144,6 @@
             window.StreetHailHandler.start();
             return;
         }
-        
-        // Fallback cũ (nếu handler chưa load)
         showToast('⚠️ Hệ thống chuyến đang khởi tạo. Vui lòng thử lại sau.');
     }
 
@@ -1219,9 +1257,6 @@
     
     function dismissCancelBanner() {
         document.getElementById('cancelBanner').style.display = 'none';
-        if (window.AppTripHandler && typeof window.AppTripHandler.cancelTrip === 'function') {
-            // AppTripHandler sẽ xử lý
-        }
     }
 
     // ==================== UI HELPERS ====================
@@ -1309,7 +1344,6 @@
             if (orderListener) { orderListener.off(); orderListener = null; }
             _orderListenerStarted = false;
             if (chatListener) { db.ref(`chat/${chatListener}`).off(); chatListener = null; }
-            if (ratingListener) { db.ref(`ratings/${ratingListener}`).off(); ratingListener = null; }
             if (cancelListener) { db.ref(`datxe/${cancelListener}/status`).off(); cancelListener = null; }
             if (driverInfo?.uid) { db.ref(`tai_xe_online/${driverInfo.uid}`).remove().catch(()=>{}); }
             localStorage.removeItem('driverInfo');
