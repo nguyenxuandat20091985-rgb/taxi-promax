@@ -1,11 +1,9 @@
 /**
- * Taxi ProMax — Trip Engine V8.0 (3 luồng riêng biệt)
+ * Taxi ProMax — Trip Engine V8.1 (3 luồng riêng biệt)
  * 
- * - Luồng 1: Street Hail (chuyến vẫy)
+ * - Luồng 1: Street Hail (chuyến vẫy) → do StreetHailHandler quản lý, engine chỉ làm cầu nối
  * - Luồng 2: App Booking with Destination (có điểm đến)
  * - Luồng 3: App Booking without Destination (không điểm đến)
- * 
- * Tất cả luồng đều dùng chung state machine, nhưng logic transition khác nhau.
  */
 ;(function(window, document, undefined) {
     'use strict';
@@ -26,10 +24,6 @@
         COMPLETING: 'COMPLETING',
         COMPLETED: 'COMPLETED',
         CANCELLED: 'CANCELLED',
-
-        // Riêng Street Hail
-        STREET_HAIL: 'STREET_HAIL',
-        START_METER: 'START_METER',
 
         // Riêng App
         WAITING_DESTINATION: 'WAITING_DESTINATION',
@@ -52,7 +46,6 @@
             this.fareStartedAt = null;
             this.odometerKm = 0;
             this.waitTimeMin = 0;
-            this.lastKnownPosition = null;
             this.lastGoodPosition = null;
             this.waitTimer = null;
             this._completed = false;
@@ -73,13 +66,12 @@
                 }
             });
 
-            // Street Hail
+            // Street Hail (chỉ qua engine khi cần, handler quản lý chính)
             transitions[TRIP_STATE.IDLE].push(TRIP_STATE.STREET_HAIL);
             transitions[TRIP_STATE.STREET_HAIL] = [TRIP_STATE.DRIVER_ACCEPT, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.DRIVER_ACCEPT].push(TRIP_STATE.PICKUP_CONFIRMED);
             transitions[TRIP_STATE.PICKUP_CONFIRMED] = [TRIP_STATE.CUSTOMER_ONBOARD, TRIP_STATE.CANCELLED];
-            transitions[TRIP_STATE.CUSTOMER_ONBOARD] = [TRIP_STATE.START_METER, TRIP_STATE.CANCELLED];
-            transitions[TRIP_STATE.START_METER] = [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED];
+            transitions[TRIP_STATE.CUSTOMER_ONBOARD] = [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.TRIP_RUNNING] = [TRIP_STATE.WAITING_DESTINATION, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.ARRIVED_DESTINATION, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.WAITING_DESTINATION] = [TRIP_STATE.DESTINATION_SELECTED, TRIP_STATE.CANCELLED];
             transitions[TRIP_STATE.DESTINATION_SELECTED] = [TRIP_STATE.TRIP_RUNNING, TRIP_STATE.FARE_CALCULATING, TRIP_STATE.CANCELLED];
@@ -143,7 +135,6 @@
                     break;
 
                 case TRIP_STATE.STREET_HAIL:
-                    this._ensureStreetHailTrip();
                     this.navigationMode = 'idle';
                     break;
 
@@ -178,12 +169,6 @@
                     if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
                         window.PromaxLegacyRuntime.resetDistance();
                     }
-                    break;
-
-                case TRIP_STATE.START_METER:
-                    this.navigationMode = 'idle';
-                    this.fareStartedAt = Date.now();
-                    this.odometerKm = 0;
                     break;
 
                 case TRIP_STATE.WAITING_DESTINATION:
@@ -238,29 +223,6 @@
         // ===== CÁC HÀM KHỞI TẠO CHUYẾN =====
 
         /**
-         * Bắt đầu chuyến vẫy
-         */
-        startStreetHail() {
-            if (this.currentState !== TRIP_STATE.IDLE) {
-                if (this._isTripActive()) {
-                    this.emit('confirm_complete', {});
-                    return false;
-                }
-                return false;
-            }
-            this._completed = false;
-            this.tripType = TRIP_TYPE.STREET_HAIL;
-            this.currentTrip = null;
-            this.odometerKm = 0;
-            this.fareStartedAt = null;
-            if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.resetDistance === 'function') {
-                window.PromaxLegacyRuntime.resetDistance();
-            }
-            if (!this.transition(TRIP_STATE.STREET_HAIL, { source: 'street_hail' })) return false;
-            return this.transition(TRIP_STATE.DRIVER_ACCEPT, { source: 'street_hail' });
-        }
-
-        /**
          * Nhận đơn từ App (có hoặc không có điểm đến)
          */
         beginAppTrip(orderId, orderData) {
@@ -311,27 +273,6 @@
             };
         }
 
-        _ensureStreetHailTrip() {
-            if (this.currentTrip && this.tripType === TRIP_TYPE.STREET_HAIL) return;
-            this.currentTrip = {
-                id: null,
-                type: TRIP_TYPE.STREET_HAIL,
-                isStreetHail: true,
-                clientName: '🚕 Khách vẫy',
-                phone: '',
-                pickup: 'Vị trí hiện tại',
-                dropoff: null,
-                dropoffLat: null,
-                dropoffLng: null,
-                pickupLat: this.lastGoodPosition ? this.lastGoodPosition.lat : null,
-                pickupLng: this.lastGoodPosition ? this.lastGoodPosition.lng : null,
-                estimatePrice: 0,
-                estimateKm: 0,
-                carType: '4_seats'
-            };
-            this.tripType = TRIP_TYPE.STREET_HAIL;
-        }
-
         _getOdometerFromCore() {
             if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.getTotalKm === 'function') {
                 return window.PromaxLegacyRuntime.getTotalKm();
@@ -347,9 +288,6 @@
                 return this.transition(TRIP_STATE.ARRIVED_PICKUP);
             }
             if (state === TRIP_STATE.ARRIVED_PICKUP && this.tripType !== TRIP_TYPE.STREET_HAIL) {
-                return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
-            }
-            if (state === TRIP_STATE.STREET_HAIL || state === TRIP_STATE.DRIVER_ACCEPT) {
                 return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
             }
             return this.transition(TRIP_STATE.PICKUP_CONFIRMED);
@@ -368,17 +306,15 @@
                 if (!this.transition(TRIP_STATE.CUSTOMER_ONBOARD)) return false;
             }
 
-            if (this.tripType === TRIP_TYPE.STREET_HAIL) {
-                if (!this.transition(TRIP_STATE.START_METER, { source: 'street_hail_onboard' })) return false;
-                return this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'street_hail_onboard' });
-            } else if (this.tripType === TRIP_TYPE.APP_DESTINATION) {
+            if (this.tripType === TRIP_TYPE.APP_DESTINATION) {
                 if (!this.transition(TRIP_STATE.DESTINATION_SELECTED, { source: 'has_destination' })) return false;
                 if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'has_destination' })) return false;
                 return this.transition(TRIP_STATE.FARE_CALCULATING, { source: 'has_destination' });
-            } else {
+            } else if (this.tripType === TRIP_TYPE.APP_NO_DESTINATION) {
                 if (!this.transition(TRIP_STATE.TRIP_RUNNING, { source: 'no_destination_onboard' })) return false;
                 return this.transition(TRIP_STATE.WAITING_DESTINATION, { source: 'no_destination' });
             }
+            return false;
         }
 
         selectDestination(destination) {
@@ -653,6 +589,6 @@
         };
     }
 
-    console.log('✅ TripEngine V8.0 loaded — 3 separate trip flows');
+    console.log('✅ TripEngine V8.1 loaded — App flows (with/without destination)');
 
 })(window, document);
