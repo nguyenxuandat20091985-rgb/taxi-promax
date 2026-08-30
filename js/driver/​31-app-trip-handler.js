@@ -1,496 +1,374 @@
 /**
- * Taxi ProMax — App Trip Handler v1.0
- * 
- * Xử lý riêng biệt luồng CHUYẾN APP (App Booking)
- * - Nhận đơn từ Firebase
- * - Hiển thị modal đếm ngược
- * - Xác nhận đón khách
- * - Nhập điểm đến (nếu chưa có)
- * - Kết thúc chuyến
- * 
- * KHÔNG ảnh hưởng đến chuyến vẫy.
+ * Taxi ProMax — App Trip Handler v2.0
+ * Luồng CHUYẾN APP:
+ *  A) Có điểm đến: accept → đến đón → đón khách → chạy (tính cước) → kết thúc
+ *  B) Không điểm đến: accept → đến đón → đón khách → nhập điểm đến → chạy → kết thúc
  */
-;(function(window, document, undefined) {
-    'use strict';
+;(function (window, document) {
+  'use strict';
 
-    // ==================== STATE ====================
-    const state = {
-        currentOrderId: null,
-        currentOrderData: null,
-        isModalOpening: false,
-        countdownInterval: null,
-        processedOrders: new Set(),
-        isRunning: false,
-        hasPickedUp: false,
-        totalKm: 0,
-        lastPosition: null,
-        tripType: null
+  var state = {
+    isRunning: false,
+    phase: 'idle', // idle | to_pickup | onboard | wait_dest | running
+    orderId: null,
+    order: null,
+    totalKm: 0,
+    fareActive: false,
+    lastLat: null,
+    lastLng: null,
+    minFare: 20000,
+    defaultRate: 15000,
+    timer: null
+  };
+
+  function dbRef() {
+    try {
+      if (window.db && window.db.ref) return window.db;
+      if (window.firebase && firebase.database) return firebase.database();
+    } catch (e) {}
+    return null;
+  }
+
+  function rate() {
+    try {
+      if (window.PromaxLegacyRuntime && window.PromaxLegacyRuntime.getRate) {
+        var r = Number(window.PromaxLegacyRuntime.getRate());
+        if (r > 0) return r;
+      }
+    } catch (e) {}
+    var slider = document.getElementById('priceSlider');
+    if (slider && Number(slider.value) > 0) return Number(slider.value);
+    return state.defaultRate;
+  }
+
+  function haversine(a, b, c, d) {
+    if (a == null || b == null || c == null || d == null) return 0;
+    var R = 6371, dLat = (c - a) * Math.PI / 180, dLon = (d - b) * Math.PI / 180;
+    var x = Math.sin(dLat / 2) ** 2 + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  function fareLive(km) {
+    km = Number(km) || 0;
+    if (!state.fareActive || km <= 0) return 0;
+    return Math.round(km * rate());
+  }
+
+  function fareFinal(km) {
+    var f = Math.round((Number(km) || 0) * rate());
+    if (f < state.minFare) f = state.minFare;
+    return f;
+  }
+
+  function orderData() {
+    var o = state.order || {};
+    return {
+      clientName: o.clientName || o.customerName || 'Khách app',
+      clientPhone: o.phone || o.customerPhone || '---',
+      from: o.pickup || o.pickupAddress || 'Điểm đón',
+      to: o.dropoff || o.dropoffAddress || 'Chưa xác định',
+      carType: o.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ'
     };
+  }
 
-    // ==================== DOM REFERENCES ====================
-    const DOM = {
-        get orderModal() { return document.getElementById('orderModal'); },
-        get modalPhone() { return document.getElementById('modalPhone'); },
-        get modalFrom() { return document.getElementById('modalFrom'); },
-        get modalTo() { return document.getElementById('modalTo'); },
-        get modalClientName() { return document.getElementById('modalClientName'); },
-        get modalCarType() { return document.getElementById('modalCarType'); },
-        get modalTimer() { return document.getElementById('tp-modal-timer-val'); },
-        get tripPanel() { return document.getElementById('tripInfoPanel'); },
-        get homeControls() { return document.getElementById('homeControls'); },
-        get statsUI() { return document.getElementById('statsUI'); },
-        get tripStatusText() { return document.getElementById('tripStatusText'); },
-        get tripClientName() { return document.getElementById('tripClientName'); },
-        get tripClientPhone() { return document.getElementById('tripClientPhone'); },
-        get tripFrom() { return document.getElementById('tripFrom'); },
-        get tripTo() { return document.getElementById('tripTo'); },
-        get tripPrice() { return document.getElementById('tripPrice'); },
-        get tripKmLive() { return document.getElementById('tripKmLive'); },
-        get tripCarType() { return document.getElementById('tripCarType'); },
-        get tripActionButtons() { return document.getElementById('tripActionButtons'); },
-        get pickupBtn() { return document.getElementById('pickupBtn'); },
-        get navBtn() { return document.getElementById('navToPickupBtn'); },
-        get endTripBtn() { return document.getElementById('endTripBtn'); },
-        get kmDisplay() { return document.getElementById('km'); },
-        get costDisplay() { return document.getElementById('cost'); },
-        get endSummary() { return document.getElementById('endSummary'); },
-        get endModal() { return document.getElementById('endModal'); }
+  function hasDestination(o) {
+    o = o || state.order || {};
+    var text = o.dropoff || o.dropoffAddress || '';
+    var lat = o.dropoffLat;
+    return !!(String(text).trim() || (lat != null && Number(lat) !== 0));
+  }
+
+  function paint() {
+    var km = state.totalKm;
+    var f = fareLive(km);
+    if (window.TripUIHandler && window.TripUIHandler.setFare) window.TripUIHandler.setFare(km, f);
+  }
+
+  function updateFirebase(patch) {
+    if (!state.orderId) return;
+    var db = dbRef();
+    if (!db) return;
+    try {
+      db.ref('datxe/' + state.orderId).update(patch).catch(function () {});
+    } catch (e) {}
+  }
+
+  function showOrderModal(orderId, order) {
+    state.orderId = orderId;
+    state.order = order || {};
+    var modal = document.getElementById('orderModal');
+    if (!modal) return;
+    var set = function (id, val) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = val != null ? val : '...';
     };
+    set('modalPhone', order.phone || order.customerPhone || '...');
+    set('modalFrom', order.pickup || '...');
+    set('modalTo', order.dropoff || order.dropoffAddress || 'Chưa có');
+    set('modalClientName', order.clientName || order.customerName || '...');
+    set('modalCarType', order.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ');
+    modal.style.display = 'flex';
 
-    // ==================== MAIN FUNCTIONS ====================
-    function showOrderModal(orderId, orderData) {
-        if (state.isModalOpening || state.isRunning) return;
-        if (state.processedOrders.has(orderId)) return;
-
-        state.currentOrderId = orderId;
-        state.currentOrderData = orderData;
-        state.isModalOpening = true;
-        state.processedOrders.add(orderId);
-
-        if (DOM.modalPhone) DOM.modalPhone.innerText = orderData.phone || '...';
-        if (DOM.modalFrom) DOM.modalFrom.innerText = orderData.pickup || '...';
-        if (DOM.modalTo) DOM.modalTo.innerText = orderData.dropoff || 'Chưa xác định';
-        if (DOM.modalClientName) DOM.modalClientName.innerText = orderData.clientName || 'Khách';
-        if (DOM.modalCarType) {
-            DOM.modalCarType.innerText = orderData.carType === '7_seats' ? '7 Chỗ' : '4 Chỗ';
+    // countdown optional
+    var tEl = document.getElementById('tp-modal-timer-val');
+    if (tEl) {
+      var left = 15;
+      tEl.textContent = String(left);
+      if (state._cd) clearInterval(state._cd);
+      state._cd = setInterval(function () {
+        left -= 1;
+        tEl.textContent = String(left);
+        if (left <= 0) {
+          clearInterval(state._cd);
+          declineOrder();
         }
+      }, 1000);
+    }
+  }
 
-        let countdown = 15;
-        if (DOM.modalTimer) DOM.modalTimer.innerText = countdown;
-        if (DOM.orderModal) DOM.orderModal.style.display = 'flex';
+  function closeModal() {
+    var modal = document.getElementById('orderModal');
+    if (modal) modal.style.display = 'none';
+    if (state._cd) { clearInterval(state._cd); state._cd = null; }
+  }
 
-        if (state.countdownInterval) clearInterval(state.countdownInterval);
-        state.countdownInterval = setInterval(function() {
-            countdown--;
-            if (DOM.modalTimer) DOM.modalTimer.innerText = countdown;
-            if (countdown <= 0) {
-                declineOrder();
-            }
-        }, 1000);
+  function declineOrder() {
+    closeModal();
+    if (state.orderId) {
+      updateFirebase({ status: 'waiting', driverId: null });
+    }
+    state.orderId = null;
+    state.order = null;
+    if (typeof window.showToast === 'function') window.showToast('Đã bỏ qua đơn');
+  }
 
-        if (typeof window.speak === 'function') {
-            window.speak('Có đơn đặt xe mới.');
-        }
+  function acceptOrder() {
+    if (window.StreetHailHandler && window.StreetHailHandler.isActive && window.StreetHailHandler.isActive()) {
+      if (typeof window.showToast === 'function') window.showToast('Đang chuyến vẫy — kết thúc trước');
+      return false;
+    }
+    if (!state.orderId || !state.order) {
+      if (typeof window.showToast === 'function') window.showToast('Không có đơn để nhận');
+      return false;
+    }
+    closeModal();
+    state.isRunning = true;
+    state.phase = 'to_pickup';
+    state.totalKm = 0;
+    state.fareActive = false;
+    state.lastLat = window.currentLat != null ? Number(window.currentLat) : null;
+    state.lastLng = window.currentLng != null ? Number(window.currentLng) : null;
+
+    var drv = window.driverInfo || {};
+    updateFirebase({
+      status: 'driving',
+      driverId: drv.uid || null,
+      driverName: drv.name || null,
+      driverPhone: drv.phone || null,
+      acceptedAt: Date.now()
+    });
+
+    if (window.PromaxLegacyRuntime && window.PromaxLegacyRuntime.setTripContext) {
+      try { window.PromaxLegacyRuntime.setTripContext(state.orderId, state.order); } catch (e) {}
     }
 
-    function acceptOrder() {
-        clearInterval(state.countdownInterval);
-        state.countdownInterval = null;
+    if (window.TripUIHandler && window.TripUIHandler.showAppPickup) {
+      window.TripUIHandler.showAppPickup(Object.assign(orderData(), { status: 'ĐANG ĐẾN ĐIỂM ĐÓN' }), {
+        onPickup: function () { passengerOnboard(); },
+        onNav: function () { navigateToPickup(); },
+        pickupText: 'ĐÃ ĐÓN KHÁCH',
+        navText: 'CHỈ ĐƯỜNG ĐÓN'
+      });
+    }
 
-        if (!state.currentOrderId || !state.currentOrderData) {
-            closeModal();
-            state.isModalOpening = false;
-            return;
-        }
+    // route to pickup if coords
+    if (state.order.pickupLat != null && state.order.pickupLng != null && typeof window.drawRoute === 'function') {
+      try {
+        window.drawRoute(window.currentLat, window.currentLng, state.order.pickupLat, state.order.pickupLng);
+      } catch (e) {}
+    }
 
-        const orderRef = window.db.ref(`datxe/${state.currentOrderId}`);
-        orderRef.transaction(function(order) {
-            if (!order || order.status !== 'waiting') return;
-            return {
-                ...order,
-                status: 'driving',
-                driverId: window.driverInfo ? window.driverInfo.uid : null,
-                driverName: window.driverInfo ? window.driverInfo.name : null,
-                driverPhone: window.driverInfo ? window.driverInfo.phone : null,
-                driverPlate: window.driverInfo ? window.driverInfo.plate : null,
-                acceptedAt: Date.now(),
-                statusHistory: { ...(order.statusHistory || {}), driving: Date.now() }
-            };
-        }).then(function(result) {
-            if (result && result.committed) {
-                state.currentOrderData = result.snapshot.val() || state.currentOrderData;
-                state.isRunning = true;
-                state.hasPickedUp = false;
-                state.totalKm = 0;
-                state.lastPosition = null;
+    if (window.TripStateManager && window.TripStateManager.setState) {
+      try { window.TripStateManager.setState('APP_TRIP'); } catch (e) {}
+    }
+    if (typeof window.showToast === 'function') window.showToast('Đã nhận đơn — đến điểm đón');
+    return true;
+  }
 
-                const hasDest = Boolean(
-                    state.currentOrderData.dropoffLat != null ||
-                    (state.currentOrderData.dropoff && typeof state.currentOrderData.dropoff === 'string' && state.currentOrderData.dropoff.trim() !== '')
-                );
-                state.tripType = hasDest ? 'WITH_DESTINATION' : 'WITHOUT_DESTINATION';
+  function navigateToPickup() {
+    var o = state.order || {};
+    var lat = o.pickupLat;
+    var lng = o.pickupLng;
+    if (lat != null && lng != null) {
+      window.open('https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng, '_blank');
+      return;
+    }
+    var addr = o.pickup || o.pickupAddress;
+    if (addr) window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr), '_blank');
+    else if (typeof window.showToast === 'function') window.showToast('Chưa có toạ độ điểm đón');
+  }
 
-                closeModal();
-                state.isModalOpening = false;
+  function passengerOnboard() {
+    if (!state.isRunning) return;
+    state.phase = 'onboard';
+    state.totalKm = 0;
+    state.lastLat = window.currentLat != null ? Number(window.currentLat) : null;
+    state.lastLng = window.currentLng != null ? Number(window.currentLng) : null;
+    updateFirebase({ status: 'in_progress', onboardAt: Date.now() });
 
-                showTripUI(state.currentOrderData);
-                if (typeof window.speak === 'function') {
-                    window.speak('Đã nhận đơn.');
-                }
-
-                if (state.currentOrderData.pickupLat && state.currentOrderData.pickupLng) {
-                    drawRouteToPickup(state.currentOrderData.pickupLat, state.currentOrderData.pickupLng);
-                }
-
-                startForegroundService();
-                enableKeepAwake();
-                syncToFirebase('driving');
-            } else {
-                closeModal();
-                state.isModalOpening = false;
-                if (typeof window.showToast === 'function') {
-                    window.showToast('Đơn này đã được tài xế khác nhận hoặc đã hết hạn.');
-                }
-            }
-        }).catch(function() {
-            state.isModalOpening = false;
-            closeModal();
-            if (typeof window.showToast === 'function') {
-                window.showToast('Không thể nhận chuyến. Vui lòng thử lại.');
-            }
+    if (hasDestination()) {
+      startRunning();
+    } else {
+      state.phase = 'wait_dest';
+      state.fareActive = false;
+      if (window.TripUIHandler && window.TripUIHandler.showAppWaitDestination) {
+        window.TripUIHandler.showAppWaitDestination(orderData(), function (addr) {
+          selectDestination(addr);
         });
+      }
+      if (typeof window.showToast === 'function') window.showToast('Nhập điểm đến để bắt đầu tính cước');
+    }
+  }
+
+  function selectDestination(address) {
+    if (!state.isRunning) return;
+    address = String(address || '').trim();
+    if (!address) return;
+    state.order = state.order || {};
+    state.order.dropoff = address;
+    state.order.dropoffAddress = address;
+    updateFirebase({ dropoff: address, dropoffAddress: address });
+    startRunning();
+  }
+
+  function startRunning() {
+    state.phase = 'running';
+    state.fareActive = true;
+    state.totalKm = 0;
+    state.lastLat = window.currentLat != null ? Number(window.currentLat) : null;
+    state.lastLng = window.currentLng != null ? Number(window.currentLng) : null;
+
+    if (window.TripUIHandler && window.TripUIHandler.showAppRunning) {
+      window.TripUIHandler.showAppRunning(
+        Object.assign(orderData(), { status: 'ĐANG CHẠY CHUYẾN', to: (state.order && (state.order.dropoff || state.order.dropoffAddress)) || 'Điểm đến' }),
+        function () { showConfirmComplete(); }
+      );
+    }
+    paint();
+    if (typeof window.showToast === 'function') window.showToast('Đã đón khách — bắt đầu tính cước');
+  }
+
+  function showConfirmComplete() {
+    if (!state.isRunning) return;
+    var go = function () { completeTrip(); };
+    if (typeof window.showConfirmDialog === 'function') {
+      window.showConfirmDialog('Kết thúc chuyến app?', go);
+    } else if (window.confirm('Kết thúc chuyến app?')) go();
+  }
+
+  function completeTrip() {
+    if (!state.isRunning) return false;
+    var km = state.totalKm;
+    var cost = fareFinal(state.fareActive ? km : 0);
+
+    updateFirebase({
+      status: 'completed',
+      completedAt: Date.now(),
+      finalKm: km,
+      finalCost: cost
+    });
+
+    if (typeof window.saveHistory === 'function') {
+      try { window.saveHistory(km, cost.toLocaleString('vi-VN'), cost, 'APP_BOOKING'); } catch (e) {}
     }
 
-    function declineOrder() {
-        clearInterval(state.countdownInterval);
-        state.countdownInterval = null;
-        closeModal();
-        state.isModalOpening = false;
-        if (typeof window.speak === 'function') {
-            window.speak('Đã bỏ qua đơn.');
-        }
+    if (window.TripUIHandler && window.TripUIHandler.showEndModal) {
+      window.TripUIHandler.showEndModal(km, cost, 'APP_BOOKING');
+    }
+    if (window.TripUIHandler && window.TripUIHandler.hideTripPanel) {
+      window.TripUIHandler.hideTripPanel();
     }
 
-    function closeModal() {
-        if (DOM.orderModal) DOM.orderModal.style.display = 'none';
+    state.isRunning = false;
+    state.phase = 'idle';
+    state.orderId = null;
+    state.order = null;
+    state.totalKm = 0;
+    state.fareActive = false;
+
+    if (window.TripStateManager && window.TripStateManager.setState) {
+      try { window.TripStateManager.setState('IDLE'); } catch (e) {}
     }
+    if (typeof window.showToast === 'function') window.showToast('Hoàn thành — ' + cost.toLocaleString('vi-VN') + 'đ');
+    return true;
+  }
 
-    // ==================== UI ====================
-    function showTripUI(orderData) {
-        if (DOM.homeControls) DOM.homeControls.style.display = 'none';
-        if (DOM.tripPanel) DOM.tripPanel.style.display = 'block';
-        if (DOM.statsUI) DOM.statsUI.classList.add('show');
-
-        if (DOM.tripClientName) DOM.tripClientName.innerText = orderData.clientName || 'Khách';
-        if (DOM.tripClientPhone) DOM.tripClientPhone.innerText = orderData.phone || '...';
-        if (DOM.tripFrom) DOM.tripFrom.innerText = orderData.pickup || '...';
-        if (DOM.tripTo) DOM.tripTo.innerText = orderData.dropoff || '...';
-        if (DOM.tripCarType) {
-            DOM.tripCarType.innerHTML = orderData.carType === '7_seats' ? '🚙 7 Chỗ' : '🚗 4 Chỗ';
-        }
-        if (DOM.tripStatusText) DOM.tripStatusText.innerHTML = '🚗 ĐANG ĐẾN ĐÓN KHÁCH';
-
-        const estimatePrice = orderData.estimatePrice || 0;
-        const estimateKm = orderData.estimateKm || 0;
-        if (DOM.tripPrice) {
-            DOM.tripPrice.innerHTML = estimatePrice > 0 ? estimatePrice.toLocaleString() + 'đ' : 'Tính theo KM';
-        }
-        if (DOM.tripKmLive) DOM.tripKmLive.innerText = '0.00 KM';
-
-        if (DOM.tripActionButtons) DOM.tripActionButtons.style.display = 'flex';
-        if (DOM.pickupBtn) {
-            DOM.pickupBtn.textContent = '📍 ĐÃ ĐẾN ĐIỂM ĐÓN';
-            DOM.pickupBtn.onclick = function() {
-                arrivedAtPickup();
-            };
-        }
-        if (DOM.navBtn) {
-            DOM.navBtn.onclick = function() {
-                navigateToPickup();
-            };
-        }
-        if (DOM.endTripBtn) {
-            DOM.endTripBtn.style.display = 'none';
-        }
-
-        const nav = document.querySelector('.nav-grid');
-        if (nav) nav.style.display = 'none';
-        const brand = document.querySelector('.brand-footer');
-        if (brand) brand.style.display = 'none';
+  function onGPS(lat, lng) {
+    if (!state.isRunning || !state.fareActive) return;
+    if (lat == null || lng == null) return;
+    lat = Number(lat); lng = Number(lng);
+    if (state.lastLat != null && state.lastLng != null) {
+      var d = haversine(state.lastLat, state.lastLng, lat, lng);
+      if (d >= 0.005 && d < 0.45) state.totalKm += d;
     }
+    state.lastLat = lat;
+    state.lastLng = lng;
+    paint();
+  }
 
-    function arrivedAtPickup() {
-        if (DOM.tripStatusText) DOM.tripStatusText.innerHTML = '📍 ĐÃ ĐẾN ĐIỂM ĐÓN';
-        if (DOM.pickupBtn) {
-            DOM.pickupBtn.textContent = '🚗 KHÁCH ĐÃ LÊN XE';
-            DOM.pickupBtn.onclick = function() {
-                passengerOnboard();
-            };
-        }
-        if (DOM.navBtn) DOM.navBtn.style.display = 'none';
+  var prev = window.processBackgroundLocation;
+  window.processBackgroundLocation = function (loc) {
+    try {
+      if (loc && state.isRunning) {
+        onGPS(loc.lat != null ? loc.lat : loc.latitude, loc.lng != null ? loc.lng : loc.longitude);
+      }
+    } catch (e) {}
+    if (typeof prev === 'function') return prev.apply(this, arguments);
+  };
+  setInterval(function () {
+    if (state.isRunning && state.fareActive && window.currentLat != null) {
+      onGPS(window.currentLat, window.currentLng);
     }
+  }, 2500);
 
-    function passengerOnboard() {
-        state.hasPickedUp = true;
-        state.lastPosition = {
-            lat: window.currentLat || 0,
-            lng: window.currentLng || 0
-        };
-        state.totalKm = 0;
-
-        if (DOM.tripStatusText) DOM.tripStatusText.innerHTML = '🚕 ĐÃ ĐÓN KHÁCH - ĐANG CHẠY';
-        if (DOM.tripActionButtons) DOM.tripActionButtons.style.display = 'none';
-        if (DOM.endTripBtn) {
-            DOM.endTripBtn.style.display = 'block';
-            DOM.endTripBtn.innerText = '🏁 KẾT THÚC CHUYẾN ĐI';
-            DOM.endTripBtn.onclick = function() {
-                showConfirmComplete();
-            };
-        }
-
-        if (state.currentOrderData.dropoffLat && state.currentOrderData.dropoffLng) {
-            drawRouteToDestination(state.currentOrderData.dropoffLat, state.currentOrderData.dropoffLng);
-        } else if (state.currentOrderData.dropoff && typeof state.currentOrderData.dropoff === 'string') {
-            geocodeAddress(state.currentOrderData.dropoff, function(lat, lng) {
-                drawRouteToDestination(lat, lng);
-            });
-        }
-
-        syncToFirebase('in_progress');
-
-        if (typeof window.speak === 'function') {
-            window.speak('Đã đón khách, bắt đầu hành trình.');
-        }
+  // Global bindings for HTML onclick
+  window.acceptOrder = function () {
+    if (window.AppTripHandler) return window.AppTripHandler.accept();
+  };
+  window.confirmPickup = function () {
+    if (window.AppTripHandler) return window.AppTripHandler.passengerOnboard();
+  };
+  window.navigateToPickup = function () {
+    if (window.AppTripHandler) return window.AppTripHandler.navigateToPickup();
+  };
+  window.showConfirmComplete = function () {
+    if (window.StreetHailHandler && window.StreetHailHandler.isActive && window.StreetHailHandler.isActive()) {
+      return window.endStreetHail && window.endStreetHail();
     }
+    if (window.AppTripHandler) return window.AppTripHandler.showConfirmComplete();
+  };
+  window.declineOrder = function () {
+    if (window.AppTripHandler) return window.AppTripHandler.decline();
+  };
 
-    function showConfirmComplete() {
-        if (typeof window.showConfirmDialog === 'function') {
-            window.showConfirmDialog('Bạn có chắc chắn muốn kết thúc chuyến đi?', function() {
-                completeTrip();
-            });
-        } else {
-            if (confirm('Bạn có chắc chắn muốn kết thúc chuyến đi?')) {
-                completeTrip();
-            }
-        }
-    }
+  window.AppTripHandler = {
+    showOrderModal: showOrderModal,
+    accept: acceptOrder,
+    acceptOrder: acceptOrder,
+    decline: declineOrder,
+    declineOrder: declineOrder,
+    arrivedAtPickup: function () { /* optional mid-step */ },
+    passengerOnboard: passengerOnboard,
+    confirmPickup: passengerOnboard,
+    selectDestination: selectDestination,
+    navigateToPickup: navigateToPickup,
+    completeTrip: completeTrip,
+    showConfirmComplete: showConfirmComplete,
+    onGPSUpdate: onGPS,
+    isRunning: function () { return state.isRunning; },
+    getPhase: function () { return state.phase; },
+    getTotalKm: function () { return state.totalKm; }
+  };
 
-    function completeTrip() {
-        const MIN_FARE = 20000;
-        const finalKm = state.totalKm;
-        const rate = getFareRate();
-        let finalCost = Math.round(finalKm * rate);
-        if (finalCost < MIN_FARE) finalCost = MIN_FARE;
-
-        if (typeof window.saveHistory === 'function') {
-            window.saveHistory(finalKm, finalCost.toLocaleString('vi-VN'), finalCost, 'APP_BOOKING');
-        }
-
-        if (state.currentOrderId) {
-            window.db.ref(`datxe/${state.currentOrderId}`).update({
-                status: 'completed',
-                completedAt: Date.now(),
-                actualKm: finalKm,
-                actualPrice: finalCost,
-                statusHistory: { ...(state.currentOrderData.statusHistory || {}), completed: Date.now() }
-            }).catch(function() {});
-        }
-
-        state.isRunning = false;
-        state.hasPickedUp = false;
-        state.totalKm = 0;
-        state.currentOrderId = null;
-        state.currentOrderData = null;
-        state.lastPosition = null;
-
-        resetUI(finalKm, finalCost);
-
-        if (typeof window.stopForegroundService === 'function') window.stopForegroundService();
-        if (typeof window.disableKeepAwake === 'function') window.disableKeepAwake();
-
-        if (DOM.endSummary) {
-            DOM.endSummary.innerHTML = `
-                Quãng đường: <b>${finalKm.toFixed(2)} KM</b><br>
-                Tổng: <b style="color:var(--primary);font-size:20px;">${finalCost.toLocaleString('vi-VN')}đ</b><br>
-                <span style="font-size:11px;">📱 Chuyến app</span>
-            `;
-        }
-        if (DOM.endModal) DOM.endModal.style.display = 'flex';
-
-        if (typeof window.speak === 'function') {
-            window.speak(`Chuyến đi kết thúc. Tổng tiền ${finalCost.toLocaleString('vi-VN')} đồng.`);
-        }
-
-        syncToFirebase('completed');
-    }
-
-    function resetUI(km, fare) {
-        if (DOM.homeControls) DOM.homeControls.style.display = 'block';
-        if (DOM.tripPanel) DOM.tripPanel.style.display = 'none';
-        if (DOM.statsUI) DOM.statsUI.classList.remove('show');
-        if (DOM.kmDisplay) DOM.kmDisplay.innerText = '0.00';
-        if (DOM.costDisplay) DOM.costDisplay.innerText = '0';
-        if (DOM.endTripBtn) DOM.endTripBtn.style.display = 'none';
-
-        const nav = document.querySelector('.nav-grid');
-        if (nav) nav.style.display = 'flex';
-        const brand = document.querySelector('.brand-footer');
-        if (brand) brand.style.display = 'block';
-
-        const mainBtn = document.getElementById('mainBtn');
-        if (mainBtn) {
-            mainBtn.innerText = '🚖 BẮT ĐẦU CHUYẾN ĐI';
-            mainBtn.style.background = 'var(--accent)';
-        }
-    }
-
-    // ==================== GPS UPDATE ====================
-    function onGPSUpdate(position) {
-        if (!state.isRunning || !state.hasPickedUp) return;
-        if (!position || position.lat == null || position.lng == null) return;
-
-        const lat = Number(position.lat);
-        const lng = Number(position.lng);
-        const currentPos = { lat, lng };
-
-        if (!state.lastPosition) {
-            state.lastPosition = currentPos;
-            return;
-        }
-
-        const dist = haversineDistance(
-            state.lastPosition.lat, state.lastPosition.lng,
-            currentPos.lat, currentPos.lng
-        );
-
-        if (dist > 0.01 && dist < 0.5) {
-            state.totalKm += dist;
-            updateDisplay(state.totalKm, Math.round(state.totalKm * getFareRate()));
-        }
-
-        state.lastPosition = currentPos;
-    }
-
-    function updateDisplay(km, fare) {
-        if (DOM.kmDisplay) DOM.kmDisplay.innerText = km.toFixed(2);
-        if (DOM.costDisplay) DOM.costDisplay.innerText = fare.toLocaleString();
-        if (DOM.tripKmLive) DOM.tripKmLive.innerText = km.toFixed(2) + ' KM';
-        if (DOM.tripPrice) DOM.tripPrice.innerHTML = fare.toLocaleString() + 'đ';
-    }
-
-    // ==================== NAVIGATION ====================
-    function drawRouteToPickup(fromLat, fromLng) {
-        if (typeof window.drawRoute === 'function') {
-            const currentLat = window.currentLat || 0;
-            const currentLng = window.currentLng || 0;
-            window.drawRoute(currentLat, currentLng, fromLat, fromLng);
-        }
-    }
-
-    function drawRouteToDestination(toLat, toLng) {
-        if (typeof window.drawRoute === 'function') {
-            const currentLat = window.currentLat || 0;
-            const currentLng = window.currentLng || 0;
-            window.drawRoute(currentLat, currentLng, toLat, toLng);
-        }
-    }
-
-    function navigateToPickup() {
-        if (!state.currentOrderData) return;
-        const pickupLat = state.currentOrderData.pickupLat;
-        const pickupLng = state.currentOrderData.pickupLng;
-        const pickup = state.currentOrderData.pickup;
-        const currentLat = window.currentLat || 0;
-        const currentLng = window.currentLng || 0;
-
-        if (pickupLat && pickupLng) {
-            window.open(
-                `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${pickupLat},${pickupLng}&travelmode=driving`,
-                '_blank'
-            );
-        } else if (pickup) {
-            window.open(
-                `https://www.google.com/maps/dir/?api=1&origin=${currentLat},${currentLng}&destination=${encodeURIComponent(pickup)}&travelmode=driving`,
-                '_blank'
-            );
-        }
-    }
-
-    // ==================== HELPERS ====================
-    function getFareRate() {
-        if (window.currentRate !== undefined && window.currentRate !== null) {
-            return Number(window.currentRate);
-        }
-        if (window.PromaxLegacyRuntime && typeof window.PromaxLegacyRuntime.getRate === 'function') {
-            return window.PromaxLegacyRuntime.getRate();
-        }
-        return 15000;
-    }
-
-    function haversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) ** 2 +
-                  Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-                  Math.sin(dLon/2) ** 2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    function geocodeAddress(address, callback) {
-        if (!address) return;
-        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data && data[0]) {
-                    callback(parseFloat(data[0].lat), parseFloat(data[0].lon));
-                }
-            })
-            .catch(function() {});
-    }
-
-    function syncToFirebase(status) {
-        try {
-            const uid = window.driverInfo ? window.driverInfo.uid : null;
-            if (!uid) return;
-            const db = window.db;
-            if (!db) return;
-            db.ref(`app_trip/${uid}`).set({
-                orderId: state.currentOrderId,
-                status: status,
-                totalKm: state.totalKm,
-                updatedAt: Date.now()
-            }).catch(function() {});
-        } catch(e) {}
-    }
-
-    function startForegroundService() {
-        if (typeof window.startForegroundService === 'function') {
-            window.startForegroundService();
-        }
-    }
-
-    function enableKeepAwake() {
-        if (typeof window.enableKeepAwake === 'function') {
-            window.enableKeepAwake();
-        }
-    }
-
-    // ==================== PUBLIC API ====================
-    window.AppTripHandler = {
-        showOrderModal: showOrderModal,
-        acceptOrder: acceptOrder,
-        declineOrder: declineOrder,
-        onGPSUpdate: onGPSUpdate,
-        isRunning: function() { return state.isRunning; },
-        getTotalKm: function() { return state.totalKm; },
-        getFare: function() { return Math.round(state.totalKm * getFareRate()); }
-    };
-
-    window.showOrderModal = showOrderModal;
-    window.acceptOrder = acceptOrder;
-    window.declineOrder = declineOrder;
-
-    console.log('✅ AppTripHandler v1.0 loaded — independent app trip flow');
-
+  console.log('AppTripHandler v2.0 loaded');
 })(window, document);
