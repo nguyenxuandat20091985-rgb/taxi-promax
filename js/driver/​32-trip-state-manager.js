@@ -1,134 +1,56 @@
 /**
- * Taxi ProMax — Trip State Manager v1.0
- * 
- * Quản lý trạng thái toàn cục cho tất cả các loại chuyến.
- * - Theo dõi trạng thái hiện tại (IDLE, STREET_HAIL, APP_TRIP)
- * - Chuyển đổi giữa các trạng thái
- * - Đồng bộ trạng thái lên Firebase
- * - Cung cấp API cho các handler khác
- * 
- * KHÔNG xử lý logic chuyến cụ thể.
+ * Taxi ProMax — Trip State Manager v2.0
+ * Trạng thái toàn cục: IDLE | STREET_HAIL | APP_TRIP
  */
-;(function(window, document, undefined) {
-    'use strict';
+;(function (window) {
+  'use strict';
 
-    const TRIP_TYPES = {
-        IDLE: 'IDLE',
-        STREET_HAIL: 'STREET_HAIL',
-        APP_TRIP: 'APP_TRIP'
-    };
+  var current = 'IDLE';
+  var listeners = [];
 
-    const state = {
-        currentType: TRIP_TYPES.IDLE,
-        isLocked: false,
-        listeners: []
-    };
+  function setState(next) {
+    next = String(next || 'IDLE').toUpperCase();
+    if (next === current) return current;
+    var prev = current;
+    current = next;
+    try {
+      document.documentElement.setAttribute('data-trip-state', current);
+      if (document.body) document.body.setAttribute('data-trip-state', current);
+    } catch (e) {}
+    listeners.forEach(function (fn) {
+      try { fn(current, prev); } catch (e) {}
+    });
+    try {
+      document.dispatchEvent(new CustomEvent('trip:state', { detail: { state: current, prev: prev } }));
+    } catch (e) {}
+    return current;
+  }
 
-    function setTripType(type) {
-        if (!Object.values(TRIP_TYPES).includes(type)) {
-            console.warn('[TripStateManager] Invalid type:', type);
-            return false;
-        }
+  function getState() { return current; }
 
-        const oldType = state.currentType;
-        state.currentType = type;
+  function isBusy() {
+    return current === 'STREET_HAIL' || current === 'APP_TRIP';
+  }
 
-        updateDocumentState(type);
-        syncToFirebase(type);
-        notifyListeners(type, oldType);
-        updateMainButton(type);
+  function onChange(fn) {
+    if (typeof fn === 'function') listeners.push(fn);
+  }
 
-        return true;
-    }
+  // Sync from handlers
+  setInterval(function () {
+    var sh = window.StreetHailHandler && window.StreetHailHandler.isActive && window.StreetHailHandler.isActive();
+    var ap = window.AppTripHandler && window.AppTripHandler.isRunning && window.AppTripHandler.isRunning();
+    if (sh) setState('STREET_HAIL');
+    else if (ap) setState('APP_TRIP');
+    else if (current !== 'IDLE') setState('IDLE');
+  }, 2000);
 
-    function getCurrentType() {
-        return state.currentType;
-    }
+  window.TripStateManager = {
+    setState: setState,
+    getState: getState,
+    isBusy: isBusy,
+    onChange: onChange
+  };
 
-    function isTripActive() {
-        return state.currentType !== TRIP_TYPES.IDLE;
-    }
-
-    function setLocked(locked) {
-        state.isLocked = locked;
-    }
-
-    function isLocked() {
-        return state.isLocked;
-    }
-
-    function addListener(callback) {
-        if (typeof callback === 'function') {
-            state.listeners.push(callback);
-        }
-    }
-
-    function removeListener(callback) {
-        state.listeners = state.listeners.filter(function(fn) {
-            return fn !== callback;
-        });
-    }
-
-    function updateDocumentState(type) {
-        document.documentElement.setAttribute('data-trip-type', type);
-        document.documentElement.setAttribute('data-trip-active', type !== TRIP_TYPES.IDLE ? 'true' : 'false');
-
-        if (document.body) {
-            document.body.setAttribute('data-trip-type', type);
-            document.body.setAttribute('data-trip-active', type !== TRIP_TYPES.IDLE ? 'true' : 'false');
-        }
-    }
-
-    function updateMainButton(type) {
-        const mainBtn = document.getElementById('mainBtn');
-        if (!mainBtn) return;
-
-        if (type === TRIP_TYPES.IDLE) {
-            mainBtn.innerText = '🚖 BẮT ĐẦU CHUYẾN ĐI';
-            mainBtn.style.background = 'var(--accent)';
-        } else {
-            mainBtn.innerText = '⏳ ĐANG CÓ CHUYẾN';
-            mainBtn.style.background = '#f39c12';
-        }
-    }
-
-    function notifyListeners(type, oldType) {
-        state.listeners.forEach(function(fn) {
-            try {
-                fn(type, oldType);
-            } catch(e) {
-                console.warn('[TripStateManager] Listener error:', e);
-            }
-        });
-    }
-
-    function syncToFirebase(type) {
-        try {
-            const uid = window.driverInfo ? window.driverInfo.uid : null;
-            if (!uid) return;
-            const db = window.db;
-            if (!db) return;
-            db.ref(`driver_state/${uid}`).set({
-                type: type,
-                updatedAt: Date.now(),
-                online: window.isDriverOnline !== undefined ? window.isDriverOnline : true
-            }).catch(function() {});
-        } catch(e) {}
-    }
-
-    window.TripStateManager = {
-        TRIP_TYPES: TRIP_TYPES,
-        setTripType: setTripType,
-        getCurrentType: getCurrentType,
-        isTripActive: isTripActive,
-        setLocked: setLocked,
-        isLocked: isLocked,
-        addListener: addListener,
-        removeListener: removeListener
-    };
-
-    window.__tripTypes = TRIP_TYPES;
-
-    console.log('✅ TripStateManager v1.0 loaded — central state management');
-
-})(window, document);
+  console.log('TripStateManager v2.0 loaded');
+})(window);
