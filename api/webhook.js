@@ -1,20 +1,45 @@
 /**
- * PAYOS WEBHOOK — Vercel Serverless Function
- * FIX: cập nhật ĐÚNG node drivers/{uid}/tp_expiry (index.html đọc node này)
- * Chống nạp trùng bằng payment_logs/{orderCode}
+ * PayOS webhook — subscription only.
+ * The platform never settles ride fares here; this endpoint only activates a verified driver subscription.
  */
 import PayOS from '@payos/node';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const payos = new PayOS(
-    process.env.PAYOS_CLIENT_ID,
-    process.env.PAYOS_API_KEY,
-    process.env.PAYOS_CHECKSUM_KEY
-);
-
+const payos = new PayOS(process.env.PAYOS_CLIENT_ID, process.env.PAYOS_API_KEY, process.env.PAYOS_CHECKSUM_KEY);
 const FIREBASE_URL = 'https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const plans = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/subscription-plans.json'), 'utf8')).plans;
+const PLAN_BY_ID = new Map(plans.map((p) => [p.id, p]));
 
-// Khớp đúng 4 gói trong index.html
-const PLAN_DAYS = { 'TRIAL 7D': 7, 'LẺ': 1, 'PRO': 30, 'PROMAX': 90 };
+function addCalendarMonths(timestamp, months) {
+    const d = new Date(timestamp);
+    const originalDay = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(originalDay, lastDay));
+    return d.getTime();
+}
+
+async function claimPayment(orderCode, record) {
+    const url = `${FIREBASE_URL}/payment_logs/${encodeURIComponent(orderCode)}.json`;
+    const read = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+    if (!read.ok) throw new Error('Không đọc được payment log');
+    const etag = read.headers.get('etag');
+    const existing = await read.json();
+    if (existing) return false;
+
+    const put = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'if-match': etag || 'null' },
+        body: JSON.stringify({ ...record, status: 'processing' })
+    });
+    if (put.status === 412) return false;
+    if (!put.ok) throw new Error('Không claim được payment');
+    return true;
+}
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,75 +49,80 @@ export default async function handler(req, res) {
 
     try {
         const data = req.body;
-
-        // Test webhook cấu hình
         if (!data || data.description === 'Confirm Webhook' || data.desc === 'Confirm Webhook') {
             return res.status(200).json({ success: true, message: 'Webhook OK' });
         }
 
-        // 1. Xác thực chữ ký
-        const v = payos.verifyPaymentWebhookData(data);
-        if (!v) return res.status(400).json({ success: false, error: 'Sai chữ ký' });
-        if (v.code !== '00') return res.status(200).json({ success: true, message: 'Giao dịch không thành công' });
+        const verified = payos.verifyPaymentWebhookData(data);
+        if (!verified) return res.status(400).json({ success: false, error: 'Sai chữ ký' });
+        if (verified.code !== '00') return res.status(200).json({ success: true, message: 'Giao dịch không thành công' });
 
-        const orderCode = v.orderCode;
+        const orderCode = verified.orderCode;
+        const pendingRes = await fetch(`${FIREBASE_URL}/payment_pending/${encodeURIComponent(orderCode)}.json`);
+        const pending = pendingRes.ok ? await pendingRes.json() : null;
+        if (!pending?.uid || !pending?.plan) return res.status(400).json({ success: false, error: 'Không có giao dịch chờ hợp lệ' });
 
-        // 2. Chống nạp trùng
-        const logRes = await fetch(`${FIREBASE_URL}/payment_logs/${orderCode}.json`);
-        if (logRes.ok && (await logRes.json())) {
-            console.log(`[webhook] ⚠️ Trùng: ${orderCode} đã xử lý`);
-            return res.status(200).json({ success: true, message: 'Đã xử lý' });
+        const plan = PLAN_BY_ID.get(String(pending.plan).toUpperCase());
+        if (!plan || Number(verified.amount) !== Number(plan.amount) || Number(pending.amount) !== Number(plan.amount)) {
+            return res.status(400).json({ success: false, error: 'Số tiền/gói không khớp cấu hình' });
         }
 
-        // 3. Lấy uid + plan từ ánh xạ (ưu tiên) hoặc description (dự phòng)
-        let uid = null, plan = null;
-        const pend = await fetch(`${FIREBASE_URL}/payment_pending/${orderCode}.json`).then(r => r.json()).catch(() => null);
-        if (pend && pend.uid && pend.plan) {
-            uid = pend.uid; plan = pend.plan;
-        } else {
-            const parts = (v.description || '').trim().split(' ');
-            if (parts[0] === 'PROMAX' && parts.length >= 3) { uid = parts[1]; plan = parts.slice(2).join(' '); }
-        }
+        const claimed = await claimPayment(orderCode, {
+            uid: pending.uid,
+            plan: plan.id,
+            planName: plan.name,
+            amount: plan.amount,
+            at: Date.now()
+        });
+        if (!claimed) return res.status(200).json({ success: true, message: 'Đã xử lý' });
 
-        const days = PLAN_DAYS[plan] || 0;
-        if (!uid || !days) {
-            console.warn(`[webhook] ❌ Không xác định uid/plan: "${v.description}"`);
-            return res.status(200).json({ success: true, message: 'Bỏ qua' });
-        }
+        const now = Date.now();
+        const driverRes = await fetch(`${FIREBASE_URL}/drivers/${encodeURIComponent(pending.uid)}.json`);
+        const driver = driverRes.ok ? await driverRes.json() : null;
+        if (!driver) throw new Error('Tài xế không tồn tại');
 
-        // 4. Cộng dồn hạn từ drivers/{uid}
-        let base = Date.now();
-        try {
-            const d = await fetch(`${FIREBASE_URL}/drivers/${uid}.json`).then(r => r.json());
-            if (d && d.tp_expiry && parseInt(d.tp_expiry) > base) base = parseInt(d.tp_expiry);
-        } catch (e) {}
+        const currentExpiry = Number(driver.tp_expiry);
+        const base = currentExpiry > now ? currentExpiry : now;
+        const newExpiry = plan.duration_days
+            ? base + plan.duration_days * 24 * 60 * 60 * 1000
+            : addCalendarMonths(base, Number(plan.duration_months));
 
-        const newExpiry = base + days * 24 * 60 * 60 * 1000;
+        const subscription = {
+            driverId: pending.uid,
+            planId: plan.id,
+            planName: plan.name,
+            amount: plan.amount,
+            startAt: now,
+            previousExpiry: driver.tp_expiry || null,
+            expireAt: newExpiry,
+            status: 'ACTIVE',
+            paymentTransactionId: String(orderCode),
+            source: 'PAYOS_WEBHOOK'
+        };
 
-        // 5. Cập nhật ĐÚNG node mà index.html đọc
-        await fetch(`${FIREBASE_URL}/drivers/${uid}.json`, {
+        const patch = await fetch(`${FIREBASE_URL}/drivers/${encodeURIComponent(pending.uid)}.json`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tp_expiry: newExpiry,
-                active_plan: plan,
-                last_payment: { orderCode: orderCode, amount: v.amount, plan: plan, at: Date.now() }
-            })
+            body: JSON.stringify({ tp_expiry: newExpiry, active_plan: plan.id, last_payment: { orderCode, amount: plan.amount, plan: plan.id, at: now } })
         });
+        if (!patch.ok) throw new Error('Không cập nhật được thuê bao tài xế');
 
-        // 6. Ghi log chống trùng + xóa pending
-        await fetch(`${FIREBASE_URL}/payment_logs/${orderCode}.json`, {
+        const subWrite = await fetch(`${FIREBASE_URL}/subscriptions/${encodeURIComponent(pending.uid)}/${encodeURIComponent(orderCode)}.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid, plan, amount: v.amount, expiry: newExpiry, at: Date.now() })
+            body: JSON.stringify(subscription)
         });
-        await fetch(`${FIREBASE_URL}/payment_pending/${orderCode}.json`, { method: 'DELETE' });
+        if (!subWrite.ok) throw new Error('Không ghi được sổ thuê bao');
 
-        console.log(`[webhook] ✅ ${plan} +${days} ngày cho ${uid} → hạn ${new Date(newExpiry).toLocaleString('vi-VN')}`);
+        await fetch(`${FIREBASE_URL}/payment_logs/${encodeURIComponent(orderCode)}.json`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'paid', expiry: newExpiry, processedAt: now })
+        });
+        await fetch(`${FIREBASE_URL}/payment_pending/${encodeURIComponent(orderCode)}.json`, { method: 'DELETE' });
+
         return res.status(200).json({ success: true });
-
     } catch (e) {
-        console.error('[webhook] ❌', e.message);
-        return res.status(200).json({ success: false, error: e.message });
+        console.error('[webhook]', e.message);
+        return res.status(500).json({ success: false, error: e.message });
     }
 }
