@@ -13,6 +13,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const plans = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/subscription-plans.json'), 'utf8')).plans;
 const PLAN_BY_ID = new Map(plans.map((p) => [p.id, p]));
 
+function addCalendarMonths(timestamp, months) {
+    const d = new Date(timestamp);
+    const originalDay = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(originalDay, lastDay));
+    return d.getTime();
+}
+
 async function claimPayment(orderCode, record) {
     const url = `${FIREBASE_URL}/payment_logs/${encodeURIComponent(orderCode)}.json`;
     const read = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
@@ -50,9 +60,7 @@ export default async function handler(req, res) {
         const orderCode = verified.orderCode;
         const pendingRes = await fetch(`${FIREBASE_URL}/payment_pending/${encodeURIComponent(orderCode)}.json`);
         const pending = pendingRes.ok ? await pendingRes.json() : null;
-        if (!pending?.uid || !pending?.plan) {
-            return res.status(400).json({ success: false, error: 'Không có giao dịch chờ hợp lệ' });
-        }
+        if (!pending?.uid || !pending?.plan) return res.status(400).json({ success: false, error: 'Không có giao dịch chờ hợp lệ' });
 
         const plan = PLAN_BY_ID.get(String(pending.plan).toUpperCase());
         if (!plan || Number(verified.amount) !== Number(plan.amount) || Number(pending.amount) !== Number(plan.amount)) {
@@ -73,12 +81,11 @@ export default async function handler(req, res) {
         const driver = driverRes.ok ? await driverRes.json() : null;
         if (!driver) throw new Error('Tài xế không tồn tại');
 
-        let base = now;
-        if (Number(driver.tp_expiry) > now) base = Number(driver.tp_expiry);
-        const durationMs = plan.duration_days
-            ? plan.duration_days * 24 * 60 * 60 * 1000
-            : (plan.duration_months * 30 * 24 * 60 * 60 * 1000);
-        const newExpiry = base + durationMs;
+        const currentExpiry = Number(driver.tp_expiry);
+        const base = currentExpiry > now ? currentExpiry : now;
+        const newExpiry = plan.duration_days
+            ? base + plan.duration_days * 24 * 60 * 60 * 1000
+            : addCalendarMonths(base, Number(plan.duration_months));
 
         const subscription = {
             driverId: pending.uid,
@@ -96,11 +103,7 @@ export default async function handler(req, res) {
         const patch = await fetch(`${FIREBASE_URL}/drivers/${encodeURIComponent(pending.uid)}.json`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tp_expiry: newExpiry,
-                active_plan: plan.id,
-                last_payment: { orderCode, amount: plan.amount, plan: plan.id, at: now }
-            })
+            body: JSON.stringify({ tp_expiry: newExpiry, active_plan: plan.id, last_payment: { orderCode, amount: plan.amount, plan: plan.id, at: now } })
         });
         if (!patch.ok) throw new Error('Không cập nhật được thuê bao tài xế');
 
@@ -112,8 +115,7 @@ export default async function handler(req, res) {
         if (!subWrite.ok) throw new Error('Không ghi được sổ thuê bao');
 
         await fetch(`${FIREBASE_URL}/payment_logs/${encodeURIComponent(orderCode)}.json`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'paid', expiry: newExpiry, processedAt: now })
         });
         await fetch(`${FIREBASE_URL}/payment_pending/${encodeURIComponent(orderCode)}.json`, { method: 'DELETE' });
