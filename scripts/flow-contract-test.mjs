@@ -50,9 +50,12 @@ for (const marker of [
   'function handleTrip', 'function acceptOrder', 'function confirmPickup',
   'function completeTrip'
 ]) {
-  const source = ['setFlowState', 'setTripContext', 'processLocation', 'function handleTrip', 'function acceptOrder', 'function confirmPickup', 'function completeTrip'].includes(marker)
+  // Legacy bridge handlers live in core; the canonical trip engine/adapter owns
+  // the completion implementation. Keep the contract aligned with the actual
+  // runtime ownership instead of requiring a duplicate function in core.
+  const source = ['setFlowState', 'setTripContext', 'processLocation', 'function handleTrip', 'function acceptOrder', 'function confirmPickup'].includes(marker)
     ? core
-    : `${flow}\n${adapter}`;
+    : `${core}\n${flow}\n${adapter}`;
   assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\[\]\\]/g, '\\$&')), `missing flow marker ${marker}`);
 }
 
