@@ -56,7 +56,22 @@ for (const marker of [
   const source = ['setFlowState', 'setTripContext', 'processLocation', 'function handleTrip', 'function acceptOrder', 'function confirmPickup'].includes(marker)
     ? core
     : `${core}\n${flow}\n${adapter}`;
-  assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\[\]\\]/g, '\\$&')), `missing flow marker ${marker}`);
+
+  if (marker === 'function completeTrip') {
+    // TripEngine exposes completion as a class method (`completeTrip() { ... }`),
+    // while legacy adapters may expose a traditional `function completeTrip()`.
+    assert.match(
+      source,
+      /(?:function\s+completeTrip\s*\(|(?:^|\n)\s*completeTrip\s*\([^)]*\)\s*\{)/,
+      'missing flow marker completeTrip'
+    );
+  } else {
+    assert.match(
+      source,
+      new RegExp(marker.replace(/[.*+?^${}()|[\[\]\\]/g, '\\$&')),
+      `missing flow marker ${marker}`
+    );
+  }
 }
 
 // No secondary GPS patch may add fare distance outside the core state gate.
