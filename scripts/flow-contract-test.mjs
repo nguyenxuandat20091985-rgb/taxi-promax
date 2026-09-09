@@ -50,10 +50,28 @@ for (const marker of [
   'function handleTrip', 'function acceptOrder', 'function confirmPickup',
   'function completeTrip'
 ]) {
-  const source = ['setFlowState', 'setTripContext', 'processLocation', 'function handleTrip', 'function acceptOrder', 'function confirmPickup', 'function completeTrip'].includes(marker)
+  // Legacy bridge handlers live in core; the canonical trip engine/adapter owns
+  // the completion implementation. Keep the contract aligned with the actual
+  // runtime ownership instead of requiring a duplicate function in core.
+  const source = ['setFlowState', 'setTripContext', 'processLocation', 'function handleTrip', 'function acceptOrder', 'function confirmPickup'].includes(marker)
     ? core
-    : `${flow}\n${adapter}`;
-  assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\[\]\\]/g, '\\$&')), `missing flow marker ${marker}`);
+    : `${core}\n${flow}\n${adapter}`;
+
+  if (marker === 'function completeTrip') {
+    // TripEngine exposes completion as a class method (`completeTrip() { ... }`),
+    // while legacy adapters may expose a traditional `function completeTrip()`.
+    assert.match(
+      source,
+      /(?:function\s+completeTrip\s*\(|(?:^|\n)\s*completeTrip\s*\([^)]*\)\s*\{)/,
+      'missing flow marker completeTrip'
+    );
+  } else {
+    assert.match(
+      source,
+      new RegExp(marker.replace(/[.*+?^${}()|[\[\]\\]/g, '\\$&')),
+      `missing flow marker ${marker}`
+    );
+  }
 }
 
 // No secondary GPS patch may add fare distance outside the core state gate.
