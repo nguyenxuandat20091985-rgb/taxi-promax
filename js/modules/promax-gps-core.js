@@ -1,23 +1,25 @@
 /*
- * PROMAX GPS CORE v3.2 - Hybrid + Instant Last Known Location
- * Giống Grab / Xanh SM: mở app là hiện vị trí ngay, sau đó tinh chỉnh bằng GPS/Network
- * Single GPS owner duy nhất
+ * PROMAX GPS CORE v3.3
+ * - Xin quyền vị trí chuẩn (hỗ trợ Android "Cho phép mọi lúc")
+ * - Hiện vị trí cũ ngay lập tức
+ * - Hybrid mạnh: Cache → Network → GPS
+ * - Xử lý rõ ràng trạng thái "Đang xin quyền..."
  */
 (function (window) {
   'use strict';
 
-  const VERSION = '3.2-instant';
+  const VERSION = '3.3-permission';
   const CACHE_KEY = 'promax_last_gps_fix';
-  const GPS_WEAK_THRESHOLD = 100;      // > 100m coi là yếu → ưu tiên network
-  const MAX_ACCEPT_ACCURACY = 200;     // trên mức này không dùng để tính cước
-  const TELEPORT_MAX_SPEED = 160;      // km/h
-  const TELEPORT_MIN_TIME = 4;         // giây
+  const GPS_WEAK_THRESHOLD = 100;
+  const TELEPORT_MAX_SPEED = 160;
+  const TELEPORT_MIN_TIME = 4;
 
   let watchId = null;
   let lastFix = null;
   let buffer = [];
   let listeners = [];
   let isRunning = false;
+  let permissionStatus = 'unknown'; // unknown | prompting | granted | denied
 
   // ========== Utility ==========
   function haversine(lat1, lng1, lat2, lng2) {
@@ -42,11 +44,7 @@
       sumLng += p.lng * w;
       totalWeight += w;
     });
-    return {
-      lat: sumLat / totalWeight,
-      lng: sumLng / totalWeight,
-      acc
-    };
+    return { lat: sumLat / totalWeight, lng: sumLng / totalWeight, acc };
   }
 
   function isTeleport(lat, lng, ts) {
@@ -77,41 +75,34 @@
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return null;
-      // Chỉ dùng cache nếu còn mới (< 30 phút)
-      if (Date.now() - data.ts > 30 * 60 * 1000) return null;
+      if (Date.now() - data.ts > 45 * 60 * 1000) return null; // 45 phút
       return data;
     } catch (e) {
       return null;
     }
   }
 
-  function updateStatusUI(fix) {
+  function updateStatusUI(text, color = '#3b82f6') {
     const el = document.getElementById('gpsStatusText');
     const dot = document.getElementById('gpsDot');
-    if (!el) return;
-
-    let text = '';
-    let color = '#22c55e';
-
-    if (fix.source === 'cache') {
-      text = `GPS: Vị trí gần nhất (±${Math.round(fix.accuracy || 50)}m)`;
-      color = '#3b82f6';
-    } else if (fix.accuracy <= 40) {
-      text = `GPS tốt (±${Math.round(fix.accuracy)}m)`;
-      color = '#22c55e';
-    } else if (fix.accuracy <= GPS_WEAK_THRESHOLD) {
-      text = `GPS trung bình (±${Math.round(fix.accuracy)}m)`;
-      color = '#eab308';
-    } else {
-      text = `GPS yếu – dùng sóng mạng (±${Math.round(fix.accuracy)}m)`;
-      color = '#ef4444';
-    }
-
-    el.textContent = text;
+    if (el) el.textContent = text;
     if (dot) dot.style.background = color;
   }
 
-  // ========== Core logic ==========
+  function setStatusFromFix(fix) {
+    if (!fix) return;
+    if (fix.source === 'cache') {
+      updateStatusUI(`GPS: Vị trí gần nhất (±${Math.round(fix.accuracy || 50)}m)`, '#3b82f6');
+    } else if (fix.accuracy <= 40) {
+      updateStatusUI(`GPS tốt (±${Math.round(fix.accuracy)}m)`, '#22c55e');
+    } else if (fix.accuracy <= GPS_WEAK_THRESHOLD) {
+      updateStatusUI(`GPS trung bình (±${Math.round(fix.accuracy)}m)`, '#eab308');
+    } else {
+      updateStatusUI(`GPS yếu – dùng sóng mạng (±${Math.round(fix.accuracy)}m)`, '#ef4444');
+    }
+  }
+
+  // ========== Core ==========
   function emit(fix) {
     listeners.forEach(fn => {
       try { fn(fix); } catch (e) {}
@@ -130,22 +121,21 @@
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     if (isTeleport(lat, lng, ts)) {
-      console.warn('🚫 Teleport blocked', { lat, lng, source });
+      console.warn('🚫 Teleport blocked');
       return;
     }
 
     const smoothed = smooth(lat, lng, acc);
-
     const fix = {
       lat: smoothed.lat,
       lng: smoothed.lng,
       accuracy: smoothed.acc,
       acc: smoothed.acc,
-      speed: speed,
+      speed,
       speedKmh: speed,
-      heading: heading,
+      heading,
       timestamp: ts,
-      ts: ts,
+      ts,
       source: source || 'gps',
       raw: position
     };
@@ -153,23 +143,65 @@
     lastFix = fix;
     saveToCache(fix);
     emit(fix);
-    updateStatusUI(fix);
+    setStatusFromFix(fix);
+  }
+
+  // ========== Xin quyền chuẩn ==========
+  async function requestPermission() {
+    updateStatusUI('GPS: Đang xin quyền...', '#f59e0b');
+    permissionStatus = 'prompting';
+
+    // Thử Permissions API trước (Chrome/Android mới)
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        if (result.state === 'granted') {
+          permissionStatus = 'granted';
+          return true;
+        }
+        if (result.state === 'denied') {
+          permissionStatus = 'denied';
+          updateStatusUI('GPS: Bị từ chối quyền – Vào Cài đặt cấp quyền', '#ef4444');
+          return false;
+        }
+      } catch (e) {}
+    }
+
+    // Fallback: gọi getCurrentPosition để kích hoạt hộp thoại xin quyền
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          permissionStatus = 'granted';
+          resolve(true);
+        },
+        (err) => {
+          permissionStatus = 'denied';
+          if (err.code === 1) {
+            updateStatusUI('GPS: Bị từ chối quyền – Vào Cài đặt cấp quyền', '#ef4444');
+          } else {
+            updateStatusUI('GPS: Lỗi lấy vị trí', '#ef4444');
+          }
+          resolve(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
   }
 
   // ========== Public API ==========
   const Core = {
     version: VERSION,
 
-    start() {
+    async start() {
       if (isRunning) return;
       if (!navigator.geolocation) {
-        console.error('Geolocation not supported');
+        updateStatusUI('GPS: Thiết bị không hỗ trợ', '#ef4444');
         return;
       }
 
       isRunning = true;
 
-      // 1. Hiện vị trí cũ ngay lập tức (giống Grab / Xanh SM)
+      // 1. Hiện vị trí cũ ngay
       const cached = loadFromCache();
       if (cached) {
         lastFix = {
@@ -183,11 +215,17 @@
           source: 'cache'
         };
         emit(lastFix);
-        updateStatusUI(lastFix);
-        console.log('📍 Hiện vị trí cũ ngay lập tức');
+        setStatusFromFix(lastFix);
       }
 
-      // 2. Bắt đầu watch hybrid
+      // 2. Xin quyền
+      const granted = await requestPermission();
+      if (!granted) {
+        isRunning = false;
+        return;
+      }
+
+      // 3. Bắt đầu hybrid watch
       const highOptions = {
         enableHighAccuracy: true,
         timeout: 20000,
@@ -197,7 +235,7 @@
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           if (pos.coords.accuracy > GPS_WEAK_THRESHOLD) {
-            // GPS yếu → lấy network
+            // GPS yếu → lấy Network
             navigator.geolocation.getCurrentPosition(
               (netPos) => {
                 const best = (netPos.coords.accuracy < pos.coords.accuracy) ? netPos : pos;
@@ -211,18 +249,18 @@
           }
         },
         (err) => {
-          console.warn('GPS error', err);
+          console.warn('Watch error', err);
           // Fallback network
           navigator.geolocation.getCurrentPosition(
             (pos) => processRaw(pos, 'network'),
-            () => {},
+            () => updateStatusUI('GPS: Mất tín hiệu', '#ef4444'),
             { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
           );
         },
         highOptions
       );
 
-      console.log(`🛰️ PromaxGPSCore ${VERSION} started (Instant + Hybrid)`);
+      console.log(`🛰️ PromaxGPSCore ${VERSION} started`);
     },
 
     stop() {
@@ -232,16 +270,12 @@
       }
       isRunning = false;
       buffer = [];
-      console.log('🛰️ PromaxGPSCore stopped');
     },
 
     onFix(callback) {
       if (typeof callback !== 'function') return () => {};
       listeners.push(callback);
-      // Gửi lastFix ngay nếu có
-      if (lastFix) {
-        setTimeout(() => callback(lastFix), 0);
-      }
+      if (lastFix) setTimeout(() => callback(lastFix), 0);
       return () => {
         listeners = listeners.filter(fn => fn !== callback);
       };
@@ -253,16 +287,14 @@
 
     forceRefresh() {
       this.stop();
-      setTimeout(() => this.start(), 300);
+      setTimeout(() => this.start(), 400);
     },
 
-    // Cho background gọi vào
     processBackgroundLocation(pos) {
       processRaw(pos, 'background');
     }
   };
 
-  // Expose
   window.PromaxGPSCore = Core;
 
   // Tự start
