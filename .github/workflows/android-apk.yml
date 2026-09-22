@@ -36,6 +36,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "tools platform-tools platforms;android-34 build-tools;34.0.0"
+
+      - name: Accept Android licenses
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          sdkmanager --list_installed | head -40 || true
+
       - name: Install dependencies
         run: npm install
 
@@ -50,13 +62,34 @@ jobs:
           rm -rf www
           mkdir -p www
           cp index.html khachhang.html xeghep.html admin.html manifest.json sw.js autonomous-client.js www/
-          cp -R css js assets www/
+          cp -R css js www/
+          # Copy assets but skip broken filenames (e.g. logo.svg with newline)
+          mkdir -p www/assets
+          if [ -d assets ]; then
+            find assets -type f -print0 | while IFS= read -r -d '' f; do
+              base=$(basename "$f")
+              case "$base" in
+                *$'\n'*|*$'\r'*) echo "Skip bad asset name: $f" ;;
+                *)
+                  rel=${f#assets/}
+                  mkdir -p "www/assets/$(dirname "$rel")"
+                  cp "$f" "www/assets/$rel" || true
+                  ;;
+              esac
+            done
+          fi
 
       - name: Add Android platform
-        run: cordova platform add android@12.0.1 --no-interactive
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          cordova platform add android@12.0.1 --no-interactive
 
       - name: Build debug APK
-        run: cordova build android --debug --no-interactive
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          cordova build android --debug --no-interactive
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
