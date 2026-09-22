@@ -3,15 +3,12 @@
  * Gộp ưu điểm: Network First + Cache CDN + Push + Background Sync
  * Phát triển bởi: NGUYỄN XUÂN ĐẠT
  *
- * [2026-08-29] Bump CACHE_NAME để đẩy bản trip-engine có nút kết thúc chuyến
+ * [2026-09-22] Bump CACHE_NAME — ép tải 17-unify PayOS fix
  */
 
-// ★ Bump version — buộc xóa cache cũ, nạp JS mới (trip-engine-v4 fix endTripBtn)
-const CACHE_NAME = 'taxi-promax-v8-20260829-endtrip';
+const CACHE_NAME = 'taxi-promax-v9-20260922-payos';
 
-// Danh sách tài nguyên cần cache
 const ASSETS_TO_CACHE = [
-    // ===== 4 APP CHÍNH =====
     './',
     './index.html',
     './khachhang.html',
@@ -21,35 +18,21 @@ const ASSETS_TO_CACHE = [
     '/xeghep',
     '/admin',
     './manifest.json',
-
-    // ===== TAXI PROMAX UI v6 =====
     './css/promax-v6-ui.css?v=20260826-2',
     './js/modules/promax-map-ui.js',
     './js/modules/promax-care-ai.js',
-
-    // ===== TRIP ENGINE (nút kết thúc chuyến) =====
     './js/modules/trip-engine-v4.js',
     './js/init-trip.js',
-
-    // ===== FIREBASE SDK =====
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',
-
-    // ===== LEAFLET MAP =====
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-
-    // ===== FONT AWESOME =====
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
 ];
 
-// ============================================================
-// 1. INSTALL
-// ============================================================
 self.addEventListener('install', (event) => {
     console.log('[SW v4.1] Đang cài đặt...', CACHE_NAME);
     self.skipWaiting();
-
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             return Promise.all(
@@ -63,9 +46,6 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// ============================================================
-// 2. ACTIVATE — Xóa cache cũ
-// ============================================================
 self.addEventListener('activate', (event) => {
     console.log('[SW v4.1] Đang kích hoạt...', CACHE_NAME);
     event.waitUntil(
@@ -80,105 +60,86 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// ============================================================
-// 3. FETCH — Network First, Cache Fallback
-// ============================================================
 self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
+    // API / realtime / payment — luôn network, không cache
     if (
         url.includes('/api/') ||
         url.includes('firebasedatabase.app') ||
-        url.includes('payos.vn') ||
-        url.includes('img.vietqr.io') ||
+        url.includes('payos') ||
         url.includes('api.qrserver.com') ||
-        url.includes('nominatim.openstreetmap') ||
         url.includes('overpass-api.de') ||
-        url.includes('open-meteo.com') ||
-        event.request.method !== 'GET'
+        url.includes('open-meteo') ||
+        url.includes('nominatim') ||
+        url.includes('project-osrm')
     ) {
+        event.respondWith(
+            fetch(event.request, { cache: 'no-store' }).catch(() =>
+                new Response(JSON.stringify({ error: 'offline' }), {
+                    status: 503,
+                    headers: { 'Content-Type': 'application/json' }
+                })
+            )
+        );
         return;
     }
 
+    // JS driver (PayOS fix) — network first
+    if (url.includes('/js/driver/') || url.includes('17-unify')) {
+        event.respondWith(
+            fetch(event.request, { cache: 'no-store' })
+                .then((networkResponse) => {
+                    if (networkResponse && networkResponse.status === 200) {
+                        const clone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(c => c.put(event.request, clone)).catch(() => {});
+                    }
+                    return networkResponse;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // Default: network first, fallback cache
     event.respondWith(
         fetch(event.request, { cache: 'no-store' })
             .then((networkResponse) => {
                 if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
                     const clone = networkResponse.clone();
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(event.request, clone);
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, clone).catch(() => {});
                     });
                 }
                 return networkResponse;
             })
-            .catch(() => {
-                return caches.match(event.request).then((cached) => {
-                    if (cached) {
-                        console.log('[SW v4.1] Offline → cache:', url);
-                        return cached;
-                    }
-                    if (event.request.mode === 'navigate') {
-                        const path = new URL(event.request.url).pathname;
-                        const fallback =
-                            path === '/khachhang' ? '/khachhang.html' :
-                            path === '/xeghep' ? '/xeghep.html' :
-                            path === '/admin' ? '/admin.html' :
-                            './index.html';
-                        return caches.match(fallback).then(page => page || caches.match('./index.html'));
-                    }
-                    return new Response('', { status: 503 });
-                });
-            })
+            .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
     );
 });
 
-// ============================================================
-// 4. BACKGROUND SYNC
-// ============================================================
-self.addEventListener('sync', (event) => {
-    if (event.tag === 'sync-pending-trips') {
-        console.log('[SW v4.1] Background sync...');
-        self.clients.matchAll().then(clients => {
-            clients.forEach(client => {
-                client.postMessage({ type: 'SYNC_PENDING_TRIPS' });
-            });
-        });
-    }
-});
-
-// ============================================================
-// 5. PUSH NOTIFICATION
-// ============================================================
 self.addEventListener('push', (event) => {
-    if (!event.data) return;
+    let data = { title: 'Taxi ProMax', body: 'Có thông báo mới' };
     try {
-        const data = event.data.json();
-        event.waitUntil(
-            self.registration.showNotification(data.title || 'TAXI PROMAX', {
-                body:    data.body || 'Có thông báo mới',
-                icon:    data.icon || './manifest.json',
-                badge:   './manifest.json',
-                vibrate: [300, 100, 300],
-                data:    { url: data.url || './' },
-                actions: data.actions || []
-            })
-        );
-    } catch (err) {
-        console.error('[SW v4.1] Push error:', err);
-    }
+        if (event.data) data = { ...data, ...event.data.json() };
+    } catch (e) {}
+    event.waitUntil(
+        self.registration.showNotification(data.title || 'Taxi ProMax', {
+            body: data.body || '',
+            icon: './assets/logo.svg',
+            badge: './assets/logo.svg',
+            data: data.data || {}
+        })
+    );
 });
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const targetUrl = (event.notification.data && event.notification.data.url) || './';
     event.waitUntil(
-        self.clients.matchAll({ type: 'window' }).then(clients => {
-            for (const client of clients) {
-                if (client.url.includes(targetUrl) && 'focus' in client) {
-                    return client.focus();
-                }
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const c of clientList) {
+                if ('focus' in c) return c.focus();
             }
-            return self.clients.openWindow ? self.clients.openWindow(targetUrl) : null;
+            if (clients.openWindow) return clients.openWindow('./');
         })
     );
 });
