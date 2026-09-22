@@ -1,11 +1,9 @@
 /**
- * api/create-payment.js — Tạo link PayOS
- * Firebase rules có thể chặn payment_pending → không fail vì thế.
- * Mapping uid/plan: returnUrl query + cố ghi pending (best-effort).
+ * api/create-payment.js — Tạo link PayOS + lưu pending (nếu có FIREBASE_DATABASE_SECRET)
  */
 import PayOS from '@payos/node';
+import { fbPut, hasFirebaseSecret } from '../lib/firebase-rest.js';
 
-const FIREBASE_URL = 'https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app';
 const APP_URL = 'https://taxi-promax.vercel.app';
 
 const PLAN_ALIASES = {
@@ -58,23 +56,14 @@ export default async function handler(req, res) {
     const orderCode = Date.now();
     const amountInt = Math.round(amount);
 
-    // Best-effort pending (rules có thể deny — không chặn tạo link)
     let pendingOk = false;
-    try {
-      const pendRes = await fetch(FIREBASE_URL + '/payment_pending/' + orderCode + '.json', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid, plan, amount: amountInt, createdAt: Date.now(), status: 'pending' })
-      });
-      if (pendRes.ok) {
-        const t = await pendRes.text();
-        if (t && !t.includes('Permission denied') && !t.includes('"error"')) pendingOk = true;
-      }
-    } catch (e) {
-      console.warn('[create-payment] pending skip', e.message);
+    const pending = { uid, plan, amount: amountInt, createdAt: Date.now(), status: 'pending' };
+    const put = await fbPut('/payment_pending/' + orderCode, pending);
+    pendingOk = put.ok;
+    if (!pendingOk) {
+      console.warn('[create-payment] pending denied — set FIREBASE_DATABASE_SECRET on Vercel');
     }
 
-    // returnUrl mang uid + plan để client / webhook fallback
     const q = new URLSearchParams({
       status: 'success',
       oc: String(orderCode),
@@ -83,8 +72,6 @@ export default async function handler(req, res) {
     });
     const returnUrl = APP_URL + '/?' + q.toString();
     const cancelUrl = APP_URL + '/?status=cancel';
-
-    // description ≤ 25 ký tự (PayOS)
     const description = ('PMX' + String(orderCode).slice(-10)).slice(0, 25);
 
     const link = await payos.createPaymentLink({
@@ -105,7 +92,8 @@ export default async function handler(req, res) {
       orderCode,
       plan,
       amount: amountInt,
-      pendingOk
+      pendingOk,
+      hasSecret: hasFirebaseSecret()
     });
   } catch (e) {
     console.error('[create-payment]', e);
