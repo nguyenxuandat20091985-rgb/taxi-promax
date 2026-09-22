@@ -1,10 +1,12 @@
 /**
- * api/create-payment.js — Tạo link thanh toán PayOS
- * Body: { amount, plan|planName, driverUid }
+ * api/create-payment.js — Tạo link PayOS
+ * Firebase rules có thể chặn payment_pending → không fail vì thế.
+ * Mapping uid/plan: returnUrl query + cố ghi pending (best-effort).
  */
 import PayOS from '@payos/node';
 
 const FIREBASE_URL = 'https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app';
+const APP_URL = 'https://taxi-promax.vercel.app';
 
 const PLAN_ALIASES = {
   'LẺ': 'LẺ', 'LE': 'LẺ', 'CHUYEN LE': 'LẺ', 'CHUYẾN LẺ': 'LẺ',
@@ -41,7 +43,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'So tien sai' });
     }
     if (!uid || uid.length > 120) {
-      return res.status(400).json({ success: false, error: 'Thieu driverUid' });
+      return res.status(400).json({ success: false, error: 'Thieu driverUid — vui lòng đăng nhập lại' });
     }
     if (plan === 'TRIAL 7D') {
       return res.status(400).json({ success: false, error: 'Goi trial khong dung PayOS' });
@@ -56,30 +58,54 @@ export default async function handler(req, res) {
     const orderCode = Date.now();
     const amountInt = Math.round(amount);
 
-    const pendRes = await fetch(FIREBASE_URL + '/payment_pending/' + orderCode + '.json', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, plan, amount: amountInt, createdAt: Date.now(), status: 'pending' })
-    });
-    if (!pendRes.ok) {
-      return res.status(502).json({ success: false, error: 'Khong luu duoc payment_pending' });
+    // Best-effort pending (rules có thể deny — không chặn tạo link)
+    let pendingOk = false;
+    try {
+      const pendRes = await fetch(FIREBASE_URL + '/payment_pending/' + orderCode + '.json', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, plan, amount: amountInt, createdAt: Date.now(), status: 'pending' })
+      });
+      if (pendRes.ok) {
+        const t = await pendRes.text();
+        if (t && !t.includes('Permission denied') && !t.includes('"error"')) pendingOk = true;
+      }
+    } catch (e) {
+      console.warn('[create-payment] pending skip', e.message);
     }
 
-    const description = ('PMX ' + String(orderCode)).slice(0, 25);
+    // returnUrl mang uid + plan để client / webhook fallback
+    const q = new URLSearchParams({
+      status: 'success',
+      oc: String(orderCode),
+      plan: plan,
+      uid: uid
+    });
+    const returnUrl = APP_URL + '/?' + q.toString();
+    const cancelUrl = APP_URL + '/?status=cancel';
+
+    // description ≤ 25 ký tự (PayOS)
+    const description = ('PMX' + String(orderCode).slice(-10)).slice(0, 25);
+
     const link = await payos.createPaymentLink({
       orderCode,
       amount: amountInt,
       description,
-      returnUrl: 'https://taxi-promax.vercel.app/?status=success',
-      cancelUrl: 'https://taxi-promax.vercel.app/?status=cancel'
+      returnUrl,
+      cancelUrl
     });
+
+    if (!link || !link.checkoutUrl) {
+      return res.status(502).json({ success: false, error: 'PayOS khong tra checkoutUrl' });
+    }
 
     return res.status(200).json({
       success: true,
       checkoutUrl: link.checkoutUrl,
       orderCode,
       plan,
-      amount: amountInt
+      amount: amountInt,
+      pendingOk
     });
   } catch (e) {
     console.error('[create-payment]', e);
