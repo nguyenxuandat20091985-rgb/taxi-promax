@@ -1,7 +1,7 @@
 # Firebase Authentication Migration — Taxi ProMax
 
 **Cập nhật: 22/09/2026**  
-**Mục tiêu:** Chuyển từ custom passwordHash + localStorage sang Firebase Authentication + Custom Claims để có thể áp dụng Security Rules an toàn.
+**Mục tiêu:** Chuyển từ custom passwordHash + localStorage sang Firebase Authentication + Custom Claims để áp dụng Security Rules an toàn.
 
 ---
 
@@ -23,7 +23,7 @@ Luôn backup rules hiện tại trước khi áp dụng rules mới.
 | 3 | Gắn Custom Claims (`driverId`, `customerId`, `admin`) qua Admin SDK | Token chứa claim đúng role |
 | 4 | Migration dữ liệu cũ | Profile giữ `authUid`, ngừng dùng passwordHash để login |
 | 5 | Đổi frontend sang Firebase Auth | Không còn quét toàn bộ `drivers`/`customers` để check mật khẩu |
-| 6 | Chuyển admin sang Auth + claim `admin` | Không còn hard-code ADMIN_PHONE / password trong HTML hoặc API default |
+| 6 | Chuyển admin sang Auth + claim `admin` / session an toàn | Env `ADMIN_*` đã set; không hard-code credential |
 | 7 | Test staging đầy đủ | Login, đặt xe, nhận chuyến, chat, SOS, KYC, thanh toán pass |
 | 8 | Backup + áp dụng Rules | Có file rollback + người trực sự cố |
 
@@ -31,16 +31,16 @@ Luôn backup rules hiện tại trước khi áp dụng rules mới.
 
 ## Bước 1 — Bật Firebase Authentication
 
-1. Vào Firebase Console → Authentication → Sign-in method.
+1. Firebase Console → Authentication → Sign-in method.
 2. Bật **Phone** và **Email/Password**.
-3. Thêm authorized domains: `taxi-promax.vercel.app`, `localhost`.
-4. (Khuyến nghị) Bật App Check sau này.
+3. Authorized domains: `taxi-promax.vercel.app`, `localhost`.
+4. (Khuyến nghị) App Check sau.
 
 ---
 
-## Bước 2 & 3 — Tạo user + Custom Claims
+## Bước 2 & 3 — User + Custom Claims
 
-Custom Claims dùng trong Rules:
+Claims dùng trong Rules:
 
 ```js
 auth.token.admin === true
@@ -48,71 +48,75 @@ auth.token.driverId === "DRV_XXXX"
 auth.token.customerId === "KH_XXXX"
 ```
 
-### Helper backend (Vercel / Node)
-
-Tạo file `api/set-claims.js` (chỉ admin gọi được) — đã có trong gói này.
-
-**Lưu ý:** Cần set biến môi trường `FIREBASE_SERVICE_ACCOUNT_JSON` (toàn bộ service account JSON) trên Vercel.
+- API: `api/set-claims.js` (cần admin session + `FIREBASE_SERVICE_ACCOUNT_JSON`).
+- Khi live: `npm install firebase-admin --save`.
+- Hoặc chạy migration script (bước 4).
 
 ---
 
 ## Bước 4 — Migration dữ liệu cũ
 
-Dùng script `scripts/migrate-auth-users.mjs` (có chế độ `--dry-run`).
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=./service-account.json
+export FIREBASE_DB_URL=https://taxipromax-new-default-rtdb.asia-southeast1.firebasedatabase.app
+node scripts/migrate-auth-users.mjs --dry-run
+node scripts/migrate-auth-users.mjs
+```
 
 ---
 
-## Bước 5 — Frontend chuyển sang Firebase Auth
+## Bước 5 — Frontend Firebase Auth
 
-Dùng module `js/auth-firebase-helper.js` đã cung cấp.
-
----
-
-## Bước 6 — Admin
-
-- Dùng `api/admin-login.patched.js` (đã loại bỏ hard-code credential).
-- Set claim `{ admin: true }` cho user admin.
-- Mọi thao tác admin phải ghi `audit_logs`.
+1. Load Firebase Auth SDK (compat hoặc modular).
+2. Dùng `js/auth-firebase-helper.js` → `window.PromaxAuth`.
+3. Thay logic login hiện tại bằng `loginWithPhone` + `confirmOtp`.
+4. Sau login: `getIdToken(true)` và gắn Authorization header nếu gọi API cần.
 
 ---
 
-## Bước 7 — Test staging
+## Bước 6 — Admin an toàn
 
-Checklist tối thiểu:
+1. `api/admin-login.js` **đã không hard-code** credential.
+2. Set env theo `docs/ENV_CHECKLIST.md`.
+3. Tạo hash: `node scripts/hash-admin-password.mjs "matkhau"`.
+4. Gắn claim `{ admin: true }` cho user admin (set-claims hoặc Console).
+5. Ghi audit: `js/audit-log-helper.js` → `PromaxAudit.write(...)`.
+
+---
+
+## Bước 7 — Test staging (checklist)
 
 - [ ] Đăng ký / đăng nhập tài xế (Phone Auth)
 - [ ] Đăng ký / đăng nhập khách
-- [ ] Đặt xe → tài xế nhận (transaction chống trùng)
+- [ ] Đặt xe → tài xế nhận
 - [ ] Chat 2 chiều
-- [ ] SOS (tài xế + khách) + admin xem được
-- [ ] KYC upload + admin duyệt
-- [ ] Thanh toán gói + admin duyệt
-- [ ] Xe ghép đăng chuyến + đặt ghế
-- [ ] Rules: user A không đọc được profile / chat / SOS của user B
+- [ ] SOS + admin xem được
+- [ ] KYC + admin duyệt
+- [ ] Thanh toán gói
+- [ ] Xe ghép
+- [ ] Rules: user A không đọc profile/chat/SOS của user B
 
 ---
 
 ## Bước 8 — Deploy Rules
 
-1. Backup rules hiện tại (export từ Firebase Console).
-2. Copy nội dung `database.rules.migration.json` vào Firebase Console → Realtime Database → Rules.
-3. Publish.
-4. Theo dõi log lỗi 1–2 giờ đầu.
-5. Có file rollback sẵn.
+1. Backup rules hiện tại.
+2. Publish nội dung `database.rules.migration.json`.
+3. Theo dõi lỗi 1–2 giờ.
+4. Giữ file rollback.
 
 ---
 
-## Cải tiến so với bản rules cũ
+## Cải tiến Rules
 
-| Hạng mục | Trước | Sau (file mới) |
-|----------|-------|----------------|
-| Chat | `auth != null` (ai cũng đọc) | Chỉ participant của order/booking |
-| SOS / Emergencies | Admin only read, write rộng | Owner + admin |
-| passwordHash | Đọc được bởi owner | Chỉ admin đọc |
-| Validation | Ít | Thêm hasChildren + type check |
-| audit_logs | Không có | Node riêng cho admin |
-| trips | Không có | Owner + admin |
+| Hạng mục | Trước | Sau |
+|----------|-------|-----|
+| Chat | Mở rộng | Chỉ participant + admin |
+| SOS / Emergencies | Rộng | Owner + admin |
+| passwordHash | Owner đọc được | Chỉ admin đọc |
+| audit_logs | Không | Có (admin only) |
+| Default | Mở | Deny-by-default |
 
 ---
 
-*Tài liệu này thay thế bản AUTH_MIGRATION.md cũ. Cập nhật lần cuối: 22/09/2026*
+*Cập nhật lần cuối: 22/09/2026 — gói P0+P1 hoàn tất trên branch feat/auth-migration-rules*
