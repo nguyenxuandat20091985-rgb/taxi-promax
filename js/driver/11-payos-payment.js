@@ -1,109 +1,101 @@
-// Extracted from index.html; load order is intentionally preserved.
-(function() {
-    'use strict';
+// PayOS payment — load trước 13-payos-connect-v2 (13 sẽ override handlePayment)
+// Giữ file để tương thích; payload chuẩn: plan là STRING key (LẺ|PRO|PROMAX)
+(function () {
+  'use strict';
 
-    // Override hàm handlePayment cũ
-    const originalHandlePayment = window.handlePayment;
-    
-    window.handlePayment = async function(amount, plan) {
-        // Trial plan - dùng logic cũ
-        if (amount === 0) {
-            if (originalHandlePayment) {
-                return originalHandlePayment(amount, plan);
-            }
-            return;
-        }
+  function planKey(plan) {
+    if (plan == null) return 'PRO';
+    if (typeof plan === 'object') return String(plan.key || plan.name || plan.plan || 'PRO');
+    return String(plan);
+  }
 
-        // Paid plan - dùng PayOS
-        if (!window.driverInfo || !driverInfo.uid) {
-            showToast('⚠️ Vui lòng đăng nhập trước khi thanh toán');
-            return;
-        }
+  var originalHandlePayment = window.handlePayment;
 
-        const btn = document.getElementById('mainBtn');
-        const originalText = btn ? btn.innerText : '';
-        
+  window.handlePayment = async function (amount, plan) {
+    if (amount === 0) {
+      if (originalHandlePayment) return originalHandlePayment(amount, plan);
+      return;
+    }
+
+    if (!window.driverInfo || !driverInfo.uid) {
+      if (typeof showToast === 'function') showToast('⚠️ Vui lòng đăng nhập trước khi thanh toán');
+      return;
+    }
+
+    var btn = document.getElementById('mainBtn');
+    var originalText = btn ? btn.innerText : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '⏳ ĐANG TẠO THANH TOÁN...';
+    }
+
+    var key = planKey(plan);
+
+    try {
+      var response = await fetch('/api/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amount,
+          plan: key,
+          planName: key,
+          driverUid: driverInfo.uid,
+          driverPhone: driverInfo.phone
+        })
+      });
+
+      var data = await response.json();
+
+      if (data.success && data.checkoutUrl) {
+        localStorage.setItem('pending_plan', key);
+        localStorage.setItem('pending_uid', driverInfo.uid);
+        localStorage.setItem('pending_order', String(data.orderCode));
+        window.location.href = data.checkoutUrl;
+      } else {
         if (btn) {
-            btn.disabled = true;
-            btn.innerText = '⏳ ĐANG TẠO THANH TOÁN...';
+          btn.disabled = false;
+          btn.innerText = originalText;
         }
-
-        try {
-            const response = await fetch('/api/create-payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: amount,
-                    planName: plan.name,
-                    driverUid: driverInfo.uid,
-                    driverPhone: driverInfo.phone
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success && data.checkoutUrl) {
-                // Lưu thông tin để xử lý khi quay về
-                localStorage.setItem('pending_plan', plan.name);
-                localStorage.setItem('pending_uid', driverInfo.uid);
-                localStorage.setItem('pending_order', data.orderCode);
-                
-                // Redirect đến PayOS checkout
-                window.location.href = data.checkoutUrl;
-            } else {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerText = originalText;
-                }
-                showToast('❌ Lỗi: ' + (data.error || 'Không thể tạo thanh toán'));
-            }
-
-        } catch (error) {
-            console.error('[PayOS] Error:', error);
-            if (btn) {
-                btn.disabled = false;
-                btn.innerText = originalText;
-            }
-            showToast('❌ Không thể kết nối máy chủ thanh toán');
+        if (typeof showToast === 'function') {
+          showToast('❌ Lỗi: ' + (data.error || 'Không thể tạo thanh toán'));
         }
-    };
-
-    // Xử lý callback từ PayOS
-    function checkPaymentCallback() {
-        const params = new URLSearchParams(window.location.search);
-        const status = params.get('status');
-        const plan = params.get('plan');
-        const uid = params.get('uid');
-
-        if (status === 'success' && plan && uid) {
-            // Xóa params khỏi URL
-            window.history.replaceState({}, '', window.location.pathname);
-            
-            // Hiển thị thông báo thành công
-            showToast('✅ Thanh toán thành công! Đang kích hoạt gói...');
-            
-            // Reload sau 2 giây để cập nhật UI
-            setTimeout(() => {
-                location.reload();
-            }, 2000);
-
-        } else if (status === 'cancel') {
-            window.history.replaceState({}, '', window.location.pathname);
-            showToast('❌ Thanh toán đã bị hủy');
-            
-            // Xóa pending data
-            localStorage.removeItem('pending_plan');
-            localStorage.removeItem('pending_uid');
-            localStorage.removeItem('pending_order');
-        }
+      }
+    } catch (error) {
+      console.error('[PayOS] Error:', error);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = originalText;
+      }
+      if (typeof showToast === 'function') showToast('❌ Không thể kết nối máy chủ thanh toán');
     }
+  };
 
-    // Check callback khi page load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', checkPaymentCallback);
-    } else {
-        checkPaymentCallback();
+  function checkPaymentCallback() {
+    var params = new URLSearchParams(window.location.search);
+    var status = params.get('status');
+
+    if (status === 'success') {
+      window.history.replaceState({}, '', window.location.pathname);
+      if (typeof showToast === 'function') {
+        showToast('✅ Thanh toán thành công! Đang kích hoạt gói...');
+      }
+      setTimeout(function () {
+        location.reload();
+      }, 2000);
+    } else if (status === 'cancel') {
+      window.history.replaceState({}, '', window.location.pathname);
+      if (typeof showToast === 'function') showToast('❌ Thanh toán đã bị hủy');
+      localStorage.removeItem('pending_plan');
+      localStorage.removeItem('pending_uid');
+      localStorage.removeItem('pending_order');
     }
+  }
 
-    console.log('✅ PayOS Payment Integration loaded');
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkPaymentCallback);
+  } else {
+    checkPaymentCallback();
+  }
+
+  console.log('[PayOS] 11-payos-payment loaded');
 })();
