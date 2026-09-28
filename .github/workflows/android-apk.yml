@@ -37,7 +37,6 @@ jobs:
           java-version: "17"
 
       # Google removed the deprecated "tools" package (2026-09).
-      # Use setup-android@v4 and install only packages that still exist.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -65,7 +64,6 @@ jobs:
           mkdir -p www
           cp index.html khachhang.html xeghep.html admin.html manifest.json sw.js autonomous-client.js www/
           cp -R css js www/
-          # Copy assets but skip broken filenames (e.g. logo.svg with newline)
           mkdir -p www/assets
           if [ -d assets ]; then
             find assets -type f -print0 | while IFS= read -r -d '' f; do
@@ -80,6 +78,58 @@ jobs:
               esac
             done
           fi
+
+      # config.xml points at res/icon and res/screen files that are not committed.
+      - name: Generate placeholder Android icons and splash
+        run: |
+          python3 << 'PY'
+          import os, struct, zlib
+
+          def write_png(path, w, h, rgb=(0, 84, 163)):
+              os.makedirs(os.path.dirname(path), exist_ok=True)
+              r, g, b = rgb
+              raw = b"".join(b"\x00" + bytes([r, g, b]) * w for _ in range(h))
+              def chunk(tag, data):
+                  return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
+              ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
+              data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+              with open(path, "wb") as f:
+                  f.write(data)
+
+          icons = {
+              "ldpi": 36, "mdpi": 48, "hdpi": 72,
+              "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192,
+          }
+          for name, size in icons.items():
+              write_png(f"res/icon/android/{name}.png", size, size)
+
+          splashes = {
+              "land-ldpi": (320, 200), "land-mdpi": (480, 320),
+              "land-hdpi": (800, 480), "land-xhdpi": (1280, 720),
+              "port-ldpi": (200, 320), "port-mdpi": (320, 480),
+              "port-hdpi": (480, 800), "port-xhdpi": (720, 1280),
+          }
+          for name, (w, h) in splashes.items():
+              write_png(f"res/screen/android/splash-{name}.png", w, h)
+
+          bg = '''<?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#0054A3</color>
+          </resources>
+          '''
+          fg = '''<?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M54,30c-13.2,0 -24,10.8 -24,24s10.8,24 24,24 24,-10.8 24,-24 -10.8,-24 -24,-24z"/>
+          </vector>
+          '''
+          os.makedirs("res/icon/android", exist_ok=True)
+          open("res/icon/android/ic_launcher_background.xml", "w").write(bg.strip() + "\n")
+          open("res/icon/android/ic_launcher_foreground.xml", "w").write(fg.strip() + "\n")
+          print("Placeholder icons/splash generated")
+          PY
 
       # Root package.json uses "type":"module" for Vercel API (ESM).
       # Cordova Android Api.js is CommonJS and cannot load under ESM mode.
