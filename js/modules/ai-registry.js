@@ -1,45 +1,61 @@
 /*
  * Taxi Promax AI Registry
  * Một cổng đăng ký duy nhất cho các AI phía client.
- * Registry không tự chạy AI, chỉ giữ metadata và tham chiếu instance.
+ * Registry không chứa API key và không gọi model; nó chỉ chặn nạp trùng,
+ * công bố capability và hỗ trợ kiểm tra tình trạng module.
  */
-(function (global) {
+(function (window) {
   'use strict';
+  if (window.PromaxAIRegistry) return;
 
-  var registry = global.TaxiPromaxAIRegistry || (global.TaxiPromaxAIRegistry = {
-    version: '1.0.0',
-    items: Object.create(null),
+  var entries = Object.create(null);
 
-    register: function (name, meta) {
-      if (!name || typeof name !== 'string') return false;
-      this.items[name] = Object.assign({ name: name, registeredAt: Date.now() }, meta || {});
-      return true;
-    },
-
-    get: function (name) {
-      return this.items[name] || null;
-    },
-
-    list: function () {
-      return Object.keys(this.items).map(function (k) { return this.items[k]; }, this);
-    },
-
-    has: function (name) {
-      return !!this.items[name];
-    }
-  });
-
-  // Auto-register known modules if present
-  try {
-    if (global.PromaxCareAI) {
-      registry.register('promax-care-ai', { instance: global.PromaxCareAI, role: 'care' });
-    }
-    if (global.AICopilotV4) {
-      registry.register('ai-copilot-v4', { instance: global.AICopilotV4, role: 'copilot' });
-    }
-  } catch (e) {}
-
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = registry;
+  function normalize(name) {
+    return String(name || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '-');
   }
-})(typeof window !== 'undefined' ? window : globalThis);
+
+  function claim(name, meta) {
+    var key = normalize(name);
+    if (!key) return false;
+    if (entries[key]) return false;
+    entries[key] = Object.assign({ name: key, registeredAt: Date.now() }, meta || {});
+    return true;
+  }
+
+  function release(name) {
+    var key = normalize(name);
+    if (!key || !entries[key]) return false;
+    delete entries[key];
+    return true;
+  }
+
+  function has(name) {
+    return Boolean(entries[normalize(name)]);
+  }
+
+  function get(name) {
+    var item = entries[normalize(name)];
+    return item ? Object.assign({}, item) : null;
+  }
+
+  function list() {
+    return Object.keys(entries).map(function (key) { return Object.assign({}, entries[key]); });
+  }
+
+  function register(name, api, meta) {
+    if (!claim(name, meta)) return false;
+    var item = entries[normalize(name)];
+    item.api = api || null;
+    return true;
+  }
+
+  window.PromaxAIRegistry = Object.freeze({
+    claim: claim,
+    register: register,
+    release: release,
+    has: has,
+    get: get,
+    list: list,
+    version: '1.0.0'
+  });
+})(window);
