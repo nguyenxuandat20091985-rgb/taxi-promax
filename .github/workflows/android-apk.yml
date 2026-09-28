@@ -49,6 +49,14 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           sdkmanager --list_installed | head -40 || true
 
+      # cordova-android@12 is incompatible with Gradle 9 (XmlParser).
+      - name: Install Gradle 8.7
+        run: |
+          curl -fsSL -o /tmp/gradle-8.7-bin.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          sudo unzip -q /tmp/gradle-8.7-bin.zip -d /opt
+          echo "/opt/gradle-8.7/bin" >> "$GITHUB_PATH"
+          /opt/gradle-8.7/bin/gradle -v
+
       - name: Install dependencies
         run: npm install
 
@@ -79,7 +87,6 @@ jobs:
             done
           fi
 
-      # config.xml points at res/icon and res/screen files that are not committed.
       - name: Generate placeholder Android icons and splash
         run: |
           python3 << 'PY'
@@ -131,8 +138,6 @@ jobs:
           print("Placeholder icons/splash generated")
           PY
 
-      # Root package.json uses "type":"module" for Vercel API (ESM).
-      # Cordova Android Api.js is CommonJS and cannot load under ESM mode.
       - name: Relax package.json for Cordova (CI only)
         run: |
           node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); delete p.type; fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\n');"
@@ -141,12 +146,16 @@ jobs:
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          export PATH="/opt/gradle-8.7/bin:$PATH"
           cordova platform add android@12.0.1 --no-interactive
 
       - name: Build debug APK
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          export PATH="/opt/gradle-8.7/bin:$PATH"
+          which gradle
+          gradle -v | head -5
           cordova build android --debug --no-interactive
 
       - name: Upload APK
