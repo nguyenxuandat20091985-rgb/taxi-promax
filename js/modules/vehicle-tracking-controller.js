@@ -9,44 +9,33 @@
 ;(function (window, document, undefined) {
     'use strict';
 
-    // ==================== STATE ====================
+    if (window.VehicleTrackingController) return;
+
     const state = {
-        lat: null,
-        lng: null,
-        heading: 0,
-        speed: 0,
-        accuracy: 999,
-        timestamp: null,
-
-        status: 'INIT',
-        isFollowing: true,
-        hasFix: false,
-        gpsLost: false,
-        lastValidAt: null,
-
-        marker: null,
         map: null,
-
+        marker: null,
+        isFollowing: true,
+        lastPos: null,
+        lastUpdate: 0,
+        status: 'SEARCHING',
+        accuracy: 999,
         followBtn: null,
         statusEl: null,
-
-        followThreshold: 800,
-        gpsLostTimeout: 10000,
-        _lastPanTime: 0,
-        _gpsLostTimer: null,
-        _isInitialized: false
+        started: false
     };
 
-    // ==================== DOM HELPERS ====================
     function createFollowButton() {
+        if (document.getElementById('vehicleFollowBtn')) {
+            return document.getElementById('vehicleFollowBtn');
+        }
         const btn = document.createElement('button');
         btn.id = 'vehicleFollowBtn';
         btn.innerHTML = '📍 THEO XE';
         btn.style.cssText = `
             position: fixed;
-            bottom: 140px;
+            bottom: 180px;
             right: 16px;
-            z-index: 1001;
+            z-index: 1000;
             background: #0054a3;
             color: #fff;
             border: none;
@@ -65,29 +54,12 @@
     }
 
     function createStatusIndicator() {
-        const el = document.createElement('div');
-        el.id = 'gpsStatusIndicator';
-        el.style.cssText = `
-            position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(0,0,0,0.7);
-            color: #fff;
-            padding: 4px 14px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            backdrop-filter: blur(4px);
-            display: none;
-            transition: opacity 0.3s;
-        `;
-        document.body.appendChild(el);
-        return el;
+        // Chỉ dùng thanh GPS gốc (#gpsStatusBar) — không tạo badge thứ 2
+        const existing = document.getElementById('gpsStatusIndicator');
+        if (existing) existing.style.display = 'none';
+        return null;
     }
 
-    // ==================== CORE ====================
     function getMap() {
         if (state.map) return state.map;
         if (window.map) { state.map = window.map; return state.map; }
@@ -98,89 +70,56 @@
         return null;
     }
 
-    function getMarker() {
-        if (state.marker) return state.marker;
-        // Tìm marker hiện có từ các file cũ
-        if (window.driverMarker) {
-            state.marker = window.driverMarker;
-            return state.marker;
-        }
-        // Tạo marker mới nếu chưa có
+    function ensureMarker(lat, lng) {
         const map = getMap();
-        if (!map) return null;
-        const icon = L.divIcon({
-            html: `<div class="sm-marker-container"><div class="sm-pulse-ring"></div><div id="compass" class="sm-direction-wrapper" style="transform:rotate(${state.heading}deg)"><div class="sm-marker-arrow"></div><div class="sm-marker-circle"></div></div></div>`,
-            className: '',
-            iconSize: [48, 48],
-            iconAnchor: [24, 24]
-        });
-        state.marker = L.marker([21.0285, 105.8542], { icon, zIndexOffset: 1000 }).addTo(map);
-        window.driverMarker = state.marker;
+        if (!map || typeof L === 'undefined') return null;
+        if (state.marker) return state.marker;
+        try {
+            state.marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'vehicle-marker',
+                    html: '<div style="width:18px;height:18px;background:#00bfa5;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.35);"></div>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                })
+            }).addTo(map);
+        } catch (e) {
+            console.warn('VehicleTracking marker error', e);
+        }
         return state.marker;
     }
 
     function updateMarker(lat, lng, heading) {
-        const marker = getMarker();
+        const marker = ensureMarker(lat, lng);
         if (!marker) return;
-        marker.setLatLng([lat, lng]);
-        if (heading != null && !isNaN(heading)) {
-            state.heading = heading;
-            const compass = document.getElementById('compass');
-            if (compass) compass.style.transform = `rotate(${heading}deg)`;
-        }
-        if (window.driverMarker) window.driverMarker = marker;
-        if (window.currentHeading !== undefined) window.currentHeading = heading || 0;
+        try {
+            marker.setLatLng([lat, lng]);
+        } catch (e) {}
     }
 
-    function updateMapCamera(lat, lng, force) {
+    function followCamera(lat, lng) {
+        if (!state.isFollowing) return;
         const map = getMap();
-        if (!map || !state.isFollowing) return;
-
+        if (!map) return;
         const now = Date.now();
-        if (!force && (now - state._lastPanTime) < state.followThreshold) return;
-
-        const zoom = map.getZoom();
+        if (window.__lastMapFollowAt && now - window.__lastMapFollowAt < 800) return;
         try {
-            map.panTo([lat, lng], { animate: true, duration: 0.6 });
-            state._lastPanTime = now;
-        } catch (e) {
+            const zoom = map.getZoom ? map.getZoom() : 16;
             map.setView([lat, lng], zoom, { animate: true });
-        }
+        } catch (e) {}
         if (window.__lastMapFollowAt !== undefined) window.__lastMapFollowAt = now;
+        else window.__lastMapFollowAt = now;
     }
 
     function updateStatusUI(status, accuracy) {
+        // Ẩn badge trùng nếu còn sót từ bản cũ
         const el = state.statusEl || document.getElementById('gpsStatusIndicator');
-        if (!el) return;
-        state.statusEl = el;
-
-        let color = '#4caf50';
-        let label = 'GPS TỐT';
-        if (status === 'GPS_LOST' || status === 'ERROR') {
-            color = '#f44336';
-            label = 'MẤT GPS';
-        } else if (status === 'RECOVERING') {
-            color = '#ff9800';
-            label = 'ĐANG PHỤC HỒI...';
-        } else if (status === 'SEARCHING') {
-            color = '#ff9800';
-            label = 'ĐANG TÌM GPS...';
-        } else if (accuracy > 150) {
-            color = '#ffc107';
-            label = `GPS YẾU (±${Math.round(accuracy)}m)`;
-        } else if (accuracy > 50) {
-            color = '#ffc107';
-            label = `GPS TB (±${Math.round(accuracy)}m)`;
-        } else {
-            color = '#4caf50';
-            label = `GPS TỐT (±${Math.round(accuracy)}m)`;
+        if (el) {
+            el.style.display = 'none';
+            state.statusEl = el;
         }
 
-        el.style.background = color;
-        el.textContent = label;
-        el.style.display = 'block';
-
-        // Cập nhật cả thanh GPS cũ
+        // Chỉ cập nhật thanh GPS gốc trên màn hình
         const dot = document.getElementById('gpsDot');
         const text = document.getElementById('gpsStatusText');
         if (dot && text) {
@@ -190,10 +129,14 @@
             } else if (status === 'RECOVERING') {
                 dot.className = 'gps-dot weak';
                 text.innerText = '🔄 ĐANG PHỤC HỒI GPS...';
+            } else if (status === 'SEARCHING') {
+                dot.className = 'gps-dot weak';
+                text.innerText = 'GPS: Đang tìm...';
             } else {
                 const cls = accuracy <= 50 ? 'good' : accuracy <= 150 ? 'weak' : 'bad';
+                const label = accuracy <= 50 ? 'Tốt' : accuracy <= 150 ? 'Trung bình' : 'Yếu';
                 dot.className = `gps-dot ${cls}`;
-                text.innerText = `GPS: ${accuracy <= 50 ? 'Tốt' : accuracy <= 150 ? 'Trung bình' : 'Yếu'} (±${Math.round(accuracy)}m)`;
+                text.innerText = `GPS: ${label} (±${Math.round(accuracy)}m)`;
             }
         }
     }
@@ -214,148 +157,72 @@
         btn.style.display = 'block';
     }
 
-    // ==================== CÔNG KHAI ====================
     function toggleFollow() {
         state.isFollowing = !state.isFollowing;
         updateFollowButton();
-        if (state.isFollowing && state.lat != null && state.lng != null) {
-            updateMapCamera(state.lat, state.lng, true);
-        }
-        if (typeof window.showToast === 'function') {
-            window.showToast(state.isFollowing ? '🎯 BẬT THEO DÕI XE' : '🎯 TẮT THEO DÕI XE');
+        if (state.isFollowing && state.lastPos) {
+            followCamera(state.lastPos.lat, state.lastPos.lng);
         }
     }
 
-    /**
-     * Hàm chính để cập nhật vị trí xe.
-     * - Gọi từ 00-core-runtime.js sau khi đã qua Kalman + Anti-teleport.
-     * - KHÔNG tự xử lý GPS thô.
-     */
-    function updateVehiclePosition(lat, lng, meta) {
-        if (lat == null || lng == null || !isFinite(lat) || !isFinite(lng)) return;
-
-        const accuracy = meta && meta.accuracy != null ? meta.accuracy : 999;
-        const heading = meta && meta.heading != null ? meta.heading : state.heading;
-        const speed = meta && meta.speed != null ? meta.speed : 0;
-        const timestamp = meta && meta.timestamp != null ? meta.timestamp : Date.now();
-
-        state.lat = lat;
-        state.lng = lng;
-        state.heading = heading;
+    function onPosition(lat, lng, data) {
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const accuracy = (data && Number.isFinite(data.accuracy)) ? data.accuracy : state.accuracy;
         state.accuracy = accuracy;
-        state.speed = speed;
-        state.timestamp = timestamp;
-        state.lastValidAt = timestamp;
-        state.hasFix = true;
+        state.lastPos = { lat: lat, lng: lng };
+        state.lastUpdate = Date.now();
+        state.status = accuracy > 300 ? 'WEAK' : 'OK';
 
-        if (speed > 2) {
-            state.status = 'MOVING';
-        } else {
-            state.status = 'READY';
-        }
-
-        updateMarker(lat, lng, heading);
-
-        if (state.isFollowing) {
-            updateMapCamera(lat, lng);
-        }
-
+        updateMarker(lat, lng, data && data.heading);
+        followCamera(lat, lng);
         updateStatusUI(state.status, accuracy);
         updateFollowButton();
-
-        clearTimeout(state._gpsLostTimer);
-        state._gpsLostTimer = setTimeout(() => {
-            if (state.status !== 'GPS_LOST') {
-                state.status = 'GPS_LOST';
-                state.gpsLost = true;
-                updateStatusUI('GPS_LOST', state.accuracy);
-                if (typeof window.showToast === 'function') {
-                    window.showToast('🔴 MẤT TÍN HIỆU GPS! Đang giữ dữ liệu chuyến...');
-                }
-            }
-        }, state.gpsLostTimeout);
-
-        if (state.gpsLost) {
-            state.gpsLost = false;
-            state.status = 'RECOVERING';
-            updateStatusUI('RECOVERING', accuracy);
-            setTimeout(() => {
-                if (state.hasFix && state.status === 'RECOVERING') {
-                    state.status = 'MOVING';
-                    updateStatusUI(state.status, state.accuracy);
-                }
-            }, 500);
-        }
-
-        if (window.currentLat !== undefined) window.currentLat = lat;
-        if (window.currentLng !== undefined) window.currentLng = lng;
-        if (window.currentHeading !== undefined) window.currentHeading = heading;
     }
 
-    function notifyGpsLost() {
-        state.status = 'GPS_LOST';
-        state.gpsLost = true;
-        updateStatusUI('GPS_LOST', state.accuracy);
-        clearTimeout(state._gpsLostTimer);
+    function start() {
+        if (state.started) return;
+        state.started = true;
+        state.followBtn = createFollowButton();
+        state.statusEl = createStatusIndicator();
+        updateStatusUI('SEARCHING', 999);
+
+        // Hook into existing GPS pipelines without replacing them
+        window.addEventListener('promax:gps', function (ev) {
+            try {
+                const d = ev && ev.detail ? ev.detail : null;
+                if (!d) return;
+                const lat = Number(d.lat != null ? d.lat : d.latitude);
+                const lng = Number(d.lng != null ? d.lng : d.longitude);
+                onPosition(lat, lng, d);
+            } catch (e) {}
+        });
+
+        // Fallback: poll last known from PromaxGPSCore / global
+        setInterval(function () {
+            try {
+                if (window.PromaxGPSCore && typeof window.PromaxGPSCore.getState === 'function') {
+                    const st = window.PromaxGPSCore.getState();
+                    if (st && st.lastFix) {
+                        const f = st.lastFix;
+                        onPosition(f.lat || f.latitude, f.lng || f.longitude, f);
+                    }
+                }
+            } catch (e) {}
+        }, 3000);
     }
 
     function init() {
-        if (state._isInitialized) return;
-        state._isInitialized = true;
-
-        state.followBtn = createFollowButton();
-        state.statusEl = createStatusIndicator();
-
-        getMap();
-        getMarker();
-
-        updateFollowButton();
-        updateStatusUI('SEARCHING', 999);
-
-        const map = getMap();
-        if (map) {
-            map.on('dragstart', function() {
-                if (state.isFollowing) {
-                    state.isFollowing = false;
-                    updateFollowButton();
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('⏸ Tạm dừng theo dõi xe');
-                    }
-                }
-            });
-        }
-
-        window.VehicleTrackingController = {
-            updateVehiclePosition: updateVehiclePosition,
-            notifyGpsLost: notifyGpsLost,
-            toggleFollow: toggleFollow,
-            getState: function() {
-                return {
-                    lat: state.lat,
-                    lng: state.lng,
-                    heading: state.heading,
-                    speed: state.speed,
-                    accuracy: state.accuracy,
-                    status: state.status,
-                    isFollowing: state.isFollowing,
-                    hasFix: state.hasFix,
-                    gpsLost: state.gpsLost
-                };
-            },
-            setFollow: function(follow) {
-                state.isFollowing = follow;
-                updateFollowButton();
-                if (follow && state.lat != null && state.lng != null) {
-                    updateMapCamera(state.lat, state.lng, true);
-                }
-            },
-            onCoreAcceptedPosition: function(data) {
-                updateVehiclePosition(data.lat, data.lng, data);
-            }
-        };
-
+        start();
         console.log('✅ VehicleTrackingController v3.0 initialized');
     }
+
+    window.VehicleTrackingController = {
+        version: '3.0-single-gps-bar',
+        start: start,
+        toggleFollow: toggleFollow,
+        onPosition: onPosition,
+        getState: function () { return state; }
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
