@@ -73,7 +73,7 @@ jobs:
         run: |
           rm -rf www
           mkdir -p www
-          cp index.html khachhang.html xeghep.html admin.html manifest.json sw.js autonomous-client.js www/
+          cp index.html khachhang.html xeghep.html admin.html manifest.json sw.js autonomous-client.js version.json www/ 2>/dev/null || cp index.html khachhang.html xeghep.html admin.html manifest.json sw.js autonomous-client.js www/
           cp -R css js www/
           mkdir -p www/assets
           if [ -d assets ]; then
@@ -89,6 +89,23 @@ jobs:
               esac
             done
           fi
+
+      - name: Inject update-checker into index.html
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('www/index.html')
+          if not p.is_file():
+              p = Path('index.html')
+          t = p.read_text(encoding='utf-8')
+          tag = '<script src="js/update-checker.js?v=20260928"></script>'
+          if tag not in t and 'update-checker' not in t:
+              t = t.replace('</body>', '    ' + tag + '\n</body>')
+              p.write_text(t, encoding='utf-8')
+              print('injected update-checker into', p)
+          else:
+              print('update-checker already present')
+          PY
 
       - name: Ensure Android icons and splash exist
         run: |
