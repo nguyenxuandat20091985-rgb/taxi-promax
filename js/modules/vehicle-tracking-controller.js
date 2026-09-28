@@ -65,12 +65,26 @@
     }
 
     function createStatusIndicator() {
-        // Single GPS bar only — do not create duplicate badge
-        try {
-            const existing = document.getElementById('gpsStatusIndicator');
-            if (existing) { existing.style.display = 'none'; existing.remove(); }
-        } catch (e) {}
-        return null;
+        const el = document.createElement('div');
+        el.id = 'gpsStatusIndicator';
+        el.style.cssText = `
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            backdrop-filter: blur(4px);
+            display: none;
+            transition: opacity 0.3s;
+        `;
+        document.body.appendChild(el);
+        return el;
     }
 
     // ==================== CORE ====================
@@ -86,10 +100,12 @@
 
     function getMarker() {
         if (state.marker) return state.marker;
+        // Tìm marker hiện có từ các file cũ
         if (window.driverMarker) {
             state.marker = window.driverMarker;
             return state.marker;
         }
+        // Tạo marker mới nếu chưa có
         const map = getMap();
         if (!map) return null;
         const icon = L.divIcon({
@@ -134,14 +150,37 @@
     }
 
     function updateStatusUI(status, accuracy) {
-        // Hide leftover badge if any (single GPS bar only)
         const el = state.statusEl || document.getElementById('gpsStatusIndicator');
-        if (el) {
-            el.style.display = 'none';
-            state.statusEl = el;
+        if (!el) return;
+        state.statusEl = el;
+
+        let color = '#4caf50';
+        let label = 'GPS TỐT';
+        if (status === 'GPS_LOST' || status === 'ERROR') {
+            color = '#f44336';
+            label = 'MẤT GPS';
+        } else if (status === 'RECOVERING') {
+            color = '#ff9800';
+            label = 'ĐANG PHỤC HỒI...';
+        } else if (status === 'SEARCHING') {
+            color = '#ff9800';
+            label = 'ĐANG TÌM GPS...';
+        } else if (accuracy > 150) {
+            color = '#ffc107';
+            label = `GPS YẾU (±${Math.round(accuracy)}m)`;
+        } else if (accuracy > 50) {
+            color = '#ffc107';
+            label = `GPS TB (±${Math.round(accuracy)}m)`;
+        } else {
+            color = '#4caf50';
+            label = `GPS TỐT (±${Math.round(accuracy)}m)`;
         }
 
-        // Update only the original header GPS bar
+        el.style.background = color;
+        el.textContent = label;
+        el.style.display = 'block';
+
+        // Cập nhật cả thanh GPS cũ
         const dot = document.getElementById('gpsDot');
         const text = document.getElementById('gpsStatusText');
         if (dot && text) {
@@ -151,14 +190,10 @@
             } else if (status === 'RECOVERING') {
                 dot.className = 'gps-dot weak';
                 text.innerText = '🔄 ĐANG PHỤC HỒI GPS...';
-            } else if (status === 'SEARCHING') {
-                dot.className = 'gps-dot weak';
-                text.innerText = 'GPS: Đang tìm...';
             } else {
                 const cls = accuracy <= 50 ? 'good' : accuracy <= 150 ? 'weak' : 'bad';
-                const label = accuracy <= 50 ? 'Tốt' : accuracy <= 150 ? 'Trung bình' : 'Yếu';
                 dot.className = `gps-dot ${cls}`;
-                text.innerText = `GPS: ${label} (±${Math.round(accuracy)}m)`;
+                text.innerText = `GPS: ${accuracy <= 50 ? 'Tốt' : accuracy <= 150 ? 'Trung bình' : 'Yếu'} (±${Math.round(accuracy)}m)`;
             }
         }
     }
@@ -179,6 +214,7 @@
         btn.style.display = 'block';
     }
 
+    // ==================== CÔNG KHAI ====================
     function toggleFollow() {
         state.isFollowing = !state.isFollowing;
         updateFollowButton();
@@ -190,6 +226,11 @@
         }
     }
 
+    /**
+     * Hàm chính để cập nhật vị trí xe.
+     * - Gọi từ 00-core-runtime.js sau khi đã qua Kalman + Anti-teleport.
+     * - KHÔNG tự xử lý GPS thô.
+     */
     function updateVehiclePosition(lat, lng, meta) {
         if (lat == null || lng == null || !isFinite(lat) || !isFinite(lng)) return;
 
