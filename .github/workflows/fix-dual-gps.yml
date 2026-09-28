@@ -1,0 +1,103 @@
+name: Fix dual GPS badge
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-dual-gps.yml'
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch vehicle-tracking-controller.js only
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('js/modules/vehicle-tracking-controller.js')
+          src = p.read_text(encoding='utf-8')
+          assert 'function updateVehiclePosition' in src, 'missing UVP - abort'
+
+          # 1) createStatusIndicator: never create badge
+          old1 = '''    function createStatusIndicator() {
+        const el = document.createElement('div');
+        el.id = 'gpsStatusIndicator';
+        el.style.cssText = `
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            backdrop-filter: blur(4px);
+            display: none;
+            transition: opacity 0.3s;
+        `;
+        document.body.appendChild(el);
+        return el;
+    }'''
+          new1 = '''    function createStatusIndicator() {
+        // Single GPS bar only — hide/remove any leftover badge
+        try {
+          const existing = document.getElementById('gpsStatusIndicator');
+          if (existing) { existing.style.display = 'none'; existing.remove(); }
+        } catch (e) {}
+        return null;
+    }'''
+          if old1 in src:
+              src = src.replace(old1, new1)
+              print('OK createStatusIndicator')
+          elif 'Single GPS bar only' in src:
+              print('create already fixed')
+          else:
+              print('WARN create block not found')
+
+          # 2) updateStatusUI: never show badge; only update header gpsStatusBar
+          old2_start = "    function updateStatusUI(status, accuracy) {\n        const el = state.statusEl || document.getElementById('gpsStatusIndicator');\n        if (!el) return;\n        state.statusEl = el;"
+          if old2_start in src:
+              # Replace the early-return path so we always update the original bar
+              src = src.replace(
+                  old2_start,
+                  "    function updateStatusUI(status, accuracy) {\n        // Never show duplicate badge\n        const el = state.statusEl || document.getElementById('gpsStatusIndicator');\n        if (el) { el.style.display = 'none'; state.statusEl = el; }\n        // Do NOT return early — always update #gpsStatusBar below",
+                  1
+              )
+              print('OK updateStatusUI head')
+          else:
+              print('WARN updateStatusUI head not found')
+
+          # Remove lines that show the badge
+          for line in [
+              "        el.style.background = color;\n",
+              "        el.textContent = label;\n",
+              "        el.style.display = 'block';\n",
+          ]:
+              if line in src:
+                  src = src.replace(line, '')
+                  print('removed', repr(line.strip())[:40])
+
+          # Drop unused color/label assignment block if it causes issues - keep for safety, just unused
+
+          assert 'function updateVehiclePosition' in src
+          assert 'notifyGpsLost' in src
+          p.write_text(src, encoding='utf-8')
+          print('written', len(src))
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add js/modules/vehicle-tracking-controller.js
+          if git diff --staged --quiet; then echo nochange; else
+            git commit -m 'fix: disable duplicate GPS badge in VTC; keep updateVehiclePosition'
+            git push
+          fi
