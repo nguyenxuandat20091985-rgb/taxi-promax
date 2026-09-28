@@ -1,0 +1,167 @@
+name: Patch single GPS bar
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch vehicle-tracking-controller
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('js/modules/vehicle-tracking-controller.js')
+          src = p.read_text(encoding='utf-8')
+          # Always ensure updateVehiclePosition exists (restore from git history if broken)
+          if 'function updateVehiclePosition' not in src:
+              print('BROKEN file missing updateVehiclePosition - abort')
+              raise SystemExit(1)
+
+          old_create = '''    function createStatusIndicator() {
+        const el = document.createElement('div');
+        el.id = 'gpsStatusIndicator';
+        el.style.cssText = `
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            backdrop-filter: blur(4px);
+            display: none;
+            transition: opacity 0.3s;
+        `;
+        document.body.appendChild(el);
+        return el;
+    }'''
+
+          new_create = '''    function createStatusIndicator() {
+        // Chỉ dùng thanh GPS gốc (#gpsStatusBar) — không tạo badge thứ 2
+        const existing = document.getElementById('gpsStatusIndicator');
+        if (existing) {
+            existing.style.display = 'none';
+            try { existing.remove(); } catch (e) {}
+        }
+        return null;
+    }'''
+
+          if old_create in src:
+              src = src.replace(old_create, new_create)
+              print('create patched')
+          elif 'Chỉ dùng thanh GPS gốc' in src:
+              print('create already patched')
+          else:
+              print('create block not found - skip')
+
+          old_update = '''    function updateStatusUI(status, accuracy) {
+        const el = state.statusEl || document.getElementById('gpsStatusIndicator');
+        if (!el) return;
+        state.statusEl = el;
+
+        let color = '#4caf50';
+        let label = 'GPS TỐT';
+        if (status === 'GPS_LOST' || status === 'ERROR') {
+            color = '#f44336';
+            label = 'MẤT GPS';
+        } else if (status === 'RECOVERING') {
+            color = '#ff9800';
+            label = 'ĐANG PHỤC HỒI...';
+        } else if (status === 'SEARCHING') {
+            color = '#ff9800';
+            label = 'ĐANG TÌM GPS...';
+        } else if (accuracy > 150) {
+            color = '#ffc107';
+            label = `GPS YẾU (±${Math.round(accuracy)}m)`;
+        } else if (accuracy > 50) {
+            color = '#ffc107';
+            label = `GPS TB (±${Math.round(accuracy)}m)`;
+        } else {
+            color = '#4caf50';
+            label = `GPS TỐT (±${Math.round(accuracy)}m)`;
+        }
+
+        el.style.background = color;
+        el.textContent = label;
+        el.style.display = 'block';
+
+        // Cập nhật cả thanh GPS cũ
+        const dot = document.getElementById('gpsDot');
+        const text = document.getElementById('gpsStatusText');
+        if (dot && text) {
+            if (status === 'GPS_LOST' || status === 'ERROR') {
+                dot.className = 'gps-dot bad';
+                text.innerText = '📡 MẤT KẾT NỐI GPS';
+            } else if (status === 'RECOVERING') {
+                dot.className = 'gps-dot weak';
+                text.innerText = '🔄 ĐANG PHỤC HỒI GPS...';
+            } else {
+                const cls = accuracy <= 50 ? 'good' : accuracy <= 150 ? 'weak' : 'bad';
+                dot.className = `gps-dot ${cls}`;
+                text.innerText = `GPS: ${accuracy <= 50 ? 'Tốt' : accuracy <= 150 ? 'Trung bình' : 'Yếu'} (±${Math.round(accuracy)}m)`;
+            }
+        }
+    }'''
+
+          new_update = '''    function updateStatusUI(status, accuracy) {
+        // Ẩn badge trùng nếu còn sót từ bản cũ
+        const el = state.statusEl || document.getElementById('gpsStatusIndicator');
+        if (el) {
+            el.style.display = 'none';
+            state.statusEl = el;
+        }
+
+        // Chỉ cập nhật thanh GPS gốc trên màn hình
+        const dot = document.getElementById('gpsDot');
+        const text = document.getElementById('gpsStatusText');
+        if (dot && text) {
+            if (status === 'GPS_LOST' || status === 'ERROR') {
+                dot.className = 'gps-dot bad';
+                text.innerText = '📡 MẤT KẾT NỐI GPS';
+            } else if (status === 'RECOVERING') {
+                dot.className = 'gps-dot weak';
+                text.innerText = '🔄 ĐANG PHỤC HỒI GPS...';
+            } else if (status === 'SEARCHING') {
+                dot.className = 'gps-dot weak';
+                text.innerText = 'GPS: Đang tìm...';
+            } else {
+                const cls = accuracy <= 50 ? 'good' : accuracy <= 150 ? 'weak' : 'bad';
+                const label = accuracy <= 50 ? 'Tốt' : accuracy <= 150 ? 'Trung bình' : 'Yếu';
+                dot.className = `gps-dot ${cls}`;
+                text.innerText = `GPS: ${label} (±${Math.round(accuracy)}m)`;
+            }
+        }
+    }'''
+
+          if old_update in src:
+              src = src.replace(old_update, new_update)
+              print('update patched')
+          elif 'Ẩn badge trùng' in src:
+              print('update already patched')
+          else:
+              print('update block not found - skip')
+
+          p.write_text(src, encoding='utf-8')
+          print('written', len(src), 'has updateVehiclePosition', 'function updateVehiclePosition' in src)
+          PY
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add js/modules/vehicle-tracking-controller.js
+          if git diff --staged --quiet; then
+            echo 'No changes'
+          else
+            git commit -m 'fix: single GPS bar only; keep updateVehiclePosition for live marker'
+            git push
+          fi
