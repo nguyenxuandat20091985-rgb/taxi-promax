@@ -1,0 +1,50 @@
+name: Restore driver-overrides CSS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-css.yml'
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+
+      - name: Restore CSS from history and append hide rule
+        run: |
+          python3 << 'PY'
+          import subprocess
+          from pathlib import Path
+          # Get content before the bad overwrite
+          for rev in ['HEAD~1', 'HEAD~2', 'HEAD~3', 'HEAD~5']:
+              try:
+                  data = subprocess.check_output(['git', 'show', f'{rev}:css/driver-overrides.css'], text=True)
+                  if len(data) > 1000 and '#statsUI' in data:
+                      print('found good CSS at', rev, 'len', len(data))
+                      break
+              except Exception as e:
+                  print(rev, e)
+                  data = None
+          if not data or len(data) < 1000:
+              raise SystemExit('could not restore CSS')
+          if '#gpsStatusIndicator' not in data:
+              data = data.rstrip() + '''\n\n/* Ẩn badge GPS trùng — chỉ giữ thanh GPS gốc trên header */\n#gpsStatusIndicator {\n  display: none !important;\n}\n'''
+          Path('css/driver-overrides.css').write_text(data, encoding='utf-8')
+          print('written', len(data))
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add css/driver-overrides.css
+          if git diff --staged --quiet; then echo nochange; else
+            git commit -m 'fix: restore full driver-overrides.css + hide duplicate GPS badge'
+            git push
+          fi
