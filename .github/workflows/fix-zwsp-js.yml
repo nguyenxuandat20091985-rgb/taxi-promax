@@ -1,0 +1,63 @@
+name: Fix ZWSP JS filenames
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'js/**'
+      - '.github/workflows/fix-zwsp-js.yml'
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy ZWSP-named JS to clean names
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          root = Path('js')
+          fixed = []
+          for p in root.rglob('*.js'):
+              name = p.name
+              if '\u200b' in name or any(ord(c) == 0x200b for c in name):
+                  clean = name.replace('\u200b', '')
+                  dest = p.parent / clean
+                  data = p.read_bytes()
+                  # Always overwrite clean name with ZWSP content (source of truth)
+                  dest.write_bytes(data)
+                  fixed.append(f'{p} -> {dest} ({len(data)} bytes)')
+                  print(fixed[-1])
+          # Also ensure expected clean files exist from known ZWSP paths
+          pairs = [
+              ('js/modules/\u200bdriver-dashboard.js', 'js/modules/driver-dashboard.js'),
+              ('js/modules/\u200bops-stability.js', 'js/modules/ops-stability.js'),
+              ('js/driver/\u200b31-app-trip-handler.js', 'js/driver/31-app-trip-handler.js'),
+              ('js/driver/\u200b33-trip-ui-handler.js', 'js/driver/33-trip-ui-handler.js'),
+              ('js/modules/\u200bvehicle-tracking-controller.js', 'js/modules/vehicle-tracking-controller.js'),
+              ('js/modules/\u200bai-registry.js', 'js/modules/ai-registry.js'),
+          ]
+          for src, dst in pairs:
+              sp, dp = Path(src), Path(dst)
+              if sp.is_file():
+                  dp.write_bytes(sp.read_bytes())
+                  print(f'paired {src} -> {dst}')
+                  fixed.append(dst)
+          Path('/tmp/fixed.txt').write_text('\n'.join(fixed) if fixed else 'none')
+          print('done', len(fixed))
+          PY
+
+      - name: Commit clean JS if changed
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add js/
+          if git diff --staged --quiet; then
+            echo 'No changes'
+          else
+            git commit -m 'fix: restore clean JS filenames from ZWSP copies (white screen)'
+            git push
+          fi
