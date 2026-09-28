@@ -1,192 +1,160 @@
-/**
- * Promax Ops Stability — guards + UI sync (subscription, trip finish, tabs)
+/*
+ * Taxi ProMax — Operations Stability v1
+ * Lớp bảo vệ cuối sau các module legacy.
+ * Không tính cước, không mở GPS watcher và không thay thế state machine.
  */
-(function (window, document) {
+(function(window, document){
     'use strict';
-    var VERSION = '1.1.0-tab-homecontrols';
-    var previousShowToast = null;
-    var previousShowTab = null;
-    var previousConfirm = null;
-    var previousComplete = null;
-    var completeBusy = false;
-    var lastToast = { message: '', at: 0 };
+    if(window.PromaxOpsStability) return;
 
-    function engine() {
-        try { return window.TripEngine || null; } catch (e) { return null; }
+    var VERSION='20260828-ops-stability1';
+    var previousComplete=null;
+    var previousConfirm=null;
+    var previousHandle=null;
+    var previousOnline=null;
+    var previousShowToast=null;
+    var previousShowTab=null;
+    var lastToast={message:'',at:0};
+    var completeBusy=false;
+
+    function engine(){return window.tripEngine||null;}
+    function state(){
+        try{var e=engine();if(e&&typeof e.getCurrentState==='function')return e.getCurrentState();}catch(e){}
+        return document.documentElement.getAttribute('data-trip-state')||'IDLE';
     }
-    function state() {
-        try {
-            var e = engine();
-            return e && e.state ? e.state : 'IDLE';
-        } catch (e) { return 'IDLE'; }
+    function activeTrip(){
+        var s=state();
+        return s&&s!=='IDLE'&&s!=='COMPLETED'&&s!=='CANCELLED';
     }
-    function expiry() {
-        try {
-            var local = parseInt(localStorage.getItem('tp_expiry') || '0', 10);
-            if (local) return local;
-        } catch (e) {}
-        try {
-            if (typeof driverInfo !== 'undefined' && driverInfo && driverInfo.tp_expiry) return parseInt(driverInfo.tp_expiry, 10);
-        } catch (e) {}
+    function expiry(){
+        try{
+            var local=parseInt(localStorage.getItem('tp_expiry')||'0',10);
+            if(local)return local;
+        }catch(e){}
+        try{
+            if(typeof driverInfo!=='undefined'&&driverInfo&&driverInfo.tp_expiry)return parseInt(driverInfo.tp_expiry,10);
+        }catch(e){}
         return 0;
     }
-    function subscriptionActive() {
-        try { if (typeof isLocked !== 'undefined' && isLocked) return false; } catch (e) {}
-        var exp = expiry();
-        return !exp || exp > Date.now();
+    function subscriptionActive(){
+        try{if(typeof isLocked!=='undefined'&&isLocked)return false;}catch(e){}
+        var exp=expiry();
+        return !exp||exp>Date.now();
     }
-    function notify(message) { if (typeof previousShowToast === 'function') previousShowToast(message); }
-
-    function isHomeTabActive() {
-        try {
-            var active = document.querySelector('.nav-item.active');
-            if (active) {
-                var oc = String(active.getAttribute('onclick') || '');
-                if (oc.indexOf("'home'") >= 0 || oc.indexOf('"home"') >= 0) return true;
-                var lab = active.querySelector('.nav-lab');
-                if (lab && /trang\s*chủ/i.test(lab.textContent || '')) return true;
-            }
-            var other = ['tab-vi', 'tab-lichsu', 'tab-toi'];
-            for (var i = 0; i < other.length; i++) {
-                var el = document.getElementById(other[i]);
-                if (el) {
-                    var d = el.style.display;
-                    if (d && d !== 'none') return false;
-                }
-            }
-            return true;
-        } catch (e) { return true; }
+    function notify(message){if(typeof previousShowToast==='function')previousShowToast(message);}
+    function hideFinishedTripUi(){
+        ['tripInfoPanel','statsUI','streetHailMeter'].forEach(function(id){var el=document.getElementById(id);if(el){el.style.display='none';el.classList.remove('show');}});
+        var home=document.getElementById('homeControls');if(home)home.style.display='block';
+        var end=document.getElementById('endTripBtn');if(end){end.style.display='none';end.disabled=true;end.setAttribute('aria-hidden','true');}
+        var actions=document.getElementById('tripActionButtons');if(actions)actions.style.display='none';
     }
-
-    function hideFinishedTripUi() {
-        ['tripInfoPanel', 'statsUI', 'streetHailMeter'].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) { el.style.display = 'none'; el.classList.remove('show'); }
-        });
-        var home = document.getElementById('homeControls');
-        if (home) {
-            // Chỉ hiện Online/giá/Bắt đầu chuyến khi đang ở Trang chủ
-            home.style.display = isHomeTabActive() ? 'block' : 'none';
-        }
-        var end = document.getElementById('endTripBtn');
-        if (end) { end.style.display = 'none'; end.disabled = true; end.setAttribute('aria-hidden', 'true'); }
-        var actions = document.getElementById('tripActionButtons');
-        if (actions) actions.style.display = 'none';
+    function syncFinishedUi(){
+        if(state()==='IDLE'||state()==='COMPLETED'||state()==='CANCELLED')hideFinishedTripUi();
     }
-
-    function syncFinishedUi() {
-        if (state() === 'IDLE' || state() === 'COMPLETED' || state() === 'CANCELLED') hideFinishedTripUi();
+    function recentGpsFix(){
+        try{
+            var fix=null;
+            if(window.PromaxGPSCore&&typeof window.PromaxGPSCore.getState==='function')fix=window.PromaxGPSCore.getState().lastFix;
+            if(!fix&&engine())fix=engine().lastGpsUpdate;
+            if(!fix)return false;
+            var t=Number(fix.timestamp||fix.ts||Date.now()),accuracy=Number(fix.accuracy||999);
+            return Date.now()-t<30000&&accuracy<=300;
+        }catch(e){return false;}
     }
-
-    function recentGpsFix() {
-        try {
-            var fix = null;
-            if (window.PromaxGPSCore && typeof window.PromaxGPSCore.getState === 'function') fix = window.PromaxGPSCore.getState().lastFix;
-            if (!fix && engine()) fix = engine().lastGpsUpdate;
-            if (!fix) return false;
-            var t = Number(fix.timestamp || fix.ts || Date.now()), accuracy = Number(fix.accuracy || 999);
-            return Date.now() - t < 30000 && accuracy <= 300;
-        } catch (e) { return false; }
-    }
-
-    function installToastGuard() {
-        previousShowToast = window.showToast;
-        if (typeof previousShowToast !== 'function') return;
-        window.showToast = function (message) {
-            var text = String(message || '');
-            var now = Date.now();
-            if (text && lastToast.message === text && now - lastToast.at < 8000) return;
-            if (/GPS\s*(tắt|rất kém|yếu|timeout)|GPS đang bị tắt/i.test(text) && recentGpsFix()) return;
-            lastToast = { message: text, at: now };
-            return previousShowToast.apply(this, arguments);
+    function installToastGuard(){
+        previousShowToast=window.showToast;
+        if(typeof previousShowToast!=='function')return;
+        window.showToast=function(message){
+            var text=String(message||'');
+            var now=Date.now();
+            if(text&&lastToast.message===text&&now-lastToast.at<8000)return;
+            if(/GPS\s*(tắt|rất kém|yếu|timeout)|GPS đang bị tắt/i.test(text)&&recentGpsFix())return;
+            lastToast={message:text,at:now};
+            return previousShowToast.apply(this,arguments);
         };
     }
-
-    function installSubscriptionGuard() {
-        /* subscription lock handled elsewhere */
-    }
-
-    function installCompletionGuard() {
-        previousConfirm = window.confirmCompleteTrip || window.confirmTripComplete;
-        if (typeof previousConfirm === 'function') {
-            window.confirmCompleteTrip = function () {
-                if (state() === 'IDLE' || state() === 'COMPLETED' || state() === 'CANCELLED') {
-                    syncFinishedUi();
+    function installSubscriptionGuard(){
+        previousOnline=window.toggleOnlineStatus;
+        if(typeof previousOnline==='function'){
+            window.toggleOnlineStatus=function(){
+                var toggle=document.getElementById('onlineToggleSwitch');
+                var turningOn=!!(toggle&&!toggle.classList.contains('active'));
+                if(turningOn&&!subscriptionActive()){
+                    notify('⚠️ Gói thuê bao đã hết hạn. Vui lòng gia hạn trước khi Online.');
+                    if(toggle){toggle.classList.remove('active');toggle.setAttribute('aria-checked','false');}
+                    var text=document.getElementById('onlineTextStatus');if(text)text.textContent='Offline';
                     return false;
                 }
-                return previousConfirm.apply(this, arguments);
+                return previousOnline.apply(this,arguments);
             };
         }
-        previousComplete = window.completeTrip;
-        if (typeof previousComplete === 'function') {
-            window.completeTrip = function () {
-                if (completeBusy || state() === 'IDLE' || state() === 'COMPLETED' || state() === 'CANCELLED') {
+        previousHandle=window.handleTrip;
+        if(typeof previousHandle==='function'){
+            window.handleTrip=function(){
+                if(!activeTrip()&&!subscriptionActive()){
+                    notify('⚠️ Gói thuê bao đã hết hạn. Vui lòng gia hạn trước khi bắt đầu chuyến.');
+                    return false;
+                }
+                return previousHandle.apply(this,arguments);
+            };
+        }
+    }
+    function installCompletionGuard(){
+        previousConfirm=window.showConfirmComplete;
+        if(typeof previousConfirm==='function'){
+            window.showConfirmComplete=function(){
+                if(state()==='IDLE'||state()==='COMPLETED'||state()==='CANCELLED'){
                     syncFinishedUi();
                     return false;
                 }
-                completeBusy = true;
+                return previousConfirm.apply(this,arguments);
+            };
+        }
+        previousComplete=window.completeTrip;
+        if(typeof previousComplete==='function'){
+            window.completeTrip=function(){
+                if(completeBusy||state()==='IDLE'||state()==='COMPLETED'||state()==='CANCELLED'){
+                    syncFinishedUi();
+                    return false;
+                }
+                completeBusy=true;
                 var result;
-                try { result = previousComplete.apply(this, arguments); } finally {
-                    window.setTimeout(function () { completeBusy = false; syncFinishedUi(); }, 250);
+                try{result=previousComplete.apply(this,arguments);}finally{
+                    window.setTimeout(function(){completeBusy=false;syncFinishedUi();},250);
                 }
                 return result;
             };
         }
     }
-
-    function installHistoryRefresh() {
-        previousShowTab = window.showTab;
-        if (typeof previousShowTab === 'function') {
-            window.showTab = function (tab, btn) {
-                var result = previousShowTab.apply(this, arguments);
-                try {
-                    var home = document.getElementById('homeControls');
-                    if (home) {
-                        if (tab !== 'home') {
-                            home.style.display = 'none';
-                        }
-                    }
-                    document.body.setAttribute('data-tab', tab || 'home');
-                } catch (e) {}
-                if (tab === 'lichsu') window.setTimeout(function () {
-                    if (typeof window.renderHistory === 'function') window.renderHistory();
-                }, 50);
+    function installHistoryRefresh(){
+        previousShowTab=window.showTab;
+        if(typeof previousShowTab==='function'){
+            window.showTab=function(tab,btn){
+                var result=previousShowTab.apply(this,arguments);
+                if(tab==='lichsu')window.setTimeout(function(){if(typeof window.renderHistory==='function')window.renderHistory();},50);
                 return result;
             };
         }
-        document.addEventListener('trip:completed', function () {
-            window.setTimeout(function () {
-                if (typeof window.renderHistory === 'function') window.renderHistory();
-                syncFinishedUi();
-            }, 80);
+        document.addEventListener('trip:completed',function(){
+            window.setTimeout(function(){if(typeof window.renderHistory==='function')window.renderHistory();syncFinishedUi();},80);
         });
     }
-
-    function forceOfflineIfLocked() {
-        if (subscriptionActive()) return;
-        var toggle = document.getElementById('onlineToggleSwitch');
-        if (toggle) toggle.classList.remove('active');
-        var text = document.getElementById('onlineTextStatus');
-        if (text) text.textContent = 'Offline';
-        try { if (typeof syncDriverOnline === 'function') syncDriverOnline(false); } catch (e) {}
+    function forceOfflineIfLocked(){
+        if(subscriptionActive())return;
+        var toggle=document.getElementById('onlineToggleSwitch');
+        if(toggle)toggle.classList.remove('active');
+        var text=document.getElementById('onlineTextStatus');if(text)text.textContent='Offline';
+        try{if(typeof syncDriverOnline==='function')syncDriverOnline(false);}catch(e){}
     }
-
-    function boot() {
+    function boot(){
         installToastGuard();
         installSubscriptionGuard();
         installCompletionGuard();
         installHistoryRefresh();
         forceOfflineIfLocked();
         syncFinishedUi();
-        window.setInterval(function () { syncFinishedUi(); forceOfflineIfLocked(); }, 1000);
+        window.setInterval(function(){syncFinishedUi();forceOfflineIfLocked();},1000);
     }
-
-    window.PromaxOpsStability = {
-        version: VERSION,
-        refresh: function () { syncFinishedUi(); forceOfflineIfLocked(); },
-        isSubscriptionActive: subscriptionActive
-    };
-
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-    else boot();
-})(window, document);
+    window.PromaxOpsStability={version:VERSION,refresh:function(){syncFinishedUi();forceOfflineIfLocked();},isSubscriptionActive:subscriptionActive};
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})(window,document);
