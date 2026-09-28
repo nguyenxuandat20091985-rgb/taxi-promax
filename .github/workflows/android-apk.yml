@@ -91,13 +91,13 @@ jobs:
 
       - name: Ensure Android icons and splash exist
         run: |
+          pip install --quiet pillow
           python3 << 'PY'
           import os, struct, zlib, base64
+          from PIL import Image
+          from io import BytesIO
 
-          def write_png(path, w, h, rgb=(0, 84, 163)):
-              if os.path.isfile(path) and os.path.getsize(path) > 100:
-                  print(f"Keep existing: {path}")
-                  return
+          def write_solid_png(path, w, h, rgb=(0, 84, 163)):
               os.makedirs(os.path.dirname(path), exist_ok=True)
               r, g, b = rgb
               raw = b"".join(b"\x00" + bytes([r, g, b]) * w for _ in range(h))
@@ -105,22 +105,37 @@ jobs:
                   return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
               ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
               data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
-              with open(path, "wb") as f:
-                  f.write(data)
-              print(f"Generated placeholder: {path}")
+              open(path, "wb").write(data)
 
           icon_dir = "res/icon/android"
           os.makedirs(icon_dir, exist_ok=True)
           sizes = {"ldpi": 36, "mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
-          for name, size in sizes.items():
+
+          best = None
+          best_size = 0
+          for name in sizes:
               b64p = f"{icon_dir}/{name}.png.b64"
-              pngp = f"{icon_dir}/{name}.png"
-              if os.path.isfile(b64p) and os.path.getsize(b64p) > 100:
-                  raw = base64.b64decode(open(b64p).read().strip())
-                  open(pngp, "wb").write(raw)
-                  print(f"Decoded logo icon: {pngp} ({len(raw)} bytes)")
-              else:
-                  write_png(pngp, size, size)
+              if os.path.isfile(b64p) and os.path.getsize(b64p) > 500:
+                  try:
+                      raw = base64.b64decode(open(b64p).read().strip())
+                      img = Image.open(BytesIO(raw)).convert("RGBA")
+                      if img.size[0] >= best_size:
+                          best = img
+                          best_size = img.size[0]
+                      print(f"Loaded logo from {b64p}: {img.size}")
+                  except Exception as e:
+                      print(f"Skip bad b64 {b64p}: {e}")
+
+          if best is None:
+              print("No logo b64 found, using solid placeholders")
+              for name, size in sizes.items():
+                  write_solid_png(f"{icon_dir}/{name}.png", size, size)
+          else:
+              for name, size in sizes.items():
+                  pngp = f"{icon_dir}/{name}.png"
+                  img = best.resize((size, size), Image.Resampling.LANCZOS)
+                  img.save(pngp, "PNG", optimize=True)
+                  print(f"Wrote logo icon {pngp} ({size}x{size})")
 
           splashes = {
               "land-ldpi": (320, 200), "land-mdpi": (480, 320),
@@ -129,7 +144,7 @@ jobs:
               "port-hdpi": (480, 800), "port-xhdpi": (720, 1280),
           }
           for name, (w, h) in splashes.items():
-              write_png(f"res/screen/android/splash-{name}.png", w, h)
+              write_solid_png(f"res/screen/android/splash-{name}.png", w, h)
 
           bg_path = f"{icon_dir}/ic_launcher_background.xml"
           fg_path = f"{icon_dir}/ic_launcher_foreground.xml"
